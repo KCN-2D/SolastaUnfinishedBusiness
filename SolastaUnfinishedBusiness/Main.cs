@@ -86,26 +86,19 @@ internal static class Main
         ModEntry = modEntry;
         IsApplicationQuitting = false;
         ApplicationQuitCleanupStarted = false;
-        Application.quitting -= OnApplicationQuitting;
-        Application.quitting += OnApplicationQuitting;
 
         var now = DateTime.Now;
         var assembly = Assembly.GetExecutingAssembly();
+        var translationsStarted = false;
 
-        var compatibility = UmmCompatibility.CheckRuntime();
-        Info(compatibility.LogMessage);
-
-        if (!compatibility.IsSupported)
-        {
-            return false;
-        }
-
-        EnsureFolderExists(SettingsFolder);
-        PortraitsContext.EnsureFolderExists();
-        SaveByLocationContext.EnsureFoldersExist();
+        UmmCompatibility.LogRuntime();
 
         try
         {
+            EnsureFolderExists(SettingsFolder);
+            PortraitsContext.EnsureFolderExists();
+            SaveByLocationContext.EnsureFoldersExist();
+
             Mod = new ModManager<Core, Settings>();
             Mod.Enable(modEntry, assembly);
             LoadingContext.Initialize();
@@ -131,11 +124,26 @@ internal static class Main
                 Enabled = true;
             };
 
+            translationsStarted = true;
             TranslatorContext.EarlyLoad();
+
+            Application.quitting -= OnApplicationQuitting;
+            Application.quitting += OnApplicationQuitting;
         }
         catch (Exception ex)
         {
             TryCleanup(LoadingContext.Unload);
+            if (translationsStarted)
+            {
+                TryCleanup(TranslatorContext.Unload);
+            }
+
+            TryCleanup(() => Mod?.Unload(modEntry));
+            modEntry.OnUnload = null;
+            modEntry.OnShowGUI = null;
+            Enable = null;
+            Enabled = false;
+
             Error(ex);
             throw;
         }

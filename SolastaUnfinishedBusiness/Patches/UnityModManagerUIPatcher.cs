@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
-using System.Threading.Tasks;
 using HarmonyLib;
 using JetBrains.Annotations;
+using UnityEngine;
 using UnityModManagerNet;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -16,30 +16,44 @@ public static class UnityModManagerUIPatcher
     {
         //PATCH: prevents game from receiving input if Mod UI is open
         [UsedImplicitly]
-        // ReSharper disable once AsyncVoidMethod
-        public static async void Postfix(bool open)
+        public static void Prefix(UnityModManager.UI __instance, out bool __state)
         {
-            await ModManagerUI.Set(open);
+            __state = __instance.Opened;
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(UnityModManager.UI __instance, bool __state)
+        {
+            ModManagerUI.Set(__state, __instance.Opened);
         }
     }
 
     public static class ModManagerUI
     {
-        public static bool IsOpen { get; private set; }
+        private const float InputReleaseDelay = 0.1f;
+        private static float _releaseInputAt;
 
-        public static async Task Set(bool open)
+        public static bool IsOpen
         {
-            if (open)
+            get
             {
-                IsOpen = true;
-            }
-            else
-            {
-                // wait 100ms to allow UI to close before setting IsOpen to false
-                await Task.Delay(100);
+                var ui = UnityModManager.UI.Instance;
 
-                // but use actual state of UI in case someone quickly opens it again
-                IsOpen = UnityModManager.UI.Instance?.Opened == true;
+                return ui && (ui.Opened || Time.realtimeSinceStartup < _releaseInputAt);
+            }
+        }
+
+        internal static void Set(bool wasOpen, bool isOpen)
+        {
+            if (isOpen)
+            {
+                _releaseInputAt = 0;
+            }
+            else if (wasOpen)
+            {
+                // Keep the closing input out of the game. A subsequent close must
+                // own its full delay even if the window was briefly reopened.
+                _releaseInputAt = Time.realtimeSinceStartup + InputReleaseDelay;
             }
         }
     }

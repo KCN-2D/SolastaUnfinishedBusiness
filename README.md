@@ -8,8 +8,7 @@
 
 ## まず知っておくこと
 
-- Unity Mod Manager は `0.32.4a` を標準にしています。
-- 古い Unity Mod Manager は優先しません。安定しない場合は `0.32.4a` を使ってください。
+- Unity Mod Manager は `0.33.2` を使ってください。
 - 既存のセーブデータ、キャラクター、設定は先にバックアップしてください。
 
 ## 用意するもの
@@ -33,6 +32,8 @@ Unity Mod Manager は、Solasta にカスタム版を読み込ませるために
 9. `Install` を押します。
 10. エラーが出なければ、Solasta を起動します。
 11. ゲーム起動時に Unity Mod Manager の画面が出るか確認します。
+
+管理ツール本体を新しい版へ置き換えた場合も、Solasta を選び直して、ゲームに導入済みの Unity Mod Manager を更新してください。
 
 Solasta のフォルダが分からない場合は、Steam から確認できます。
 
@@ -87,7 +88,7 @@ VOICEVOX を使わず、ダウンロードした日本語の Piper 音声やイ�
 
 まず、次を確認してください。
 
-- Unity Mod Manager `0.32.4a` を使っている。
+- Solasta に Unity Mod Manager `0.33.2` を導入している。
 - Solasta のフォルダを正しく選んでいる。
 - `SolastaUnfinishedBusiness.zip` を展開せず、そのまま Unity Mod Manager に入れている。
 - Solasta を起動したとき、Unity Mod Manager の画面が出ている。

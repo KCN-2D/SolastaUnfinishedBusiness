@@ -3,7 +3,7 @@
   "DisplayName": "<i>[<b>Un</b>]</i> <color=Orange>Finished Business</color>",
   "Version": "1.5.97.127",
   "GameVersion": "1.5.97",
-  "ManagerVersion": "0.24.0",
+  "ManagerVersion": "0.33.2",
   "AssemblyName": "SolastaUnfinishedBusiness.dll",
   "EntryMethod": "SolastaUnfinishedBusiness.Main.Load",
   "HomePage": "https://github.com/EnderWiggin/SolastaUnfinishedBusiness/wiki",
