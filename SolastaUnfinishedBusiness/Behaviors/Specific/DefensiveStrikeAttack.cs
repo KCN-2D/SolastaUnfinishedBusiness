@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System;
 using System.Linq;
 using JetBrains.Annotations;
@@ -52,8 +52,8 @@ internal static class DefensiveStrikeAttack
     {
         var unitCharacter = unit.RulesetCharacter;
 
-        if (!TargetingContext.IsValidOffensiveTarget(unit, attacker) ||
-            !TargetingContext.IsValidOffensiveTarget(defender, attacker) ||
+        if (!TargetingContext.IsValidOffensiveReactionTarget(unit, attacker) ||
+            !TargetingContext.IsValidOffensiveReactionTarget(defender, attacker) ||
             sourceAction is { AttackRollOutcome: not (RollOutcome.Success or RollOutcome.CriticalSuccess) } ||
             defender.IsOppositeSide(unit.Side) ||
             unit == defender ||
@@ -194,8 +194,8 @@ internal static class DefensiveStrikeAttack
                 defender.IsCharging || defender.MoveStepInProgress ||
                 !defender.CanReact() ||
                 !unit.CanSeeTarget(defender) || defender.IsOppositeSide(unit.Side) ||
-                !TargetingContext.IsValidOffensiveTarget(unit, attacker) ||
-                !TargetingContext.IsValidOffensiveTarget(defender, attacker) ||
+                !TargetingContext.IsValidOffensiveReactionTarget(unit, attacker) ||
+                !TargetingContext.IsValidOffensiveReactionTarget(defender, attacker) ||
                 !unitCharacter.HasSubFeatureOfType<DefensiveStrikeMarker>() ||
                 !channelCommitted && unitCharacter.UsedChannelDivinity >=
                 unitCharacter.TryGetAttributeValue(AttributeDefinitions.ChannelDivinityNumber))

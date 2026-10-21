@@ -20,6 +20,6 @@ Reaction/&CustomReactionArcaneDeflectionSavingReactTitle=Deviazione Arcana
 Reaction/&CustomReactionArcaneDeflectionSavingTitle=Deviazione Arcana
 Subclass/&WizardWarMagicDescription=Una varietà di college arcani è specializzata nell'addestramento di maghi per la guerra. La tradizione della magia di guerra fonde i principi di evocazione e abiura, piuttosto che specializzarsi in una di queste scuole. Insegna tecniche che potenziano gli incantesimi di un incantatore, fornendo anche metodi per i maghi per rafforzare le proprie difese. I seguaci di questa tradizione sono noti come maghi di guerra. Vedono la loro magia sia come un'arma che come un'armatura, una risorsa superiore a qualsiasi pezzo di acciaio. I maghi di guerra agiscono rapidamente in battaglia, usando i loro incantesimi per prendere il controllo tattico di una situazione. I loro incantesimi colpiscono duramente, mentre le loro abilità difensive sventano i tentativi di contrattacco degli avversari. I maghi di guerra sono anche abili nel rivolgere l'energia magica di altri incantatori contro di loro.
 Subclass/&WizardWarMagicTitle=Magia di guerra
-Condition/&ConditionWarMagicArcaneDeflectionRestrictionTitle=Solo trucchetti
+Condition/&ConditionWarMagicArcaneDeflectionRestrictionTitle=Affaticamento arcano
 Condition/&ConditionWarMagicArcaneDeflectionRestrictionDescription=Puoi lanciare solo trucchetti fino alla fine del tuo prossimo turno.
 Failure/&FailureFlagWarMagicArcaneDeflectionCantripsOnly=Non puoi lanciare incantesimi di 1° livello o superiore fino alla fine del tuo prossimo turno.

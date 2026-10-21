@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -840,8 +840,18 @@ public sealed class SorcerousWildMagic : AbstractSubclass
             helper.RulesetCharacter.CanUsePower(powerBendLuck, considerHaving: true) &&
             helper.RulesetCharacter.GetRemainingUsesOfPower(usablePower) > 0;
 
-        private bool CanModifyRoll(GameLocationCharacter helper, GameLocationCharacter target, bool addBonus) =>
-            addBonus ? helper.Side == target.Side : TargetingContext.IsValidOffensiveTarget(helper, target, powerBendLuck);
+        private bool CanModifyRoll(GameLocationCharacter helper, GameLocationCharacter target, bool addBonus)
+        {
+            if (!addBonus)
+            {
+                return TargetingContext.IsValidOffensiveReactionTarget(helper, target, powerBendLuck);
+            }
+
+            // Autonomous casters retain their original supportive side preference.
+            return helper.Side == target.Side || Main.Settings.AllowPartyFriendlyFire &&
+                TargetingContext.IsManualPartyActor(helper) &&
+                TargetingContext.IsBeneficialTargetAllowed(helper, target);
+        }
 
         public IEnumerator OnTryAlterOutcomeAttack(
             GameLocationBattleManager battleManager,
@@ -876,10 +886,11 @@ public sealed class SorcerousWildMagic : AbstractSubclass
                 usablePower,
                 attacker,
                 stringParameter,
-                $"SpendPower{stringParameter}Description".Formatted(Category.Reaction, defender.Name),
+                $"SpendPower{stringParameter}Description".Formatted(Category.Reaction, attacker.Name),
                 ReactionValidated,
                 battleManager,
-                reactionStillValid: ReactionStillValid);
+                reactionStillValid: ReactionStillValid,
+                recipient: attacker, beneficial: addBonus);
 
             yield break;
 
@@ -982,7 +993,8 @@ public sealed class SorcerousWildMagic : AbstractSubclass
                 $"SpendPower{stringParameter}Description".Formatted(Category.Reaction, defender.Name),
                 ReactionValidated,
                 battleManager,
-                reactionStillValid: ReactionStillValid);
+                reactionStillValid: ReactionStillValid,
+                recipient: defender, beneficial: addBonus);
 
             yield break;
 
@@ -1088,7 +1100,8 @@ public sealed class SorcerousWildMagic : AbstractSubclass
                     defender.Name, attacker?.Name ?? ReactionRequestCustom.EnvTitle, savingThrowData.Title),
                 ReactionValidated,
                 battleManager,
-                reactionStillValid: ReactionStillValid);
+                reactionStillValid: ReactionStillValid,
+                recipient: defender, beneficial: addBonus);
 
             yield break;
 

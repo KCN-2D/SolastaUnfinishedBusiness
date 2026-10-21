@@ -201,6 +201,7 @@ public static class CharacterActionPatcher
             var actingCharacter = __instance.ActingCharacter;
             using var reactionEngagementScope =
                 new ExplorationReactionEngagementScope(__instance, actingCharacter);
+            using var spellSlotScope = SpellSlotCastingLimit2024Context.BeginAction(__instance);
 
             CivilianAnimationContext.InterruptCivilianReaction(actingCharacter?.RulesetCharacter);
 

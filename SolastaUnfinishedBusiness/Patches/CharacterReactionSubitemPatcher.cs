@@ -29,8 +29,23 @@ public static class CharacterReactionSubitemPatcher
             RulesetSpellRepertoire spellRepertoire,
             int slotLevel)
         {
-            if (SpellSelectionContext.TryGetOption(spellRepertoire, out _))
+            if (SpellSelectionContext.TryGetOption(spellRepertoire, out var option))
             {
+                if (!option.IsFree)
+                {
+                    var pact = option.Repertoire.SpellCastingClass ==
+                        Api.DatabaseHelper.CharacterClassDefinitions.Warlock;
+                    MulticlassGameUi.PaintSlotImages(__instance.slotStatusTable, pact);
+                    if (!pact && option.Repertoire.UsesSharedSpellSlots() &&
+                        option.Repertoire.GetCaster().IsSpellPointsEnabled())
+                    {
+                        for (var index = 0; index < __instance.slotStatusTable.childCount; ++index)
+                        {
+                            __instance.slotStatusTable.GetChild(index).gameObject.SetActive(false);
+                        }
+                    }
+                }
+
                 return;
             }
 

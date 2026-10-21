@@ -187,6 +187,7 @@ internal static class SpellCastingResourceContext
         internal bool IsFree => Kind != ResourceKind.SpellSlot;
         internal string SourceTitle => Kind switch
         {
+            ResourceKind.SpellSlot => Repertoire.FormatHeader(),
             ResourceKind.SpellMastery => Level20Context.WizardSpellMastery.FeatureSpellMastery.FormatTitle(),
             ResourceKind.SignatureSpell => Level20Context.WizardSignatureSpells.PowerSignatureSpells.FormatTitle(),
             _ => CastingRepertoire == Repertoire
@@ -258,6 +259,16 @@ internal static class SpellCastingResourceContext
             if (Kind == ResourceKind.FreeRepertoire && IsUnlimitedFreeSpellRepertoire(Repertoire, SlotLevel))
             {
                 remaining = maximum = -1;
+                return;
+            }
+
+            if (Kind == ResourceKind.SpellSlot && HasExplicitPaymentOwner)
+            {
+                Repertoire.GetSharedAndPactSlotNumbers(caster, SlotLevel,
+                    out var sharedRemaining, out var sharedMaximum, out var pactRemaining, out var pactMaximum);
+                var pact = Repertoire.SpellCastingClass == Api.DatabaseHelper.CharacterClassDefinitions.Warlock;
+                remaining = pact ? pactRemaining : sharedRemaining;
+                maximum = pact ? pactMaximum : sharedMaximum;
                 return;
             }
 
@@ -715,6 +726,11 @@ internal static class SpellCastingResourceContext
     {
         return TryGetOption(request, GetSelectedOption(request), out option);
     }
+
+    internal static bool NeedsPaymentSourceCaption(ReactionRequest request, ResourceOption option) =>
+        request != null && !option.IsFree && Requests.TryGetValue(request, out var resources) &&
+        resources.Options.Any(other => !other.IsFree && other.SlotLevel == option.SlotLevel &&
+                                       other.Repertoire != option.Repertoire);
 
     internal static int GetSelectedOption(ReactionRequest request)
     {

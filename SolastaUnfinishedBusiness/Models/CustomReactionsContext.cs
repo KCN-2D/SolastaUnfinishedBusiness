@@ -27,26 +27,10 @@ internal static class CustomReactionsContext
 
         var sections = new List<string>();
         var selected = selectedSubOption >= 0 ? selectedSubOption : request.SelectedSubOption;
-        IEnumerable<GameLocationCharacter> targetCharacters = request.ReactionParams.TargetCharacters;
         var effectDefinition = GetReactionEffectDefinition(request, selected);
-
-        switch (request)
-        {
-            case ReactionRequestCustom { Target: not null } customRequest:
-                targetCharacters = new[] { customRequest.Target };
-                break;
-            case ReactionRequestSelectTarget targetRequest:
-                targetCharacters = selected >= 0 && selected < targetRequest.Candidates.Count
-                    ? new[] { targetRequest.Candidates[selected] }
-                    : [];
-                break;
-            case ReactionRequestSpendBundlePower bundleRequest:
-                var bundlePower = effectDefinition as FeatureDefinitionPower;
-                targetCharacters = bundlePower == null ? [] : new[] { bundleRequest.GetTargetForPower(bundlePower) };
-                break;
-        }
-
-        var targets = targetCharacters
+        var effectContext = ReactionRequestCallback.GetEffectContext(request.ReactionParams);
+        var effects = GetReactionEffectTargets(request, selected).ToArray();
+        var targets = effects.SelectMany(effect => effect.Targets)
             .Where(target => target?.RulesetCharacter != null)
             .GroupBy(target => target.Guid)
             .Select(group => ReactionCharacterNameFormatter.Format(group.First()))
@@ -60,13 +44,37 @@ internal static class CustomReactionsContext
             sections.Add(Gui.Format("Reaction/&CustomReactionTargetContextFormat", string.Join(", ", targets)));
         }
 
-        var harmful = request is ReactionRequestSelectTarget { IsOffensive: true } ||
-                      TargetingContext.IsHarmfulEffect(request.ReactionParams.RulesetEffect?.SourceDefinition,
-                          request.ReactionParams.RulesetEffect?.EffectDescription);
-        if (harmful && targetCharacters.Any(target =>
+        if (request is IReactionRequestMultiSelection { Selection: { Budget: { } budget } selection })
+        {
+            sections.Add(Gui.Format("Reaction/&SubitemSelectionCostFormat",
+                selection.Cost.ToString(), budget.ToString()));
+        }
+        if (request is IReactionRequestMultiSelection { Selection: { Count: > 0, IsGroupValid: false } })
+        {
+            sections.Add(Gui.Localize("Reaction/&PartyOnlyHarmfulInterruptsSuppressedDescription"));
+        }
+
+        var adverseTargets = effects.Where(effect => effectContext?.Beneficial == false ||
+                effectContext?.Beneficial != true && (
+                request is ReactionRequestSelectTarget { IsOffensive: true } ||
+                TargetingContext.IsHarmfulInterruptEffect(effect.Definition,
+                    GetReactionEffectDescription(request, effect.Definition))))
+            .SelectMany(effect => effect.Targets).Where(target => target?.RulesetCharacter != null)
+            .GroupBy(target => target.Guid).Select(group => group.First()).ToArray();
+        if (adverseTargets.Any(target =>
                 TargetingContext.IsPartyAllyTarget(request.Character, target, true)))
         {
-            sections.Add(Gui.Localize("Caption/&FriendlyFireWarning"));
+            sections.Add(TargetingContext.FormatPartyTargetWarning(request.Character, adverseTargets));
+        }
+        var supportedEnemies = effects.Where(effect => effectContext?.Beneficial == true ||
+                effectContext?.Beneficial != false && (request is ReactionRequestSelectTarget { IsBeneficial: true } ||
+                TargetingContext.IsBeneficialEffect(effect.Definition,
+                    GetReactionEffectDescription(request, effect.Definition))))
+            .SelectMany(effect => effect.Targets).Where(target =>
+                target != null && request.Character.IsOppositeSide(target.Side)).ToArray();
+        if (supportedEnemies.Length > 0)
+        {
+            sections.Add(TargetingContext.FormatPartyTargetWarning(request.Character, supportedEnemies, hostileAid: true));
         }
 
         // Action names already shown in the heading or selection list need no second label.
@@ -84,6 +92,51 @@ internal static class CustomReactionsContext
         }
 
         return string.Join("\n", sections);
+    }
+
+    private static IEnumerable<(BaseDefinition Definition, IEnumerable<GameLocationCharacter> Targets)>
+        GetReactionEffectTargets(ReactionRequest request, int selected)
+    {
+        var definition = GetReactionEffectDefinition(request, selected);
+        if (ReactionRequestCallback.GetEffectContext(request.ReactionParams) is { } context)
+        {
+            yield return (context.Definition, new[] { context.Target });
+            yield break;
+        }
+        switch (request)
+        {
+            case ReactionRequestSpendBundlePower bundle:
+                IEnumerable<FeatureDefinitionPower> powers = bundle.Selection != null ? bundle.SelectedPowers :
+                    definition is FeatureDefinitionPower power ? [power] : [];
+                foreach (var selectedPower in powers)
+                {
+                    var effect = bundle.GetEffectContext(selectedPower);
+                    yield return (effect.Definition, new[] { effect.Target });
+                }
+                break;
+            case ReactionRequestCustom { Target: not null } custom:
+                yield return (definition, new[] { custom.Target });
+                break;
+            case ReactionRequestSelectTarget target:
+                yield return (definition, target.Selection != null ? target.SelectedTargets :
+                    selected >= 0 && selected < target.Candidates.Count ? new[] { target.Candidates[selected] } : []);
+                break;
+            default:
+                yield return (definition, request.ReactionParams.TargetCharacters);
+                break;
+        }
+    }
+
+    private static EffectDescription GetReactionEffectDescription(ReactionRequest request, BaseDefinition definition)
+    {
+        var effect = request.ReactionParams.RulesetEffect;
+        var source = effect is RulesetEffectSpell spell ? RulesetEffectSpellWithOrigin.GetOriginSpell(spell) :
+            effect?.SourceDefinition;
+        // A hovered alternative must not inherit the current selection's dynamic
+        // description. The matching live effect owns its modified forms and targets.
+        return definition != null && effect != null && source == definition
+            ? effect.EffectDescription
+            : (definition as IMagicEffect)?.EffectDescription;
     }
 
     internal static string FormatReactionTooltipDescription(ReactionRequest request, int selectedSubOption = -1)
@@ -114,6 +167,10 @@ internal static class CustomReactionsContext
 
     private static BaseDefinition GetReactionEffectDefinition(ReactionRequest request, int selected)
     {
+        if (ReactionRequestCallback.GetEffectContext(request.ReactionParams)?.Definition is { } contextDefinition)
+        {
+            return contextDefinition;
+        }
         BaseDefinition definition = request.ReactionParams.RulesetEffect switch
         {
             RulesetEffectSpell effect => RulesetEffectSpellWithOrigin.GetOriginSpell(effect),

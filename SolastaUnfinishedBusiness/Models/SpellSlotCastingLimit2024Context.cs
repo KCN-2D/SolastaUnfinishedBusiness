@@ -16,6 +16,10 @@ internal static class SpellSlotCastingLimit2024Context
 
     private static readonly ConditionalWeakTable<RulesetCharacter, TurnUsage>
         TurnUsages = new();
+    private static readonly ConditionalWeakTable<RulesetCharacter, ExplorationUsage>
+        ExplorationUsages = new();
+    private static readonly ConditionalWeakTable<RulesetCharacter, List<SpellSlotPaymentCapture>>
+        PendingPayments = new();
 
     private static long _turnGeneration;
 
@@ -286,17 +290,37 @@ internal static class SpellSlotCastingLimit2024Context
     {
         var usageOwner = GetTurnUsageOwner(caster);
 
-        if (!Main.Settings.EnableOneSpellSlotPerTurn2024 ||
-            ServiceRepository.GetService<IGameLocationBattleService>() is not
-            { IsBattleInProgress: true } ||
-            usageOwner == null ||
-            !TurnUsages.TryGetValue(usageOwner, out var usage))
+        if (!Main.Settings.EnableOneSpellSlotPerTurn2024 || usageOwner == null)
         {
             return false;
         }
 
-        return usage.Generation == _turnGeneration && usage.Count > 0;
+        // Exploration has no combat turn, but a cast and its nested interruptions
+        // are still one action. Do not reset that cast's budget before a self-reaction.
+        if (ExplorationUsages.TryGetValue(usageOwner, out var exploration) &&
+            exploration.Generation == _turnGeneration && exploration.Count > 0)
+        {
+            return true;
+        }
+
+        // Native resource refresh callbacks run before the spending method returns.
+        // Observe actual deltas during that interval, without charging preserved or free casts.
+        if (PendingPayments.TryGetValue(usageOwner, out var pending) &&
+            pending.Any(payment => payment.HasCurrentPayment))
+        {
+            return true;
+        }
+
+        return ServiceRepository.GetService<IGameLocationBattleService>() is { IsBattleInProgress: true } &&
+               TurnUsages.TryGetValue(usageOwner, out var usage) &&
+               usage.Generation == _turnGeneration && usage.Count > 0;
     }
+
+    internal static IDisposable BeginAction(CharacterAction action) =>
+        ServiceRepository.GetService<IGameLocationBattleService>() is { IsBattleInProgress: true } ||
+        GetTurnUsageOwner(action?.ActingCharacter?.RulesetCharacter) is not { } owner
+            ? null
+            : new ExplorationActionScope(owner);
 
     internal static void RecordSpellSlotExpenditure(RulesetSpellRepertoire repertoire, int slotLevel)
     {
@@ -418,18 +442,28 @@ internal static class SpellSlotCastingLimit2024Context
         Dictionary<RulesetSpellRepertoire, Dictionary<int, int>> slotDeltas,
         RulesetUsablePower spellPointPool,
         int spentSpellPoints,
-        int expenditures)
+        int expenditures,
+        long paymentGeneration)
     {
         var usageOwner = GetTurnUsageOwner(caster);
         var markerIncremented = false;
+        ExplorationUsage explorationUsage = null;
 
-        if (Main.Settings.EnableOneSpellSlotPerTurn2024 &&
-            ServiceRepository.GetService<IGameLocationBattleService>() is
-            { IsBattleInProgress: true })
+        if (Main.Settings.EnableOneSpellSlotPerTurn2024 && paymentGeneration == _turnGeneration)
         {
-            var usage = GetOrCreateCurrentTurnUsage(usageOwner);
-            usage.Count++;
-            markerIncremented = true;
+            if (ServiceRepository.GetService<IGameLocationBattleService>() is { IsBattleInProgress: true })
+            {
+                var usage = GetOrCreateCurrentTurnUsage(usageOwner);
+                usage.Count++;
+                markerIncremented = true;
+            }
+
+            if (ExplorationUsages.TryGetValue(usageOwner, out var exploration) &&
+                exploration.Generation == _turnGeneration)
+            {
+                explorationUsage = exploration;
+                explorationUsage.Count++;
+            }
         }
 
         SpellSlotPayments.Remove(activeSpell);
@@ -442,8 +476,9 @@ internal static class SpellSlotCastingLimit2024Context
                 spellPointPool,
                 spentSpellPoints,
                 markerIncremented,
+                explorationUsage,
                 expenditures,
-                _turnGeneration));
+                paymentGeneration));
     }
 
     internal sealed class SpellSlotPaymentCapture : IDisposable
@@ -454,7 +489,14 @@ internal static class SpellSlotCastingLimit2024Context
         private readonly RulesetUsablePower _spellPointPool;
         private readonly int _spellPointsBefore;
         private readonly int _expendituresBefore;
+        private readonly RulesetCharacter _usageOwner;
+        private readonly long _generation;
         private bool _completed;
+
+        internal bool HasCurrentPayment => !_completed && _generation == _turnGeneration &&
+            ((_spellPointPool != null && _spellPointPool.remainingUses < _spellPointsBefore) ||
+             _slotsBefore.Any(entry => entry.Key.usedSpellsSlots.Any(slot =>
+                 slot.Value > (entry.Value.TryGetValue(slot.Key, out var before) ? before : 0))));
 
         internal SpellSlotPaymentCapture(
             RulesetCharacter caster,
@@ -465,7 +507,7 @@ internal static class SpellSlotCastingLimit2024Context
             _activeSpell = activeSpell;
             _expendituresBefore = GetSpellSlotExpenditureCount(caster);
             _slotsBefore = caster.SpellRepertoires
-                .Where(candidate => candidate != null)
+                .Where(UsesActualSpellSlots)
                 .Append(spendingRepertoire)
                 .Distinct()
                 .ToDictionary(
@@ -474,6 +516,9 @@ internal static class SpellSlotCastingLimit2024Context
             _spellPointPool = caster.UsablePowers.FirstOrDefault(
                 usablePower => usablePower.PowerDefinition == SpellPointsContext.PowerSpellPoints);
             _spellPointsBefore = _spellPointPool?.remainingUses ?? 0;
+            _usageOwner = GetTurnUsageOwner(caster);
+            _generation = _turnGeneration;
+            PendingPayments.GetOrCreateValue(_usageOwner).Add(this);
         }
 
         internal void Complete()
@@ -484,6 +529,14 @@ internal static class SpellSlotCastingLimit2024Context
             }
 
             _completed = true;
+            if (PendingPayments.TryGetValue(_usageOwner, out var pending))
+            {
+                pending.Remove(this);
+                if (pending.Count == 0)
+                {
+                    PendingPayments.Remove(_usageOwner);
+                }
+            }
             var slotDeltas = new Dictionary<RulesetSpellRepertoire, Dictionary<int, int>>();
             var hasConsumedSlot = false;
 
@@ -528,7 +581,8 @@ internal static class SpellSlotCastingLimit2024Context
                 slotDeltas,
                 _spellPointPool,
                 spentSpellPoints,
-                Math.Max(0, GetSpellSlotExpenditureCount(_caster) - _expendituresBefore));
+                Math.Max(0, GetSpellSlotExpenditureCount(_caster) - _expendituresBefore),
+                _generation);
         }
 
         public void Dispose()
@@ -544,6 +598,7 @@ internal static class SpellSlotCastingLimit2024Context
         RulesetUsablePower spellPointPool,
         int spentSpellPoints,
         bool markerIncremented,
+        ExplorationUsage explorationUsage,
         int expenditures,
         long paymentGeneration)
     {
@@ -564,6 +619,11 @@ internal static class SpellSlotCastingLimit2024Context
 
             // Publish the refund only after slots and the turn expenditure agree.
             // UI refresh callbacks can immediately ask whether another slot may be spent.
+            if (explorationUsage != null)
+            {
+                explorationUsage.Count = Math.Max(0, explorationUsage.Count - 1);
+            }
+
             if (paymentGeneration == _turnGeneration &&
                 usageOwner != null &&
                 TurnUsages.TryGetValue(usageOwner, out var usage) &&
@@ -594,6 +654,47 @@ internal static class SpellSlotCastingLimit2024Context
         internal int Count { get; set; }
         internal int ExpenditureCount { get; set; }
         internal long Generation { get; set; }
+    }
+
+    private sealed class ExplorationUsage
+    {
+        internal int ActiveActions { get; set; }
+        internal int Count { get; set; }
+        internal long Generation { get; } = _turnGeneration;
+    }
+
+    private sealed class ExplorationActionScope : IDisposable
+    {
+        private readonly RulesetCharacter _owner;
+        private readonly ExplorationUsage _usage;
+        private bool _disposed;
+
+        internal ExplorationActionScope(RulesetCharacter owner)
+        {
+            _owner = owner;
+            if (!ExplorationUsages.TryGetValue(owner, out _usage) || _usage.Generation != _turnGeneration)
+            {
+                ExplorationUsages.Remove(owner);
+                _usage = new ExplorationUsage();
+                ExplorationUsages.Add(owner, _usage);
+            }
+            _usage.ActiveActions++;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            if (--_usage.ActiveActions == 0 &&
+                ExplorationUsages.TryGetValue(_owner, out var current) && ReferenceEquals(current, _usage))
+            {
+                ExplorationUsages.Remove(_owner);
+            }
+        }
     }
 
     internal enum ReactionSpellSlotMode

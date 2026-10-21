@@ -35,10 +35,14 @@ public static class CursorLocationSelectTargetPatcher
         CursorLocation cursor, GameLocationCharacter actor, IEnumerable<GameLocationCharacter> targets,
         bool harmful, bool standalone = false)
     {
-        var show = Main.Settings.AllowPartyFriendlyFire && harmful && TargetingContext.IsManualPartyActor(actor) &&
-                   targets.Any(target => TargetingContext.IsPartyAllyTarget(actor, target, true));
+        if (!Main.Settings.AllowPartyFriendlyFire || !harmful || !TargetingContext.IsManualPartyActor(actor))
+        {
+            ClearFriendlyFireWarning(cursor);
+            return;
+        }
 
-        if (!show)
+        var affectedTargets = targets?.Where(target => target != null).Distinct().ToArray() ?? [];
+        if (!affectedTargets.Any(target => TargetingContext.IsPartyAllyTarget(actor, target, true)))
         {
             ClearFriendlyFireWarning(cursor);
             return;
@@ -51,7 +55,7 @@ public static class CursorLocationSelectTargetPatcher
         }
 
         var caption = FriendlyFireCaptions.GetValue(cursor, _ => new FriendlyFireCaption());
-        var warning = Gui.Localize("Caption/&FriendlyFireWarning");
+        var warning = TargetingContext.FormatPartyTargetWarning(actor, affectedTargets);
 
         if (standalone)
         {
@@ -119,6 +123,22 @@ public static class CursorLocationSelectTargetPatcher
     [UsedImplicitly]
     public static class IsValidTarget_Patch
     {
+        [UsedImplicitly]
+        public static void Postfix(CursorLocationSelectTarget __instance, GameLocationCharacter __0,
+            ref bool __result)
+        {
+            if (!__result)
+            {
+                return;
+            }
+
+            var parameters = __instance.ActionParams;
+            __result = TargetingContext.IsEffectRecipientAllowed(parameters?.ActingCharacter, __0,
+                parameters?.RulesetEffect?.SourceDefinition ?? parameters?.AttackMode?.SourceDefinition,
+                __instance.effectDescription ?? parameters?.RulesetEffect?.EffectDescription ??
+                parameters?.AttackMode?.EffectDescription);
+        }
+
         [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {

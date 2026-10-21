@@ -407,7 +407,9 @@ public class PatronCelestial : AbstractSubclass
                 defender.MyExecuteActionSpendPower(PowerProvider.Get(powerSearingVengeanceBurst, rulesetCharacter),
                     targets, () => SourceStillValid() && targets.All(target => CandidateValid(target) &&
                         TargetingContext.IsValidOffensiveTarget(defender, target, powerSearingVengeance,
-                            powerSearingVengeance.EffectDescription)));
+                            powerSearingVengeance.EffectDescription)) &&
+                        TargetingContext.IsHarmfulInterruptTargetsAllowed(defender, targets,
+                            powerSearingVengeance, powerSearingVengeance.EffectDescription));
             }
 
             yield break;

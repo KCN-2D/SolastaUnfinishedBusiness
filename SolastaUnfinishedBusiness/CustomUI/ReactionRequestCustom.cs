@@ -21,10 +21,39 @@ public static class ReactionRequestCallback
 {
     private static readonly ConditionalWeakTable<CharacterActionParams, Func<bool>> Validations = new();
     private static readonly ConditionalWeakTable<CharacterActionParams, ExecutionScope> Executions = new();
+    private static readonly ConditionalWeakTable<CharacterActionParams, object> Interruptions = new();
+    private static readonly ConditionalWeakTable<CharacterActionParams, EffectContext> EffectContexts = new();
+
+    // A resource-spending action can alter another creature's roll without
+    // delivering its pool power to that creature. Keep presentation separate.
+    internal sealed class EffectContext(GameLocationCharacter target, BaseDefinition definition, bool? beneficial)
+    {
+        internal GameLocationCharacter Target { get; } = target;
+        internal BaseDefinition Definition { get; } = definition;
+        internal bool? Beneficial { get; } = beneficial;
+    }
+
+    internal static void SetEffectContext(CharacterActionParams parameters, GameLocationCharacter target,
+        BaseDefinition definition, bool? beneficial)
+    {
+        EffectContexts.Remove(parameters);
+        if (target != null) EffectContexts.Add(parameters, new EffectContext(target, definition, beneficial));
+    }
+
+    internal static EffectContext GetEffectContext(CharacterActionParams parameters) =>
+        parameters != null && EffectContexts.TryGetValue(parameters, out var context) ? context : null;
 
     [ThreadStatic] private static CharacterActionParams _validating;
 
     internal static CharacterActionParams Validating => _validating;
+
+    internal static void TrackInterruption(CharacterActionParams parameters)
+    {
+        if (parameters != null) Interruptions.GetOrCreateValue(parameters);
+    }
+
+    internal static bool IsInterruption(CharacterActionParams parameters) =>
+        parameters != null && Interruptions.TryGetValue(parameters, out _);
 
     internal static bool Validate(CharacterActionParams parameters, Func<bool> validation)
     {

@@ -350,7 +350,9 @@ public sealed class WizardWarMagic : AbstractSubclass
                 helper.MyExecuteActionSpendPower(usablePower, targets, () => SourceStillValid() &&
                     targets.All(target => CandidateValid(target) &&
                         TargetingContext.IsValidOffensiveTarget(helper, target, powerDeflectionShroud,
-                            powerDeflectionShroud.EffectDescription)));
+                            powerDeflectionShroud.EffectDescription)) &&
+                    TargetingContext.IsHarmfulInterruptTargetsAllowed(helper, targets, powerDeflectionShroud,
+                        powerDeflectionShroud.EffectDescription));
             }
         }
     }

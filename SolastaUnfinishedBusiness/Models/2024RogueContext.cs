@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
@@ -381,6 +382,7 @@ public static partial class Tabletop2024Context
             .AddCustomSubFeatures(
                 ModifyPowerVisibility.Hidden,
                 PowerUsesSneakDiceTooltipModifier.Instance,
+                new ReactionRequestSpendBundlePower.EffectContext(targetsSelf: true),
                 new CustomBehaviorFilterTargetingPositionHalfMove())
             .AddToDB();
 
@@ -478,6 +480,9 @@ public static partial class Tabletop2024Context
                             .Build())
                     .Build())
             .AddToDB();
+
+        powerKnockOut.AddCustomSubFeatures(
+            new ReactionRequestSpendBundlePower.EffectContext(powerKnockOutApply));
 
         // Obscure
 
@@ -603,14 +608,16 @@ public static partial class Tabletop2024Context
     internal static bool IsSneakAttackValid(
         ActionModifier attackModifier,
         GameLocationCharacter attacker,
-        GameLocationCharacter defender)
+        GameLocationCharacter defender,
+        RulesetAttackMode attackMode)
     {
-        // only trigger if it hasn't used sneak attack yet
-        if (!attacker.OncePerTurnIsValid("AdditionalDamageRogueSneakAttack") ||
-            !attacker.OncePerTurnIsValid("AdditionalDamageRoguishHoodlumNonFinesseSneakAttack") ||
-            !attacker.OncePerTurnIsValid("AdditionalDamageRoguishDuelistDaringDuel") ||
-            !attacker.OncePerTurnIsValid("AdditionalDamageRoguishSwashbucklerRakishAudacity1v1") ||
-            !attacker.OncePerTurnIsValid("AdditionalDamageRoguishUmbralStalkerDeadlyShadows"))
+        var additionalDamageDatabase = DatabaseRepository.GetDatabase<FeatureDefinitionAdditionalDamage>();
+        // All granted Sneak Attack variants share the same native notification family.
+        // Weapon eligibility uses their own providers, including subclass/custom contexts.
+        if (attackMode == null || attacker.UsedSpecialFeatures.Keys.Any(name =>
+                additionalDamageDatabase.TryGetElement(name, out var used) &&
+                used.NotificationTag == TagsDefinitions.AdditionalDamageSneakAttackTag) ||
+            !GetSneakAttackProviders(attacker, defender, attackMode).Any())
         {
             return false;
         }
@@ -632,6 +639,23 @@ public static partial class Tabletop2024Context
                 // it's an Umbral Stalker and source or target are in dim light or darkness
                 RoguishUmbralStalker.SourceOrTargetAreNotBright(attacker, defender, advantageType)
         };
+    }
+
+    private static IEnumerable<FeatureDefinitionAdditionalDamage> GetSneakAttackProviders(
+        GameLocationCharacter attacker, GameLocationCharacter defender, RulesetAttackMode attackMode)
+    {
+        var features = new List<FeatureDefinition>();
+        attacker.RulesetCharacter.EnumerateFeaturesToBrowse<IAdditionalDamageProvider>(features);
+        var implementation = ServiceRepository.GetService<IRulesetImplementationService>();
+        var item = (attackMode.SourceObject as RulesetItem)?.ItemDefinition ??
+                   attackMode.SourceDefinition as ItemDefinition;
+        return features.OfType<FeatureDefinitionAdditionalDamage>().Where(provider =>
+            provider.NotificationTag == TagsDefinitions.AdditionalDamageSneakAttackTag &&
+            (provider.TargetSide != Side.Enemy ||
+             TargetingContext.IsValidOffensiveTarget(attacker, defender, provider)) &&
+            (provider.TargetSide != Side.Ally || !attacker.IsOppositeSide(defender.Side)) &&
+            implementation?.IsValidContextForRestrictedContextProvider(provider,
+                attacker.RulesetCharacter, item, attackMode.Ranged, attackMode, null) == true);
     }
 
     internal static void SwitchRogueCunningStrike()
@@ -659,7 +683,8 @@ public static partial class Tabletop2024Context
         FeatureDefinitionPower powerWithdraw)
         : IPhysicalAttackBeforeHitConfirmedOnEnemy, IPhysicalAttackFinishedByMe
     {
-        private readonly List<FeatureDefinitionPower> _selectedPowers = [];
+        private readonly ConditionalWeakTable<RulesetAttackMode,
+            Dictionary<(ulong Attacker, ulong Defender), List<FeatureDefinitionPower>>> _selections = new();
 
         public IEnumerator OnPhysicalAttackBeforeHitConfirmedOnEnemy(
             GameLocationBattleManager battleManager,
@@ -673,71 +698,48 @@ public static partial class Tabletop2024Context
             bool firstTarget,
             bool criticalHit)
         {
-            _selectedPowers.Clear();
+            var selections = _selections.GetOrCreateValue(attackMode);
+            var selectionKey = (attacker.Guid, defender.Guid);
+            selections.Remove(selectionKey);
 
             var rulesetAttacker = attacker.RulesetCharacter;
 
             if (!rulesetAttacker.IsToggleEnabled((Id)ExtraActionId.CunningStrikeToggle) ||
-                !IsSneakAttackValid(actionModifier, attacker, defender))
+                !IsSneakAttackValid(actionModifier, attacker, defender, attackMode))
             {
                 yield break;
             }
 
-            var aborted = false;
-            var attempts = rulesetAttacker.GetClassLevel(Rogue) >= 11 ? 2 : 1;
+            var maximumEffects = rulesetAttacker.GetClassLevel(Rogue) >= 11 ? 2 : 1;
             var usablePower = PowerProvider.Get(powerRogueCunningStrike, rulesetAttacker);
-            RulesetUsablePower savedUsablePower = null;
-
-            for (var i = 0; i < attempts; i++)
+            var battle = Gui.Battle;
+            bool StillValid() => Gui.Battle == battle &&
+                rulesetAttacker is { IsDeadOrDyingOrUnconscious: false, IsIncapacitated: false } &&
+                rulesetAttacker.IsToggleEnabled((Id)ExtraActionId.CunningStrikeToggle) &&
+                ReactionRequestSelectTarget.IsCandidateValid(attacker, defender) &&
+                IsSneakAttackValid(actionModifier, attacker, defender, attackMode);
+            int AvailableDice()
             {
-                yield return attacker.MyReactToSpendPowerBundle(
-                    usablePower,
-                    [defender],
-                    attacker,
-                    powerRogueCunningStrike.Name,
-                    reactionValidated: ReactionValidated,
-                    reactionNotValidated: ReactionNotValidated,
-                    battleManager: battleManager);
-
-                if (aborted)
-                {
-                    break;
-                }
-
-                if (_selectedPowers.Count < 1)
-                {
-                    continue;
-                }
-
-                // don't offer 1st selected effect again
-                savedUsablePower = PowerProvider.Get(_selectedPowers[0], rulesetAttacker);
-                rulesetAttacker.UsablePowers.Remove(PowerProvider.Get(_selectedPowers[0], rulesetAttacker));
+                var reductions = new List<RulesetCondition>();
+                rulesetAttacker.GetAllConditionsOfType(reductions, ConditionReduceSneakDice.Name);
+                return System.Math.Max(0, (rulesetAttacker.GetClassLevel(Rogue) + 1) / 2 -
+                    reductions.Sum(condition => condition.Amount));
             }
 
-            // recover first selected usable power
-            if (savedUsablePower != null)
-            {
-                rulesetAttacker.UsablePowers.Add(savedUsablePower);
-            }
-
+            yield return attacker.MyReactToSelectPowerBundle(usablePower, defender,
+                powerRogueCunningStrike.Name, maximumEffects, AvailableDice, SelectionApplied, StillValid);
             yield break;
 
-            void ReactionValidated(ReactionRequestSpendBundlePower reactionRequest)
+            void SelectionApplied(IReadOnlyList<FeatureDefinitionPower> selected)
             {
-                // determine selected power to collect cost
-                var option = reactionRequest.SelectedSubOption;
-                var subPowers = powerRogueCunningStrike.GetBundle()?.SubPowers;
-
-                if (subPowers == null)
+                if (!selections.TryGetValue(selectionKey, out var chosen))
                 {
-                    return;
+                    chosen = [];
+                    selections[selectionKey] = chosen;
                 }
-
-                var selectedPower = subPowers[option];
-
-                _selectedPowers.Add(selectedPower);
-
-                // inflict condition passing power cost on amount to be deducted later on from sneak dice
+                chosen.AddRange(selected);
+                // Allocate the accepted effects once. Saving against an effect does not
+                // refund the Sneak Attack dice sacrificed for that effect.
                 rulesetAttacker.InflictCondition(
                     ConditionReduceSneakDice.Name,
                     DurationType.Round,
@@ -748,14 +750,9 @@ public static partial class Tabletop2024Context
                     rulesetAttacker.CurrentFaction.Name,
                     1,
                     ConditionReduceSneakDice.Name,
-                    selectedPower.CostPerUse,
+                    selected.Sum(power => power.CostPerUse),
                     0,
                     0);
-            }
-
-            void ReactionNotValidated(ReactionRequestSpendBundlePower reactionRequest)
-            {
-                aborted = true;
             }
         }
 
@@ -769,7 +766,14 @@ public static partial class Tabletop2024Context
             RollOutcome rollOutcome,
             int damageAmount)
         {
-            foreach (var selectedPower in _selectedPowers)
+            if (!_selections.TryGetValue(attackMode, out var selections) ||
+                !selections.TryGetValue((attacker.Guid, defender.Guid), out var selectedPowers))
+            {
+                yield break;
+            }
+            // Remove before yielding to a follow-up reaction from the same attacker.
+            selections.Remove((attacker.Guid, defender.Guid));
+            foreach (var selectedPower in selectedPowers)
             {
                 if (selectedPower == powerKnockOut)
                 {
@@ -781,7 +785,6 @@ public static partial class Tabletop2024Context
                 }
             }
 
-            _selectedPowers.Clear();
         }
 
         private IEnumerator HandleWithdraw(CharacterAction action, GameLocationCharacter attacker)

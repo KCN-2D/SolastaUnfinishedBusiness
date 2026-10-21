@@ -111,6 +111,7 @@ internal enum ExtraActionId
     BoonOfEruptingSpellpower2024Toggle,
     BoonOfFortitude2024Toggle,
     BoonOfIrresistibleOffense2024Toggle,
+    PartyHarmfulInterruptsToggle,
     PrioritizeAction = 10000
 }
 

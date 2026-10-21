@@ -16,6 +16,65 @@ internal static class CharacterReactionSubitemExtension
     private const float DefaultReactionChoiceWidth = 250f;
     private const float ExpandedReactionChoiceWidth = 300f;
 
+    internal static void BindMultipleSelectionChoice(this CharacterReactionSubitem row,
+        ReactionRequest request, int option)
+    {
+        if (request is not IReactionRequestMultiSelection { Selection: { } selection }) return;
+        var state = row.gameObject.AddComponent<ReactionMultipleChoiceState>();
+        state.Bind(row, request, selection, option);
+        CaptureReactionChoiceLayout(row).Apply(row, GetReactionChoiceWidth(row));
+    }
+
+    internal static void RefreshMultipleSelection(this CharacterReactionItem item)
+    {
+        if (item.ReactionRequest is not IReactionRequestMultiSelection { Selection: { } selection }) return;
+        var navigation = item.GetComponent<ReactionMultipleSelectionNavigation>() ??
+                         item.gameObject.AddComponent<ReactionMultipleSelectionNavigation>();
+        navigation.Bind(item);
+        foreach (var row in item.subItemsTable.GetComponentsInChildren<CharacterReactionSubitem>(true))
+        {
+            if (row.TryGetComponent<ReactionMultipleChoiceState>(out var state)) state.Refresh();
+        }
+        item.subItemsCanvasGroup.interactable = true;
+        item.ReactButton.interactable = selection.IsValid;
+        item.subItemsLabel.Text = Gui.Format("Reaction/&SubitemSelectMultipleTitle",
+            selection.Maximum.ToString(), selection.Count.ToString());
+        var tooltip = Gui.GetTooltip(item.subItemsLabel.gameObject);
+        if (tooltip) tooltip.Content = "Reaction/&SubitemSelectMultipleDescription";
+        item.RefreshReactionDescription();
+    }
+
+    internal static void RestoreMultipleSelectionNavigation(this CharacterReactionItem item)
+    {
+        if (!item.TryGetComponent<ReactionMultipleSelectionNavigation>(out var navigation)) return;
+        navigation.Restore();
+        Object.DestroyImmediate(navigation);
+    }
+
+    internal static bool CycleMultipleSelection(this CharacterReactionItem item, int direction)
+    {
+        if (item.ReactionRequest is not IReactionRequestMultiSelection { Selection: not null }) return false;
+        var rows = item.subItemsTable.GetComponentsInChildren<CharacterReactionSubitem>()
+            .Where(row => row.toggle.interactable).ToArray();
+        if (rows.Length == 0 || !EventSystem.current) return true;
+        var focused = EventSystem.current.currentSelectedGameObject
+            ?.GetComponentInParent<CharacterReactionSubitem>();
+        var index = System.Array.IndexOf(rows, focused);
+        index = index < 0 ? direction > 0 ? 0 : rows.Length - 1 :
+            (index + direction + rows.Length) % rows.Length;
+        EventSystem.current.SetSelectedGameObject(rows[index].toggle.gameObject);
+        item.EnsureReactionChoiceVisible();
+        return true;
+    }
+
+    internal static bool HandleMultipleSelection(this CharacterReactionItem item, CharacterReactionSubitem row)
+    {
+        if (!row.TryGetComponent<ReactionMultipleChoiceState>(out var state)) return false;
+        state.SelectionChanged();
+        item.RefreshMultipleSelection();
+        return true;
+    }
+
     internal static void BindTargetChoice(
         [NotNull] this CharacterReactionSubitem instance,
         [NotNull] ReactionRequestSelectTarget reactionRequest,
@@ -125,6 +184,11 @@ internal static class CharacterReactionSubitemExtension
 
     internal static void ClearReactionTargetChoice([NotNull] this CharacterReactionSubitem instance)
     {
+        if (instance.TryGetComponent<ReactionMultipleChoiceState>(out var multiple))
+        {
+            multiple.Restore();
+            Object.DestroyImmediate(multiple);
+        }
         if (instance.TryGetComponent<ReactionTargetChoicePortrait>(out var portrait))
         {
             portrait.Unbind();
@@ -149,11 +213,9 @@ internal static class CharacterReactionSubitemExtension
 
         // Ordinals identify choices; native rows must receive the actual casting level
         // and owner to draw the normal slot pips, including two choices at the same level.
-        var displayRepertoire = option.Kind is SpellCastingResourceContext.ResourceKind.SpellMastery
-            or SpellCastingResourceContext.ResourceKind.SignatureSpell
-            ? SpellSelectionContext.CreateView(option)
-            : option.Repertoire;
-        instance.Bind(displayRepertoire, option.SlotLevel, option.FormatChoiceTitle(character),
+        var displayRepertoire = SpellSelectionContext.CreateView(option);
+        var title = option.IsFree ? option.FormatChoiceTitle(character) : Gui.ToRoman(option.SlotLevel);
+        instance.Bind(displayRepertoire, option.SlotLevel, title,
             interactable, subitemSelected);
 
         var tooltip = GetOrMakeBackgroundTooltip(instance.toggle.transform);
@@ -168,11 +230,9 @@ internal static class CharacterReactionSubitemExtension
 
         if (!option.IsFree)
         {
-            if (option.CastingRepertoire != option.Repertoire)
-            {
-                layoutState.Apply(instance, GetReactionChoiceWidth(instance), true);
-            }
-
+            var request = instance.GetComponentInParent<CharacterReactionItem>()?.ReactionRequest;
+            layoutState.ApplySpellSlot(GetReactionChoiceWidth(instance),
+                SpellCastingResourceContext.NeedsPaymentSourceCaption(request, option) ? option.SourceTitle : null);
             return;
         }
 
@@ -2194,7 +2254,7 @@ internal static class CharacterReactionSubitemExtension
             }
         }
 
-        private void ApplyScroll(float width)
+        private void ApplyScroll(float width, bool force = false)
         {
             var table = _tableRect.RectTransform;
             var canvas = _item.GetComponentInParent<Canvas>();
@@ -2203,6 +2263,10 @@ internal static class CharacterReactionSubitemExtension
             var contentHeight = Mathf.Max(LayoutUtility.GetPreferredHeight(table), table.rect.height);
             // Keep the reaction controls outside the scroll area, even at small UI resolutions.
             var viewportHeight = Mathf.Min(contentHeight, Mathf.Max(1f, Mathf.Min(360f, canvasHeight * 0.45f)));
+            if (!force && contentHeight <= viewportHeight + 0.5f)
+            {
+                return;
+            }
             var viewportObject = new GameObject("ReactionChoicesViewport",
                 typeof(RectTransform), typeof(Image), typeof(RectMask2D), typeof(ScrollRect), typeof(LayoutElement))
             {
@@ -2246,6 +2310,13 @@ internal static class CharacterReactionSubitemExtension
 
             var table = _tableRect.RectTransform;
             var index = _item.GetSelectedSubItem();
+            if (_item.ReactionRequest is IReactionRequestMultiSelection { Selection: not null } &&
+                EventSystem.current?.currentSelectedGameObject is { } focused &&
+                focused.GetComponentInParent<CharacterReactionSubitem>() is { } focusedRow &&
+                focusedRow.transform.parent == table)
+            {
+                index = focusedRow.transform.GetSiblingIndex();
+            }
 
             if (index < 0 || index >= table.childCount ||
                 table.GetChild(index) is not RectTransform row || !row.gameObject.activeSelf)
@@ -2273,6 +2344,11 @@ internal static class CharacterReactionSubitemExtension
 
         internal void ReduceViewportHeight(float reductionInCanvas)
         {
+            if (!_viewport && _captured)
+            {
+                ApplyScroll(_groupRect.RectTransform.rect.width, true);
+            }
+
             if (!_viewport || !FloatingPanelBounds.TryGetCanvasLocalBounds(_viewport, out var bounds, out _) ||
                 bounds.height <= 0f)
             {
@@ -2360,6 +2436,10 @@ internal static class CharacterReactionSubitemExtension
         private int _maxVisibleLines;
         private TextOverflowModes _overflowMode;
         private TMP_Text _text;
+        private TMP_Text _paymentSource;
+        private float _nativeRowHeight;
+        private float _nativeToggleWidth;
+        private float _nativeToggleHeight;
 
         internal void Capture(CharacterReactionSubitem instance)
         {
@@ -2372,6 +2452,9 @@ internal static class CharacterReactionSubitemExtension
 
             _rowRect.Capture(instance.GetComponent<RectTransform>());
             _toggleRect.Capture(instance.toggle.GetComponent<RectTransform>());
+            _nativeRowHeight = _rowRect.RectTransform.rect.height;
+            _nativeToggleWidth = _toggleRect.RectTransform.rect.width;
+            _nativeToggleHeight = _toggleRect.RectTransform.rect.height;
             _slotsRect.Capture(instance.slotStatusTable);
             _labelContainerRect.Capture(instance.label.RectTransform);
             _labelRect.Capture(instance.label.TMP_Text.rectTransform);
@@ -2397,7 +2480,7 @@ internal static class CharacterReactionSubitemExtension
             _overflowMode = _text.overflowMode;
         }
 
-        internal void Apply(CharacterReactionSubitem instance, float width, bool showSlots = false)
+        internal void Apply(CharacterReactionSubitem instance, float width)
         {
             var toggleRect = _toggleRect.RectTransform;
             var labelRect = _labelRect.RectTransform;
@@ -2427,6 +2510,8 @@ internal static class CharacterReactionSubitemExtension
             var container = _labelContainerRect.RectTransform;
             Stretch(container, 8f, 4f);
             var hasPortrait = instance.TryGetComponent<ReactionTargetChoicePortrait>(out _);
+            var checkboxWidth = instance.TryGetComponent<ReactionMultipleChoiceState>(out _) ? 32f : 0f;
+            container.offsetMax = new Vector2(-8f - checkboxWidth, -4f);
             if (hasPortrait)
             {
                 container.offsetMin = new Vector2(64f, 4f);
@@ -2436,41 +2521,9 @@ internal static class CharacterReactionSubitemExtension
                 Stretch(labelRect, 0f, 0f);
             }
 
-            var slotsWidth = 0f;
-            if (showSlots && _slotsRect.RectTransform)
-            {
-                var slots = _slotsRect.RectTransform;
-                // Native Bind activates pooled pips before their layout has settled.
-                // Measure the actual visible pips after rebuilding their table rather
-                // than reserving its previous (often one-slot) width.
-                LayoutRebuilder.ForceRebuildLayoutImmediate(slots);
-                var corners = new Vector3[4];
-                var minimum = float.PositiveInfinity;
-                var maximum = float.NegativeInfinity;
-                foreach (var pip in slots.Cast<Transform>().OfType<RectTransform>()
-                             .Where(pip => pip.gameObject.activeSelf))
-                {
-                    pip.GetWorldCorners(corners);
-                    foreach (var corner in corners)
-                    {
-                        var x = slots.InverseTransformPoint(corner).x;
-                        minimum = Mathf.Min(minimum, x);
-                        maximum = Mathf.Max(maximum, x);
-                    }
-                }
-
-                slotsWidth = Mathf.Max(LayoutUtility.GetPreferredWidth(slots),
-                    minimum <= maximum ? maximum - minimum : 0f);
-                slots.anchorMin = slots.anchorMax = new Vector2(1f, 0.5f);
-                slots.pivot = new Vector2(1f, 0.5f);
-                slots.anchoredPosition = new Vector2(-8f, 0f);
-                slots.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, slotsWidth);
-                container.offsetMax = new Vector2(-slotsWidth - 20f, -4f);
-            }
-
             var margins = _text.margin;
             var availableWidth = Mathf.Max(1f,
-                width - (hasPortrait ? 72f : 16f) - slotsWidth - (showSlots ? 12f : 0f) - margins.x - margins.z);
+                width - (hasPortrait ? 72f : 16f) - checkboxWidth - margins.x - margins.z);
             var height = Mathf.Max(hasPortrait ? 60f : 30f,
                 Mathf.Ceil(_text.GetPreferredValues(_text.text, availableWidth, float.PositiveInfinity).y) + 8f);
             rowRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
@@ -2489,6 +2542,92 @@ internal static class CharacterReactionSubitemExtension
             }
         }
 
+        internal void ApplySpellSlot(float width, string source)
+        {
+            var row = _rowRect.RectTransform;
+            var toggle = _toggleRect.RectTransform;
+            var slots = _slotsRect.RectTransform;
+            if (!row || !toggle || !slots || !_text)
+            {
+                return;
+            }
+
+            // A casting origin may use another repertoire's slots. It does not turn
+            // the native level selector into a spell-source button.
+            toggle.anchorMin = toggle.anchorMax = new Vector2(0f, 0.5f);
+            toggle.pivot = new Vector2(0f, 0.5f);
+            toggle.anchoredPosition = Vector2.zero;
+            toggle.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, _nativeToggleWidth);
+            toggle.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, _nativeToggleHeight);
+            slots.anchorMin = slots.anchorMax = new Vector2(0f, 0.5f);
+            slots.pivot = new Vector2(0f, 0.5f);
+            slots.anchoredPosition = new Vector2(_nativeToggleWidth + 4f, 0f);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(slots);
+            var slotWidth = MeasureVisibleSlotWidth(slots);
+            slots.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, slotWidth);
+
+            var height = Mathf.Max(_nativeRowHeight, _nativeToggleHeight);
+            if (!string.IsNullOrEmpty(source))
+            {
+                // Only coincident levels from distinct pools need a visible source.
+                // Keep it outside the narrow Roman-numeral button and native pips.
+                _paymentSource = Object.Instantiate(_text, row, false);
+                _paymentSource.name = "SpellPaymentSource";
+                _paymentSource.raycastTarget = false;
+                _paymentSource.enableAutoSizing = false;
+                _paymentSource.enableWordWrapping = true;
+                _paymentSource.autoSizeTextContainer = false;
+                _paymentSource.alignment = TextAlignmentOptions.MidlineLeft;
+                _paymentSource.fontSize = Mathf.Min(_fontSize, 18f);
+                _paymentSource.maxVisibleLines = int.MaxValue;
+                _paymentSource.overflowMode = TextOverflowModes.Overflow;
+                if (_paymentSource.TryGetComponent<ContentSizeFitter>(out var fitter))
+                {
+                    fitter.enabled = false;
+                }
+                _paymentSource.text = source;
+                var sourceRect = _paymentSource.rectTransform;
+                sourceRect.anchorMin = sourceRect.anchorMax = new Vector2(0f, 0.5f);
+                sourceRect.pivot = new Vector2(0f, 0.5f);
+                var left = _nativeToggleWidth + 12f + slotWidth;
+                var sourceWidth = Mathf.Max(1f, width - left - 4f);
+                var sourceHeight = Mathf.Ceil(_paymentSource.GetPreferredValues(source, sourceWidth,
+                    float.PositiveInfinity).y);
+                sourceRect.anchoredPosition = new Vector2(left, 0f);
+                sourceRect.sizeDelta = new Vector2(sourceWidth, sourceHeight);
+                height = Mathf.Max(height, sourceHeight + 4f);
+            }
+
+            row.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+            row.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+            var layout = _rowLayout.GetOrCreate();
+            layout.enabled = true;
+            layout.ignoreLayout = false;
+            layout.minWidth = layout.preferredWidth = width;
+            layout.minHeight = layout.preferredHeight = height;
+            LayoutRebuilder.ForceRebuildLayoutImmediate(row);
+        }
+
+        private static float MeasureVisibleSlotWidth(RectTransform slots)
+        {
+            var corners = new Vector3[4];
+            var minimum = float.PositiveInfinity;
+            var maximum = float.NegativeInfinity;
+            foreach (var pip in slots.Cast<Transform>().OfType<RectTransform>()
+                         .Where(pip => pip.gameObject.activeSelf))
+            {
+                pip.GetWorldCorners(corners);
+                foreach (var corner in corners)
+                {
+                    var x = slots.InverseTransformPoint(corner).x;
+                    minimum = Mathf.Min(minimum, x);
+                    maximum = Mathf.Max(maximum, x);
+                }
+            }
+
+            return minimum <= maximum ? maximum - minimum : 0f;
+        }
+
         private static void Stretch(RectTransform rect, float horizontal, float vertical)
         {
             rect.anchorMin = Vector2.zero;
@@ -2499,6 +2638,12 @@ internal static class CharacterReactionSubitemExtension
 
         internal void Restore()
         {
+            if (_paymentSource)
+            {
+                Object.DestroyImmediate(_paymentSource.gameObject);
+                _paymentSource = null;
+            }
+
             if (_text)
             {
                 _text.enableAutoSizing = _enableAutoSizing;
@@ -2532,6 +2677,176 @@ internal static class CharacterReactionSubitemExtension
             {
                 LayoutRebuilder.ForceRebuildLayoutImmediate(table);
             }
+        }
+    }
+
+    private sealed class ReactionMultipleChoiceState : MonoBehaviour
+    {
+        private CharacterReactionSubitem _row;
+        private ReactionRequest _request;
+        private ReactionSelection _selection;
+        private ToggleGroup _group;
+        private Toggle _checkbox;
+        private int _option;
+        private Navigation _navigation;
+
+        internal void Bind(CharacterReactionSubitem row, ReactionRequest request,
+            ReactionSelection selection, int option)
+        {
+            _row = row;
+            _request = request;
+            _selection = selection;
+            _option = option;
+            _group = row.toggle.group;
+            _navigation = row.toggle.navigation;
+            row.toggle.group = null;
+            // Retain the native row's full hit area, focus and gamepad navigation.
+            // The authored settings checkbox supplies only the visible checked state.
+            var prefab = Resources.Load<GameObject>("Gui/Prefabs/Modal/Setting/SettingCheckboxItem");
+            var checkbox = prefab ? prefab.transform.Find("SmallToggleNoFrame") : null;
+            if (checkbox)
+            {
+                _checkbox = Object.Instantiate(checkbox, row.toggle.transform, false).GetComponentInChildren<Toggle>();
+                _checkbox.name = "MultipleSelectionCheckbox";
+                _checkbox.gameObject.SetActive(true);
+                _checkbox.onValueChanged.RemoveAllListeners();
+                _checkbox.group = null;
+                _checkbox.enabled = false;
+                foreach (var graphic in _checkbox.GetComponentsInChildren<Graphic>(true)) graphic.raycastTarget = false;
+                var rectangle = _checkbox.GetComponent<RectTransform>();
+                rectangle.anchorMin = rectangle.anchorMax = rectangle.pivot = new Vector2(1f, 0.5f);
+                rectangle.anchoredPosition = new Vector2(-8f, 0f);
+                rectangle.sizeDelta = new Vector2(24f, 24f);
+            }
+            Refresh();
+        }
+
+        internal void Refresh()
+        {
+            if (!_row || _request == null) return;
+            _row.toggle.SetIsOnWithoutNotify(_selection.IsSelected(_option));
+            if (_checkbox) _checkbox.SetIsOnWithoutNotify(_selection.IsSelected(_option));
+            var item = _row.GetComponentInParent<CharacterReactionItem>();
+            var available = !_request.Processed &&
+                item && item.CurrentState == CharacterReactionItem.ReactionState.Pending &&
+                _selection.CanSelect(_option);
+            _row.toggle.interactable = available;
+            _row.canvasGroup.interactable = available;
+        }
+
+        internal void SelectionChanged()
+        {
+            var item = _row.GetComponentInParent<CharacterReactionItem>();
+            if (_request.Processed || !item || item.CurrentState != CharacterReactionItem.ReactionState.Pending)
+            {
+                Refresh();
+                return;
+            }
+            var selected = _row.Selected;
+            _selection.SetSelected(_option, selected);
+            // Assign, rather than toggle, so optimistic local feedback and the same
+            // acknowledged RPC update remain idempotent on the controlling client.
+            ServiceRepository.GetService<ICommandService>()?.ProcessReactionRequest(_request, false,
+                ReactionSelection.EncodeUpdate(_option, selected));
+        }
+
+        internal void Restore()
+        {
+            if (_row && _row.toggle) _row.toggle.group = _group;
+            if (_row && _row.toggle) _row.toggle.navigation = _navigation;
+            if (_checkbox) Object.DestroyImmediate(_checkbox.gameObject);
+            _row = null;
+            _request = null;
+        }
+    }
+
+    private sealed class ReactionMultipleSelectionNavigation : MonoBehaviour
+    {
+        private CharacterReactionItem _item;
+        private GuiButtonSetup _reactSetup;
+        private bool _setupEnabled;
+        private bool _shortcutDisabled;
+        private Navigation _reactNavigation;
+        private Navigation _passNavigation;
+
+        internal void Bind(CharacterReactionItem item)
+        {
+            if (!_item)
+            {
+                _item = item;
+                _reactSetup = item.ReactButton.GetComponent<GuiButtonSetup>();
+                _setupEnabled = _reactSetup && _reactSetup.enabled;
+                _reactNavigation = item.ReactButton.navigation;
+                _passNavigation = item.PassButton.navigation;
+            }
+            UpdateNavigation();
+        }
+
+        private void LateUpdate()
+        {
+            if (!_item || !_item.gameObject.activeInHierarchy) return;
+            UpdateNavigation();
+            if (Gui.GamepadActive) _item.EnsureReactionChoiceVisible();
+        }
+
+        private void UpdateNavigation()
+        {
+            if (Gui.GamepadActive && _reactSetup && !_shortcutDisabled)
+            {
+                // Submit belongs to the focused checkbox or decision button. Keeping
+                // the modal's global Confirm shortcut would commit while checking a row.
+                _reactSetup.DeactivateGamepadBindingButton();
+                _reactSetup.enabled = false;
+                _shortcutDisabled = true;
+            }
+            else if (!Gui.GamepadActive && _shortcutDisabled)
+            {
+                RestoreShortcut();
+            }
+
+            var rows = _item.subItemsTable.GetComponentsInChildren<CharacterReactionSubitem>()
+                .Where(row => row.toggle.interactable).ToArray();
+            for (var index = 0; index < rows.Length; index++)
+            {
+                rows[index].toggle.navigation = new Navigation
+                {
+                    mode = Navigation.Mode.Explicit,
+                    selectOnUp = index > 0 ? rows[index - 1].toggle : _item.PassButton,
+                    selectOnDown = index + 1 < rows.Length ? rows[index + 1].toggle :
+                        _item.ReactButton.interactable ? _item.ReactButton : _item.PassButton,
+                    selectOnLeft = _item.PassButton,
+                    selectOnRight = _item.ReactButton.interactable ? _item.ReactButton : _item.PassButton
+                };
+            }
+            var last = rows.LastOrDefault()?.toggle;
+            _item.ReactButton.navigation = new Navigation
+            {
+                mode = Navigation.Mode.Explicit, selectOnUp = last, selectOnLeft = _item.PassButton,
+                selectOnRight = _item.PassButton
+            };
+            _item.PassButton.navigation = new Navigation
+            {
+                mode = Navigation.Mode.Explicit, selectOnUp = last,
+                selectOnDown = rows.FirstOrDefault()?.toggle,
+                selectOnLeft = _item.ReactButton, selectOnRight = _item.ReactButton
+            };
+        }
+
+        private void RestoreShortcut()
+        {
+            if (!_reactSetup) return;
+            _reactSetup.enabled = _setupEnabled;
+            if (Gui.GamepadActive) _reactSetup.ActivateGamepadBindingButton();
+            _shortcutDisabled = false;
+        }
+
+        internal void Restore()
+        {
+            if (!_item) return;
+            _item.ReactButton.navigation = _reactNavigation;
+            _item.PassButton.navigation = _passNavigation;
+            if (_shortcutDisabled) RestoreShortcut();
+            _item = null;
         }
     }
 

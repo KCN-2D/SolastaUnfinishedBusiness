@@ -27,6 +27,7 @@ public static class CharacterReactionItemPatcher
             [NotNull] CharacterReactionItem __instance,
             [NotNull] ReactionRequest reactionRequest)
         {
+            __instance.RestoreMultipleSelectionNavigation();
             __instance.RestoreReactionDecisionButtonLayout();
             __instance.ClearReactionTargetPreview();
 
@@ -133,6 +134,7 @@ public static class CharacterReactionItemPatcher
             }
 
             __instance.FitReactionDecisionButtons();
+            __instance.RefreshMultipleSelection();
 
             //BUGFIX: vanilla is collecting KI Points instead of Sorcery Points
             var reactionParams = __instance.reactionRequest.ReactionParams;
@@ -252,6 +254,7 @@ public static class CharacterReactionItemPatcher
                     instance.Bind(spellRepertoire, slotLevel, text, interactable, subitemSelected);
                     break;
             }
+            instance.BindMultipleSelectionChoice(reactionRequest, slotLevel);
         }
     }
 
@@ -263,6 +266,7 @@ public static class CharacterReactionItemPatcher
         [UsedImplicitly]
         public static void Prefix([NotNull] CharacterReactionItem __instance)
         {
+            __instance.RestoreMultipleSelectionNavigation();
             __instance.RestoreReactionDecisionButtonLayout();
             __instance.ClearReactionTargetPreview();
 
@@ -312,6 +316,24 @@ public static class CharacterReactionItemPatcher
         }
     }
 
+    [HarmonyPatch(typeof(CharacterReactionItem), nameof(CharacterReactionItem.IncreaseSpellSlot))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class IncreaseSpellSlot_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(CharacterReactionItem __instance) => !__instance.CycleMultipleSelection(1);
+    }
+
+    [HarmonyPatch(typeof(CharacterReactionItem), nameof(CharacterReactionItem.DecreaseSpellSlot))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class DecreaseSpellSlot_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(CharacterReactionItem __instance) => !__instance.CycleMultipleSelection(-1);
+    }
+
     [HarmonyPatch(typeof(CharacterReactionItem), nameof(CharacterReactionItem.GamepadSelect))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -321,6 +343,7 @@ public static class CharacterReactionItemPatcher
         public static void Postfix([NotNull] CharacterReactionItem __instance, bool __0)
         {
             __instance.GamepadSelectReactionTargetPreview(__0);
+            if (__0 && Gui.GamepadActive) __instance.CycleMultipleSelection(1);
         }
     }
 
@@ -332,6 +355,13 @@ public static class CharacterReactionItemPatcher
         [UsedImplicitly]
         public static bool Prefix([NotNull] CharacterReactionItem __instance)
         {
+            if (__instance.CurrentState == CharacterReactionItem.ReactionState.Pending &&
+                __instance.ReactionRequest is IReactionRequestMultiSelection
+                    { Selection: not null, CanContinueSelection: true })
+            {
+                __instance.RefreshMultipleSelection();
+                return false;
+            }
             if (__instance.CurrentState != CharacterReactionItem.ReactionState.Pending ||
                 __instance.ReactionRequest is not ReactionRequestSelectTarget target ||
                 !target.Candidates.Any(target.IsCandidateAvailable))
@@ -379,6 +409,7 @@ public static class CharacterReactionItemPatcher
     private static bool IsSelectedTargetAvailable(
         CharacterReactionItem item, ReactionRequestSelectTarget request)
     {
+        if (request.Selection != null) return request.Selection.IsValid;
         // Native selection changes the row toggles; the command commits the
         // request's suboption only after React is clicked.
         var option = item.GetSelectedSubItem();
@@ -399,6 +430,14 @@ public static class CharacterReactionItemPatcher
 
         var optionKey = item.ReactionRequest.SubOptionsAvailability.Keys.ElementAtOrDefault(item.GetSelectedSubItem());
         var managed = SpellCastingResourceContext.TryGetOption(item.ReactionRequest, optionKey, out var option);
+        if (managed && !option.IsFree && option.Repertoire.SpellCastingClass ==
+            Api.DatabaseHelper.CharacterClassDefinitions.Warlock)
+        {
+            item.remainingResourceGroup.gameObject.SetActive(false);
+            item.resourceCostGroup.gameObject.SetActive(false);
+            return;
+        }
+
         var slot = managed ? option.SlotLevel : optionKey;
         var cost = managed && option.IsFree
             ? 0
@@ -421,6 +460,10 @@ public static class CharacterReactionItemPatcher
     [UsedImplicitly]
     public static class SubitemSelected_Patch
     {
+        [UsedImplicitly]
+        public static bool Prefix(CharacterReactionItem __instance, CharacterReactionSubitem __0) =>
+            !__instance.HandleMultipleSelection(__0);
+
         [UsedImplicitly]
         public static void Postfix([NotNull] CharacterReactionItem __instance)
         {

@@ -38,25 +38,52 @@ internal sealed class DispelCheckContext : IDisposable
         _counter = counter;
         if (forms.targetCharacter is RulesetCharacter character)
         {
-            foreach (var category in character.ConditionsByCategory)
-            {
-                foreach (var condition in category.Value)
-                {
-                    var policy = condition.ConditionDefinition.GetFirstSubFeatureOfType<ConditionPolicy>();
-                    if (!(policy?.CanDispel ?? category.Key == AttributeDefinitions.TagEffect))
-                    {
-                        continue;
-                    }
-
-                    var effect = EffectHelpers.GetCharacterByGuid(condition.SourceGuid)?.SpellsCastByMe
-                        .FirstOrDefault(candidate => candidate.TrackedConditionGuids.Contains(condition.Guid));
-                    _conditions.Add((condition, condition.Guid, effect));
-                }
-            }
+            _conditions.AddRange(GetConditions(character));
         }
 
         _observer = SpellInterruptionContext.ObserveDispel(forms);
         _current = this;
+    }
+
+    private static IEnumerable<(RulesetCondition Condition, ulong Guid, RulesetEffectSpell Effect)> GetConditions(
+        RulesetCharacter character)
+    {
+        foreach (var category in character.ConditionsByCategory)
+        {
+            foreach (var condition in category.Value)
+            {
+                var policy = condition.ConditionDefinition.GetFirstSubFeatureOfType<ConditionPolicy>();
+                if (!(policy?.CanDispel ?? category.Key == AttributeDefinitions.TagEffect)) continue;
+                var effect = EffectHelpers.GetCharacterByGuid(condition.SourceGuid)?.SpellsCastByMe
+                    .FirstOrDefault(candidate => candidate.TrackedConditionGuids.Contains(condition.Guid));
+                yield return (condition, condition.Guid, effect);
+            }
+        }
+    }
+
+    private static bool TryGetConditionSpell(RulesetCondition condition, out SpellDefinition spell)
+    {
+        spell = null;
+        return !string.IsNullOrEmpty(condition.EffectDefinitionName) &&
+               DatabaseRepository.GetDatabase<SpellDefinition>().TryGetElement(condition.EffectDefinitionName,
+                   out spell, true);
+    }
+
+    internal static bool IsTargetAllowed(GameLocationCharacter source, GameLocationCharacter target)
+    {
+        if (target?.RulesetCharacter is not { } character) return true;
+        var conditions = GetConditions(character).Where(entry => TryGetConditionSpell(entry.Condition, out _)).ToArray();
+        if (conditions.Length == 0 || conditions.Any(entry =>
+                TargetingContext.IsConditionRemovalAllowed(source, target, entry.Condition.ConditionDefinition))) return true;
+
+        // Light has no unambiguous benefit/harm classification. Keep its native
+        // dispelling behavior instead of inferring intent from the source side.
+        bool IsSpellLight(RulesetLightSource light) => light != null &&
+            DatabaseRepository.GetDatabase<SpellDefinition>().TryGetElement(light.SourceName, out _, true);
+        if (IsSpellLight(character.PersonalLightSource)) return true;
+        var items = new List<RulesetItem>();
+        character.CharacterInventory?.EnumerateAllItems(items, false, false);
+        return items.Any(item => IsSpellLight(item.RulesetLightSource));
     }
 
     public void Dispose()
@@ -94,9 +121,9 @@ internal sealed class DispelCheckContext : IDisposable
         foreach (var entry in scope._conditions)
         {
             var condition = entry.Condition;
-            if (!IsActiveCondition(condition, entry.Guid) || string.IsNullOrEmpty(condition.EffectDefinitionName) ||
-                !DatabaseRepository.GetDatabase<SpellDefinition>().TryGetElement(
-                    condition.EffectDefinitionName, out var spell, true))
+            if (!IsActiveCondition(condition, entry.Guid) || !TryGetConditionSpell(condition, out var spell) ||
+                !TargetingContext.IsConditionRemovalAllowed(GameLocationCharacter.GetFromActor(scope._forms.sourceCharacter),
+                    GameLocationCharacter.GetFromActor(character), condition.ConditionDefinition))
             {
                 continue;
             }

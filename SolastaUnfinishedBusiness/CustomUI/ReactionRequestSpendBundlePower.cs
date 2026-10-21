@@ -1,16 +1,18 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using static RuleDefinitions;
 
 namespace SolastaUnfinishedBusiness.CustomUI;
 
 internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReactionRequestWithResource,
-    IReactionRequestWithCallbacks
+    IReactionRequestWithCallbacks, IReactionRequestMultiSelection
 {
     internal const string Name = "ReactionSpendPowerBundle";
     private readonly GuiCharacter _guiCharacter;
@@ -18,14 +20,21 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
     private readonly ActionModifier _modifier;
     private readonly GameLocationCharacter _target;
     private readonly Func<bool> _reactionStillValid;
+    private readonly bool _selectionOnly;
+    private readonly Func<FeatureDefinitionPower, bool> _powerFilter;
 
     internal ReactionRequestSpendBundlePower([NotNull] CharacterActionParams reactionParams,
         Action<ReactionRequestSpendBundlePower> reactionValidated = null,
         Action<ReactionRequestSpendBundlePower> reactionNotValidated = null,
-        Func<bool> reactionStillValid = null)
+        Func<bool> reactionStillValid = null,
+        int maximumPowers = 0,
+        Func<int> availableBudget = null,
+        Func<FeatureDefinitionPower, bool> powerFilter = null)
         : base(Name, reactionParams)
     {
         _reactionStillValid = reactionStillValid;
+        _selectionOnly = maximumPowers > 0;
+        _powerFilter = powerFilter;
         ReactionValidated = ReactionRequestCallback.Transform(reactionValidated);
         ReactionNotValidated = ReactionRequestCallback.Transform(reactionNotValidated);
 
@@ -34,6 +43,18 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
         _guiCharacter = new GuiCharacter(reactionParams.ActingCharacter);
         _masterPower = ((RulesetEffectPower)reactionParams.RulesetEffect).PowerDefinition;
         BuildSuboptions();
+        if (_selectionOnly)
+        {
+            ReactionParams.SpellRepertoire ??= new RulesetSpellRepertoire();
+            Selection = new ReactionSelection(ReactionParams.SpellRepertoire.KnownSpells.Count, maximumPowers, 1,
+                option => IsPowerAvailable(PowerAt(option)), option => PowerAt(option).CostPerUse, availableBudget);
+            ClearSelectedPower();
+            ReactionParams.ActionDefinition = ServiceRepository.GetService<IGameLocationActionService>()
+                .AllActionDefinitions[(ActionDefinitions.Id)ExtraActionId.DoNothingFree];
+            // A selection request has no effect to execute or resource to spend. Its caller
+            // applies the accepted powers through their existing native action paths.
+            ReactionParams.UsablePower = null;
+        }
     }
 
     public override int SelectedSubOption
@@ -53,22 +74,50 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
         }
     }
 
+    public ReactionSelection Selection { get; }
+    public bool CanContinueSelection => Selection?.HasAvailableOptions == true && IsTriggerStillValid();
+
+    internal IReadOnlyList<FeatureDefinitionPower> SelectedPowers => Selection?.SelectedOptions
+        .Select(PowerAt).ToArray() ?? [];
+
+    private FeatureDefinitionPower PowerAt(int option) =>
+        PowerBundle.GetPower(ReactionParams.SpellRepertoire.KnownSpells[option]);
+
 
     [NotNull] public override string SuboptionTag => "PowerBundle";
 
     // Custom triggers may allow an unconscious target, but every bundle still has
     // to validate its selected grant before the native command spends its resource.
     public override bool IsStillValid =>
-        ReactionParams.RulesetEffect is RulesetEffectPower selected &&
-        IsPowerAvailable(selected.PowerDefinition) &&
-        (_reactionStillValid != null ? ReactionRequestCallback.Validate(ReactionParams, _reactionStillValid) :
+        (Selection?.IsValid ?? (ReactionParams.RulesetEffect is RulesetEffectPower selected &&
+        IsPowerAvailable(selected.PowerDefinition))) &&
+        IsTriggerStillValid();
+
+    private bool IsTriggerStillValid() =>
+        _reactionStillValid != null ? ReactionRequestCallback.Validate(ReactionParams, _reactionStillValid) :
          (ServiceRepository.GetService<IGameLocationCharacterService>()?.ValidCharacters.Contains(_target) == true &&
-          _target?.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false }));
+          _target?.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false });
 
     public Action<ReactionRequest> ReactionValidated { get; }
     public Action<ReactionRequest> ReactionNotValidated { get; }
 
     public ICustomReactionResource Resource { get; set; }
+
+    // Deferred choices can apply a different power or benefit the actor after the
+    // triggering action. This describes their recipients without executing them.
+    internal sealed class EffectContext(FeatureDefinitionPower definition = null, bool targetsSelf = false)
+    {
+        internal FeatureDefinitionPower Definition { get; } = definition;
+        internal bool TargetsSelf { get; } = targetsSelf;
+    }
+
+    internal (FeatureDefinitionPower Definition, GameLocationCharacter Target) GetEffectContext(
+        FeatureDefinitionPower power)
+    {
+        var context = power.GetFirstSubFeatureOfType<EffectContext>();
+        var definition = context?.Definition ?? power;
+        return (definition, context?.TargetsSelf == true ? Character : GetTargetForPower(definition));
+    }
 
     internal GameLocationCharacter GetTargetForPower(FeatureDefinitionPower power)
     {
@@ -102,7 +151,7 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
             reactionParams.SpellRepertoire.KnownSpells.Add(PowerBundle.GetSpell(power));
             SubOptionsAvailability.Add(i, true);
 
-            if (!selected)
+            if (!selected && !_selectionOnly)
             {
                 SelectSubOption(i);
                 selected = true;
@@ -119,9 +168,19 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
 
     private bool IsPowerAvailable(FeatureDefinitionPower power)
     {
+        if (!power) return false;
         var character = Character.RulesetCharacter;
+        var effect = GetEffectContext(power);
+        var automatedBenefitAllowed = !effect.Definition.HasSubFeatureOfType<TargetingContext.BeneficialEffect>() ||
+            TargetingContext.IsManualPartyActor(Character) || Character.Side == effect.Target.Side;
 
-        return power && _masterPower.GetBundle()?.SubPowers.Contains(power) == true &&
+        return _masterPower.GetBundle()?.SubPowers.Contains(power) == true &&
+               (_powerFilter?.Invoke(power) ?? true) &&
+               automatedBenefitAllowed &&
+               TargetingContext.IsHarmfulInterruptTargetAllowed(Character, effect.Target,
+                   effect.Definition, effect.Definition.EffectDescription) &&
+               TargetingContext.IsEffectRecipientAllowed(Character, effect.Target,
+                   effect.Definition, effect.Definition.EffectDescription) &&
                character.UsablePowers.Any(usable => usable.PowerDefinition == power) &&
                CanUsePower(character, power);
     }
@@ -141,6 +200,12 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
 
     public override void SelectSubOption(int option)
     {
+        if (Selection != null)
+        {
+            Selection.ApplyCommand(option);
+            return;
+        }
+
         if (option == -1)
         {
             ClearSelectedPower();
@@ -160,28 +225,48 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
             return;
         }
 
+        var parameters = CreatePowerParameters(power);
+        // Resolve the replacement before releasing the current selection. An expired
+        // or stale UI index must leave a valid choice and its targets intact.
+        ClearSelectedPower();
+        ReactionParams.ActionDefinition = parameters.ActionDefinition;
+        ReactionParams.RulesetEffect = parameters.RulesetEffect;
+        ReactionParams.UsablePower = parameters.UsablePower;
+        ReactionParams.TargetCharacters.AddRange(parameters.TargetCharacters);
+        ReactionParams.ActionModifiers.AddRange(parameters.ActionModifiers);
+    }
+
+    internal IEnumerable<CharacterAction> CreateSelectedActions()
+    {
+        // Validate the complete allocation before instantiating any child effect.
+        if (Selection?.IsValid != true || !IsStillValid) return [];
+        // These parameters always use SpendPower. Like other native follow-ups,
+        // instantiate its action directly instead of the dynamic name-based factory.
+        return SelectedPowers.Select(power => new CharacterActionSpendPower(CreatePowerParameters(power))).ToArray();
+    }
+
+    private CharacterActionParams CreatePowerParameters(FeatureDefinitionPower power)
+    {
         var actingCharacter = ReactionParams.ActingCharacter;
         var implementationService = ServiceRepository.GetService<IRulesetImplementationService>();
         var rulesetCharacter = actingCharacter.RulesetCharacter;
         var usablePower = PowerProvider.Get(power, rulesetCharacter);
         var powerEffect = implementationService.InstantiateEffectPower(rulesetCharacter, usablePower, false);
 
-        // Resolve the replacement before releasing the current selection. An expired
-        // or stale UI index must leave a valid choice and its targets intact.
-        ClearSelectedPower();
-        ReactionParams.ActionDefinition = ServiceRepository.GetService<IGameLocationActionService>()
-            .AllActionDefinitions[ActionDefinitions.Id.SpendPower];
-        ReactionParams.RulesetEffect = powerEffect;
-
-        var targetCharacters = ReactionParams.TargetCharacters;
-        var modifiers = ReactionParams.ActionModifiers;
+        var parameters = new CharacterActionParams(actingCharacter, ActionDefinitions.Id.SpendPower)
+        {
+            RulesetEffect = powerEffect,
+            UsablePower = usablePower
+        };
+        var targetCharacters = parameters.TargetCharacters;
+        var modifiers = parameters.ActionModifiers;
         var effectDescription = power.EffectDescription;
 
         // We let targets collection be empty with RangeType MeleeHit on sub power so it can be handled manually in code
         // i.e.: Cunning / Devious Strike powers that need to be applied on attack finished not before hit
         if (effectDescription.RangeType == RangeType.MeleeHit)
         {
-            return;
+            return parameters;
         }
 
         if (effectDescription.RangeType == RangeType.Self
@@ -199,7 +284,7 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
 
             if (!effectDescription.IsSingleTarget || targets <= 1)
             {
-                return;
+                return parameters;
             }
 
             while (_target != null && _modifier != null && targetCharacters.Count < targets)
@@ -208,6 +293,7 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
                 modifiers.Add(_modifier);
             }
         }
+        return parameters;
     }
 
     private void ClearSelectedPower()

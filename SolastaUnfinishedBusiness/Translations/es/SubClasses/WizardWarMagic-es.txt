@@ -20,6 +20,6 @@ Reaction/&CustomReactionArcaneDeflectionSavingReactTitle=Desviación arcana
 Reaction/&CustomReactionArcaneDeflectionSavingTitle=Desviación arcana
 Subclass/&WizardWarMagicDescription=Una variedad de escuelas arcanas se especializan en entrenar a magos para la guerra. La tradición de la Magia de Guerra combina los principios de evocación y abjuración, en lugar de especializarse en una de esas escuelas. Enseña técnicas que potencian los hechizos de un lanzador, al mismo tiempo que proporciona métodos para que los magos refuercen sus propias defensas. Los seguidores de esta tradición son conocidos como magos de guerra. Ven su magia como un arma y una armadura, un recurso superior a cualquier pieza de acero. Los magos de guerra actúan rápido en la batalla, usando sus hechizos para tomar el control táctico de una situación. Sus hechizos golpean con fuerza, mientras que sus habilidades defensivas frustran los intentos de sus oponentes de contraatacar. Los magos de guerra también son expertos en volver la energía mágica de otros lanzadores de hechizos en su contra.
 Subclass/&WizardWarMagicTitle=Magia de guerra
-Condition/&ConditionWarMagicArcaneDeflectionRestrictionTitle=Solo trucos
+Condition/&ConditionWarMagicArcaneDeflectionRestrictionTitle=Tensión arcana
 Condition/&ConditionWarMagicArcaneDeflectionRestrictionDescription=Solo puedes lanzar trucos hasta el final de tu próximo turno.
 Failure/&FailureFlagWarMagicArcaneDeflectionCantripsOnly=No puedes lanzar conjuros de nivel 1 o superior hasta el final de tu próximo turno.

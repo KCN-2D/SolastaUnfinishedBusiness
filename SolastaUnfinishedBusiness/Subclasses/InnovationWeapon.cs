@@ -622,7 +622,7 @@ public sealed class InnovationWeapon : AbstractSubclass
             var rulesetAttacker = attacker.RulesetCharacter;
 
             bool ReactionStillValid() => Gui.Battle != null &&
-                TargetingContext.IsValidOffensiveTarget(attacker, defender, powerArcaneJolt) &&
+                TargetingContext.IsValidOffensiveReactionTarget(attacker, defender, powerArcaneJolt) &&
                 defender.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false } &&
                 rulesetAttacker.CanUsePower(powerArcaneJolt, true, true);
 

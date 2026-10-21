@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using JetBrains.Annotations;
@@ -296,7 +296,7 @@ public sealed class RangerFeyWanderer : AbstractSubclass
 
             bool CandidateValid(GameLocationCharacter target) => TriggerStillValid() && target != defender &&
                 ReactionRequestSelectTarget.IsCandidateValid(helper, target) &&
-                TargetingContext.IsValidOffensiveTarget(helper, target, powerBeguilingTwist) &&
+                TargetingContext.IsValidOffensiveReactionTarget(helper, target, powerBeguilingTwist) &&
                 helper.IsWithinRange(target, 24) && helper.CanSeeTarget(target) &&
                 (CanApplyCondition(target, ConditionDefinitions.ConditionCharmed) ||
                  CanApplyCondition(target, ConditionDefinitions.ConditionFrightened));

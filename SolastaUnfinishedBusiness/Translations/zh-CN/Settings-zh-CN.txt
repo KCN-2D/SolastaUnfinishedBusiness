@@ -565,8 +565,8 @@ ModUi/&UseAlternateSpellPointsSystemHelp=<i><color=#F0DAA0>[L01：<color=white>0
 ModUi/&UseElfFaceModelsOnTieflings=在 <color=#D89555>Tieflings</color> 上使用 <color=#D89555>Elf</color> 面部模型
 ModUi/&UseHeightOneCylinderEffect=施放<color=#D89555>黑色触手、缠绕、油脂</color> <i><color=#F0DAA0>[square]</color></i>或<color=#D89555>尖刺生长</color> <i><color=#F0DAA0>[round]</color></i>时使用高度为 1 的圆柱体效果
 ModUi/&UseMathFlankingRules=<i>+ 使用精确的数学运算来确定侧翼进攻<color=#F0DAA0>[可能会对速度较慢的机器产生性能影响]</color></i>
-ModUi/&AllowPartyFriendlyFire=允许攻击队伍成员
-ModUi/&AllowPartyFriendlyFireHelp=手动操控的武器攻击、法术和能力若会造成伤害或施加有害效果，可遵循行动的目标限制，选择包括自身在内的队伍成员为目标，但规则明确限定只能以敌人为目标的行动除外。满足触发条件时，防御能力也可针对队伍成员的行动使用。NPC仍按原有方式自动选择目标。
+ModUi/&AllowPartyFriendlyFire=允许对自身和队友采取有害行动
+ModUi/&AllowPartyFriendlyFireHelp=在目标规则允许时，手动操控的攻击、法术和能力可以伤害自身或队友，也可以帮助敌人。每名角色均可单独开启或关闭干预友方。
 ModUi/&UseOfficialAdvantageDisadvantageRules=启用<color=#D89555>优势/劣势</color>规则<i><color=#F0DAA0>[如果情况导致掷骰结果同时存在两种情况，则视为你同时不存在这两种情况]</color></i>
 ModUi/&PreventSavingThrowReactionsAfterLegendaryResistance=使用<color=#D89555>传奇抗性</color>后阻止反应<i><color=#F0DAA0>[该次豁免确定为成功]</color></i>
 ModUi/&UseOfficialFlankingRules=启用<color=#D89555>侧翼进攻</color>规则<i><color=#F0DAA0>[如果盟友位于目标的另一侧，则攻击者具有优势]</color></i>

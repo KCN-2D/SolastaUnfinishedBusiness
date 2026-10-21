@@ -165,7 +165,8 @@ public static class GameLocationBattleManagerPatcher
         private static bool CanCounterspellSelf(GameLocationCharacter reactor,
             GameLocationCharacter caster, RulesetEffectSpell effect)
         {
-            return reactor == caster && TargetingContext.CanReactToAllyAction(reactor, caster, effect) &&
+            return reactor == caster && TargetingContext.CanHarmPartyWithInterrupt(reactor, caster) &&
+                   effect is { Terminated: false } &&
                    reactor.CanSeeTarget(caster);
         }
 
@@ -191,6 +192,7 @@ public static class GameLocationBattleManagerPatcher
             var oppositeSide = AccessTools.Method(typeof(GameLocationCharacter), nameof(GameLocationCharacter.IsOppositeSide));
             var casterField = AccessTools.Field(iterator.DeclaringType, "caster");
             var effectField = AccessTools.Field(iterator.DeclaringType, "selectEffectSpell");
+            var castActionField = AccessTools.Field(iterator.DeclaringType, "castAction");
             var replacement = AccessTools.Method(typeof(HandleSpellCast_MoveNext_Patch), nameof(GetCounterspellTargetSide));
             var matches = new List<(int Index, CodeInstruction Reactor)>();
 
@@ -214,7 +216,7 @@ public static class GameLocationBattleManagerPatcher
                 }
             }
 
-            if (matches.Count != 2 || casterField == null || effectField == null)
+            if (matches.Count != 2 || casterField == null || effectField == null || castActionField == null)
             {
                 Main.Error($"Expected two counterspell target-side checks in {iterator.DeclaringType?.FullName}, found {matches.Count}.");
                 return code;
@@ -232,6 +234,8 @@ public static class GameLocationBattleManagerPatcher
                     new CodeInstruction(reactor.opcode, reactor.operand),
                     new CodeInstruction(OpCodes.Ldarg_0),
                     new CodeInstruction(OpCodes.Ldfld, effectField),
+                    new CodeInstruction(OpCodes.Ldarg_0),
+                    new CodeInstruction(OpCodes.Ldfld, castActionField),
                     new CodeInstruction(OpCodes.Call, replacement)
                 ]);
             }
@@ -240,7 +244,8 @@ public static class GameLocationBattleManagerPatcher
         }
 
         private static Side GetCounterspellTargetSide(EffectDescription description,
-            GameLocationCharacter caster, GameLocationCharacter reactor, RulesetEffectSpell effect)
+            GameLocationCharacter caster, GameLocationCharacter reactor, RulesetEffectSpell effect,
+            CharacterActionCastSpell castAction)
         {
             if (reactor == caster && description.TargetExcludeCaster)
             {
@@ -248,7 +253,7 @@ public static class GameLocationBattleManagerPatcher
             }
 
             return description.TargetSide == Side.Enemy &&
-                   TargetingContext.CanReactToAllyAction(reactor, caster, effect)
+                   TargetingContext.CanCounterAllySpell(reactor, caster, castAction, effect)
                 ? Side.All
                 : description.TargetSide;
         }
@@ -344,7 +349,8 @@ public static class GameLocationBattleManagerPatcher
             GameLocationCharacter defender, GameLocationCharacter attacker, SpellDefinition spell)
         {
             return description.TargetSide == Side.Enemy &&
-                   TargetingContext.CanTargetAlly(defender, attacker, spell, description)
+                   TargetingContext.CanTargetAlly(defender, attacker, spell, description) &&
+                   TargetingContext.CanHarmPartyWithInterrupt(defender, attacker)
                 ? Side.All
                 : description.TargetSide;
         }
@@ -961,6 +967,12 @@ public static class GameLocationBattleManagerPatcher
         public static bool Prefix(ref AttackEvaluationParams attackParams)
         {
             var definition = GetAttackDefinition(attackParams);
+            if (!TargetingContext.IsEffectRecipientAllowed(attackParams.attacker, attackParams.defender,
+                    definition, attackParams.effectDescription ?? attackParams.attackMode?.EffectDescription))
+            {
+                return false;
+            }
+
             if (TargetingContext.IsExpandedFriendlyFireDescription(attackParams.effectDescription) &&
                 attackParams.attacker != null && attackParams.defender != null &&
                 !attackParams.attacker.IsOppositeSide(attackParams.defender.Side) &&

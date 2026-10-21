@@ -286,7 +286,8 @@ internal static class EpicBoons
             GameLocationCharacter attacker, GameLocationCharacter defender, GameLocationCharacter helper,
             ActionModifier actionModifier, RulesetAttackMode attackMode, RulesetEffect rulesetEffect)
         {
-            if (helper != attacker || !PromptEnabled(attacker.RulesetCharacter, ExtraActionId.BoonOfCombatProwess2024Toggle) ||
+            if (helper != attacker || !TargetingContext.IsValidOffensiveReactionTarget(helper, defender) ||
+                !PromptEnabled(attacker.RulesetCharacter, ExtraActionId.BoonOfCombatProwess2024Toggle) ||
                 action.AttackRollOutcome is not (RollOutcome.Failure or RollOutcome.CriticalFailure)
                 || attacker.UsedSpecialFeatures.ContainsKey(Used)) yield break;
             yield return helper.MyReactToDoNothing(ExtraActionId.DoNothingFree, attacker,
@@ -294,13 +295,16 @@ internal static class EpicBoons
                 () =>
                 {
                     if (!PromptEnabled(attacker.RulesetCharacter, ExtraActionId.BoonOfCombatProwess2024Toggle) ||
+                        !TargetingContext.IsValidOffensiveReactionTarget(attacker, defender) ||
                         attacker.UsedSpecialFeatures.ContainsKey(Used) ||
                         action.AttackRollOutcome is not (RollOutcome.Failure or RollOutcome.CriticalFailure)) return;
                     attacker.UsedSpecialFeatures[Used] = 1;
                     TryAlterOutcomeAttack.ForceHit(action, defender, actionModifier);
                 }, battleManager: battleManager, target: defender, effectDefinition: GetBoon("CombatProwess"),
                 reactionStillValid: () => PromptEnabled(attacker.RulesetCharacter,
-                    ExtraActionId.BoonOfCombatProwess2024Toggle) && !attacker.UsedSpecialFeatures.ContainsKey(Used) &&
+                    ExtraActionId.BoonOfCombatProwess2024Toggle) &&
+                    TargetingContext.IsValidOffensiveReactionTarget(attacker, defender) &&
+                    !attacker.UsedSpecialFeatures.ContainsKey(Used) &&
                     action.AttackRollOutcome is RollOutcome.Failure or RollOutcome.CriticalFailure);
         }
     }
@@ -467,6 +471,7 @@ internal static class EpicBoons
                 }, target: defender, effectDefinition: GetBoon("IrresistibleOffense"), reactionStillValid: Available);
 
             bool Available() => ReferenceEquals(roll.Target, defender.RulesetActor) &&
+                TargetingContext.IsValidOffensiveReactionTarget(attacker, defender) &&
                 !roll.Action.Aborted && roll.Action.AttackRoll == 20 && forms.Contains(form) &&
                 !attacker.RulesetCharacter.IsDeadOrDyingOrUnconscious && !defender.RulesetCharacter.IsDead &&
                 PromptEnabled(attacker.RulesetCharacter, ExtraActionId.BoonOfIrresistibleOffense2024Toggle);
@@ -701,7 +706,7 @@ internal static class EpicBoons
         BaseDefinition definition = null)
     {
         if (candidate == null || candidate == defender ||
-            !TargetingContext.IsValidOffensiveTarget(defender, candidate, definition) ||
+            !TargetingContext.IsValidOffensiveReactionTarget(defender, candidate, definition) ||
             candidate.RulesetCharacter is not { IsDead: false } || candidate.RulesetCharacter is RulesetCharacterEffectProxy ||
             ServiceRepository.GetService<IGameLocationCharacterService>()?.ValidCharacters.Contains(candidate) != true ||
             !defender.IsWithinRange(candidate, 12) || !defender.CanSeeTarget(candidate)) return false;
@@ -727,6 +732,8 @@ internal static class EpicBoons
                     .SetTargetingData(Side.All, RangeType.Distance, 12, TargetType.IndividualsUnique)
                     .UseQuickAnimations().Build())
                 .AddCustomSubFeatures(ModifyPowerVisibility.Hidden).AddToDB()).ToArray();
+        choices[0].AddCustomSubFeatures(TargetingContext.BeneficialEffect.Marker);
+        choices[1].AddCustomSubFeatures(TargetingContext.HarmfulInterrupt.Marker);
         PowerBundle.RegisterPowerBundle(pool, false, choices);
         Build("Fate", [pool, .. choices, Feature("Fate", new Fate(pool, choices[0], choices[1])),
             ReactionToggle("Fate", ExtraActionId.BoonOfFate2024Toggle)]);
@@ -1228,8 +1235,8 @@ internal static class EpicBoons
                                                                (!rote || IsOwnClassSpell(hero, spell)),
                             freeCastingIgnoresComponents: rote,
                             presentation: new FormattedDefinitionText(
-                                () => Gui.Format("Screen/&BoonOfMagicSchoolMastery" + (rote ? "Rote" : "Arcanum") +
-                                    "2024Title", Gui.Localize("SchoolOfMagic/&" + school + "Title")),
+                                () => Gui.Localize("Screen/&BoonOfMagicSchoolMastery" + (rote ? "Rote" : "Arcanum") +
+                                    "2024Title"),
                                 () => Gui.Localize("Screen/&BoonOfMagicSchoolMastery" + (rote ? "Rote" : "Arcanum") +
                                     "2024Description")),
                             selectionGroup: tag, selectionOrder: rote ? 0 : 1))

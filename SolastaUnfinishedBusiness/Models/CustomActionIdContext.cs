@@ -58,6 +58,7 @@ public static class CustomActionIdContext
         (Id)ExtraActionId.OrcishFuryToggle,
         (Id)ExtraActionId.OverChannelToggle,
         (Id)ExtraActionId.PaladinSmiteToggle,
+        (Id)ExtraActionId.PartyHarmfulInterruptsToggle,
         (Id)ExtraActionId.PowerAttackToggle,
         (Id)ExtraActionId.PowerSurgeToggle,
         (Id)ExtraActionId.PressTheAdvantageToggle,
@@ -328,6 +329,18 @@ public static class CustomActionIdContext
 
     private static void BuildCustomToggleActions()
     {
+        ActionDefinitionBuilder
+            .Create(MetamagicToggle, "PartyHarmfulInterruptsToggle")
+            .SetOrUpdateGuiPresentation(Category.Action)
+            .SetActionId(ExtraActionId.PartyHarmfulInterruptsToggle)
+            .SetActionScope(ActionScope.All)
+            .SetActionType(ActionType.NoCost)
+            .SetParameter(ActionParameter.None)
+            .SetFormType(ActionFormType.Small)
+            .OverrideClassName("Toggle")
+            .RequiresAuthorization(false)
+            .AddToDB();
+
         var jumpAction = GetDefinition<ActionDefinition>("Jump");
 
         ActionDefinitionBuilder
@@ -733,6 +746,13 @@ public static class CustomActionIdContext
             case (Id)ExtraActionId.ExplorationFreeJumpToggle:
             {
                 result = FreeJumpContext.GetExplorationToggleActionStatus(locationCharacter, scope);
+                return;
+            }
+            case (Id)ExtraActionId.PartyHarmfulInterruptsToggle:
+            {
+                result = Main.Settings.AllowPartyFriendlyFire && TargetingContext.IsManualPartyActor(locationCharacter)
+                    ? ActionStatus.Available
+                    : ActionStatus.Unavailable;
                 return;
             }
             case (Id)ExtraActionId.PaladinSmiteToggle:

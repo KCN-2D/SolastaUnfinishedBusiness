@@ -103,7 +103,9 @@ public static class CharacterActionAttackPatcher
             var target = targets[0];
             if (!ReactionRequestCallback.IsValid(actionParams) ||
                 TargetingContext.IsPartyAllyTarget(actingCharacter, target, true) &&
-                !TargetingContext.IsValidOffensiveTarget(actingCharacter, target))
+                (!TargetingContext.IsValidOffensiveTarget(actingCharacter, target) ||
+                 ReactionRequestCallback.IsInterruption(actionParams) &&
+                 !TargetingContext.IsHarmfulInterruptTargetsAllowed(actingCharacter, targets)))
             {
                 __instance.Abort(CharacterAction.InterruptionType.Invalid);
                 yield break;

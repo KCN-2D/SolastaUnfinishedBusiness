@@ -1832,7 +1832,7 @@ internal static partial class SpellBuilders
                     .SetParticleEffectParameters(FalseLife)
                     .SetEffectEffectParameters(CureWounds)
                     .Build())
-            .AddCustomSubFeatures(new ModifyDiceRollVitalityTransfer())
+            .AddCustomSubFeatures(new ModifyDiceRollVitalityTransfer(), TargetingContext.BeneficialEffect.Marker)
             .AddToDB();
 
         return spell;

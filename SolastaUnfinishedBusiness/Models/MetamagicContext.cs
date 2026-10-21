@@ -350,6 +350,12 @@ internal static class MetamagicContext
 
     internal static void RestoreReactionSelection(ReactionRequest request, ref bool validated, ref int suboption)
     {
+        // Checkbox assignments and confirmation own the native integer payload for
+        // these requests; they are not encoded spell/metamagic choices.
+        if (request is IReactionRequestMultiSelection { Selection: not null })
+        {
+            return;
+        }
         if (suboption < -1)
         {
             validated = false;

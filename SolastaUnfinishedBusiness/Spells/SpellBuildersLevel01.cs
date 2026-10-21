@@ -2970,7 +2970,7 @@ internal static partial class SpellBuilders
             if (rulesetHelper is not { IsDeadOrDyingOrUnconscious: false } ||
                 triggeringCreature?.RulesetCharacter == null ||
                 !(helper.IsOppositeSide(triggeringCreature.Side) ||
-                  TargetingContext.CanReactToAllyAction(helper, triggeringCreature)) ||
+                  TargetingContext.CanHarmPartyWithInterrupt(helper, triggeringCreature)) ||
                 !helper.CanReact() ||
                 !rulesetHelper.UsableSpells.Contains(spell) ||
                 !rulesetHelper.AreSpellComponentsValid(spell) ||
@@ -3027,7 +3027,10 @@ internal static partial class SpellBuilders
                     "SilveryBarbsTarget",
                     Gui.Localize("Reaction/&CustomReactionSilveryBarbsTargetDescription"),
                     target => empoweredCreature = target,
-                    battleManager: battleManager);
+                    battleManager: battleManager,
+                    candidateValidator: target => IsEmpowermentCandidate(helper, target, triggeringCreature,
+                        pending.Range),
+                    isBeneficial: true);
 
                 ApplyEmpowerment(helper, empoweredCreature, pending.Range);
             }
@@ -3054,18 +3057,23 @@ internal static partial class SpellBuilders
                 return [];
             }
 
-            return locationCharacterService.PartyCharacters
-                .Union(locationCharacterService.GuestCharacters)
-                .Where(candidate =>
-                    candidate.Guid != triggeringCreature.Guid &&
-                    candidate.Side == helper.Side &&
-                    candidate.RulesetCharacter is
-                        { IsDeadOrDyingOrUnconscious: false } and not RulesetCharacterEffectProxy &&
-                    helper.IsWithinRange(candidate, range) &&
-                    helper.CanSeeTarget(candidate))
-                .OrderBy(candidate => candidate.Guid)
+            return locationCharacterService.ValidCharacters
+                .Where(candidate => IsEmpowermentCandidate(helper, candidate, triggeringCreature, range))
+                .GroupBy(candidate => candidate.Guid)
+                .Select(group => group.First())
+                .OrderBy(candidate => candidate.Side != helper.Side)
+                .ThenBy(candidate => candidate.Guid)
                 .ToArray();
         }
+
+        private static bool IsEmpowermentCandidate(GameLocationCharacter caster, GameLocationCharacter candidate,
+            GameLocationCharacter triggeringCreature, int range) =>
+            candidate != triggeringCreature &&
+            ReactionRequestSelectTarget.IsCandidateValid(candidate) &&
+            (candidate.Side == caster.Side || TargetingContext.IsManualPartyActor(caster) &&
+                caster.IsOppositeSide(candidate.Side)) &&
+            TargetingContext.IsBeneficialTargetAllowed(caster, candidate) &&
+            caster.IsWithinRange(candidate, range) && caster.CanSeeTarget(candidate);
 
         private void ApplyEmpowerment(
             GameLocationCharacter caster,
@@ -3074,8 +3082,7 @@ internal static partial class SpellBuilders
         {
             var rulesetEmpowered = empoweredCreature?.RulesetCharacter;
 
-            if (rulesetEmpowered is not { IsDeadOrDyingOrUnconscious: false } ||
-                !caster.IsWithinRange(empoweredCreature, range) || !caster.CanSeeTarget(empoweredCreature))
+            if (!IsEmpowermentCandidate(caster, empoweredCreature, null, range))
             {
                 return;
             }

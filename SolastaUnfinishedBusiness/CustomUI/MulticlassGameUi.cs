@@ -695,12 +695,25 @@ internal static class MulticlassGameUi
 
     internal static void PaintSlotsWhite([NotNull] RectTransform rectTransform)
     {
+        PaintSlotImages(rectTransform, false);
+    }
+
+    internal static void PaintSlotImages([NotNull] RectTransform rectTransform, bool pact)
+    {
         for (var index = 0; index < rectTransform.childCount; ++index)
         {
             var child = rectTransform.GetChild(index);
             var component = child.GetComponent<SlotStatus>();
 
-            SetRegularSlotImage(component.Available.GetComponent<Image>());
+            var image = component.Available.GetComponent<Image>();
+            if (pact)
+            {
+                SetPactSlotImage(image);
+            }
+            else
+            {
+                SetRegularSlotImage(image);
+            }
         }
     }
 

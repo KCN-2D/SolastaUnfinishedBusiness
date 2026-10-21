@@ -479,7 +479,8 @@ public static class CharacterActionMagicEffectPatcher
             var targetPositions = actionParams.Positions;
             var actionModifiers = actionParams.ActionModifiers;
 
-            if (!TargetingContext.ValidateActionTargets(actionParams) ||
+            if (__instance.Aborted || rulesetEffect.Terminated ||
+                !TargetingContext.ValidateActionTargets(actionParams) ||
                 !GameLocationActionManagerPatcher.IsFriendlyReactionValid(actionParams))
             {
                 actionParams.ReactionValidated = false;
@@ -833,9 +834,10 @@ public static class CharacterActionMagicEffectPatcher
             // Revalidate the final synchronized targets immediately before spell slots,
             // power uses, or material components are consumed. Custom summon preparation
             // performs a second validation after special casting time.
-            yield return TargetingContext.SelectPartyAreaTargets(__instance);
+            yield return TargetingContext.SelectAreaTargets(__instance);
 
-            if (!TargetingContext.ValidateActionTargets(actionParams) ||
+            if (__instance.Aborted || rulesetEffect.Terminated ||
+                !TargetingContext.ValidateActionTargets(actionParams) ||
                 !GameLocationActionManagerPatcher.IsFriendlyReactionValid(actionParams))
             {
                 actionParams.ReactionValidated = false;

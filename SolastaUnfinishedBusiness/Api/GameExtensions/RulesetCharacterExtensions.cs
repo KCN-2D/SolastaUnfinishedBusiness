@@ -985,6 +985,10 @@ internal static class RulesetCharacterExtensions
 
     internal static bool IsToggleEnabled(this RulesetCharacter rulesetCharacter, Id actionId)
     {
+        if (actionId == (Id)ExtraActionId.PartyHarmfulInterruptsToggle)
+        {
+            rulesetCharacter = TargetingContext.GetPartyInterferenceOwner(rulesetCharacter);
+        }
         var toggleName = actionId.ToString();
         var reverse = CustomActionIdContext.IsReverseToggleId(actionId);
 
@@ -1005,15 +1009,19 @@ internal static class RulesetCharacterExtensions
 
     private static void SetToggle(this RulesetCharacter rulesetCharacter, Id actionId, bool value)
     {
+        if (actionId == (Id)ExtraActionId.PartyHarmfulInterruptsToggle)
+        {
+            rulesetCharacter = TargetingContext.GetPartyInterferenceOwner(rulesetCharacter);
+        }
         var toggleName = actionId.ToString();
+
+        // The serialized list represents a set. Normalize existing duplicates as
+        // well, so one normal toggle action can always change the stored state.
+        rulesetCharacter.ToggledPowersOn.RemoveAll(name => name == toggleName);
 
         if (value)
         {
             rulesetCharacter.ToggledPowersOn.Add(toggleName);
-        }
-        else
-        {
-            rulesetCharacter.ToggledPowersOn.Remove(toggleName);
         }
     }
 

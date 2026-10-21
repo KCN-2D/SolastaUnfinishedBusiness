@@ -45,16 +45,23 @@ public static class GameLocationActionManagerPatcher
     public static class ProcessReactionRequest_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(
+        public static bool Prefix(
             GameLocationActionManager __instance,
             ReactionRequest reactionRequest,
             ref bool validated,
             out (ReactionRequestGroup Group, bool ProcessCallbacks) __state)
         {
             __state = (null, false);
+            if (reactionRequest is IReactionRequestMultiSelection { Selection: { } selection } &&
+                selection.ConsumeUpdate())
+            {
+                // Ordered native local/RPC commands also carry checkbox changes. They
+                // update the pending choice only; no callbacks, decline, cost or execution.
+                return false;
+            }
             if (reactionRequest.Processed || __instance.pendingReactionRequestGroups.Count == 0)
             {
-                return;
+                return true;
             }
 
             var group = __instance.pendingReactionRequestGroups.Peek();
@@ -70,6 +77,7 @@ public static class GameLocationActionManagerPatcher
             {
                 validated = false;
             }
+            return true;
         }
 
         [UsedImplicitly]
@@ -326,6 +334,10 @@ public static class GameLocationActionManagerPatcher
         [UsedImplicitly]
         public static bool Prefix(GameLocationActionManager __instance, ReactionRequest reactionRequest)
         {
+            if (reactionRequest is not ReactionRequestSelectTarget { IsHarmfulInterruption: false })
+            {
+                ReactionRequestCallback.TrackInterruption(reactionRequest.ReactionParams);
+            }
             // Apply the 2024 casting restrictions at the common queue boundary. This prevents blocked
             // reaction spells from opening a menu regardless of which request type created them.
             if (!IsFriendlyReactionValid(reactionRequest.ReactionParams) ||
@@ -452,8 +464,17 @@ public static class GameLocationActionManagerPatcher
             };
             if (nativeDescription?.TargetSide != Side.Enemy)
             {
-                return true;
+                return triggeringCharacter == null ||
+                       TargetingContext.IsHarmfulInterruptTargetAllowed(reactor, triggeringCharacter,
+                           effect.SourceDefinition, effect.EffectDescription);
             }
+
+            return !effect.Terminated &&
+                   (triggeringCharacter == null || reactor == null ||
+                    reactor.IsOppositeSide(triggeringCharacter.Side) ||
+                    TargetingContext.CanCounterAllySpell(reactor, triggeringCharacter,
+                        parameters.TargetAction as CharacterActionCastSpell,
+                        parameters.TargetAction?.ActionParams.RulesetEffect as RulesetEffectSpell));
         }
         else if (effect is RulesetEffectSpell spellEffect &&
                  RulesetEffectSpellWithOrigin.GetOriginSpell(spellEffect) == SpellsContext.SilveryBarbs)
@@ -464,11 +485,18 @@ public static class GameLocationActionManagerPatcher
         {
             // Damage reactions and ordinary delivery actions use the same final
             // target policy, including ongoing proxy effects and native All/Ally rules.
-            return parameters == null || TargetingContext.ValidateActionTargets(parameters);
+            return parameters == null || TargetingContext.ValidateActionTargets(parameters) &&
+                (!ReactionRequestCallback.IsInterruption(parameters) ||
+                 effect != null && !TargetingContext.IsHarmfulInterruptEffect(
+                     effect.SourceDefinition, effect.EffectDescription) ||
+                 effect == null && parameters.AttackMode == null ||
+                 TargetingContext.IsHarmfulInterruptTargetsAllowed(reactor, parameters.TargetCharacters,
+                     effect?.SourceDefinition, effect?.EffectDescription));
         }
 
         return triggeringCharacter == null || reactor == null ||
                reactor.IsOppositeSide(triggeringCharacter.Side) ||
-               TargetingContext.CanReactToAllyAction(reactor, triggeringCharacter, effect);
+               TargetingContext.CanHarmPartyWithInterrupt(reactor, triggeringCharacter) &&
+               (effect == null || !effect.Terminated);
     }
 }

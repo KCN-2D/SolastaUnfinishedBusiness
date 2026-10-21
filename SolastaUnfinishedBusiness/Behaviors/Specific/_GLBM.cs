@@ -6,6 +6,7 @@ using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Subclasses;
@@ -1255,7 +1256,8 @@ internal static class GLBM
                             ? rulesetAttacker
                             : hero;
 
-                        if (smiteCharacter == null)
+                        if (smiteCharacter == null ||
+                            !TargetingContext.IsValidOffensiveReactionTarget(attacker, defender, featureDefinition))
                         {
                             break;
                         }
@@ -1349,6 +1351,8 @@ internal static class GLBM
                             reactionParams =
                                 new CharacterActionParams(attacker, ActionDefinitions.Id.SpendSpellSlot);
                             reactionParams.ActionModifiers.Add(new ActionModifier());
+                            ReactionRequestCallback.SetValidation(reactionParams, () =>
+                                TargetingContext.IsValidOffensiveReactionTarget(attacker, defender, featureDefinition));
 
                             yield return instance.PrepareAndReactWithSpellUsingSpellSlot(attacker,
                                 selectedSpellRepertoire, provider.NotificationTag, reactionParams);

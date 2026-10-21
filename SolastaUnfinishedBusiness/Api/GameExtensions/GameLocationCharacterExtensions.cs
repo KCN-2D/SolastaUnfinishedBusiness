@@ -580,7 +580,8 @@ public static class GameLocationCharacterExtensions
         BaseDefinition effectDefinition = null,
         Func<GameLocationCharacter, bool> candidateValidator = null,
         CharacterActionParams actionParams = null,
-        bool isOffensive = false)
+        bool isOffensive = false,
+        bool isBeneficial = false)
     {
         if (!TryGetReactionManagers(out var actionManager, out battleManager, battleManager))
         {
@@ -602,7 +603,12 @@ public static class GameLocationCharacterExtensions
         var reactionParams = actionParams ?? new CharacterActionParams(character, (Id)ExtraActionId.DoNothingFree);
         reactionParams.StringParameter = stringParameter;
         var reactionRequest = new ReactionRequestSelectTarget(reactionParams, candidateList, type, effectDefinition,
-            candidateValidator, isOffensive);
+            candidateValidator, isOffensive, isBeneficial: isBeneficial);
+        if (!reactionRequest.Candidates.Any(reactionRequest.IsCandidateAvailable))
+        {
+            reactionNotValidated?.Invoke();
+            yield break;
+        }
         var count = actionManager.PendingReactionRequestGroups.Count;
 
         if (actionParams != null)
@@ -636,6 +642,52 @@ public static class GameLocationCharacterExtensions
         }
     }
 
+    internal static IEnumerator MyReactToSelectTargets(
+        this GameLocationCharacter character,
+        IEnumerable<GameLocationCharacter> candidates,
+        GameLocationCharacter waiter,
+        string type,
+        string description,
+        int maximumTargets,
+        Action<List<GameLocationCharacter>> reactionValidated,
+        BaseDefinition effectDefinition = null,
+        Func<GameLocationCharacter, bool> candidateValidator = null,
+        bool isOffensive = false,
+        bool allowEmptySelection = false,
+        bool isHarmfulInterruption = true,
+        bool preselectHostiles = false,
+        Action reactionNotValidated = null)
+    {
+        if (!TryGetReactionManagers(out var actionManager, out var battleManager, null))
+        {
+            reactionValidated([]);
+            reactionNotValidated?.Invoke();
+            yield break;
+        }
+
+        var parameters = new CharacterActionParams(character, (Id)ExtraActionId.DoNothingFree)
+        {
+            StringParameter = description
+        };
+        var request = new ReactionRequestSelectTarget(parameters, candidates, type, effectDefinition,
+            candidateValidator, isOffensive, maximumTargets, allowEmptySelection, isHarmfulInterruption,
+            multipleSelection: true, preselectHostiles: preselectHostiles);
+        // Always use checkboxes here, including a one-target limit. The single-target
+        // helper retains its native radio selection and action-parameter behavior.
+        if (!request.Candidates.Any(request.IsCandidateAvailable))
+        {
+            reactionValidated([]);
+            yield break;
+        }
+
+        var count = actionManager.PendingReactionRequestGroups.Count;
+        actionManager.AddInterruptRequest(request);
+        yield return battleManager.WaitForReactions(waiter, actionManager, count);
+        var accepted = parameters.ReactionValidated && request.IsStillValid;
+        reactionValidated(accepted ? request.SelectedTargets.ToList() : []);
+        if (!accepted) reactionNotValidated?.Invoke();
+    }
+
     internal static IEnumerator MyReactToSpendPower(
         this GameLocationCharacter character,
         RulesetUsablePower usablePower,
@@ -644,7 +696,9 @@ public static class GameLocationCharacterExtensions
         string stringParameter2 = "",
         Action reactionValidated = null,
         GameLocationBattleManager battleManager = null,
-        Func<bool> reactionStillValid = null)
+        Func<bool> reactionStillValid = null,
+        GameLocationCharacter recipient = null,
+        bool? beneficial = null)
     {
         if (!TryGetReactionServices(out var actionService, out var implementationService, out battleManager,
                 battleManager))
@@ -662,6 +716,7 @@ public static class GameLocationCharacterExtensions
         };
         var count = actionService.PendingReactionRequestGroups.Count;
 
+        ReactionRequestCallback.SetEffectContext(reactionParams, recipient, usablePower.PowerDefinition, beneficial);
         ReactionRequestCallback.SetValidation(reactionParams, reactionStillValid);
         try
         {
@@ -721,6 +776,91 @@ public static class GameLocationCharacterExtensions
         actionManager.AddInterruptRequest(reactionRequest);
 
         yield return battleManager.WaitForReactions(waiter, actionManager, count);
+    }
+
+    internal static IEnumerator MyReactToSelectPowerBundle(
+        this GameLocationCharacter character,
+        RulesetUsablePower usablePower,
+        GameLocationCharacter target,
+        string type,
+        int maximumPowers,
+        Func<int> availableBudget,
+        Action<IReadOnlyList<FeatureDefinitionPower>> selectionApplied,
+        Func<bool> stillValid)
+    {
+        if (!TryGetReactionServices(out var actions, out var implementation, out var battle, null) ||
+            actions is not GameLocationActionManager manager)
+        {
+            yield break;
+        }
+
+        if (!TargetingContext.IsManualPartyActor(character))
+        {
+            // Native AI confirms the request directly, without checkbox update commands.
+            // Retain its scalar requests and order while excluding earlier choices without
+            // removing grants from the character's UsablePowers collection.
+            var usedPowers = new HashSet<FeatureDefinitionPower>();
+            for (var attempt = 0; attempt < maximumPowers && stillValid(); attempt++)
+            {
+                FeatureDefinitionPower allocated = null;
+                var scalarParameters = new CharacterActionParams(character, Id.SpendPower)
+                {
+                    StringParameter = type,
+                    TargetCharacters = { target },
+                    ActionModifiers = { new ActionModifier() },
+                    RulesetEffect = implementation.InstantiateEffectPower(character.RulesetCharacter, usablePower, false),
+                    UsablePower = usablePower
+                };
+                var scalarRequest = new ReactionRequestSpendBundlePower(scalarParameters,
+                    request =>
+                    {
+                        allocated = ((RulesetEffectPower)request.ReactionParams.RulesetEffect).PowerDefinition;
+                        usedPowers.Add(allocated);
+                        selectionApplied([allocated]);
+                    }, reactionStillValid: stillValid,
+                    powerFilter: power => power == allocated || !usedPowers.Contains(power) &&
+                        power.CostPerUse <= availableBudget());
+                if (scalarRequest.SubOptionsAvailability.Count == 0) yield break;
+                var scalarCount = manager.PendingReactionRequestGroups.Count;
+                manager.AddInterruptRequest(scalarRequest);
+                yield return battle.WaitForReactions(character, manager, scalarCount);
+                if (!scalarParameters.ReactionValidated) yield break;
+            }
+            yield break;
+        }
+
+        var parameters = new CharacterActionParams(character, Id.SpendPower)
+        {
+            StringParameter = type,
+            TargetCharacters = { target },
+            ActionModifiers = { new ActionModifier() },
+            RulesetEffect = implementation.InstantiateEffectPower(character.RulesetCharacter, usablePower, false),
+            UsablePower = usablePower
+        };
+        var request = new ReactionRequestSpendBundlePower(parameters, reactionStillValid: stillValid,
+            maximumPowers: maximumPowers, availableBudget: availableBudget);
+        if (!request.Selection.HasAvailableOptions)
+        {
+            yield break;
+        }
+
+        CharacterActionDoNothing.SetResultingActions(parameters, () =>
+        {
+            if (!request.IsStillValid) return [];
+            var actionsToExecute = request.CreateSelectedActions().ToArray();
+            if (actionsToExecute.Length == 0) return [];
+            selectionApplied(request.SelectedPowers);
+            foreach (var action in actionsToExecute)
+            {
+                ReactionRequestCallback.TrackInterruption(action.ActionParams);
+                ReactionRequestCallback.SetValidation(action.ActionParams, stillValid);
+            }
+            return actionsToExecute;
+        });
+
+        var count = manager.PendingReactionRequestGroups.Count;
+        manager.AddInterruptRequest(request);
+        yield return battle.WaitForReactions(character, manager, count);
     }
 
     internal static IEnumerator MyReactToUsePower(

@@ -536,7 +536,7 @@ internal static class SpellSelectionContext
         option = option.IsFree ? option : option.AtLevel(level);
         var caster = option.CastingRepertoire.GetCaster();
         option.GetUses(caster, out remaining, out maximum);
-        if (!option.IsAvailable(caster))
+        if (option.IsFree && !option.IsAvailable(caster))
         {
             remaining = 0;
         }

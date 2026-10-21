@@ -2,9 +2,11 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
 
@@ -31,7 +33,9 @@ public static class ReactionModalPatcher
             foreach (var item in __instance.reactionItems)
             {
                 if (!item || item.CurrentState != CharacterReactionItem.ReactionState.Pending ||
-                    item.ReactionRequest is not ReactionRequestSelectTarget { Processed: false } request)
+                    item.ReactionRequest is not { Processed: false } request ||
+                    request is not ReactionRequestSelectTarget &&
+                    request is not IReactionRequestMultiSelection { Selection: not null })
                 {
                     continue;
                 }
@@ -112,6 +116,18 @@ public static class ReactionModalPatcher
         public static bool Prefix(ReactionModal __instance, CharacterReactionItem item)
         {
             var request = item.ReactionRequest;
+            if (request is IReactionRequestMultiSelection { Selection: not null })
+            {
+                if (!request.Processed)
+                {
+                    RegisterReactionConfirmation(request.Character);
+                    ServiceRepository.GetService<ICommandService>()?.ProcessReactionRequest(
+                        request, true, ReactionSelection.ConfirmCommand);
+                }
+                __instance.ClearReactionTargetPreview();
+                __instance.CheckPanelRelevance();
+                return false;
+            }
             var suboption = request.SubOptionsAvailability.Count > 1 ? item.GetSelectedSubItem() : -1;
 
             if (MetamagicContext.TrySelectReactionMetamagic(
@@ -130,6 +146,25 @@ public static class ReactionModalPatcher
             //PATCH: register on acting character if SHIFT is pressed on reaction confirmations
             caster.RegisterShiftState();
         }
+    }
+
+    [HarmonyPatch(typeof(ReactionModal), nameof(ReactionModal.OnTimeout))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class OnTimeout_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            instructions.ReplaceCalls(
+                typeof(CharacterReactionItem).GetMethod(nameof(CharacterReactionItem.GetSelectedSubItem)),
+                "ReactionModal.OnTimeout", new CodeInstruction(OpCodes.Call,
+                    new Func<CharacterReactionItem, int>(GetTimeoutSuboption).Method));
+
+        private static int GetTimeoutSuboption(CharacterReactionItem item) =>
+            // A timeout declines the whole allocation; a row index is a checkbox
+            // update command and would leave the request pending after the modal closes.
+            item.ReactionRequest is IReactionRequestMultiSelection { Selection: not null }
+                ? -1 : item.GetSelectedSubItem();
     }
 
     [HarmonyPatch(typeof(ReactionModal), nameof(ReactionModal.GaugeCoroutine))]

@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using System;
 using System.Linq;
@@ -482,7 +482,7 @@ public class PatronArchfey : AbstractSubclass
             List<EffectForm> actualEffectForms)
         {
             bool ReactionStillValid() => defender.CanReact() && defender.CanPerceiveTarget(attacker) &&
-                TargetingContext.IsValidOffensiveTarget(defender, attacker, powerBeguilingDefenses) &&
+                TargetingContext.IsValidOffensiveReactionTarget(defender, attacker, powerBeguilingDefenses) &&
                 defender.RulesetCharacter.CanUsePower(powerBeguilingDefenses, considerHaving: true) &&
                 actualEffectForms.GetAppliedConditionDefinitions().Any(condition =>
                     condition.IsSubtypeOf(ConditionDefinitions.ConditionCharmed.Name));

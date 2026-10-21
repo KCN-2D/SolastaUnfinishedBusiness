@@ -43,7 +43,7 @@ internal static class AttacksOfOpportunity
                 unit == attacker ||
                 unit == defender ||
                 defender.Side != unit.Side ||
-                !TargetingContext.IsValidOffensiveTarget(unit, attacker) ||
+                !TargetingContext.IsValidOffensiveReactionTarget(unit, attacker) ||
                 !unit.IsWithinRange(attacker, 1))
             {
                 continue;
@@ -62,7 +62,7 @@ internal static class AttacksOfOpportunity
                           unit.CanReact() &&
                           defender.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false } &&
                           defender.Side == unit.Side && unit.IsWithinRange(attacker, 1) &&
-                          TargetingContext.IsValidOffensiveTarget(unit, attacker));
+                          TargetingContext.IsValidOffensiveReactionTarget(unit, attacker));
             }
         }
     }

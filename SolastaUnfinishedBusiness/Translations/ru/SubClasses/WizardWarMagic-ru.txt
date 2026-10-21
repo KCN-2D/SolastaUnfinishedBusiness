@@ -20,6 +20,6 @@ Reaction/&CustomReactionArcaneDeflectionSavingReactTitle=Магическое о
 Reaction/&CustomReactionArcaneDeflectionSavingTitle=Магическое отражение
 Subclass/&WizardWarMagicDescription=Разнообразные магические коллегии специализируются на подготовке волшебников к войне. Традиция военной магии сочетает в себе принципы воплощения и ограждения, не концентрируясь на какой-то из этих школ. Она учит техникам, усиливающим заклинания, также предлагая волшебникам методы поддержки своей защиты. Последователи этой традиции известны как военные маги. Они рассматривают свою магию и как оружие, и как броню — средство мощнее любого куска стали. Военные маги действуют в бою быстро, используя свои заклинания для получения тактического контроля над ситуацией. Их заклинания бьют сильно, в то время как их защита расстраивает попытки их противников контратаковать. Военные маги также мастаки использования магической энергии своих противников против них самих.
 Subclass/&WizardWarMagicTitle=Военная магия
-Condition/&ConditionWarMagicArcaneDeflectionRestrictionTitle=Только заговоры
+Condition/&ConditionWarMagicArcaneDeflectionRestrictionTitle=Магическое перенапряжение
 Condition/&ConditionWarMagicArcaneDeflectionRestrictionDescription=Вы можете накладывать только заговоры до конца вашего следующего хода.
 Failure/&FailureFlagWarMagicArcaneDeflectionCantripsOnly=Вы не можете накладывать заклинания 1-го уровня и выше до конца вашего следующего хода.

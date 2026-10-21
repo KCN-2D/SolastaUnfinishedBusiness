@@ -543,13 +543,20 @@ internal static class OnHitEffectContext
             }
 
             var attacker = candidates[0].Attacker;
+            var chooseTarget = followUp == null && (candidates.Length > 1 ||
+                candidates[0].ConfirmReaction && NeedsReactionConfirmation(Action)) &&
+                attacker.ControllerId != PlayerControllerManager.DmControllerId;
+            if (chooseTarget)
+            {
+                candidates = candidates.Where(candidate => TargetingContext.IsValidOffensiveReactionTarget(
+                    attacker, candidate.Target, feature)).ToArray();
+                if (candidates.Length == 0) yield break;
+            }
             Candidate selected = candidates[0];
 
             // Remote players still own their reaction request. AI controlled
             // casters retain the first eligible target without a player prompt.
-            if (followUp == null && (candidates.Length > 1 ||
-                                    selected.ConfirmReaction && NeedsReactionConfirmation(Action)) &&
-                attacker.ControllerId != PlayerControllerManager.DmControllerId)
+            if (chooseTarget)
             {
                 selected = null;
                 yield return attacker.MyReactToSelectTarget(
@@ -566,7 +573,8 @@ internal static class OnHitEffectContext
 
             // Availability is rechecked after the suspended request. Cancelling,
             // or losing the selected creature, does not spend the feature.
-            if (selected == null || !selected.IsValid)
+            if (selected == null || !selected.IsValid || chooseTarget &&
+                !TargetingContext.IsValidOffensiveReactionTarget(attacker, selected.Target, feature))
             {
                 yield break;
             }

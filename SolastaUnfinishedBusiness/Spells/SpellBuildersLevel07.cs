@@ -442,6 +442,7 @@ internal static partial class SpellBuilders
                                     .SetOrUpdateGuiPresentation(Category.Condition)
                                     .SetConditionType(ConditionType.Neutral)
                                     .SetParentCondition(ConditionDefinitions.ConditionFlying)
+                                    .AddCustomSubFeatures(TargetingContext.HarmfulCondition.Marker)
                                     .SetFeatures(
                                         FeatureDefinitionActionAffinitys.ActionAffinityConditionRestrained,
                                         FeatureDefinitionMovementAffinitys.MovementAffinityConditionRestrained)
