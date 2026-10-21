@@ -8,6 +8,7 @@ using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
 using SolastaUnfinishedBusiness.Validators;
 using static RuleDefinitions;
@@ -117,6 +118,8 @@ public sealed class RoguishBladeCaller : AbstractSubclass
             .SetGuiPresentation(Category.Feature)
             .AddFeatureSet(actionAffinityHailOfBladesToggle, powerHailOfBlades)
             .AddToDB();
+
+        CustomActionIdContext.SetToggleDescription(ExtraActionId.HailOfBladesToggle, featureSetHailOfBlades);
 
         // LEVEL 13
 

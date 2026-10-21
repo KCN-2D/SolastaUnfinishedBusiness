@@ -11,6 +11,21 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GuiCharacterActionPatcher
 {
+    [HarmonyPatch(typeof(GuiCharacterAction), nameof(GuiCharacterAction.Description), MethodType.Getter)]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class Description_Getter_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GuiCharacterAction __instance, ref string __result)
+        {
+            __result = CustomActionIdContext.FormatToggleDescription(
+                __instance.ActionDefinition,
+                __instance.ActingCharacter?.RulesetCharacter,
+                __result);
+        }
+    }
+
     [HarmonyPatch(typeof(GuiCharacterAction), nameof(GuiCharacterAction.LimitedUses), MethodType.Getter)]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

@@ -1,6 +1,6 @@
 Action/&CompellingStrikeToggleDescription=Activar/desactivar Golpe convincente
 Action/&CompellingStrikeToggleTitle=Huelga convincente
-Feature/&ActionAffinityMartialGuardianCompellingStrikeDescription=Siempre que golpees a una criatura con un ataque de arma cuerpo a cuerpo, puedes provocar a la criatura hasta el comienzo de tu siguiente turno. Una criatura provocada por ti tiene desventaja en cualquier tirada de ataque que no te tenga como objetivo. Este efecto termina antes de tiempo si otro aliado provoca a la criatura o si estás a más de 5 pies de distancia de la criatura.
+Feature/&ActionAffinityMartialGuardianCompellingStrikeDescription=Siempre que golpees a una criatura con un ataque de arma cuerpo a cuerpo o un golpe sin armas, puedes provocar a la criatura hasta el comienzo de tu siguiente turno. Una criatura provocada por ti tiene desventaja en cualquier tirada de ataque que no te tenga como objetivo. Este efecto termina antes de tiempo si otro aliado provoca a la criatura o si estás a más de 5 pies de distancia de la criatura.
 Feature/&ActionAffinityMartialGuardianCompellingStrikeTitle=Huelga convincente
 Feature/&FeatureMartialGuardianImperviousProtectorDescription=Obtienes resistencia a todo daño contundente, perforante y cortante no mágico mientras lleves armadura pesada, y si tiras iniciativa y te falta al menos un uso de tu característica Gran Desafío, recuperas un uso de esta.
 Feature/&FeatureMartialGuardianImperviousProtectorTitle=Protector impermeable

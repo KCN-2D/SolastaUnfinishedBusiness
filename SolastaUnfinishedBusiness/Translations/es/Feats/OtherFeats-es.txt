@@ -1,4 +1,4 @@
-Action/&GrappleOnUnarmedToggleDescription=Activar/desactivar Grapple en ataques desarmados
+Action/&GrappleOnUnarmedToggleDescription=Cuando impactas a una criatura con un ataque sin armas, puedes intentar agarrarla como parte de ese ataque.
 Action/&GrappleOnUnarmedToggleTitle=Lucha sin armas
 Condition/&ConditionFeatMobileAfterDashDescription=Otorga inmunidad a las restricciones de movimiento, así como a la inmovilización.
 Condition/&ConditionFeatMobileAfterDashTitle=Libertad

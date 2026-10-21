@@ -205,6 +205,8 @@ public static partial class Tabletop2024Context
 
         PowerBlessedStrikes.AddCustomSubFeatures(new CustomBehaviorBlessedStrikes(PowerBlessedStrikes));
 
+        CustomActionIdContext.SetToggleDescription(ExtraActionId.BlessedStrikesToggle, PowerBlessedStrikes);
+
         // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var (damageType, effect) in damageTypes)
         {
@@ -229,14 +231,20 @@ public static partial class Tabletop2024Context
                 .SetFeatures(additionalDamageBlessedStrikes)
                 .AddToDB();
 
+            string FormatSubPowerDescription(RulesetCharacter character) => Gui.Format(
+                "Feature/&PowerClericBlessedStrikesSubPowerDescription",
+                Gui.Localize($"Tooltip/&Tag{damageType}Title"),
+                additionalDamageBlessedStrikes.GetDiceOfRank(character?.GetClassLevel(Cleric) ?? 7) +
+                Gui.FormatDieTitle(additionalDamageBlessedStrikes.DamageDieType));
+
             var powerDivineStrike = FeatureDefinitionPowerSharedPoolBuilder
                 .Create($"PowerClericBlessedStrikes{damageType}")
                 .SetGuiPresentation(
                     $"Tooltip/&Tag{damageType}Title",
                     "Feature/&PowerClericBlessedStrikesSubPowerDescription")
-                .AddCustomSubFeatures(new FormattedDefinitionText(description: () => Gui.Format(
-                    "Feature/&PowerClericBlessedStrikesSubPowerDescription",
-                    Gui.Localize($"Tooltip/&Tag{damageType}Title"))))
+                .AddCustomSubFeatures(new FormattedDefinitionText(
+                    description: () => FormatSubPowerDescription(null),
+                    characterDescription: FormatSubPowerDescription))
                 .SetShowCasting(false)
                 .SetSharedPool(ActivationTime.NoCost, PowerBlessedStrikes)
                 .SetEffectDescription(
@@ -264,6 +272,16 @@ public static partial class Tabletop2024Context
                         Gui.Localize($"Tooltip/&Tag{damageType}Title"))))
                 .AddToDB();
         }
+
+        var damage = powers[0].EffectDescription.EffectForms[0].ConditionForm.ConditionDefinition.Features
+            .OfType<FeatureDefinitionAdditionalDamage>().Single();
+
+        string FormatDescription(RulesetCharacter character) => Gui.Format(
+            "Feature/&PowerClericBlessedStrikesDescription",
+            damage.GetDiceOfRank(character?.GetClassLevel(Cleric) ?? 7) + Gui.FormatDieTitle(damage.DamageDieType));
+
+        PowerBlessedStrikes.AddCustomSubFeatures(new FormattedDefinitionText(
+            description: () => FormatDescription(null), characterDescription: FormatDescription));
 
         var actionAffinityToggle = FeatureDefinitionActionAffinityBuilder
             .Create(ActionAffinitySorcererMetamagicToggle, "ActionAffinityBlessedStrikesToggle")

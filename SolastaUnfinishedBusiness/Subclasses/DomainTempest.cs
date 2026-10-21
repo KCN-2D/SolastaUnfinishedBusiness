@@ -186,6 +186,8 @@ public sealed class DomainTempest : AbstractSubclass
             .AddCustomSubFeatures(new CustomBehaviorThunderousStrike())
             .AddToDB();
 
+        CustomActionIdContext.SetToggleDescription(ExtraActionId.ThunderousStrikeToggle, actionAffinityThunderousStrike);
+
         //
         // LEVEL 08 - Divine Strike
         //

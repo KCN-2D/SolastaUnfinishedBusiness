@@ -735,6 +735,9 @@ internal static class Level20SubclassesContext
                 actionAffinityTraditionOpenHandQuiveringPalm)
             .AddToDB();
 
+        CustomActionIdContext.SetToggleDescription(
+            ExtraActionId.QuiveringPalmToggle, featureSetTraditionOpenHandQuiveringPalm);
+
         TraditionOpenHand.FeatureUnlocks.Add(new FeatureUnlockByLevel(featureSetTraditionOpenHandQuiveringPalm, 17));
 
         //

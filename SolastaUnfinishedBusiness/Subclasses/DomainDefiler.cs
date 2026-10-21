@@ -150,6 +150,8 @@ public sealed class DomainDefiler : AbstractSubclass
 
         powerDyingLight.AddCustomSubFeatures(new CustomBehaviorDyingLight(powerDyingLight));
 
+        CustomActionIdContext.SetToggleDescription(ExtraActionId.DyingLightToggle, powerDyingLight);
+
         var actionAffinityDyingLightToggle = FeatureDefinitionActionAffinityBuilder
             .Create(FeatureDefinitionActionAffinitys.ActionAffinitySorcererMetamagicToggle,
                 "ActionAffinityDyingLightToggle")

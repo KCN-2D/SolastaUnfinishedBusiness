@@ -1,5 +1,6 @@
 Feature/&AdditionalDamageDomainNatureDivineStrikeDescription=你获得以神圣能量灌注武器攻击的能力。每回合一次，当你以武器攻击命中一个生物时，你可以让该攻击额外造成1d8点寒冷、火焰或闪电伤害。当你达到14级时，额外伤害提升为2d8。
 Feature/&AdditionalDamageDomainNatureDivineStrikeTitle=神圣打击
+Feature/&PowerDomainNatureNatureStrikesSubPowerDescription=在你的每个回合中一次，当你的近战武器攻击命中一个生物时，你可以使其额外受到{1}点{0}伤害。
 Feature/&FeatureSetDomainNatureAcolyteOfNatureDescription=• 你从德鲁伊法术列表中任选一个戏法学习。该戏法视为你的牧师戏法，但不计入你掌握的牧师戏法数量。\n• 你从以下技能中任选一项获得熟练：驯兽、自然或求生。
 Feature/&FeatureSetDomainNatureAcolyteOfNatureTitle=自然侍徒
 Feature/&FeatureSetDomainNatureBonusProficiencyDescription=你获得重甲熟练。

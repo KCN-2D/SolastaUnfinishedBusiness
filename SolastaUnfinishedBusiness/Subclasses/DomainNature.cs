@@ -273,7 +273,9 @@ public sealed class DomainNature : AbstractSubclass
         var powers = new List<FeatureDefinitionPower>();
         var powerNatureStrikes = FeatureDefinitionPowerBuilder
             .Create($"Power{Name}NatureStrikes")
-            .SetGuiPresentation($"AdditionalDamage{Name}DivineStrike", Category.Feature, hidden: true)
+            .SetGuiPresentation(
+                $"Feature/&AdditionalDamage{Name}DivineStrikeTitle",
+                "Action/&NatureStrikesToggleDescription", hidden: true)
             .SetShowCasting(false)
             .SetEffectDescription(
                 EffectDescriptionBuilder
@@ -284,6 +286,8 @@ public sealed class DomainNature : AbstractSubclass
             .AddToDB();
 
         powerNatureStrikes.AddCustomSubFeatures(new CustomBehaviorNatureStrikes(powerNatureStrikes));
+
+        CustomActionIdContext.SetToggleDescription(ExtraActionId.NatureStrikesToggle, powerNatureStrikes);
 
         // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var (damageType, effect) in damageTypes)
@@ -308,13 +312,20 @@ public sealed class DomainNature : AbstractSubclass
                 .SetFeatures(additionalDamageNatureStrikes)
                 .AddToDB();
 
-            var damageTitle = Gui.Localize($"Tooltip/&Tag{damageType}Title");
+            string FormatSubPowerDescription(RulesetCharacter character) => Gui.Format(
+                "Feature/&PowerDomainNatureNatureStrikesSubPowerDescription",
+                Gui.Localize($"Tooltip/&Tag{damageType}Title"),
+                additionalDamageNatureStrikes.GetDiceOfRank(character?.GetClassLevel(Cleric) ?? 8) +
+                Gui.FormatDieTitle(additionalDamageNatureStrikes.DamageDieType));
 
             var powerDivineStrike = FeatureDefinitionPowerSharedPoolBuilder
                 .Create($"Power{Name}NatureStrikes{damageType}")
                 .SetGuiPresentation(
                     $"Tooltip/&Tag{damageType}Title",
-                    Gui.Format("Feature/&PowerClericBlessedStrikesSubPowerDescription", damageTitle))
+                    "Feature/&PowerDomainNatureNatureStrikesSubPowerDescription")
+                .AddCustomSubFeatures(new FormattedDefinitionText(
+                    description: () => FormatSubPowerDescription(null),
+                    characterDescription: FormatSubPowerDescription))
                 .SetShowCasting(false)
                 .SetSharedPool(ActivationTime.NoCost, powerNatureStrikes)
                 .SetEffectDescription(
@@ -331,6 +342,16 @@ public sealed class DomainNature : AbstractSubclass
 
             powers.Add(powerDivineStrike);
         }
+
+        var damage = powers[0].EffectDescription.EffectForms[0].ConditionForm.ConditionDefinition.Features
+            .OfType<FeatureDefinitionAdditionalDamage>().Single();
+
+        string FormatDescription(RulesetCharacter character) => Gui.Format(
+            "Action/&NatureStrikesToggleDescription",
+            damage.GetDiceOfRank(character?.GetClassLevel(Cleric) ?? 8) + Gui.FormatDieTitle(damage.DamageDieType));
+
+        powerNatureStrikes.AddCustomSubFeatures(new FormattedDefinitionText(
+            description: () => FormatDescription(null), characterDescription: FormatDescription));
 
         var actionAffinityToggle = FeatureDefinitionActionAffinityBuilder
             .Create(ActionAffinitySorcererMetamagicToggle, "ActionAffinityNatureStrikesToggle")

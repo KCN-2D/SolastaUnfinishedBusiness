@@ -11,6 +11,7 @@ using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
 using SolastaUnfinishedBusiness.Validators;
 using static ActionDefinitions;
@@ -220,6 +221,8 @@ public sealed class CollegeOfAudacity : AbstractSubclass
             .SetGuiPresentation(Category.Feature)
             .AddFeatureSet(actionAffinityMasterfulWhirlToggle)
             .AddToDB();
+
+        CustomActionIdContext.SetToggleDescription(ExtraActionId.MasterfulWhirlToggle, featureSetMasterfulWhirl);
 
         // MAIN
 

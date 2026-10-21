@@ -40,6 +40,8 @@ public sealed class MartialGuardian : AbstractSubclass
             .AddCustomSubFeatures(new PhysicalAttackBeforeHitConfirmedOnEnemyCompellingStrike())
             .AddToDB();
 
+        CustomActionIdContext.SetToggleDescription(ExtraActionId.CompellingStrikeToggle, actionAffinityCompellingStrike);
+
         // Stalwart Front (Sentinel Feat)
 
         var proficiencySentinel = FeatureDefinitionProficiencyBuilder

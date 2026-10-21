@@ -1,5 +1,6 @@
 Feature/&AdditionalDamageDomainNatureDivineStrikeDescription=Du erhältst die Fähigkeit, deine Waffenschläge mit göttlicher Energie zu erfüllen. Einmal in jedem deiner Züge, wenn du eine Kreatur mit einem Waffenangriff triffst, kannst du dafür sorgen, dass der Angriff dem Ziel zusätzlich 1W8 Kälte-, Feuer- oder Blitzschaden zufügt. Wenn du die 14. Stufe erreichst, erhöht sich der zusätzliche Schaden auf 2W8.
 Feature/&AdditionalDamageDomainNatureDivineStrikeTitle=Göttlicher Schlag
+Feature/&PowerDomainNatureNatureStrikesSubPowerDescription=Einmal in jedem deiner Züge, wenn du eine Kreatur mit einem Nahkampfwaffenangriff triffst, kannst du zusätzliche {1} Schaden der Art {0} verursachen.
 Feature/&FeatureSetDomainNatureAcolyteOfNatureDescription=• Du lernst einen Zauberspruch deiner Wahl aus der Druiden-Zauberliste. Dieser Zauberspruch zählt für dich als Kleriker-Zauberspruch, wird aber nicht auf die Anzahl der Kleriker-Zaubersprüche angerechnet, die du kennst.\n• Du erlangst Kenntnisse in einer der folgenden Fertigkeiten deiner Wahl: Umgang mit Tieren, Natur oder Überleben.
 Feature/&FeatureSetDomainNatureAcolyteOfNatureTitle=Akolyth der Natur
 Feature/&FeatureSetDomainNatureBonusProficiencyDescription=Sie erlangen Fertigkeit im Umgang mit schwerer Rüstung.

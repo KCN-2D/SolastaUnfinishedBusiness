@@ -1,4 +1,4 @@
-Action/&GrappleOnUnarmedToggleDescription=Activate/deactivate Grapple on unarmed attacks
+Action/&GrappleOnUnarmedToggleDescription=When you hit a creature with an unarmed strike, you can attempt to grapple it as part of that attack.
 Action/&GrappleOnUnarmedToggleTitle=Grapple on Unarmed
 Condition/&ConditionFeatMobileAfterDashDescription=Grants immunity to movement restrictions as well as being restrained.
 Condition/&ConditionFeatMobileAfterDashTitle=Freedom

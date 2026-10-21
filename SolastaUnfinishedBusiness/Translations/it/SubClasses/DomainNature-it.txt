@@ -1,5 +1,6 @@
 Feature/&AdditionalDamageDomainNatureDivineStrikeDescription=Ottieni la capacità di infondere i tuoi colpi con l'arma con energia divina. Una volta in ogni tuo turno quando colpisci una creatura con un attacco con arma, puoi far sì che l'attacco infligga 1d8 danni extra da freddo, fuoco o fulmine al bersaglio. Quando raggiungi il 14° livello, il danno extra aumenta a 2d8.
 Feature/&AdditionalDamageDomainNatureDivineStrikeTitle=Colpo divino
+Feature/&PowerDomainNatureNatureStrikesSubPowerDescription=Una volta in ciascuno dei tuoi turni, quando colpisci una creatura con un attacco con arma da mischia, puoi infliggere {1} danni aggiuntivi di tipo {0}.
 Feature/&FeatureSetDomainNatureAcolyteOfNatureDescription=• Impari un trucchetto a tua scelta dalla lista degli incantesimi del druido. Questo trucchetto conta come un trucchetto da chierico per te, ma non conta nel numero di trucchetti da chierico che conosci.\n• Ottieni competenza in una delle seguenti abilità a tua scelta: Addestramento animali, Natura o Sopravvivenza.
 Feature/&FeatureSetDomainNatureAcolyteOfNatureTitle=Accolito della natura
 Feature/&FeatureSetDomainNatureBonusProficiencyDescription=Acquisisci competenza nell'uso delle armature pesanti.

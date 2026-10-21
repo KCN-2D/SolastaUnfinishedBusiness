@@ -1,6 +1,6 @@
 Action/&CompellingStrikeToggleDescription=Ativar/desativar Ataque Compulsivo
 Action/&CompellingStrikeToggleTitle=Ataque Compulsivo
-Feature/&ActionAffinityMartialGuardianCompellingStrikeDescription=Sempre que você atingir uma criatura com um ataque de arma corpo a corpo, você pode provocar a criatura até o início do seu próximo turno. Uma criatura provocada por você tem desvantagem em qualquer jogada de ataque que não tenha você como alvo. Este efeito termina mais cedo se outro aliado provocar a criatura ou se você estiver a mais de 1,5 m de distância da criatura.
+Feature/&ActionAffinityMartialGuardianCompellingStrikeDescription=Sempre que você atingir uma criatura com um ataque de arma corpo a corpo ou um golpe desarmado, você pode provocar a criatura até o início do seu próximo turno. Uma criatura provocada por você tem desvantagem em qualquer jogada de ataque que não tenha você como alvo. Este efeito termina mais cedo se outro aliado provocar a criatura ou se você estiver a mais de 1,5 m de distância da criatura.
 Feature/&ActionAffinityMartialGuardianCompellingStrikeTitle=Ataque Compulsivo
 Feature/&FeatureMartialGuardianImperviousProtectorDescription=Você ganha resistência a todos os danos não mágicos de concussão, perfuração e corte enquanto estiver usando armadura pesada e, se rolar iniciativa e perder pelo menos um uso da sua habilidade Grande Desafio, você recupera um uso dela.
 Feature/&FeatureMartialGuardianImperviousProtectorTitle=Protetor Impermeável

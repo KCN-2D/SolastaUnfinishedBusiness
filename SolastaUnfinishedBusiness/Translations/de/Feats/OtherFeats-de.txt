@@ -1,4 +1,4 @@
-Action/&GrappleOnUnarmedToggleDescription=Grapple bei unbewaffneten Angriffen aktivieren/deaktivieren
+Action/&GrappleOnUnarmedToggleDescription=Wenn du eine Kreatur mit einem unbewaffneten Angriff triffst, kannst du als Teil dieses Angriffs versuchen, sie zu packen.
 Action/&GrappleOnUnarmedToggleTitle=Unbewaffneter Ringkampf
 Condition/&ConditionFeatMobileAfterDashDescription=Verleiht Immunität gegen Bewegungseinschränkungen und Fesselung.
 Condition/&ConditionFeatMobileAfterDashTitle=Freiheit

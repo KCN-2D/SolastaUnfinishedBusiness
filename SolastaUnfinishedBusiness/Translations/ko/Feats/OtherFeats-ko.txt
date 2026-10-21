@@ -1,4 +1,4 @@
-Action/&GrappleOnUnarmedToggleDescription=무장하지 않은 공격에 대해 그래플을 활성화/비활성화합니다.
+Action/&GrappleOnUnarmedToggleDescription=비무장 타격이 크리처에게 명중하면 그 공격의 일부로 붙잡기를 시도할 수 있습니다.
 Action/&GrappleOnUnarmedToggleTitle=무장하지 않은 상태에서 씨름하기
 Condition/&ConditionFeatMobileAfterDashDescription=이동 제한 및 구속에 면역이 됩니다.
 Condition/&ConditionFeatMobileAfterDashTitle=자유

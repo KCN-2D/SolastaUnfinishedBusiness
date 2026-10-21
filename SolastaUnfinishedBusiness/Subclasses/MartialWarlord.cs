@@ -10,6 +10,7 @@ using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
 using SolastaUnfinishedBusiness.Validators;
 using TA;
@@ -198,6 +199,8 @@ public sealed class MartialWarlord : AbstractSubclass
                 powerExploitOpening, powerPredictAttack, powerCoveringStrike,
                 actionAffinityPressTheAdvantageToggle)
             .AddToDB();
+
+        CustomActionIdContext.SetToggleDescription(ExtraActionId.PressTheAdvantageToggle, featureSetPressTheAdvantage);
 
         //
         // LEVEL 07

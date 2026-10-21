@@ -1,6 +1,6 @@
 Action/&CompellingStrikeToggleDescription=Attiva/disattiva Compelling Strike
 Action/&CompellingStrikeToggleTitle=Sciopero convincente
-Feature/&ActionAffinityMartialGuardianCompellingStrikeDescription=Ogni volta che colpisci una creatura con un attacco con arma da mischia, puoi provocarla fino all'inizio del tuo turno successivo. Una creatura provocata da te ha svantaggio su qualsiasi tiro di attacco che non ti bersaglia. Questo effetto termina prima se un altro alleato provoca la creatura o se ti trovi a più di 5 piedi di distanza dalla creatura.
+Feature/&ActionAffinityMartialGuardianCompellingStrikeDescription=Ogni volta che colpisci una creatura con un attacco con arma da mischia o un colpo senz’armi, puoi provocarla fino all'inizio del tuo turno successivo. Una creatura provocata da te ha svantaggio su qualsiasi tiro di attacco che non ti bersaglia. Questo effetto termina prima se un altro alleato provoca la creatura o se ti trovi a più di 5 piedi di distanza dalla creatura.
 Feature/&ActionAffinityMartialGuardianCompellingStrikeTitle=Sciopero convincente
 Feature/&FeatureMartialGuardianImperviousProtectorDescription=Ottieni resistenza a tutti i danni contundenti, perforanti e taglienti non magici finché indossi un'armatura pesante e, se tiri l'iniziativa e ti manca almeno un utilizzo della tua caratteristica Grande Sfida, ne recuperi un utilizzo.
 Feature/&FeatureMartialGuardianImperviousProtectorTitle=Protettore Impervio

@@ -1,4 +1,4 @@
-Action/&GrappleOnUnarmedToggleDescription=素手打撃時の組みつきを有効化／無効化します。
+Action/&GrappleOnUnarmedToggleDescription=素手打撃がクリーチャーに命中したとき、その攻撃の一部として組みつきを試みられます。
 Action/&GrappleOnUnarmedToggleTitle=非武装状態での組みつき
 Condition/&ConditionFeatMobileAfterDashDescription=拘束状態および移動制限に対する完全耐性も得ます。
 Condition/&ConditionFeatMobileAfterDashTitle=自由

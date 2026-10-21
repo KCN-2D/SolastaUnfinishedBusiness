@@ -161,6 +161,8 @@ public sealed class WizardEvocation : AbstractSubclass
             .SetFeatureSet(actionAffinityOverChannelToggle)
             .AddToDB();
 
+        CustomActionIdContext.SetToggleDescription(ExtraActionId.OverChannelToggle, featureSetOverChannel);
+
         //
         // Main
         //

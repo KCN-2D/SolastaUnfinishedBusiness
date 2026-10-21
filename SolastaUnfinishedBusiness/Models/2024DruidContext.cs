@@ -256,6 +256,8 @@ public static partial class Tabletop2024Context
             ModifyPowerVisibility.Hidden
         );
 
+        CustomActionIdContext.SetToggleDescription(ExtraActionId.ElementalFuryToggle, powerPrimalStrike);
+
         // ReSharper disable once LoopCanBeConvertedToQuery
         foreach (var (damageType, effect) in damageTypes)
         {
@@ -281,13 +283,20 @@ public static partial class Tabletop2024Context
                 .SetSpecialInterruptions(ConditionInterruption.Attacks)
                 .AddToDB();
 
-            var damageTitle = Gui.Localize($"Tooltip/&Tag{damageType}Title");
+            string FormatSubPowerDescription(RulesetCharacter character) => Gui.Format(
+                "Feature/&PowerDruidElementalFurySubPowerDescription",
+                Gui.Localize($"Tooltip/&Tag{damageType}Title"),
+                additionalDamageElementalFury.GetDiceOfRank(character?.GetClassLevel(Druid) ?? 7) +
+                Gui.FormatDieTitle(additionalDamageElementalFury.DamageDieType));
 
             var powerElementalFury = FeatureDefinitionPowerSharedPoolBuilder
                 .Create($"PowerDruidElementalFury{damageType}")
                 .SetGuiPresentation(
                     $"Tooltip/&Tag{damageType}Title",
-                    Gui.Format("Feature/&PowerDruidElementalFurySubPowerDescription", damageTitle))
+                    "Feature/&PowerDruidElementalFurySubPowerDescription")
+                .AddCustomSubFeatures(new FormattedDefinitionText(
+                    description: () => FormatSubPowerDescription(null),
+                    characterDescription: FormatSubPowerDescription))
                 .SetShowCasting(false)
                 .SetSharedPool(ActivationTime.NoCost, powerPrimalStrike)
                 .SetEffectDescription(
@@ -303,6 +312,16 @@ public static partial class Tabletop2024Context
 
             powers.Add(powerElementalFury);
         }
+
+        var damage = powers[0].EffectDescription.EffectForms[0].ConditionForm.ConditionDefinition.Features
+            .OfType<FeatureDefinitionAdditionalDamage>().Single();
+
+        string FormatDescription(RulesetCharacter character) => Gui.Format(
+            "Feature/&PowerDruidElementalFuryDescription",
+            damage.GetDiceOfRank(character?.GetClassLevel(Druid) ?? 7) + Gui.FormatDieTitle(damage.DamageDieType));
+
+        powerPrimalStrike.AddCustomSubFeatures(new FormattedDefinitionText(
+            description: () => FormatDescription(null), characterDescription: FormatDescription));
 
         var actionAffinityToggle = FeatureDefinitionActionAffinityBuilder
             .Create(ActionAffinitySorcererMetamagicToggle, "ActionAffinityElementalFuryToggle")

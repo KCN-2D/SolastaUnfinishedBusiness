@@ -1,4 +1,4 @@
-Action/&GrappleOnUnarmedToggleDescription=在徒手攻击时激活/停用抓钩
+Action/&GrappleOnUnarmedToggleDescription=当你的徒手打击命中一个生物时，你可以作为该次攻击的一部分尝试擒抱它。
 Action/&GrappleOnUnarmedToggleTitle=徒手搏斗
 Condition/&ConditionFeatMobileAfterDashDescription=免疫束缚及移动限制效应。
 Condition/&ConditionFeatMobileAfterDashTitle=行动自如

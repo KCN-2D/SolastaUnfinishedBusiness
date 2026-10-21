@@ -1,4 +1,4 @@
-Action/&GrappleOnUnarmedToggleDescription=Activer/désactiver le grappin sur les attaques à mains nues
+Action/&GrappleOnUnarmedToggleDescription=Lorsque vous touchez une créature avec une frappe à mains nues, vous pouvez tenter de l’agripper dans le cadre de cette attaque.
 Action/&GrappleOnUnarmedToggleTitle=Grappin sur non armé
 Condition/&ConditionFeatMobileAfterDashDescription=Accorde l'immunité aux restrictions de mouvement ainsi qu'à la contention.
 Condition/&ConditionFeatMobileAfterDashTitle=Liberté

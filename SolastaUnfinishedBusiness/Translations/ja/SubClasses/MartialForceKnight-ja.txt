@@ -39,4 +39,4 @@ Reaction/&UseKineticBarrierReactTitle=使用
 Reaction/&UseKineticBarrierTitle=念動障壁
 Subclass/&MartialForceKnightDescription=サイ・ウォリアーは、多彩な念動力を駆使して戦場で優位に立つ規律ある戦士です。どんな状況にも柔軟に適応し、サイを帯びた攻撃で自らの力を増し、精神で生み出した障壁や念動の移動で味方を助けます。
 Subclass/&MartialForceKnightTitle=サイ・ウォリアー
-Tooltip/&ForcePoweredStrikeDieDescription=力場駆動の一撃のダイスは{0}で、残り使用回数は{1}回です。
+Tooltip/&ForcePoweredStrikeDieDescription=力場強打のダイスは{0}で、残り使用回数は{1}回です。

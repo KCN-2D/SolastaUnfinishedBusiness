@@ -135,7 +135,19 @@ public static partial class Tabletop2024Context
             .AddToDB();
 
         powerPool.AddCustomSubFeatures(
-            ModifyPowerVisibility.Hidden, new CustomBehaviorBrutalStrike(powerPool));
+            ModifyPowerVisibility.Hidden,
+            new CustomBehaviorBrutalStrike(powerPool),
+            new FormattedDefinitionText(
+                description: () => FormatBrutalStrikeDescription(null),
+                characterDescription: FormatBrutalStrikeDescription));
+
+        string FormatBrutalStrikeDescription(RulesetCharacter character) => Gui.Format(
+            "Feature/&PowerBarbarianBrutalStrikeDescription",
+            additionalDamageBrutalStrike.GetDiceOfRank(character?.GetClassLevel(Barbarian) ?? 9) +
+            Gui.FormatDieTitle(additionalDamageBrutalStrike.DamageDieType),
+            GetBrutalStrikeEffectCount(character).ToString());
+
+        CustomActionIdContext.SetToggleDescription(ExtraActionId.BrutalStrikeToggle, powerPool);
 
         // Forceful Blow
 
@@ -411,6 +423,9 @@ public static partial class Tabletop2024Context
         Barbarian.FeatureUnlocks.Sort(Sorting.CompareFeatureUnlock);
     }
 
+    private static int GetBrutalStrikeEffectCount(RulesetCharacter character) =>
+        character?.GetClassLevel(Barbarian) >= 17 ? 2 : 1;
+
     private sealed class CustomBehaviorBrutalStrike(FeatureDefinitionPower powerBarbarianBrutalStrike)
         : IPhysicalAttackBeforeHitConfirmedOnEnemy, IPhysicalAttackFinishedByMe
     {
@@ -456,7 +471,7 @@ public static partial class Tabletop2024Context
                 0);
 
             var aborted = false;
-            var attempts = rulesetAttacker.GetClassLevel(Barbarian) >= 17 ? 2 : 1;
+            var attempts = GetBrutalStrikeEffectCount(rulesetAttacker);
             var usablePower = PowerProvider.Get(powerBarbarianBrutalStrike, rulesetAttacker);
             List<FeatureDefinitionPower> selectedPowers = [];
             RulesetUsablePower savedUsablePower = null;

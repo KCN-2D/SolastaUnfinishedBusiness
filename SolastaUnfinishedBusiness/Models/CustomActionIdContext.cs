@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
@@ -18,6 +19,31 @@ namespace SolastaUnfinishedBusiness.Models;
 
 public static class CustomActionIdContext
 {
+    private static readonly Dictionary<Id, BaseDefinition> ToggleDescriptionSources = new();
+
+    internal static void SetToggleDescription(ExtraActionId actionId, BaseDefinition source)
+    {
+        ToggleDescriptionSources[(Id)actionId] = source;
+    }
+
+    internal static string FormatToggleDescription(
+        ActionDefinition action,
+        RulesetCharacter character,
+        string original)
+    {
+        if (action == null || !IsToggleId(action.Id))
+        {
+            return original;
+        }
+
+        var source = ToggleDescriptionSources.TryGetValue(action.Id, out var effect) ? effect : action;
+        var description = source.FormatDescription();
+        description = source.GetFirstSubFeatureOfType<FormattedDefinitionText>()
+            ?.FormatCharacterDescription(description, character) ?? description;
+
+        return CustomTooltipProvider.IsUnavailableContent(description) ? original : description;
+    }
+
     internal static readonly List<Id> ExtraActionIdToggles =
     [
         (Id)ExtraActionId.AmazingDisplayToggle,

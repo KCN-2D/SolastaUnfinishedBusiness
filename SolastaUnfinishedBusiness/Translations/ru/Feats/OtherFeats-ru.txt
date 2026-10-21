@@ -1,4 +1,4 @@
-Action/&GrappleOnUnarmedToggleDescription=Активировать/деактивировать захват безоружной атакой
+Action/&GrappleOnUnarmedToggleDescription=Попав по существу безоружным ударом, вы можете попытаться схватить его в рамках этой атаки.
 Action/&GrappleOnUnarmedToggleTitle=Захват безоружной атакой
 Condition/&ConditionFeatMobileAfterDashDescription=Обеспечивает иммунитет к ограничению передвижения, а также к состоянию "Опутанный".
 Condition/&ConditionFeatMobileAfterDashTitle=Свобода

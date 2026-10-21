@@ -132,6 +132,8 @@ public static partial class Tabletop2024Context
 
     private static void LoadFighterTacticalMaster()
     {
+        CustomActionIdContext.SetToggleDescription(ExtraActionId.TacticalMasterToggle, FeatureSetFighterTacticalMaster);
+
         var powers = new List<FeatureDefinitionPower>();
 
         foreach (var mastery in new[] { MasteryProperty.Push, MasteryProperty.Sap, MasteryProperty.Slow })

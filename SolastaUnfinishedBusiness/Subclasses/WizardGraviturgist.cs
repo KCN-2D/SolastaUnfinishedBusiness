@@ -160,8 +160,10 @@ public sealed class WizardGraviturgist : AbstractSubclass
                             .Build())
                     .Build())
             .AddCustomSubFeatures(new ValidatorsValidatePowerUse(c =>
-                c.IsToggleEnabled((ActionDefinitions.Id)ExtraActionId.OverChannelToggle)))
+                c.IsToggleEnabled((ActionDefinitions.Id)ExtraActionId.GravityWellToggle)))
             .AddToDB();
+
+        CustomActionIdContext.SetToggleDescription(ExtraActionId.GravityWellToggle, powerGravityWell);
 
         // LEVEL 10
 

@@ -1,5 +1,6 @@
 Feature/&AdditionalDamageDomainNatureDivineStrikeDescription=武器攻撃に神聖なエネルギーを注ぎ込む能力を得ます。自分の各ターンに1回、武器攻撃がクリーチャーに命中したとき、対象に追加で1d8の冷気、火、または電撃ダメージを与えられます。14レベルに達すると、この追加ダメージは2d8に増加します。
 Feature/&AdditionalDamageDomainNatureDivineStrikeTitle=信仰込めた打撃
+Feature/&PowerDomainNatureNatureStrikesSubPowerDescription=自分の各ターンに1回、近接武器攻撃がクリーチャーに命中したとき、対象に追加で{1}の{0}ダメージを与えられます。
 Feature/&FeatureSetDomainNatureAcolyteOfNatureDescription=• ドルイド呪文リストから任意の初級呪文を1つ修得します。この初級呪文はあなたにとってクレリックの初級呪文として扱われますが、修得しているクレリック初級呪文の数には数えません。\n• 〈動物使い〉、〈自然〉、〈生存〉のいずれか1つを選択し、その技能に習熟します。
 Feature/&FeatureSetDomainNatureAcolyteOfNatureTitle=自然のしもべ
 Feature/&FeatureSetDomainNatureBonusProficiencyDescription=重装鎧に習熟します。

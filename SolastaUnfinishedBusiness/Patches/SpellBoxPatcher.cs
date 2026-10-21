@@ -20,9 +20,6 @@ public static class SpellBoxPatcher
     private const string AutoPreparedSpellSourceTitle = "Screen/&AutoPreparedSpellSourceTitle";
     private const string AutoPreparedSpellSourceDescription = "Screen/&AutoPreparedSpellSourceDescription";
     private const string AutoPreparedSpellSourceDescriptionFormat = "Screen/&AutoPreparedSpellSourceDescriptionFormat";
-    private const string FeatGrantedCantripDescriptionFormat = "Screen/&FeatGrantedCantripDescriptionFormat";
-    private const string FeatGrantedSpellSingleUseDescription = "Screen/&FeatGrantedSpellSingleUseDescription";
-    private const string FeatGrantedSpellSharedUseDescription = "Screen/&FeatGrantedSpellSharedUseDescription";
     private const string ClassExtraSpellDescriptionFormat = "Screen/&ClassExtraSpellDescriptionFormat";
     private const string SubclassExtraSpellDescriptionFormat = "Screen/&SubclassClassExtraSpellDescriptionFormat";
     private const string MulticlassExtraSpellTitle = "Screen/&MulticlassExtraSpellTitle";
@@ -109,7 +106,7 @@ public static class SpellBoxPatcher
 
                 __instance.autoPreparedTitle.Text = CharacterInspectionScreenEnhancement.IsInspectionSpellSourceRedundant(
                     __instance.Caster, displayedRepertoire, source, __state, __instance.bindMode) ? string.Empty : title;
-                __instance.autoPreparedTooltip.Content = tooltipContent;
+                BindSpellSourceTooltip(__instance.autoPreparedTooltip, tooltipContent);
             }
 
             RefreshSpellSourceVisibility(__instance);
@@ -144,11 +141,11 @@ public static class SpellBoxPatcher
                 }
             }
             else if (TryResolveMulticlassSpellSourceTag(tag, out title, out tooltipContent) ||
-                     TryResolveLocalizedSpellSource(tag, spell, caster, castingSource, extraSpell,
+                     TryResolveGrantedSpellSource(tag, spell, caster, castingSource, out title, out tooltipContent) ||
+                     TryResolveLocalizedSpellSource(tag, spell, extraSpell,
                          out title, out tooltipContent) ||
-                     TryResolveLocalizedSpellSource(tag, spell, caster, castingSource, !extraSpell,
-                         out title, out tooltipContent) ||
-                     TryResolveGrantedSpellSource(tag, spell, caster, out title, out tooltipContent))
+                     TryResolveLocalizedSpellSource(tag, spell, !extraSpell,
+                         out title, out tooltipContent))
             {
                 return true;
             }
@@ -169,53 +166,46 @@ public static class SpellBoxPatcher
         string tag,
         SpellDefinition spell,
         RulesetCharacter caster,
+        RulesetSpellRepertoire castingSource,
         out string title,
         out string tooltipContent)
     {
         title = string.Empty;
         tooltipContent = string.Empty;
 
-        if (caster is not RulesetCharacterHero hero || !spell)
+        if (caster == null || !spell)
         {
             return false;
         }
 
-        foreach (var repertoire in hero.SpellRepertoires)
+        // Preparation belongs to its grant even when an independently learned class
+        // copy supplies the spell's casting origin. Never change that casting origin.
+        var sources = caster.SpellRepertoires.Where(repertoire =>
         {
-            var castingFeature = repertoire.SpellCastingFeature;
+            var spellTag = repertoire.SpellCastingFeature?.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>();
+            var matches = spellTag != null &&
+                          string.Equals(NormalizeSpellSourceTag(spellTag.Name), tag, StringComparison.OrdinalIgnoreCase) ||
+                          tag.Equals("Race", StringComparison.OrdinalIgnoreCase) && repertoire.SpellCastingRace;
 
-            if (castingFeature.GetFirstSubFeatureOfType<FeatHelpers.SpellTag>() is not { } spellTag ||
-                NormalizeSpellSourceTag(spellTag.Name) != tag ||
-                (!repertoire.KnownCantrips.Contains(spell) && !repertoire.KnownSpells.Contains(spell) &&
-                 !repertoire.AutoPreparedSpells.Contains(spell) && !repertoire.IsSpellReady(spell)))
-            {
-                continue;
-            }
-
-            var grant = SpellSelectionContext.GetSpellSourceGrant(hero, repertoire);
-
-            if (!grant)
-            {
-                continue;
-            }
-
-            // Reuse the actual grant's localized presentation when a tag has no dedicated source label.
-            title = grant.FormatTitle();
-            tooltipContent = spell.SpellLevel == 0
-                ? Gui.Format(FeatGrantedCantripDescriptionFormat, title)
-                : grant.FormatDescription();
-
-            return true;
+            return matches && CharacterInspectionScreenEnhancement.GetInspectionLearnedSpells(repertoire).Contains(spell);
+        }).ToArray();
+        if (sources.Length == 0)
+        {
+            return false;
         }
 
-        return false;
+        var source = sources.Contains(castingSource)
+            ? castingSource
+            : SpellCastingResourceContext.SelectFeatCastingRepertoire(caster, sources);
+        title = source.FormatHeader();
+        return SpellUseTooltips.TryFormatSourceDescription(caster, source, spell, title,
+            source.SpellCastingFeature.SpellReadyness == RuleDefinitions.SpellReadyness.AllKnown ||
+            source.AutoPreparedSpells.Contains(spell), out tooltipContent);
     }
 
     private static bool TryResolveLocalizedSpellSource(
         string tag,
         SpellDefinition spell,
-        RulesetCharacter caster,
-        RulesetSpellRepertoire castingSource,
         bool extraSpell,
         out string title,
         out string tooltipContent)
@@ -233,9 +223,7 @@ public static class SpellBoxPatcher
 
         title = Gui.Localize(titleKey);
 
-        if (Tabletop2024Context.TryGetTabletop2024FeatSpellSourceDescription(
-                tag, spell, out tooltipContent) ||
-            TryResolveFeatSpellSourceDescription(tag, spell, caster, castingSource, out tooltipContent))
+        if (Tabletop2024Context.TryGetTabletop2024FeatSpellSourceDescription(tag, spell, out tooltipContent))
         {
             return true;
         }
@@ -245,67 +233,6 @@ public static class SpellBoxPatcher
             ? Gui.Localize(descriptionKey)
             : Gui.Localize(AutoPreparedSpellSourceDescription);
 
-        return true;
-    }
-
-    private static bool TryResolveFeatSpellSourceDescription(
-        string tag,
-        SpellDefinition spell,
-        RulesetCharacter caster,
-        RulesetSpellRepertoire castingSource,
-        out string description)
-    {
-        description = null;
-
-        if (spell is not { SpellLevel: > 0 } || caster == null)
-        {
-            return false;
-        }
-
-        // Preparation belongs to the feat even when an independently learned class copy
-        // is selected for casting. Resolve the grant without changing that casting source.
-        var grants = LevelUpHelper.EnumerateSlotCastableFeatSpells(caster)
-            .Where(entry => entry.DisplayTag == tag && entry.Spell.SpellLevel == spell.SpellLevel)
-            .ToArray();
-        var sources = grants.Where(entry => entry.Spell == spell)
-            .Select(entry => entry.Repertoire).Distinct().ToArray();
-
-        if (sources.Length == 0)
-        {
-            return false;
-        }
-
-        var grant = sources.Contains(castingSource)
-            ? castingSource
-            : SpellCastingResourceContext.SelectFeatCastingRepertoire(caster, sources);
-
-        if (grant.SpellCastingFeature is not
-            {
-                SpellReadyness: RuleDefinitions.SpellReadyness.AllKnown,
-                SlotsRecharge: RuleDefinitions.RechargeRate.LongRest,
-                UniqueLevelSlots: false
-            } ||
-            !SpellSlotCastingLimit2024Context.IsFreeUseRepertoire(grant))
-        {
-            return false;
-        }
-
-        var grantedSpells = grants.Where(entry => entry.Repertoire == grant)
-            .Select(entry => entry.Spell)
-            .Distinct()
-            .ToArray();
-
-        grant.GetSlotsNumber(spell.SpellLevel, out _, out var capacity);
-        if (capacity != 1)
-        {
-            return false;
-        }
-
-        // Capacity describes the grant even after its free use is spent. Spells sharing
-        // one repertoire-level pool must not each promise an independent free casting.
-        description = Gui.Localize(grantedSpells.Length > 1
-            ? FeatGrantedSpellSharedUseDescription
-            : FeatGrantedSpellSingleUseDescription);
         return true;
     }
 
@@ -405,8 +332,18 @@ public static class SpellBoxPatcher
     {
         SpellCastingValidation.BindTooltipRepertoire(spellBox.tooltip, null);
         spellBox.autoPreparedTitle.Text = string.Empty;
-        spellBox.autoPreparedTooltip.Content = string.Empty;
+        BindSpellSourceTooltip(spellBox.autoPreparedTooltip, string.Empty);
         RefreshSpellSourceVisibility(spellBox);
+    }
+
+    private static void BindSpellSourceTooltip(GuiTooltip tooltip, string content)
+    {
+        tooltip.TooltipClass = GuiManager.DefaultTooltipClass;
+        tooltip.Content = content;
+        tooltip.DataProvider = null;
+        tooltip.Context = null;
+        tooltip.SecondaryTooltip = null;
+        tooltip.Disabled = string.IsNullOrEmpty(content);
     }
 
     private static void RefreshSpellSourceVisibility(SpellBox spellBox)

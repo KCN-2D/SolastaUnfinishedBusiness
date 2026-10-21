@@ -1,4 +1,4 @@
-Action/&GrappleOnUnarmedToggleDescription=Attiva/disattiva Grapple sugli attacchi disarmati
+Action/&GrappleOnUnarmedToggleDescription=Quando colpisci una creatura con un colpo senz’armi, puoi tentare di afferrarla come parte di quell’attacco.
 Action/&GrappleOnUnarmedToggleTitle=Affrontare Disarmato
 Condition/&ConditionFeatMobileAfterDashDescription=Garantisce l'immunità alle restrizioni di movimento e all'essere trattenuto.
 Condition/&ConditionFeatMobileAfterDashTitle=Libertà

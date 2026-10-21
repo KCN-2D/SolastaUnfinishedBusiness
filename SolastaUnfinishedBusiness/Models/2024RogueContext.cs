@@ -515,6 +515,8 @@ public static partial class Tabletop2024Context
             ModifyPowerVisibility.Hidden,
             new CustomBehaviorCunningStrike(powerPool, powerKnockOut, powerKnockOutApply, powerWithdraw));
 
+        CustomActionIdContext.SetToggleDescription(ExtraActionId.CunningStrikeToggle, powerPool);
+
         PowerBundle.RegisterPowerBundle(powerPool, true,
             powerDisarm, powerPoison, powerTrip, powerWithdraw, powerDaze, powerKnockOut, powerObscure);
 
