@@ -1,6 +1,10 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -8,6 +12,32 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterStageIdentityDefinitionPanelPatcher
 {
+    [HarmonyPatch(typeof(CharacterStageIdentityDefinitionPanel), nameof(CharacterStageIdentityDefinitionPanel.Refresh))]
+    [UsedImplicitly]
+    public static class Refresh_Patch
+    {
+        private static void SetFirstName(RulesetCharacterHero hero, string value) =>
+            hero.Name = ToolsContext.FunctorRespec.ResolveIdentityInputName(hero, value, false);
+
+        private static void SetLastName(RulesetCharacterHero hero, string value) =>
+            hero.SurName = ToolsContext.FunctorRespec.ResolveIdentityInputName(hero, value, true);
+
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            instructions.ReplaceCalls(AccessTools.PropertySetter(typeof(RulesetEntity), nameof(RulesetEntity.Name)),
+                    1, "CharacterStageIdentityDefinitionPanel.Refresh.Name",
+                    new CodeInstruction(OpCodes.Call, new Action<RulesetCharacterHero, string>(SetFirstName).Method))
+                .ReplaceCalls(AccessTools.PropertySetter(typeof(RulesetCharacterHero), nameof(RulesetCharacterHero.SurName)),
+                    1, "CharacterStageIdentityDefinitionPanel.Refresh.SurName",
+                    new CodeInstruction(OpCodes.Call, new Action<RulesetCharacterHero, string>(SetLastName).Method));
+
+        [UsedImplicitly]
+        public static void Postfix(CharacterStageIdentityDefinitionPanel __instance)
+        {
+            ToolsContext.FunctorRespec.RefreshIdentityNames(__instance);
+        }
+    }
+
     [HarmonyPatch(typeof(CharacterStageIdentityDefinitionPanel), nameof(CharacterStageIdentityDefinitionPanel.EnterStage))]
     [UsedImplicitly]
     public static class EnterStage_Patch
@@ -37,7 +67,7 @@ public static class CharacterStageIdentityDefinitionPanelPatcher
         [UsedImplicitly]
         public static void Prefix(CharacterStageIdentityDefinitionPanel __instance)
         {
-            ToolsContext.FunctorRespec.PreserveIdentityAppearanceEdits(__instance);
+            ToolsContext.FunctorRespec.PreserveIdentityEdits(__instance);
         }
     }
 
@@ -49,12 +79,13 @@ public static class CharacterStageIdentityDefinitionPanelPatcher
         [UsedImplicitly]
         public static void Prefix(CharacterStageIdentityDefinitionPanel __instance)
         {
-            ToolsContext.FunctorRespec.PreserveIdentityAppearanceEdits(__instance);
+            ToolsContext.FunctorRespec.PreserveIdentityEdits(__instance);
         }
 
         [UsedImplicitly]
         public static void Postfix(CharacterStageIdentityDefinitionPanel __instance)
         {
+            ToolsContext.FunctorRespec.RestoreIdentityNames(__instance);
             ToolsContext.FunctorRespec.CaptureIdentityAppearanceBaseline(__instance);
         }
     }

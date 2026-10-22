@@ -287,8 +287,8 @@ ModUi/&EnableSpeechActorHelp=• Select an actor
 ModUi/&EnableSpeechOnNpcs=Enable NPC speech
 ModUi/&EnableSpeechOnInteractions=Read object interaction descriptions with the narrator voice
 ModUi/&EnableSpeechVoiceHelp=• Select a voice and narration speed
-ModUi/&EnableStackableArtItems=Enable stacking <color=#D89555>Art Items</color> <i><color=#F0DAA0>[cannot be split while this setting is disabled]</color></i>
-ModUi/&EnableStackableAxesAndDaggers=Enable stacking <color=#D89555>Daggers</color> and <color=#D89555>Hand Axes</color> <i><color=#F0DAA0>[cannot be split while this setting is disabled]</color></i>
+ModUi/&EnableStackableArtItems=Enable stacking <color=#D89555>Art Items</color>
+ModUi/&EnableStackableAxesAndDaggers=Enable stacking <color=#D89555>Daggers</color> and <color=#D89555>Hand Axes</color>
 ModUi/&EnableStatsOnHeroTooltip=Display stats on hero's tooltip <i><color=#F0DAA0>[i.e.: critical hits, critical failures, etc.]</color></i>
 ModUi/&EnableSumD20OnAlternateVotingSystem=<i>+ Also each hero adds a D20 roll to weight for a bit of randomness <color=#F0DAA0>[choice weight = sum of each voting hero's Charisma modifier and d20 roll]</color></i>
 ModUi/&EnableSurprisedToEnforceDisadvantage=Enable <color=#D89555>Surprised</color> condition to enforce initiative disadvantage instead of skipping a round
@@ -297,6 +297,8 @@ ModUi/&EnableTooltipDistance=Enable showing distance on tooltips when hovering o
 ModUi/&EnableUnarmedMainAttackAction=Enable the <color=#D89555>Unarmed Attack</color> action <i><color=#F0DAA0>[if actor has weapon in main, is a <b>Monk</b> or has <b>handwraps</b> or <b>gauntlet</b> equipped]</color></i>
 ModUi/&EnableUnlimitedInventoryActions=Enable an unlimited number of <color=#D89555>inventory actions</color> per turn.
 ModUi/&EnableUpcastConjureElementalAndFey=Enable upcast of <color=#D89555>Conjure Elemental</color> and <color=#D89555>Conjure Fey</color>
+ModUi/&EnableSummoningUpcast2024=Strengthen allied summons that have no upcasting benefit when cast with higher-level spell slots.
+ModUi/&SummoningUpcast2024CompatibilityDescription=Summoning upcast improvements disable this option while they are enabled.
 ModUi/&EnableVariablePlaceholdersOnTexts=Enable variable placeholders on descriptions <i><color=#F0DAA0>[use {VARIABLE_NAME} as placeholder]</color></i>
 ModUi/&EnableVersatileAmmunitionSlots=Allow <color=#D89555>Potions</color> and <color=#D89555>Scrolls</color> to be carried and used in the Ammunition slots
 ModUi/&EnableVersatileOffHandSlot=Allow <color=#D89555>Potions</color> and <color=#D89555>Scrolls</color> to be carried and used in the Off-hand Weapon slot

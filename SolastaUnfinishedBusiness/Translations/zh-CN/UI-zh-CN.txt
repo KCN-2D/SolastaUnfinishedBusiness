@@ -57,3 +57,5 @@ Reaction/&PartyOnlyHarmfulInterruptsSuppressedDescription=不攻击或妨碍自�
 Caption/&PartyTargetsIncluded=目标中包含友方。
 Caption/&SelfAndPartyTargetsIncluded=目标中包含自己和友方。
 Caption/&SelfTargetIncluded=目标中包含自己。
+Spell/&SummoningUpcastSingleDescription=所用法术位每比法术的基础环阶高1环，每个召唤生物的生命值增加10，护甲等级增加1，攻击伤害获得+1加值。此外，法术位每达到一个高于法术基础环阶的偶数环阶，召唤生物以主要动作进行的攻击次数增加1次。
+Spell/&SummoningUpcastGroupDescription=所用法术位每比法术的基础环阶高1环，每个召唤生物的生命值增加5。法术位每高2环，其攻击伤害增加1。

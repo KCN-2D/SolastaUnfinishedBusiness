@@ -300,8 +300,8 @@ ModUi/&EnableSpeechActorHelp=• Wählen Sie einen Schauspieler
 ModUi/&EnableSpeechOnNpcs=Sprachausgabe für NPCs aktivieren
 ModUi/&EnableSpeechOnInteractions=Beschreibungen beim Untersuchen von Objekten mit der Erzählerstimme vorlesen
 ModUi/&EnableSpeechVoiceHelp=• Wählen Sie eine Stimme und Erzählgeschwindigkeit
-ModUi/&EnableStackableArtItems=Stapeln aktivieren <color=#D89555>Kunstgegenstände</color> <i><color=#F0DAA0>[kann nicht geteilt werden, solange diese Einstellung deaktiviert ist]</color></i>
-ModUi/&EnableStackableAxesAndDaggers=Stapeln von <color=#D89555>Dolchen</color> und <color=#D89555>Handäxten</color> aktivieren <i><color=#F0DAA0>[kann nicht geteilt werden, solange diese Einstellung deaktiviert ist]</color></i>
+ModUi/&EnableStackableArtItems=Stapeln von <color=#D89555>Kunstgegenständen</color> aktivieren
+ModUi/&EnableStackableAxesAndDaggers=Stapeln von <color=#D89555>Dolchen</color> und <color=#D89555>Handäxten</color> aktivieren
 ModUi/&EnableStatsOnHeroTooltip=Statistiken im Tooltip des Helden anzeigen <i><color=#F0DAA0>[z. B.: kritische Treffer, kritische Fehlschläge usw.]</color></i>
 ModUi/&EnableSumD20OnAlternateVotingSystem=<i>+ Außerdem fügt jeder Held einen D20-Wurf zur Gewichtung hinzu, um ein wenig Zufälligkeit zu erzeugen <color=#F0DAA0>[Auswahlgewicht = Summe aus dem Charisma-Modifikator und dem D20-Wurf jedes abstimmenden Helden]</color></i>
 ModUi/&EnableSurprisedToEnforceDisadvantage=Aktivieren Sie die Bedingung <color=#D89555>Überrascht</color>, um einen Initiativenachteil durchzusetzen, anstatt eine Runde zu überspringen.
@@ -310,6 +310,8 @@ ModUi/&EnableTooltipDistance=Aktivieren Sie die Anzeige der Entfernung in den To
 ModUi/&EnableUnarmedMainAttackAction=Aktiviere die Aktion <color=#D89555>Unbewaffneter Angriff</color> <i><color=#F0DAA0>[wenn der Akteur eine Waffe im Hauptkampf hat, ein <b>Mönch</b> ist oder <b>Handwickel</b> oder <b>Panzerhandschuhe</b> ausgerüstet hat]</color></i>
 ModUi/&EnableUnlimitedInventoryActions=Aktivieren Sie eine unbegrenzte Anzahl von <color=#D89555>Inventaraktionen</color> pro Runde.
 ModUi/&EnableUpcastConjureElementalAndFey=Aktiviere Upcast von <color=#D89555>Elementar beschwören</color> und <color=#D89555>Feenbeschwören</color>
+ModUi/&EnableSummoningUpcast2024=Verstärkt verbündete Beschwörungen ohne bisherigen Vorteil durch höhere Zauberplätze, wenn sie mit einem höheren Zauberplatz gewirkt werden.
+ModUi/&SummoningUpcast2024CompatibilityDescription=Solange die Verbesserungen für Beschwörungen mit höheren Zauberplätzen aktiviert sind, ist diese Option deaktiviert.
 ModUi/&EnableVariablePlaceholdersOnTexts=Aktivieren Sie variable Platzhalter in Beschreibungen <i><color=#F0DAA0>[verwenden Sie {VARIABLE_NAME} als Platzhalter]</color></i>
 ModUi/&EnableVersatileAmmunitionSlots=Erlaubt das Tragen und Verwenden von <color=#D89555>Tränken</color> und <color=#D89555>Schriftrollen</color> in den Munitionsfächern
 ModUi/&EnableVersatileOffHandSlot=Erlaubt das Tragen und Verwenden von <color=#D89555>Tränken</color> und <color=#D89555>Schriftrollen</color> im Nebenwaffenslot

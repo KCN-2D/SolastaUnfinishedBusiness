@@ -81,6 +81,7 @@ internal static partial class SpellBuilders
     private static MonsterAttackDefinition _battleFamiliarRend;
     private static FeatureDefinitionMoveMode _battleFamiliarLegacySwim;
     private static readonly HashSet<RulesetEffect> BattleFamiliarTerminatingEffects = [];
+    private static readonly List<SpellDefinition> BattleFamiliarSpells = [];
     private static ConditionDefinition _battleFamiliarProwl;
     private static ConditionDefinition _battleFamiliarRetainedTemporaryHitPoints;
 
@@ -271,15 +272,42 @@ internal static partial class SpellBuilders
         spell.EffectDescription.EffectForms.SetRange(summons[1].EffectDescription.EffectForms);
         spell.EffectDescription.specialFormsDescription = spell.GuiPresentation.Description;
         spell.AddCustomSubFeatures(summons[1].GetFirstSubFeatureOfType<CustomBehaviorBattleFamiliar>());
+        BattleFamiliarSpells.AddRange(new[] { spell, summonSelection, empowerSelection }
+            .Concat(summons).Concat(empowerments));
+        foreach (var definition in BattleFamiliarSpells)
+        {
+            definition.AddCustomSubFeatures(new CustomSpellAdvancementTooltipDelegate(_ =>
+                Main.Settings.EnableSummoningUpcast2024
+                    ? Gui.Localize("Spell/&BattleFamiliarAdvancementDescription")
+                    : string.Empty));
+        }
+        SwitchBattleFamiliarUpcast();
         ForceGlobalUniqueEffects.AddToGroup(ForceGlobalUniqueEffects.Group.Familiar,
             new BaseDefinition[] { spell, summonSelection, empowerSelection }
                 .Concat(summons).Concat(empowerments).ToArray());
         return spell;
     }
 
-    private static int GetBattleFamiliarHitPoints(string form)
+    internal static void SwitchBattleFamiliarUpcast()
     {
-        return form == "Brute" ? 30 : 20;
+        foreach (var spell in BattleFamiliarSpells)
+        {
+            var advancement = spell.EffectDescription.EffectAdvancement;
+            advancement.effectIncrementMethod = Main.Settings.EnableSummoningUpcast2024
+                ? EffectIncrementMethod.PerAdditionalSlotLevel
+                : EffectIncrementMethod.None;
+            advancement.additionalSpellLevelPerIncrement = Main.Settings.EnableSummoningUpcast2024 ? 1 : 0;
+        }
+    }
+
+    private static int GetBattleFamiliarHitPoints(string form, int spellLevel = 2)
+    {
+        return (form == "Brute" ? 30 : 20) + 5 * (spellLevel - 2);
+    }
+
+    private static int GetBattleFamiliarSpellLevel(RulesetEffectSpell effect)
+    {
+        return Main.Settings.EnableSummoningUpcast2024 ? System.Math.Max(2, System.Math.Min(9, effect.EffectLevel)) : 2;
     }
 
     private static RulesetCondition GetBattleFamiliarCondition(RulesetCharacter character)
@@ -359,6 +387,7 @@ internal static partial class SpellBuilders
     {
         internal readonly RulesetEffectSpell Effect = effect;
         internal readonly RulesetCharacterMonster Familiar = familiar;
+        internal readonly int SpellLevel = GetBattleFamiliarSpellLevel(effect);
         internal RulesetCharacterMonster Summoned;
     }
 
@@ -385,13 +414,17 @@ internal static partial class SpellBuilders
         IOnConditionAddedOrRemoved, IOnLocationCharacterRestored, IEffectCharacterChange,
         IOnBeforeEffectTerminated, IActionFinishedByMe, ICharacterTurnStartListener, IIgnoreAoOOnMe
     {
-        private ConditionDefinition _condition;
-        private ConditionDefinition _summonedCondition;
+        private Dictionary<int, ConditionDefinition> _empoweredConditions = [];
+        private Dictionary<int, ConditionDefinition> _summonedConditions = [];
         public int Priority => 0;
 
         internal CustomBehaviorBattleFamiliar ForEmpowerment()
         {
-            return new CustomBehaviorBattleFamiliar(form, true) { _condition = _condition };
+            return new CustomBehaviorBattleFamiliar(form, true)
+            {
+                _empoweredConditions = _empoweredConditions,
+                _summonedConditions = _summonedConditions
+            };
         }
 
         internal void BuildConditions(AssetReferenceSprite empoweredSprite, AssetReferenceSprite summonedSprite)
@@ -400,53 +433,75 @@ internal static partial class SpellBuilders
                 AttributeDefinitions.Constitution, AttributeDefinitions.Intelligence,
                 AttributeDefinitions.Wisdom, AttributeDefinitions.Charisma };
             var scores = new[] { 16, 16, 12, 8, 13, 10 };
-            var features = abilities.Select((ability, index) => (FeatureDefinition)FeatureDefinitionAttributeModifierBuilder
+            var abilityFeatures = abilities.Select((ability, index) => (FeatureDefinition)FeatureDefinitionAttributeModifierBuilder
                 .Create($"AttributeModifierBattleFamiliar{form}{ability}")
                 .SetGuiPresentationNoContent(true)
                 .SetModifier(FeatureDefinitionAttributeModifier.AttributeModifierOperation.ForceAnyway,
                     ability, scores[index]).AddToDB()).ToList();
             var name = $"BattleFamiliar{form}";
-            features.AddRange(new FeatureDefinition[]
+            for (var level = 2; level <= 9; level++)
             {
-                FeatureDefinitionAttributeModifierBuilder.Create($"AttributeModifier{name}ArmorClass")
+                var suffix = level == 2 ? string.Empty : $"Level{level}";
+                var sharedFeatures = new List<FeatureDefinition>
+                {
+                    FeatureDefinitionAbilityCheckAffinityBuilder.Create($"AbilityCheckAffinity{name}Talented{suffix}")
+                        .SetGuiPresentationNoContent(true)
+                        .BuildAndSetAffinityGroups(CharacterAbilityCheckAffinity.None, DieType.D1, level / 2,
+                            AbilityCheckGroupOperation.AddDie,
+                            abilities.Select(ability => (ability, string.Empty)).ToArray()).AddToDB(),
+                    FeatureDefinitionSavingThrowAffinityBuilder.Create($"SavingThrowAffinity{name}Talented{suffix}")
+                        .SetGuiPresentationNoContent(true)
+                        .SetModifiers(FeatureDefinitionSavingThrowAffinity.ModifierType.AddDice,
+                            DieType.D1, level / 2, false, abilities).AddToDB(),
+                    GetDefinition<FeatureDefinitionConditionAffinity>("ConditionAffinityCharmImmunity"),
+                    FeatureDefinitionConditionAffinitys.ConditionAffinityFrightenedImmunity
+                };
+                if (form == "Flyer")
+                {
+                    sharedFeatures.Add(FeatureDefinitionConditionAffinitys.ConditionAffinityProneImmunity);
+                }
+                var armorClass = FeatureDefinitionAttributeModifierBuilder
+                    .Create($"AttributeModifier{name}ArmorClass{suffix}")
                     .SetGuiPresentationNoContent(true)
                     .SetModifier(FeatureDefinitionAttributeModifier.AttributeModifierOperation.Set,
-                        AttributeDefinitions.ArmorClass, form == "Brute" ? 15 : 13).AddToDB(),
-                FeatureDefinitionAbilityCheckAffinityBuilder.Create($"AbilityCheckAffinity{name}Talented")
-                    .SetGuiPresentationNoContent(true)
-                    .BuildAndSetAffinityGroups(CharacterAbilityCheckAffinity.None, DieType.D1, 1,
-                        AbilityCheckGroupOperation.AddDie,
-                        abilities.Select(ability => (ability, string.Empty)).ToArray()).AddToDB(),
-                FeatureDefinitionSavingThrowAffinityBuilder.Create($"SavingThrowAffinity{name}Talented")
-                    .SetGuiPresentationNoContent(true)
-                    .SetModifiers(FeatureDefinitionSavingThrowAffinity.ModifierType.AddDice,
-                        DieType.D1, 1, false, abilities).AddToDB(),
-                GetDefinition<FeatureDefinitionConditionAffinity>("ConditionAffinityCharmImmunity"),
-                FeatureDefinitionConditionAffinitys.ConditionAffinityFrightenedImmunity
-            });
-            if (form == "Flyer")
-            {
-                features.Add(FeatureDefinitionConditionAffinitys.ConditionAffinityProneImmunity);
+                        AttributeDefinitions.ArmorClass, 11 + level + (form == "Brute" ? 2 : 0)).AddToDB();
+                var empowered = ConditionDefinitionBuilder.Create($"Condition{name}{suffix}")
+                    .SetGuiPresentation("Condition/&BattleFamiliarEmpoweredTitle",
+                        "Condition/&BattleFamiliarEmpoweredDescription", empoweredSprite)
+                    .SetConditionType(ConditionType.Beneficial)
+                    .SetAmountOrigin(ConditionDefinition.OriginOfAmount.None)
+                    .SetPossessive()
+                    .SetFeatures(abilityFeatures.Concat(sharedFeatures).Append(armorClass).ToArray())
+                    .AddCustomSubFeatures(this)
+                    .AddToDB();
+                empowered.terminateWhenRemoved = true;
+                _empoweredConditions[level] = empowered;
+
+                var summonedFeatures = sharedFeatures.ToList();
+                if (level > 2)
+                {
+                    summonedFeatures.Add(FeatureDefinitionAttributeModifierBuilder
+                        .Create($"AttributeModifier{name}SummonedArmorClass{suffix}")
+                        .SetGuiPresentationNoContent(true)
+                        .SetModifier(FeatureDefinitionAttributeModifier.AttributeModifierOperation.Additive,
+                            AttributeDefinitions.ArmorClass, level - 2).AddToDB());
+                    summonedFeatures.Add(FeatureDefinitionAttributeModifierBuilder
+                        .Create($"AttributeModifier{name}SummonedHitPoints{suffix}")
+                        .SetGuiPresentationNoContent(true)
+                        .SetModifier(FeatureDefinitionAttributeModifier.AttributeModifierOperation.Additive,
+                            AttributeDefinitions.HitPoints, 5 * (level - 2)).AddToDB());
+                }
+                var summoned = ConditionDefinitionBuilder.Create($"Condition{name}Summoned{suffix}")
+                    .SetGuiPresentation($"Monster/&BattleFamiliar{form}Title",
+                        "Condition/&BattleFamiliarSummonedDescription", summonedSprite)
+                    .SetConditionType(ConditionType.Beneficial)
+                    .SetPossessive()
+                    .SetFeatures(summonedFeatures.ToArray())
+                    .AddCustomSubFeatures(this)
+                    .AddToDB();
+                summoned.terminateWhenRemoved = true;
+                _summonedConditions[level] = summoned;
             }
-            _condition = ConditionDefinitionBuilder.Create($"Condition{name}")
-                .SetGuiPresentation("Condition/&BattleFamiliarEmpoweredTitle",
-                    "Condition/&BattleFamiliarEmpoweredDescription", empoweredSprite)
-                .SetConditionType(ConditionType.Beneficial)
-                .SetAmountOrigin(ConditionDefinition.OriginOfAmount.None)
-                .SetPossessive()
-                .SetFeatures(features.ToArray())
-                .AddCustomSubFeatures(this)
-                .AddToDB();
-            _condition.terminateWhenRemoved = true;
-            _summonedCondition = ConditionDefinitionBuilder.Create($"Condition{name}Summoned")
-                .SetGuiPresentation($"Monster/&BattleFamiliar{form}Title",
-                    "Condition/&BattleFamiliarSummonedDescription", summonedSprite)
-                .SetConditionType(ConditionType.Beneficial)
-                .SetPossessive()
-                .SetFeatures(features.Where(feature => feature is not FeatureDefinitionAttributeModifier).ToArray())
-                .AddCustomSubFeatures(this)
-                .AddToDB();
-            _summonedCondition.terminateWhenRemoved = true;
         }
         public bool ShouldTerminateExistingEffect(
             RulesetCharacter character, RulesetEffect incoming, RulesetEffect existing)
@@ -509,10 +564,12 @@ internal static partial class SpellBuilders
             }
             var effect = context.Effect;
             var source = EffectHelpers.GetCharacterByGuid(effect.SourceGuid);
-            var conditionDefinition = context.Familiar != null ? _condition : _summonedCondition;
+            var spellLevel = context.SpellLevel;
+            var conditionDefinition = context.Familiar != null
+                ? _empoweredConditions[spellLevel] : _summonedConditions[spellLevel];
             var condition = target.InflictCondition(conditionDefinition.Name, DurationType.Hour, 1,
                 TurnOccurenceType.EndOfTurn, AttributeDefinitions.TagEffect, source.Guid,
-                source.CurrentFaction.Name, 2, effect.SourceDefinition.Name,
+                source.CurrentFaction.Name, spellLevel, effect.SourceDefinition.Name,
                 0, 0, 0);
             condition.Amount = effect.MagicAttackBonus;
             if (context.Familiar != null)
@@ -520,7 +577,7 @@ internal static partial class SpellBuilders
                 target.TryGetConditionOfCategoryAndType(AttributeDefinitions.TagEffect,
                     ConditionTemporaryHitPoints, out var previousTemporaryHitPoints);
                 var previousTemporaryHitPointsGuid = previousTemporaryHitPoints?.Guid ?? 0;
-                target.ReceiveTemporaryHitPoints(GetBattleFamiliarHitPoints(form),
+                target.ReceiveTemporaryHitPoints(GetBattleFamiliarHitPoints(form, spellLevel),
                     DurationType.Hour, 1, TurnOccurenceType.EndOfTurn, source.Guid);
                 if (target.TryGetConditionOfCategoryAndType(AttributeDefinitions.TagEffect,
                         ConditionTemporaryHitPoints, out var temporaryHitPoints))
@@ -531,7 +588,7 @@ internal static partial class SpellBuilders
                         // empowerment cannot delete temporary HP granted by an unrelated effect.
                         var retained = target.InflictCondition(_battleFamiliarRetainedTemporaryHitPoints.Name,
                             DurationType.Permanent, 0, TurnOccurenceType.EndOfTurn, AttributeDefinitions.TagEffect,
-                            source.Guid, source.CurrentFaction.Name, 2, effect.SourceDefinition.Name, 0, 0, 0);
+                            source.Guid, source.CurrentFaction.Name, spellLevel, effect.SourceDefinition.Name, 0, 0, 0);
                         effect.TrackCondition(source, source.Guid, target, target.Guid,
                             retained, AttributeDefinitions.TagEffect);
                     }
@@ -544,6 +601,10 @@ internal static partial class SpellBuilders
             }
             effect.TrackCondition(source, source.Guid, target, target.Guid, condition, AttributeDefinitions.TagEffect);
             target.RefreshAll();
+            if (context.Familiar == null)
+            {
+                target.CurrentHitPoints = target.TryGetAttributeValue(AttributeDefinitions.HitPoints);
+            }
         }
 
         public void OnConditionAdded(RulesetCharacter target, RulesetCondition condition)
@@ -589,9 +650,10 @@ internal static partial class SpellBuilders
             {
                 return;
             }
-            attackMode.AttacksNumber = 1;
+            var spellLevel = System.Math.Max(2, condition.EffectLevel);
+            attackMode.AttacksNumber = attackMode.ActionType == ActionDefinitions.ActionType.Main ? spellLevel / 2 : 1;
             attackMode.ToHitBonus = condition.Amount;
-            attackMode.EffectDescription.FindFirstDamageForm().bonusDamage = 5;
+            attackMode.EffectDescription.FindFirstDamageForm().bonusDamage = 3 + spellLevel;
         }
 
         public bool CanIgnoreAoOOnSelf(RulesetCharacter defender, RulesetCharacter attacker)

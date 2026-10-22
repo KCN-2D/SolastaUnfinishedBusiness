@@ -578,6 +578,7 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2014)] public bool BestowCurseNoConcentrationRequiredForSlotLevel5OrAbove { get; set; }
     [Tag(Type = TagType.T2014)] public bool RemoveRecurringEffectOnEntangle { get; set; }
     public bool EnableUpcastConjureElementalAndFey { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableSummoningUpcast2024 { get; set; }
     public bool OnlyShowMostPowerfulUpcastConjuredElementalOrFey { get; set; }
     public bool ChangeSleetStormToCube { get; set; }
     public bool UseHeightOneCylinderEffect { get; set; }

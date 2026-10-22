@@ -1633,7 +1633,7 @@ internal static partial class SpellBuilders
             { CharacterFamilyDefinitions.Humanoid.Name, "Common" }
         };
 
-        public bool EnforceFullSelection => true;
+        public bool EnforceFullSelection => false;
 
         public bool IsValid(CursorLocationSelectTarget __instance, GameLocationCharacter target)
         {

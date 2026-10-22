@@ -393,6 +393,62 @@ internal static class ToolsContext
         internal static bool IsOriginalName(RulesetCharacterHero hero, string name) =>
             _session != null && _session.Hero == hero && string.Equals(name, _session.OriginalHero.Name, StringComparison.Ordinal);
 
+        internal static bool UsesOriginalBuiltInName(RulesetCharacterHero hero, bool surname) =>
+            _session is { Saving: false, OriginalHero.BuiltIn: true } session && session.Hero == hero &&
+            string.Equals(surname ? hero.SurName : hero.Name,
+                surname ? session.OriginalHero.SurName : session.OriginalHero.Name, StringComparison.Ordinal);
+
+        internal static string ResolveIdentityInputName(RulesetCharacterHero hero, string value, bool surname)
+        {
+            var session = _session;
+            if (session == null || session.Hero != hero)
+            {
+                return value;
+            }
+
+            if (session.FromCharacterPool)
+            {
+                return surname ? session.OriginalHero.SurName : session.OriginalHero.Name;
+            }
+
+            // The input may display a localized name; refreshing it must not rename the hero.
+            var displayed = surname ? session.DisplayedIdentitySurName : session.DisplayedIdentityName;
+            return displayed != null && string.Equals(value, displayed, StringComparison.Ordinal)
+                ? surname ? hero.SurName : hero.Name
+                : value;
+        }
+
+        internal static void RefreshIdentityNames(CharacterStageIdentityDefinitionPanel panel)
+        {
+            var session = _session;
+            if (session == null || session.Hero != panel.currentHero)
+            {
+                return;
+            }
+
+            var hero = panel.currentHero;
+            session.DisplayedIdentityName = TranslatorContext.LocalizeBuiltInCharacterName(hero.Name,
+                UsesOriginalBuiltInName(hero, false), hero.Name);
+            session.DisplayedIdentitySurName = TranslatorContext.LocalizeBuiltInCharacterName(hero.SurName,
+                UsesOriginalBuiltInName(hero, true), hero.SurName);
+            panel.firstNameInputField.SetTextWithoutNotify(session.DisplayedIdentityName);
+            panel.lastNameInputField.SetTextWithoutNotify(session.DisplayedIdentitySurName);
+        }
+
+        internal static void RestoreIdentityNames(CharacterStageIdentityDefinitionPanel panel)
+        {
+            var session = _session;
+            if (session == null || session.Hero != panel.currentHero)
+            {
+                return;
+            }
+
+            panel.currentHero.Name = session.IdentityName;
+            panel.currentHero.SurName = session.IdentitySurName;
+            RefreshIdentityNames(panel);
+            panel.CommonData.CharacterPlate.RefreshNameAndRace();
+        }
+
         private static bool MatchesOriginalAppearance(RespecSession session, RulesetCharacterHero hero) =>
             session != null && session.Hero == hero &&
             hero.RaceDefinition == session.OriginalHero.RaceDefinition &&
@@ -461,10 +517,17 @@ internal static class ToolsContext
                 hero.MorphotypeElementAdditionalValues);
         }
 
-        internal static void PreserveIdentityAppearanceEdits(CharacterStageIdentityDefinitionPanel panel)
+        internal static void PreserveIdentityEdits(CharacterStageIdentityDefinitionPanel panel)
         {
             var session = _session;
             var hero = panel.currentHero;
+
+            if (session != null && session.Hero == hero && !session.FromCharacterPool)
+            {
+                session.IdentityName = hero.Name;
+                session.IdentitySurName = hero.SurName;
+            }
+
             if (!MatchesOriginalAppearance(session, hero) || session.IdentityAppearanceElements == null)
             {
                 return;
@@ -521,11 +584,13 @@ internal static class ToolsContext
 
             if (!session.InitializedStages.Add(panel))
             {
-                if (panel is CharacterStageIdentityDefinitionPanel identity && session.FromCharacterPool)
+                if (panel is CharacterStageIdentityDefinitionPanel identity)
                 {
-                    identity.firstNameInputField.text = session.Hero.Name = session.OriginalHero.Name;
-                    identity.lastNameInputField.text = session.Hero.SurName = session.OriginalHero.SurName;
-                    session.LockIdentityControls(identity);
+                    RestoreIdentityNames(identity);
+                    if (session.FromCharacterPool)
+                    {
+                        session.LockIdentityControls(identity);
+                    }
                 }
 
                 yield break;
@@ -658,8 +723,7 @@ internal static class ToolsContext
         private static void RestoreIdentity(
             CharacterStageIdentityDefinitionPanel panel, RulesetCharacterHero original)
         {
-            panel.firstNameInputField.text = panel.currentHero.Name = original.Name;
-            panel.lastNameInputField.text = panel.currentHero.SurName = original.SurName;
+            RestoreIdentityNames(panel);
             panel.backstoryInputField.text = original.AdditionalBackstory;
             var voice = panel.compatibleVoices.FindIndex(definition => definition.Name == original.voiceID);
             if (voice >= 0)
@@ -893,6 +957,10 @@ internal static class ToolsContext
                 new(originalHero.MorphotypeElementAdditionalValues);
             internal Dictionary<MorphotypeElementDefinition.ElementCategory, string> IdentityAppearanceElements;
             internal Dictionary<MorphotypeElementDefinition.ElementCategory, float> IdentityAppearanceAdditionalValues;
+            internal string IdentityName = originalHero.Name;
+            internal string IdentitySurName = originalHero.SurName;
+            internal string DisplayedIdentityName;
+            internal string DisplayedIdentitySurName;
             internal RulesetCharacterHero Hero;
             internal int FinalizedLevel;
             internal bool Aborted;

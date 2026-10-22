@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -16,6 +17,19 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class InventoryPanelPatcher
 {
+    [HarmonyPatch(typeof(InventoryPanel), nameof(InventoryPanel.CancelDrag))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class CancelDrag_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            return RulesetItemPatcher.ReplaceStackingDefinitionComparison(instructions,
+                "InventoryPanel.CancelDrag.CustomStacking");
+        }
+    }
+
     private static readonly ConditionalWeakTable<EncumbrancePanel, RulesetCharacterSimulacrum>
         SimulacrumEncumbranceSubjects = new();
     private static readonly ConditionalWeakTable<InventoryPanel, SimulacrumLootControlsState>

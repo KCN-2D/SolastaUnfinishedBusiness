@@ -57,3 +57,5 @@ Reaction/&PartyOnlyHarmfulInterruptsSuppressedDescription=Si evitano effetti dan
 Caption/&PartyTargetsIncluded=Sono inclusi alleati.
 Caption/&SelfAndPartyTargetsIncluded=Include te e i tuoi alleati.
 Caption/&SelfTargetIncluded=Sei tra i bersagli.
+Spell/&SummoningUpcastSingleDescription=Per ogni livello dello slot superiore al livello base dell'incantesimo, ogni creatura evocata ottiene 10 punti ferita, 1 alla CA e un bonus di +1 ai danni dei suoi attacchi. Inoltre, effettua un attacco aggiuntivo con la sua azione principale per ogni livello pari dello slot superiore al livello base dell'incantesimo.
+Spell/&SummoningUpcastGroupDescription=Per ogni livello dello slot superiore al livello base dell'incantesimo, ogni creatura evocata ottiene 5 punti ferita. Ogni due livelli aggiuntivi dello slot, i danni dei suoi attacchi aumentano di 1.

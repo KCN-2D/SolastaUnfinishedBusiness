@@ -57,3 +57,5 @@ Reaction/&PartyOnlyHarmfulInterruptsSuppressedDescription=自分や仲間への�
 Caption/&PartyTargetsIncluded=味方が含まれています。
 Caption/&SelfAndPartyTargetsIncluded=自分と味方が含まれています。
 Caption/&SelfTargetIncluded=自分が含まれています。
+Spell/&SummoningUpcastSingleDescription=呪文の本来のレベルよりスロットのレベルが1高くなるごとに、召喚クリーチャーのヒット・ポイントが10、ACが1、攻撃で与えるダメージが1増加します。また、スロットのレベルが呪文の本来のレベルを超える偶数に達するごとに、メイン・アクションの攻撃回数が1回増加します。
+Spell/&SummoningUpcastGroupDescription=呪文の本来のレベルよりスロットのレベルが1高くなるごとに、召喚クリーチャーのヒット・ポイントが5増加します。また、2レベル高くなるごとに、攻撃で与えるダメージが1増加します。

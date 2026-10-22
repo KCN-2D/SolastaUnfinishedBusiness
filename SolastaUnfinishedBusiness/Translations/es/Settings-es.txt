@@ -300,8 +300,8 @@ ModUi/&EnableSpeechActorHelp=• Seleccione un actor
 ModUi/&EnableSpeechOnNpcs=Habilitar la lectura en voz alta de los PNJ
 ModUi/&EnableSpeechOnInteractions=Leer las descripciones al examinar objetos con la voz del narrador
 ModUi/&EnableSpeechVoiceHelp=• Seleccione una voz y velocidad de narración
-ModUi/&EnableStackableArtItems=Habilitar apilamiento de <color=#D89555>Elementos de arte</color> <i><color=#F0DAA0>[no se puede dividir mientras esta configuración esté deshabilitada]</color></i>
-ModUi/&EnableStackableAxesAndDaggers=Habilitar la acumulación de <color=#D89555>Dagas</color> y <color=#D89555>Hachas de mano</color> <i><color=#F0DAA0>[no se puede dividir mientras esta configuración esté deshabilitada]</color></i>
+ModUi/&EnableStackableArtItems=Habilitar apilamiento de <color=#D89555>Elementos de arte</color>
+ModUi/&EnableStackableAxesAndDaggers=Habilitar la acumulación de <color=#D89555>Dagas</color> y <color=#D89555>Hachas de mano</color>
 ModUi/&EnableStatsOnHeroTooltip=Mostrar estadísticas en la información sobre herramientas del héroe <i><color=#F0DAA0>[es decir: golpes críticos, fallos críticos, etc.]</color></i>
 ModUi/&EnableSumD20OnAlternateVotingSystem=<i>+ Además, cada héroe suma un D20 en la tirada para darle un poco de aleatoriedad. <color=#F0DAA0>[peso de la elección = suma del modificador de Carisma y la tirada de D20 de cada héroe que vota por ella]</color></i>
 ModUi/&EnableSurprisedToEnforceDisadvantage=Habilite la condición <color=#D89555>Sorprendido</color> para imponer una desventaja de iniciativa en lugar de omitir una ronda
@@ -310,6 +310,8 @@ ModUi/&EnableTooltipDistance=Habilitar la visualización de la distancia en las 
 ModUi/&EnableUnarmedMainAttackAction=Habilitar la acción <color=#D89555>Ataque desarmado</color> <i><color=#F0DAA0>[si el actor tiene un arma en el personaje principal, es un <b>Monje</b> o tiene <b>vendas</b> o <b>guanteletes</b> equipados]</color></i>
 ModUi/&EnableUnlimitedInventoryActions=Habilita una cantidad ilimitada de <color=#D89555>acciones de inventario</color> por turno.
 ModUi/&EnableUpcastConjureElementalAndFey=Habilitar la conversión ascendente de <color=#D89555>Conjurar elemental</color> y <color=#D89555>Conjurar feérico</color>
+ModUi/&EnableSummoningUpcast2024=Mejora las criaturas aliadas de los conjuros de invocación que no tienen beneficios al usar espacios de conjuro de nivel superior.
+ModUi/&SummoningUpcast2024CompatibilityDescription=Esta opción no está disponible mientras estén activadas las mejoras de invocación con espacios de conjuro de nivel superior.
 ModUi/&EnableVariablePlaceholdersOnTexts=Habilitar marcadores de posición de variables en las descripciones <i><color=#F0DAA0>[use {VARIABLE_NAME} como marcador de posición]</color></i>
 ModUi/&EnableVersatileAmmunitionSlots=Permitir que <color=#D89555>Pociones</color> y <color=#D89555>Pergaminos</color> se lleven y utilicen en las ranuras de munición.
 ModUi/&EnableVersatileOffHandSlot=Permitir que <color=#D89555>Pociones</color> y <color=#D89555>Pergaminos</color> se lleven y usen en la ranura de Arma Secundaria

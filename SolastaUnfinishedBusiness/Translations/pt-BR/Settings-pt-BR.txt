@@ -300,8 +300,8 @@ ModUi/&EnableSpeechActorHelp=• Selecione um ator
 ModUi/&EnableSpeechOnNpcs=Habilitar leitura em voz alta dos NPCs
 ModUi/&EnableSpeechOnInteractions=Ler as descrições dos objetos examinados com a voz do narrador
 ModUi/&EnableSpeechVoiceHelp=• Selecione uma voz e velocidade de narração
-ModUi/&EnableStackableArtItems=Habilitar empilhamento <color=#D89555>Itens de arte</color> <i><color=#F0DAA0>[não pode ser dividido enquanto esta configuração estiver desabilitada]</color></i>
-ModUi/&EnableStackableAxesAndDaggers=Habilitar empilhamento de <color=#D89555>Adagas</color> e <color=#D89555>Machados de Mão</color> <i><color=#F0DAA0>[não pode ser dividido enquanto esta configuração estiver desabilitada]</color></i>
+ModUi/&EnableStackableArtItems=Habilitar empilhamento de <color=#D89555>Itens de arte</color>
+ModUi/&EnableStackableAxesAndDaggers=Habilitar empilhamento de <color=#D89555>Adagas</color> e <color=#D89555>Machados de Mão</color>
 ModUi/&EnableStatsOnHeroTooltip=Exibir estatísticas na dica de ferramenta do herói <i><color=#F0DAA0>[por exemplo: acertos críticos, falhas críticas, etc.]</color></i>
 ModUi/&EnableSumD20OnAlternateVotingSystem=<i>+ Além disso, cada herói adiciona um teste de D20 ao peso para um pouco de aleatoriedade <color=#F0DAA0>[peso da escolha = soma do modificador de Carisma e da rolagem de D20 de cada herói que vota nessa escolha]</color></i>
 ModUi/&EnableSurprisedToEnforceDisadvantage=Habilitar a condição <color=#D89555>Surpreso</color> para impor desvantagem de iniciativa em vez de pular uma rodada
@@ -310,6 +310,8 @@ ModUi/&EnableTooltipDistance=Habilitar a exibição da distância nas dicas de f
 ModUi/&EnableUnarmedMainAttackAction=Habilitar a ação <color=#D89555>Ataque Desarmado</color> <i><color=#F0DAA0>[se o ator tiver uma arma principal, for um <b>Monge</b> ou tiver <b>bandanas</b> ou <b>manoplas</b> equipadas]</color></i>
 ModUi/&EnableUnlimitedInventoryActions=Habilite um número ilimitado de <color=#D89555>ações de inventário</color> por turno.
 ModUi/&EnableUpcastConjureElementalAndFey=Habilitar upcast de <color=#D89555>Conjure Elemental</color> e <color=#D89555>Conjure Fey</color>
+ModUi/&EnableSummoningUpcast2024=Fortalece criaturas aliadas invocadas por magias sem benefícios de espaços de nível superior, quando essas magias são conjuradas com tais espaços.
+ModUi/&SummoningUpcast2024CompatibilityDescription=Esta opção fica indisponível enquanto as melhorias de invocação com espaços de magia de nível superior estiverem ativadas.
 ModUi/&EnableVariablePlaceholdersOnTexts=Habilitar marcadores de posição variáveis em descrições <i><color=#F0DAA0>[usar {VARIABLE_NAME} como marcador de posição]</color></i>
 ModUi/&EnableVersatileAmmunitionSlots=Permitir que <color=#D89555>Poções</color> e <color=#D89555>Pergaminhos</color> sejam carregados e usados nos slots de munição
 ModUi/&EnableVersatileOffHandSlot=Permitir que <color=#D89555>Poções</color> e <color=#D89555>Pergaminhos</color> sejam carregados e usados no slot de Arma Secundária

@@ -11,7 +11,7 @@ internal static class UpcastConjureElementalAndFey
 
     internal static ICustomSubspellSelectionProvider TryGetProvider(SpellDefinition masterSpell)
     {
-        if (!Main.Settings.EnableUpcastConjureElementalAndFey)
+        if (!Models.SpellsContext.IsConjureUpcastEnabled)
         {
             return null;
         }

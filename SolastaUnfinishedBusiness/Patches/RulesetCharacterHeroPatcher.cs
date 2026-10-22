@@ -48,8 +48,10 @@ public static class RulesetCharacterHeroPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetCharacterHero __instance, MethodBase __originalMethod, ref string __result)
         {
-            var name = __originalMethod.Name == "get_DisplaySurName" ? __instance.SurName : __instance.Name;
-            __result = TranslatorContext.LocalizeBuiltInCharacterName(name, __instance.BuiltIn, __result);
+            var surname = __originalMethod.Name == "get_DisplaySurName";
+            var name = surname ? __instance.SurName : __instance.Name;
+            __result = TranslatorContext.LocalizeBuiltInCharacterName(name,
+                __instance.BuiltIn || ToolsContext.FunctorRespec.UsesOriginalBuiltInName(__instance, surname), __result);
         }
     }
 

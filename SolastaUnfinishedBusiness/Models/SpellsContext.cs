@@ -137,6 +137,26 @@ internal static class SpellsContext
     internal static readonly SpellDefinition WrathfulSmite = BuildWrathfulSmite();
 
     private static SpellDefinition ConjureElementalInvisibleStalker { get; set; }
+
+    private static readonly Dictionary<SpellDefinition, EffectAdvancement> OriginalConjureAdvancements = [];
+
+    internal static bool IsConjureUpcastEnabled =>
+        Main.Settings.EnableUpcastConjureElementalAndFey && !Main.Settings.EnableSummoningUpcast2024;
+
+    internal static EffectAdvancement GetOriginalConjureAdvancement(SpellDefinition spell)
+    {
+        if (!OriginalConjureAdvancements.TryGetValue(spell, out var saved))
+        {
+            saved = new EffectAdvancement();
+            saved.Copy(spell.EffectDescription.EffectAdvancement);
+            OriginalConjureAdvancements.Add(spell, saved);
+        }
+
+        var original = new EffectAdvancement();
+        original.Copy(saved);
+        return original;
+    }
+
     internal static List<SpellDefinition> Spells { get; private set; } = [];
 
     [NotNull]
@@ -728,12 +748,14 @@ internal static class SpellsContext
             spell.targetType = TargetType.IndividualsUnique;
             spell.targetParameter = 4;
             spell.effectAdvancement.additionalTargetsPerIncrement = 1;
+            spell.effectAdvancement.additionalSubtargetsPerIncrement = 0;
         }
         else
         {
             spell.targetType = TargetType.ArcFromIndividual;
             spell.targetParameter = 3;
             spell.effectAdvancement.additionalTargetsPerIncrement = 0;
+            spell.effectAdvancement.additionalSubtargetsPerIncrement = 1;
         }
     }
 
@@ -953,10 +975,14 @@ internal static class SpellsContext
 
     internal static void SwitchEnableUpcastConjureElementalAndFey()
     {
-        if (!Main.Settings.EnableUpcastConjureElementalAndFey)
+        foreach (var spell in new[] { ConjureFey, ConjureElemental, ConjureMinorElementals })
         {
-            ConjureElemental.SubspellsList.Remove(ConjureElementalInvisibleStalker);
+            spell.EffectDescription.EffectAdvancement.Copy(GetOriginalConjureAdvancement(spell));
+        }
 
+        ConjureElemental.SubspellsList.RemoveAll(spell => spell == ConjureElementalInvisibleStalker);
+        if (!IsConjureUpcastEnabled)
+        {
             return;
         }
 
@@ -1379,7 +1405,7 @@ internal static class SpellsContext
         }
     }
 
-    private sealed class FilterTargetingCharacterChainLightning : IFilterTargetingCharacter
+    private sealed class FilterTargetingCharacterChainLightning : IFilterTargetingCharacter, IModifyTargetingRange
     {
         public bool EnforceFullSelection => false;
 
@@ -1387,14 +1413,15 @@ internal static class SpellsContext
         {
             var selectedTargets = __instance.SelectionService.SelectedTargets;
 
-            if (selectedTargets.Count == 0)
+            if (__instance.effectDescription.TargetType != TargetType.IndividualsUnique || selectedTargets.Count == 0)
             {
                 return true;
             }
 
             var firstTarget = selectedTargets[0];
 
-            var isValid = firstTarget.IsWithinRange(target, 6);
+            var isValid = firstTarget.IsWithinRange(target,
+                __instance.ActionParams.RulesetEffect.ComputeTargetParameter2());
 
             if (!isValid)
             {
@@ -1402,6 +1429,15 @@ internal static class SpellsContext
             }
 
             return isValid;
+        }
+
+        public float GetMaxRange(CursorLocationSelectTarget cursor, float nativeMaxRange)
+        {
+            // Secondary targets are bounded by the first target, rather than the caster's spell range.
+            return cursor.effectDescription.TargetType == TargetType.IndividualsUnique &&
+                   cursor.SelectionService.SelectedTargets.Count > 0
+                ? float.MaxValue
+                : nativeMaxRange;
         }
     }
 }

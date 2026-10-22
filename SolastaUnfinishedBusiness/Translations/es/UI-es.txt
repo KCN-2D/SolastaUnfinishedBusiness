@@ -57,3 +57,5 @@ Reaction/&PartyOnlyHarmfulInterruptsSuppressedDescription=Se evitan los ataques 
 Caption/&PartyTargetsIncluded=Se incluyen aliados.
 Caption/&SelfAndPartyTargetsIncluded=Te incluye a ti y a tus aliados.
 Caption/&SelfTargetIncluded=Te incluye a ti.
+Spell/&SummoningUpcastSingleDescription=Por cada nivel del espacio por encima del nivel base del conjuro, cada criatura invocada obtiene 10 puntos de golpe, 1 a la CA y un bonificador de +1 al daño de sus ataques. Además, realiza un ataque adicional con su acción principal por cada nivel par del espacio superior al nivel base del conjuro.
+Spell/&SummoningUpcastGroupDescription=Por cada nivel del espacio por encima del nivel base del conjuro, cada criatura invocada obtiene 5 puntos de golpe. Por cada dos niveles adicionales del espacio, el daño de sus ataques aumenta en 1.

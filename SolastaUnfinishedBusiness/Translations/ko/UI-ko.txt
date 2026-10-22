@@ -57,3 +57,5 @@ Reaction/&PartyOnlyHarmfulInterruptsSuppressedDescription=자신이나 동료를
 Caption/&PartyTargetsIncluded=아군이 포함되어 있습니다.
 Caption/&SelfAndPartyTargetsIncluded=자신과 아군이 포함되어 있습니다.
 Caption/&SelfTargetIncluded=자신이 포함되어 있습니다.
+Spell/&SummoningUpcastSingleDescription=사용한 슬롯 레벨이 주문의 기본 레벨보다 1 높을 때마다 소환된 각 크리처의 HP가 10, AC가 1 증가하고 공격 피해에 +1 보너스를 얻습니다. 또한 슬롯 레벨이 주문의 기본 레벨보다 높은 짝수 레벨에 도달할 때마다 주 행동으로 하는 공격 횟수가 1회 증가합니다.
+Spell/&SummoningUpcastGroupDescription=사용한 슬롯 레벨이 주문의 기본 레벨보다 1 높을 때마다 소환된 각 크리처의 HP가 5 증가합니다. 슬롯 레벨이 2 높을 때마다 공격 피해가 1 증가합니다.

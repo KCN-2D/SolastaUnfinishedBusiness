@@ -290,6 +290,7 @@ public static partial class Tabletop2024Context
         LoadMonkStunningStrike();
         LoadOneDndSpellGuidanceSubspells();
         LoadOneDndSpellSpareTheDying();
+        LoadSummoningUpcast();
         LoadOneDndSpellTrueStrike();
         LoadPaladinRestoringTouch();
         LoadPaladinRestoreLevel20Features();
@@ -372,6 +373,7 @@ public static partial class Tabletop2024Context
         SwitchOneDndSpellSpareTheDying();
         SwitchOneDndSpellShillelagh();
         SwitchOneDndSpellSpiderClimb();
+        SwitchSummoningUpcast();
         SwitchOneDndSpellStoneSkin();
         SwitchOneDndSpellWitchBolt();
         SwitchPaladinAbjureFoes();

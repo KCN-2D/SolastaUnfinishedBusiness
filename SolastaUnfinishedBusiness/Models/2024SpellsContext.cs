@@ -10,6 +10,7 @@ using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.Classes;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Spells;
@@ -1096,6 +1097,228 @@ public static partial class Tabletop2024Context
             effectDescription.rangeParameter = 3 * (int)Math.Pow(2, power);
 
             return effectDescription;
+        }
+    }
+
+    private static readonly List<SummoningUpcastProfile> SummoningUpcastProfiles = [];
+
+    private static void LoadSummoningUpcast()
+    {
+        Register(ConjureElemental, false);
+        Register(ConjureFey, false);
+        Register(GetDefinition<SpellDefinition>("ConjureCelestial"), false);
+        Register(GiantInsect, false);
+        Register(ConjureMinorElementals, true);
+        Register(ConjureGoblinoids, true);
+        Register(ConjureAnimals, true);
+
+        static void Register(SpellDefinition spell, bool multipleCreatures)
+        {
+            if (HasAdvancement(spell, []))
+            {
+                return;
+            }
+            var profile = new SummoningUpcastProfile(spell, multipleCreatures);
+            SummoningUpcastProfiles.Add(profile);
+        }
+
+        static bool HasAdvancement(SpellDefinition spell, HashSet<SpellDefinition> visited)
+        {
+            if (!visited.Add(spell))
+            {
+                return false;
+            }
+            var advancement = SpellsContext.GetOriginalConjureAdvancement(spell);
+            return advancement.EffectIncrementMethod == EffectIncrementMethod.PerAdditionalSlotLevel &&
+                   (advancement.additionalSummonsPerIncrement != 0 || advancement.additionalDicePerIncrement != 0 ||
+                    advancement.additionalHPPerIncrement != 0 || advancement.additionalTempHPPerIncrement != 0 ||
+                    advancement.additionalTargetsPerIncrement != 0 || advancement.additionalSubtargetsPerIncrement != 0 ||
+                    advancement.additionalTargetCellsPerIncrement != 0 || advancement.additionalItemBonus != 0 ||
+                    advancement.additionalWeaponDie != 0 || advancement.alteredDuration != AdvancementDuration.None) ||
+                   spell.SubspellsList.Any(child => HasAdvancement(child, visited));
+        }
+    }
+
+    internal static void SwitchSummoningUpcast()
+    {
+        foreach (var profile in SummoningUpcastProfiles)
+        {
+            profile.RestoreAdvancement();
+        }
+
+        // Both settings use the same native baselines; the 2024 rule takes precedence.
+        SpellsContext.SwitchEnableUpcastConjureElementalAndFey();
+
+        if (Main.Settings.EnableSummoningUpcast2024)
+        {
+            foreach (var profile in SummoningUpcastProfiles)
+            {
+                profile.EnableAdvancement();
+            }
+        }
+
+        SpellBuilders.SwitchBattleFamiliarUpcast();
+    }
+
+    private sealed class SummoningUpcastProfile : ICustomSummonFormHandler
+    {
+        private readonly SpellDefinition _spell;
+        private readonly bool _multipleCreatures;
+        private readonly HashSet<SpellDefinition> _spells = [];
+        private readonly Dictionary<int, ConditionDefinition> _conditions = [];
+
+        internal SummoningUpcastProfile(SpellDefinition spell, bool multipleCreatures)
+        {
+            _spell = spell;
+            _multipleCreatures = multipleCreatures;
+            Register(spell);
+
+            for (var rank = 1; rank <= 9 - spell.SpellLevel; rank++)
+            {
+                var name = $"SummoningUpcast2024{spell.Name}{rank}";
+                var features = new List<FeatureDefinition>
+                {
+                    FeatureDefinitionAttributeModifierBuilder.Create($"AttributeModifier{name}HitPoints")
+                        .SetGuiPresentationNoContent(true)
+                        .SetModifier(FeatureDefinitionAttributeModifier.AttributeModifierOperation.Additive,
+                            AttributeDefinitions.HitPoints, rank * (multipleCreatures ? 5 : 10))
+                        .AddToDB()
+                };
+                if (!multipleCreatures)
+                {
+                    features.Add(FeatureDefinitionAttributeModifierBuilder.Create($"AttributeModifier{name}ArmorClass")
+                        .SetGuiPresentationNoContent(true)
+                        .SetModifier(FeatureDefinitionAttributeModifier.AttributeModifierOperation.Additive,
+                            AttributeDefinitions.ArmorClass, rank).AddToDB());
+                }
+
+                _conditions[rank] = ConditionDefinitionBuilder.Create($"Condition{name}")
+                    .SetGuiPresentationNoContent(true)
+                    .SetSilent(Silent.WhenAddedOrRemoved)
+                    .SetConditionType(ConditionType.Beneficial)
+                    .SetFeatures(features.ToArray())
+                    .AddCustomSubFeatures(new SummoningUpcastAttackBonus(multipleCreatures ? rank / 2 : rank,
+                        multipleCreatures ? 0 : (spell.SpellLevel + rank) / 2 - spell.SpellLevel / 2))
+                    .AddToDB();
+            }
+        }
+
+        private void Register(SpellDefinition spell)
+        {
+            if (!_spells.Add(spell))
+            {
+                return;
+            }
+
+            SpellsContext.GetOriginalConjureAdvancement(spell);
+            spell.AddCustomSubFeatures(this, (CustomSpellAdvancementTooltipDelegate)(_ =>
+                Main.Settings.EnableSummoningUpcast2024
+                    ? Gui.Localize(_multipleCreatures
+                        ? "Spell/&SummoningUpcastGroupDescription"
+                        : "Spell/&SummoningUpcastSingleDescription")
+                    : null));
+            foreach (var child in spell.SubspellsList)
+            {
+                Register(child);
+            }
+        }
+
+        internal void RestoreAdvancement()
+        {
+            foreach (var spell in _spells)
+            {
+                spell.EffectDescription.EffectAdvancement.Copy(SpellsContext.GetOriginalConjureAdvancement(spell));
+            }
+        }
+
+        internal void EnableAdvancement()
+        {
+            foreach (var spell in _spells)
+            {
+                // Keep the selected form and base creature count instead of multiplying
+                // stronger individuals by the native additional-summons advancement.
+                spell.EffectDescription.EffectAdvancement.Copy(new EffectAdvancement
+                {
+                    effectIncrementMethod = EffectIncrementMethod.PerAdditionalSlotLevel,
+                    incrementMultiplier = 1,
+                    additionalSpellLevelPerIncrement = 1
+                });
+            }
+        }
+
+        public bool TryPrepare(EffectForm effectForm,
+            ref RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            out ICustomSummonInvocationContext invocationContext, out string failureFeedback)
+        {
+            var rank = formsParams.activeEffect is RulesetEffectSpell effect
+                ? effect.EffectLevel - _spell.SpellLevel
+                : 0;
+            invocationContext = Main.Settings.EnableSummoningUpcast2024 && _conditions.TryGetValue(rank, out var condition)
+                ? new SummoningUpcastInvocation(condition)
+                : null;
+            failureFeedback = null;
+            return true;
+        }
+
+        public string GetMonsterDefinitionName(EffectForm effectForm,
+            RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            ICustomSummonInvocationContext invocationContext) => effectForm.SummonForm.MonsterDefinitionName;
+
+        public void InitializeSummonedCharacter(RulesetCharacterMonster character,
+            ICustomSummonInvocationContext invocationContext)
+        {
+            if (invocationContext is SummoningUpcastInvocation invocation)
+            {
+                invocation.Characters.Add(character);
+            }
+        }
+
+        public void AfterApply(EffectForm effectForm, RulesetImplementationDefinitions.ApplyFormsParams formsParams,
+            ICustomSummonInvocationContext invocationContext)
+        {
+            if (invocationContext is not SummoningUpcastInvocation invocation)
+            {
+                return;
+            }
+
+            var source = formsParams.sourceCharacter;
+            var effect = formsParams.activeEffect;
+            foreach (var character in invocation.Characters)
+            {
+                var previousMaximum = character.TryGetAttributeValue(AttributeDefinitions.HitPoints);
+                var previousCurrent = character.CurrentHitPoints;
+                var condition = character.InflictCondition(invocation.Condition.Name, DurationType.Permanent, 0,
+                    TurnOccurenceType.EndOfTurn, AttributeDefinitions.TagEffect, source.Guid,
+                    source.CurrentFaction.Name, effect.EffectLevel, effect.SourceDefinition.Name, 0, 0, 0);
+                effect.TrackCondition(source, source.Guid, character, character.Guid, condition,
+                    AttributeDefinitions.TagEffect);
+                character.RefreshAll();
+                character.CurrentHitPoints = previousCurrent +
+                    character.TryGetAttributeValue(AttributeDefinitions.HitPoints) - previousMaximum;
+            }
+        }
+    }
+
+    private sealed class SummoningUpcastInvocation(ConditionDefinition condition) : ICustomSummonInvocationContext
+    {
+        internal readonly ConditionDefinition Condition = condition;
+        internal readonly List<RulesetCharacterMonster> Characters = [];
+    }
+
+    private sealed class SummoningUpcastAttackBonus(int bonus, int additionalAttacks) : IModifyWeaponAttackMode
+    {
+        public void ModifyWeaponAttackMode(RulesetCharacter character, RulesetAttackMode attackMode,
+            RulesetItem weapon, bool canAddAbilityDamageBonus)
+        {
+            if (attackMode?.EffectDescription.GetFirstFormOfType(EffectForm.EffectFormType.Damage)?.DamageForm is
+                { } damage)
+            {
+                damage.BonusDamage += bonus;
+                if (attackMode.ActionType == ActionDefinitions.ActionType.Main)
+                {
+                    attackMode.AttacksNumber += additionalAttacks;
+                }
+            }
         }
     }
 

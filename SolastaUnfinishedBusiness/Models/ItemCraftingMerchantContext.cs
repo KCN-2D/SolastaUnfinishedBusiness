@@ -287,7 +287,9 @@ internal static class ItemCraftingMerchantContext
         foreach (var art in DatabaseRepository.GetDatabase<ItemDefinition>()
                      .Where(IsStackableArtItemDefinition))
         {
-            art.canBeStacked = Main.Settings.EnableStackableArtItems;
+            // Stack capability is also the native contract for saved quantity, price, weight and splitting.
+            // The setting controls merging through RulesetItem.CanStillBeStacked instead.
+            art.canBeStacked = true;
         }
     }
 
@@ -296,13 +298,7 @@ internal static class ItemCraftingMerchantContext
         foreach (var weapon in DatabaseRepository.GetDatabase<ItemDefinition>()
                      .Where(IsStackableAxesAndDaggersDefinition))
         {
-            weapon.canBeStacked = Main.Settings.EnableStackableAxesAndDaggers;
-
-            if (!Main.Settings.EnableStackableAxesAndDaggers)
-            {
-                continue;
-            }
-
+            weapon.canBeStacked = true;
             weapon.stackSize = 5;
             weapon.defaultStackCount = 1;
         }
@@ -318,23 +314,75 @@ internal static class ItemCraftingMerchantContext
         }
 
         var stackSize = definition.stackSize > 0 ? definition.stackSize : 1;
+        var refresh = false;
 
         if (!item.TryGetAttribute(AttributeDefinitions.ItemStackCount, out var stackCount))
         {
             stackCount = item.RegisterAttribute(AttributeDefinitions.ItemStackCount);
             stackCount.MinValue = 0;
             stackCount.BaseValue = 1;
+            refresh = true;
         }
 
-        stackCount.MaxValue = stackSize;
-        stackCount.Refresh(false);
+        // Existing saves may contain stacks larger than the current definition's merge limit.
+        var maximum = System.Math.Max(stackSize, stackCount.BaseValue);
+        if (stackCount.MaxValue != maximum)
+        {
+            stackCount.MaxValue = maximum;
+            refresh = true;
+        }
+
+        if (refresh)
+        {
+            stackCount.Refresh(false);
+        }
+    }
+
+    internal static bool IsCustomStackingAllowed(ItemDefinition definition)
+    {
+        if (IsStackableArtItemDefinition(definition))
+        {
+            return Main.Settings.EnableStackableArtItems;
+        }
+
+        return !IsStackableAxesAndDaggersDefinition(definition) || Main.Settings.EnableStackableAxesAndDaggers;
+    }
+
+    internal static bool IsCustomStackingAllowed(RulesetItem item)
+    {
+        if (!IsCustomStackableDefinition(item?.ItemDefinition))
+        {
+            return true;
+        }
+
+        // Native stack merging and splitting do not transfer individual weapon properties or identity.
+        return IsCustomStackingAllowed(item.ItemDefinition) &&
+               item.DynamicItemProperties.Count == 0 &&
+               string.IsNullOrEmpty(item.AttunedToCharacter) &&
+               string.IsNullOrEmpty(item.OwnerName) &&
+               string.IsNullOrEmpty(item.DeityMark) &&
+               item.SourceSummoningEffectGuid == 0 &&
+               item.RulesetLightSource == null &&
+               item is not RulesetItemDevice;
+    }
+
+    internal static bool CanMergeItemsOrMatchNativeDefinitions(RulesetItem first, RulesetItem second)
+    {
+        // Native reorder, auto-equip and drag cancellation only compare definitions here.
+        // Custom stacks also need the same individual-item checks used by container insertion.
+        return IsCustomStackableDefinition(first.ItemDefinition) || IsCustomStackableDefinition(second.ItemDefinition)
+            ? RulesetItem.CanStackItems(first, second)
+            : first.ItemDefinition == second.ItemDefinition;
+    }
+
+    private static bool IsCustomStackableDefinition(ItemDefinition definition)
+    {
+        return IsStackableArtItemDefinition(definition) || IsStackableAxesAndDaggersDefinition(definition);
     }
 
     private static bool ShouldEnsureCustomStackCountAttribute(ItemDefinition definition)
     {
-        return definition is { CanBeStacked: true } &&
-               ((Main.Settings.EnableStackableArtItems && IsStackableArtItemDefinition(definition)) ||
-                (Main.Settings.EnableStackableAxesAndDaggers && IsStackableAxesAndDaggersDefinition(definition)));
+        return definition is { CanBeStacked: true } && IsCustomStackableDefinition(definition);
     }
 
     private static bool IsStackableArtItemDefinition(ItemDefinition item)

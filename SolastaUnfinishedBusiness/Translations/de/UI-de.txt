@@ -57,3 +57,5 @@ Reaction/&PartyOnlyHarmfulInterruptsSuppressedDescription=Angriffe und Behinderu
 Caption/&PartyTargetsIncluded=Enthält Verbündete.
 Caption/&SelfAndPartyTargetsIncluded=Enthält dich und deine Verbündeten.
 Caption/&SelfTargetIncluded=Enthält dich.
+Spell/&SummoningUpcastSingleDescription=Für jeden Zauberplatzgrad über dem Grundgrad des Zaubers erhält jede beschworene Kreatur 10 Trefferpunkte, 1 RK und einen Bonus von +1 auf ihren Angriffsschaden. Außerdem führt sie mit ihrer Hauptaktion für jeden geraden Zauberplatzgrad über dem Grundgrad des Zaubers einen zusätzlichen Angriff aus.
+Spell/&SummoningUpcastGroupDescription=Für jeden Zauberplatzgrad über dem Grundgrad des Zaubers erhält jede beschworene Kreatur 5 Trefferpunkte. Für je zwei zusätzliche Zauberplatzgrade steigt ihr Angriffsschaden um 1.

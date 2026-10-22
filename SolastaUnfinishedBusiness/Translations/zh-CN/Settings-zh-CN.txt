@@ -300,8 +300,8 @@ ModUi/&EnableSpeechActorHelp=• 选择演员
 ModUi/&EnableSpeechOnNpcs=启用NPC语音朗读
 ModUi/&EnableSpeechOnInteractions=使用旁白声音朗读调查物件时的描述
 ModUi/&EnableSpeechVoiceHelp=• 选择语音和叙述速度
-ModUi/&EnableStackableArtItems=启用堆叠<color=#D89555>艺术品</color> <i><color=#F0DAA0>[此设置禁用时无法拆分]</color></i>
-ModUi/&EnableStackableAxesAndDaggers=启用堆叠<color=#D89555>匕首</color>和<color=#D89555>手斧</color> <i><color=#F0DAA0>[禁用此设置时无法拆分]</color></i>
+ModUi/&EnableStackableArtItems=启用堆叠<color=#D89555>艺术品</color>
+ModUi/&EnableStackableAxesAndDaggers=启用堆叠<color=#D89555>匕首</color>和<color=#D89555>手斧</color>
 ModUi/&EnableStatsOnHeroTooltip=在英雄的工具提示上显示统计数据<i><color=#F0DAA0>[例如：暴击、暴击失败等]</color></i>
 ModUi/&EnableSumD20OnAlternateVotingSystem=<i>+ 此外，每个英雄都会增加一个 D20 掷骰来增加权重，以增加一点随机性 <color=#F0DAA0>[选择权重 = 投票给该选项的每位英雄的魅力调整值与其D20掷骰结果的总和]</color></i>
 ModUi/&EnableSurprisedToEnforceDisadvantage=启用<color=#D89555>惊讶</color>条件来强制执行主动劣势，而不是跳过一轮
@@ -310,6 +310,8 @@ ModUi/&EnableTooltipDistance=在战斗中将鼠标悬停在角色上时启用在
 ModUi/&EnableUnarmedMainAttackAction=启用<color=#D89555>徒手攻击</color>动作<i><color=#F0DAA0>[如果演员主武器为武器、是<b>僧侣</b>或装备有<b>手套</b>或<b>铁手套</b>]</color></i>
 ModUi/&EnableUnlimitedInventoryActions=每回合启用无限数量的<color=#D89555>库存动作</color>。
 ModUi/&EnableUpcastConjureElementalAndFey=启用 <color=#D89555>Conjure Elemental</color> 和 <color=#D89555>Conjure Fey</color> 的向上转换
+ModUi/&EnableSummoningUpcast2024=使用更高环阶法术位施放没有升环收益的友方生物召唤法术时，强化召唤出的生物。
+ModUi/&SummoningUpcast2024CompatibilityDescription=启用召唤法术升环强化时，此选项不可用。
 ModUi/&EnableVariablePlaceholdersOnTexts=在描述中启用变量占位符<i><color=#F0DAA0>[使用 {VARIABLE_NAME} 作为占位符]</color></i>
 ModUi/&EnableVersatileAmmunitionSlots=允许携带<color=#D89555>药水</color>和<color=#D89555>卷轴</color>并将其放入弹药槽中使用
 ModUi/&EnableVersatileOffHandSlot=允许携带<color=#D89555>药水</color>和<color=#D89555>卷轴</color>并在副手武器槽中使用

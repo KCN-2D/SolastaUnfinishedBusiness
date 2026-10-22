@@ -56,4 +56,6 @@ Reaction/&PartyOnlyHarmfulInterruptsSuppressedDescription=Harmful effects on you
 Caption/&PartyTargetsIncluded=Includes allies.
 Caption/&SelfAndPartyTargetsIncluded=Includes you and your allies.
 Caption/&SelfTargetIncluded=Includes you.
+Spell/&SummoningUpcastSingleDescription=For each slot level above the spell's base level, each summoned creature gains 10 hit points, 1 AC, and a +1 bonus to its attack damage. It also makes one additional attack with its main action for each even slot level above the spell's base level.
+Spell/&SummoningUpcastGroupDescription=For each slot level above the spell's base level, each summoned creature gains 5 hit points. For every two additional slot levels, its attack damage increases by 1.
 Feature/&ListSeparatorTitle=, 

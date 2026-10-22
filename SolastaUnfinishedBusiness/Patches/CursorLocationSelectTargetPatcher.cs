@@ -209,8 +209,28 @@ public static class CursorLocationSelectTargetPatcher
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             instructions = ReplaceSelectedActor(instructions, "CursorLocationSelectTarget.IsValidMagicTarget");
+            instructions = instructions.ReplaceCalls(
+                AccessTools.Method(typeof(IGameLocationBattleService), nameof(IGameLocationBattleService.CanAttack)),
+                2, "CursorLocationSelectTarget.IsValidMagicTarget.TargetingRange",
+                new CodeInstruction(OpCodes.Ldarg_0),
+                new CodeInstruction(OpCodes.Call,
+                    AccessTools.Method(typeof(IsValidMagicTarget_Patch), nameof(CanAttackWithTargetingRange))));
             return CombinedMetamagic.ReplaceTypeChecks(instructions, MetamagicType.DistantSpell,
                 "CursorLocationSelectTarget.IsValidMagicTarget");
+        }
+
+        private static bool CanAttackWithTargetingRange(
+            IGameLocationBattleService battleService, BattleDefinitions.AttackEvaluationParams attackParams,
+            bool canTargetDead, CursorLocationSelectTarget cursor)
+        {
+            var modifier = cursor.ActionParams.RulesetEffect.SourceDefinition
+                .GetFirstSubFeatureOfType<IModifyTargetingRange>();
+            if (modifier != null && attackParams.attackProximity == BattleDefinitions.AttackProximity.MagicDistance)
+            {
+                attackParams.maxRange = modifier.GetMaxRange(cursor, attackParams.maxRange);
+            }
+
+            return battleService.CanAttack(attackParams, canTargetDead);
         }
 
         [UsedImplicitly]
@@ -584,18 +604,8 @@ public static class CursorLocationSelectTargetPatcher
             // var canProceed = __instance.maxTargets < 0 || (__instance.maxTargets > 1 && __instance.remainingTargets < __instance.maxTargets);
 
             bool canProceed;
-            var enforceFullSelection = false;
-
-            if (__instance.actionParams is { RulesetEffect: RulesetEffectPower rulesetEffectPower })
-            {
-                var filterTargetingCharacter =
-                    rulesetEffectPower.PowerDefinition.GetFirstSubFeatureOfType<IFilterTargetingCharacter>();
-
-                if (filterTargetingCharacter != null)
-                {
-                    enforceFullSelection = filterTargetingCharacter.EnforceFullSelection;
-                }
-            }
+            var enforceFullSelection = __instance.actionParams?.RulesetEffect?.SourceDefinition
+                .GetFirstSubFeatureOfType<IFilterTargetingCharacter>()?.EnforceFullSelection ?? false;
 
             if (enforceFullSelection)
             {
@@ -604,8 +614,11 @@ public static class CursorLocationSelectTargetPatcher
             }
             else
             {
+                var teleportSelf = TryGetModifyTeleportEffectBehavior(__instance.ActionParams,
+                    out var teleportBehavior) && teleportBehavior.TeleportSelf;
                 canProceed = __instance.maxTargets < 0 ||
-                             (__instance.maxTargets > 1 && __instance.remainingTargets <= __instance.maxTargets);
+                             (__instance.maxTargets > 1 &&
+                              (__instance.remainingTargets < __instance.maxTargets || teleportSelf));
             }
             // END PATCH
 

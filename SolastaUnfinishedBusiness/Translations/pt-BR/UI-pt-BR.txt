@@ -57,3 +57,5 @@ Reaction/&PartyOnlyHarmfulInterruptsSuppressedDescription=Efeitos prejudiciais a
 Caption/&PartyTargetsIncluded=Aliados estão incluídos.
 Caption/&SelfAndPartyTargetsIncluded=Você e seus aliados estão incluídos.
 Caption/&SelfTargetIncluded=Você está entre os alvos.
+Spell/&SummoningUpcastSingleDescription=Para cada nível do espaço acima do nível básico da magia, cada criatura invocada ganha 10 pontos de vida, 1 de CA e um bônus de +1 no dano de seus ataques. Ela também realiza um ataque adicional com sua ação principal para cada nível par do espaço acima do nível básico da magia.
+Spell/&SummoningUpcastGroupDescription=Para cada nível do espaço acima do nível básico da magia, cada criatura invocada ganha 5 pontos de vida. A cada dois níveis adicionais do espaço, o dano de seus ataques aumenta em 1.

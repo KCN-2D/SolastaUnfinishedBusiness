@@ -287,8 +287,8 @@ ModUi/&EnableSpeechActorHelp=• 話者を選択します
 ModUi/&EnableSpeechOnNpcs=NPCの音声読み上げを有効にします
 ModUi/&EnableSpeechOnInteractions=調べたときの説明文をナレーションとして読み上げる
 ModUi/&EnableSpeechVoiceHelp=• 音声とナレーションの速度を選択します
-ModUi/&EnableStackableArtItems=<color=#D89555>芸術品</color>のスタックを有効にします<i><color=#F0DAA0>（この設定が無効になっている間は分割できません）</color></i>
-ModUi/&EnableStackableAxesAndDaggers=<color=#D89555>ダガー</color>と<color=#D89555>ハンドアックス</color>のスタックを有効にします<i><color=#F0DAA0>（この設定が無効になっている間は分割できません）</color></i>
+ModUi/&EnableStackableArtItems=<color=#D89555>芸術品</color>のスタックを有効にします
+ModUi/&EnableStackableAxesAndDaggers=<color=#D89555>ダガー</color>と<color=#D89555>ハンドアックス</color>のスタックを有効にします
 ModUi/&EnableStatsOnHeroTooltip=ヒーローのツールチップに統計情報を表示します<i><color=#F0DAA0>（例：クリティカル・ヒット、クリティカル失敗など）</color></i>
 ModUi/&EnableSumD20OnAlternateVotingSystem=<i>+各ヒーローが選んだ選択肢の重みに、魅力修正値に加えて1d20のロール結果を加えます</i>
 ModUi/&EnableSurprisedToEnforceDisadvantage=<color=#D89555>不意を突かれた</color>状態の効果を、最初のターンに行動できない代わりに、イニシアチブ・ロールに不利を得るように変更します
@@ -297,6 +297,8 @@ ModUi/&EnableTooltipDistance=戦闘中にキャラクターへカーソルを合
 ModUi/&EnableUnarmedMainAttackAction=<color=#D89555>素手打撃</color>アクションを有効にします<i><color=#F0DAA0>（キャラクターが利き手に武器を持っている、<b>モンク</b>である、または<b>ハンドラップ</b>か<b>ガントレット</b>を装備している場合）</color></i>
 ModUi/&EnableUnlimitedInventoryActions=1ターンに行える<color=#D89555>インベントリ・アクション</color>の回数を無制限にします
 ModUi/&EnableUpcastConjureElementalAndFey=<color=#D89555>エレメンタル召喚</color>と<color=#D89555>フェイ召喚</color>を高レベルの呪文スロットで発動できるようにします
+ModUi/&EnableSummoningUpcast2024=アップキャスト効果のない味方召喚呪文を、高レベルの呪文スロットで強化します。
+ModUi/&SummoningUpcast2024CompatibilityDescription=召喚呪文のアップキャスト強化が有効な間は、この設定は使用できません。
 ModUi/&EnableVariablePlaceholdersOnTexts=説明文で変数プレースホルダーを使用できるようにします<i><color=#F0DAA0>（プレースホルダーには{VARIABLE_NAME}を使用）</color></i>
 ModUi/&EnableVersatileAmmunitionSlots=<color=#D89555>ポーション</color>と<color=#D89555>巻物</color>を矢弾スロットに入れて使用できるようにします
 ModUi/&EnableVersatileOffHandSlot=<color=#D89555>ポーション</color>と<color=#D89555>巻物</color>を非利き手武器スロットに入れて使用できるようにします

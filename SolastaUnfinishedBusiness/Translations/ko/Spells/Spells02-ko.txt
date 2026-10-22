@@ -71,6 +71,7 @@ Spell/&WitherAndBloomTitle=위더 앤 블룸
 Spell/&BrandingSmite2024Description=근접 무기나 비무장 타격이 명중한 직후, 2d6 광휘 피해를 추가로 줍니다. 집중을 유지하는 동안 최대 1분간 대상은 반경 1칸에 밝은 빛을 내며, 대상을 향한 명중 굴림은 이점을 받고 대상은 투명의 혜택을 받지 못합니다. 2레벨을 초과하는 주문 슬롯 레벨마다 추가 피해가 1d6 증가합니다.
 Spell/&BattleFamiliarTitle=전투 패밀리어
 Spell/&BattleFamiliarDescription=새 패밀리어를 소환하거나 10피트 이내에 있는 자신의 패밀리어 찾기로 얻은 패밀리어를 강화하도록 선택합니다. 난폭형, 비행형, 추적형 중 형태 하나를 선택합니다. 소환할 때는 천상체, 페이, 악마 중 크리처 유형도 선택합니다. 패밀리어는 명령을 따르고 함께 싸웁니다. 1시간 동안 지속되며 시전자가 죽으면 일찍 종료됩니다. 패밀리어는 하나만 가질 수 있으며, 새로 소환하면 이전 패밀리어를 대체합니다.\n\n강화는 같은 패밀리어에게 적용되며 원래 HP, 크리처 유형, 성향 및 패밀리어 찾기의 능력을 유지합니다. 선택한 형태의 전투 능력과 임시 HP를 얻습니다. 이 임시 HP가 소진되거나 주문이 끝나면 강화가 종료되고 원래 전투 능력으로 돌아갑니다. 이 주문으로 얻은 남은 임시 HP도 사라집니다.
+Spell/&BattleFamiliarAdvancementDescription=주문 슬롯의 레벨이 2레벨을 초과한 만큼 패밀리어의 AC가 레벨마다 1, HP가 5 증가합니다. 공격 횟수와 능력치 판정 및 내성 굴림 보너스는 슬롯 레벨을 2로 나누고 소수점 이하를 버린 값과 같습니다. 찢기 공격은 각각 1d8 + 3 + 슬롯 레벨의 역장 피해를 줍니다. 기존 패밀리어를 강화하면 원래 HP를 유지하면서 선택한 형태의 HP와 같은 임시 HP를 얻습니다.
 Spell/&BattleFamiliarBruteCelestialTitle=난폭형 · 천상체
 Spell/&BattleFamiliarBruteFeyTitle=난폭형 · 페이
 Spell/&BattleFamiliarBruteFiendTitle=난폭형 · 악마

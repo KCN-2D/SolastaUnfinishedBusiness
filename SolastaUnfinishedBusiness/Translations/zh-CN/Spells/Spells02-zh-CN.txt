@@ -71,6 +71,7 @@ Spell/&WitherAndBloomTitle=靡叶生华
 Spell/&BrandingSmite2024Description=近战武器或徒手打击命中后，立即造成额外2d6光耀伤害。在你保持专注期间，目标向半径1格内散发明亮光照，针对它的攻击检定具有优势，且它无法获益于隐形状态，至多持续1分钟。使用的法术位每比2环高一环，额外伤害就增加1d6。
 Spell/&BattleFamiliarTitle=战斗魔宠
 Spell/&BattleFamiliarDescription=选择召唤新的魔宠，或强化10尺内由你自己的获得魔宠法术召唤的魔宠。选择蛮力型、飞行型或追踪型。召唤时还须选择天界、精类或邪魔生物类型。魔宠服从你的命令，与你并肩战斗。持续1小时；你死亡时会提前结束。你只能拥有一只魔宠；新召唤的魔宠会替代原有魔宠。\n\n强化作用于同一只魔宠，并保留其原有生命值、生物类型、阵营以及获得魔宠带来的能力。它获得所选形态的战斗能力与临时生命值。这些临时生命值耗尽或法术结束时，强化结束并恢复原有战斗能力，同时失去此法术剩余的临时生命值。
+Spell/&BattleFamiliarAdvancementDescription=所用法术位每比2环高1环，魔宠的护甲等级增加1，生命值增加5。它的攻击次数以及属性检定和豁免检定的加值等于法术位环阶的一半，向下取整。每次撕裂攻击造成1d8+3+法术位环阶的力场伤害。强化已有魔宠时，它保留原有生命值，并获得等于所选形态生命值的临时生命值。
 Spell/&BattleFamiliarBruteCelestialTitle=蛮力型·天界生物
 Spell/&BattleFamiliarBruteFeyTitle=蛮力型·妖精类生物
 Spell/&BattleFamiliarBruteFiendTitle=蛮力型·邪魔

@@ -66,15 +66,23 @@ internal static class SpellsDisplay
             Main.Settings.BestowCurseNoConcentrationRequiredForSlotLevel5OrAbove = toggle;
         }
 
-        toggle = Main.Settings.EnableUpcastConjureElementalAndFey;
+        var conjureGuiEnabled = GUI.enabled;
+        GUI.enabled = conjureGuiEnabled && !Main.Settings.EnableSummoningUpcast2024;
+        toggle = SpellsContext.IsConjureUpcastEnabled;
         if (UI.Toggle(Gui.Localize("ModUi/&EnableUpcastConjureElementalAndFey"), ref toggle, UI.AutoWidth()))
         {
             Main.Settings.EnableUpcastConjureElementalAndFey = toggle;
-            Main.Settings.OnlyShowMostPowerfulUpcastConjuredElementalOrFey = false;
-            SpellsContext.SwitchEnableUpcastConjureElementalAndFey();
+            Tabletop2024Context.SwitchSummoningUpcast();
         }
 
-        if (Main.Settings.EnableUpcastConjureElementalAndFey)
+        GUI.enabled = conjureGuiEnabled;
+        if (Main.Settings.EnableSummoningUpcast2024)
+        {
+            UI.Label(Gui.Localize("ModUi/&SummoningUpcast2024CompatibilityDescription"),
+                new GUIStyle(GUI.skin.label) { wordWrap = true }, UI.ExpandWidth(true));
+        }
+
+        if (SpellsContext.IsConjureUpcastEnabled)
         {
             toggle = Main.Settings.OnlyShowMostPowerfulUpcastConjuredElementalOrFey;
             if (UI.Toggle(Gui.Localize("ModUi/&OnlyShowMostPowerfulUpcastConjuredElementalOrFey"), ref toggle,
@@ -178,7 +186,14 @@ internal static class SpellsDisplay
 
     internal static void DisplaySpells2024()
     {
-        var toggle = Main.Settings.EnablePreparedSpellsTables2024;
+        var toggle = Main.Settings.EnableSummoningUpcast2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableSummoningUpcast2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableSummoningUpcast2024 = toggle;
+            Tabletop2024Context.SwitchSummoningUpcast();
+        }
+
+        toggle = Main.Settings.EnablePreparedSpellsTables2024;
         if (UI.Toggle(Gui.Localize("ModUi/&EnablePreparedSpellsTables2024"), ref toggle, UI.AutoWidth()))
         {
             Main.Settings.EnablePreparedSpellsTables2024 = toggle;

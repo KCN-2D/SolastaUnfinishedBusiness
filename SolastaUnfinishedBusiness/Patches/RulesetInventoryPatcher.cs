@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
+using System.Collections.Generic;
 using JetBrains.Annotations;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -7,6 +8,19 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetInventoryPatcher
 {
+    [HarmonyPatch(typeof(RulesetInventory), nameof(RulesetInventory.AutoEquipItem))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class AutoEquipItem_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            return RulesetItemPatcher.ReplaceStackingDefinitionComparison(instructions,
+                "RulesetInventory.AutoEquipItem.CustomStacking", true);
+        }
+    }
+
     [HarmonyPatch(typeof(RulesetInventory), nameof(RulesetInventory.SwitchToWieldItemsOfConfiguration))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

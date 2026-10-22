@@ -57,3 +57,5 @@ Reaction/&PartyOnlyHarmfulInterruptsSuppressedDescription=Les effets nuisibles �
 Caption/&PartyTargetsIncluded=Des alliés sont inclus.
 Caption/&SelfAndPartyTargetsIncluded=Vous et vos alliés êtes inclus.
 Caption/&SelfTargetIncluded=Vous faites partie des cibles.
+Spell/&SummoningUpcastSingleDescription=Pour chaque niveau de l'emplacement au-dessus du niveau de base du sort, chaque créature invoquée gagne 10 points de vie, 1 en CA et un bonus de +1 aux dégâts de ses attaques. Elle effectue également une attaque supplémentaire avec son action principale pour chaque niveau pair de l'emplacement au-dessus du niveau de base du sort.
+Spell/&SummoningUpcastGroupDescription=Pour chaque niveau de l'emplacement au-dessus du niveau de base du sort, chaque créature invoquée gagne 5 points de vie. Pour chaque tranche de deux niveaux supplémentaires de l'emplacement, les dégâts de ses attaques augmentent de 1.
