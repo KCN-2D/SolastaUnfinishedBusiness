@@ -14,8 +14,8 @@ internal static class Global
     // true if on multiplayer setup screen to prevent default party
     internal static bool IsSettingUpMultiplayer { get; set; }
 
-    // last level up hero name to allow an easier level up on characters pool with less mouse clicks
-    internal static string LastLevelUpHeroName { get; set; }
+    // Saved pool entry to select when returning from character editing.
+    internal static string LastLevelUpHeroFilename { get; set; }
 
     internal static readonly Dictionary<GameLocationCharacter, Dictionary<GameLocationCharacter, RuleDefinitions.RollOutcome>> RolledPerceptionThisTurn = [];
 
@@ -57,7 +57,7 @@ internal static class Global
     {
         RolledPerceptionThisTurn.Clear();
         InspectedHero = null;
-        LastLevelUpHeroName = null;
+        LastLevelUpHeroFilename = null;
         IsSettingUpMultiplayer = false;
     }
 }

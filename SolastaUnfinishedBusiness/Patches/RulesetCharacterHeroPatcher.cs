@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
@@ -30,6 +31,28 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetCharacterHeroPatcher
 {
+    [HarmonyPatch]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class DisplayName_Getter_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<MethodBase> TargetMethods()
+        {
+            yield return AccessTools.PropertyGetter(typeof(RulesetCharacterHero),
+                nameof(RulesetCharacterHero.DisplayName));
+            yield return AccessTools.PropertyGetter(typeof(RulesetCharacterHero),
+                nameof(RulesetCharacterHero.DisplaySurName));
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(RulesetCharacterHero __instance, MethodBase __originalMethod, ref string __result)
+        {
+            var name = __originalMethod.Name == "get_DisplaySurName" ? __instance.SurName : __instance.Name;
+            __result = TranslatorContext.LocalizeBuiltInCharacterName(name, __instance.BuiltIn, __result);
+        }
+    }
+
     [HarmonyPatch(typeof(RulesetCharacterHero), nameof(RulesetCharacterHero.ComputeAttackModeAbilityScoreReplacement))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

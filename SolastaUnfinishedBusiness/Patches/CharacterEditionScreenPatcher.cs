@@ -75,6 +75,21 @@ public static class CharacterEditionScreenPatcher
         ["States:"] = "Screen/&CharacterCheckerAnimationStatesTitle"
     };
 
+    [HarmonyPatch(typeof(CharacterEditionScreen), nameof(CharacterEditionScreen.OnBeginShow))]
+    [UsedImplicitly]
+    public static class OnBeginShow_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CharacterEditionScreen __instance)
+        {
+            if (__instance is CharacterCreationScreen)
+            {
+                // The screen is reused after named creation and respec sessions.
+                __instance.commonData.CharacterInfoLabel.gameObject.SetActive(true);
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(CharacterEditionScreen), nameof(CharacterEditionScreen.RefreshStageDisks))]
     [UsedImplicitly]
     public static class RefreshStageDisks_Patch

@@ -628,6 +628,20 @@ internal static class TranslatorContext
         }
     }
 
+    internal static string LocalizeBuiltInCharacterName(string name, bool builtIn, string fallback)
+    {
+        if (!builtIn || string.IsNullOrEmpty(name) || LocalizationManager.Sources.Count == 0)
+        {
+            return fallback ?? name;
+        }
+
+        // Packaged characters can contain literal names instead of the localization terms used by templates.
+        // Resolve from the saved identity: snapshot display fields can already contain a previous language.
+        var term = $"Race/&PreGenerated{name.Replace(" ", string.Empty)}Title";
+
+        return HasTranslation(term) ? Gui.Localize(term) : fallback ?? name;
+    }
+
     internal static bool HasTranslation(string term)
     {
         return LocalizationManager.Sources[0].ContainsTerm(term);

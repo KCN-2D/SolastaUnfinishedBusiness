@@ -1,7 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -11,6 +15,30 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class NewAdventurePanelPatcher
 {
+    [HarmonyPatch(typeof(NewAdventurePanel), nameof(NewAdventurePanel.RequestCharacter))]
+    [UsedImplicitly]
+    public static class RequestCharacter_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            instructions.ReplaceCalls(AccessTools.PropertyGetter(typeof(GuiCharacter), nameof(GuiCharacter.Name)),
+                1, "NewAdventurePanel.RequestCharacter.Identity",
+                new CodeInstruction(OpCodes.Call,
+                    new Func<GuiCharacter, string>(GuiCharacterExtensions.GetIdentityName).Method));
+    }
+
+    [HarmonyPatch(typeof(NewAdventurePanel), nameof(NewAdventurePanel.AreCharactersSharingName))]
+    [UsedImplicitly]
+    public static class AreCharactersSharingName_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            instructions.ReplaceCalls(AccessTools.PropertyGetter(typeof(GuiCharacter), nameof(GuiCharacter.Name)),
+                3, "NewAdventurePanel.AreCharactersSharingName.Identity",
+                new CodeInstruction(OpCodes.Call,
+                    new Func<GuiCharacter, string>(GuiCharacterExtensions.GetIdentityName).Method));
+    }
+
     private static void AssignDefaultHeroes(NewAdventurePanel __instance)
     {
         var max = Math.Min(

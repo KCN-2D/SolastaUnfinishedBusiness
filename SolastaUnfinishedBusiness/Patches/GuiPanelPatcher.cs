@@ -41,7 +41,7 @@ public static class GuiPanelPatcher
             }
 
             //PATCH: Keeps last level up hero selected
-            if (__instance is not MainMenuScreen mainMenuScreen || Global.LastLevelUpHeroName == null)
+            if (__instance is not MainMenuScreen mainMenuScreen || Global.LastLevelUpHeroFilename == null)
             {
                 return;
             }

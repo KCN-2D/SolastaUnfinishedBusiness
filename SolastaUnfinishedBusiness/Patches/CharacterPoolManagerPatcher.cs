@@ -22,16 +22,20 @@ public static class CharacterPoolManagerPatcher
                 return false;
             }
 
-            //PATCH: Keeps last level up hero selected
-            if (heroCharacter == null)
+            return true;
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(bool addToPool, bool temporaryCharacter, string __result)
+        {
+            if (!addToPool || temporaryCharacter || string.IsNullOrEmpty(__result))
             {
-                return true;
+                return;
             }
 
-            Global.LastLevelUpHeroName = Main.Settings.KeepCharactersPanelOpenAndHeroSelectedAfterLevelUp
-                ? heroCharacter.Name
+            Global.LastLevelUpHeroFilename = Main.Settings.KeepCharactersPanelOpenAndHeroSelectedAfterLevelUp
+                ? __result
                 : null;
-            return true;
         }
     }
 }

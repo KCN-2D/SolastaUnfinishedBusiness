@@ -409,10 +409,15 @@ public static class PortraitsContext
         bool useOnlyExisting = false,
         int width = 256,
         int height = 384,
-        GraphicsCharacterPhotoManager.PhotoParameters parameters = default)
+        GraphicsCharacterPhotoManager.PhotoParameters parameters = default,
+        bool forceRefresh = false)
     {
         var manager = service as GraphicsCharacterPhotoManager;
         var completed = false;
+        var refreshStarted = false;
+        var refreshCache = !useOnlyExisting && (forceRefresh ||
+            (!activePortrait && character is RulesetCharacterHero && manager != null &&
+             !manager.photoByRulesetCharacter.ContainsKey(character)));
 
         void Respond(Texture texture)
         {
@@ -425,7 +430,34 @@ public static class PortraitsContext
             response?.Invoke(texture);
         }
 
-        if (TryWaitForPhoto(manager, character, activePortrait, Respond))
+        void Refresh(Texture texture)
+        {
+            if (!texture)
+            {
+                Respond(null);
+                return;
+            }
+
+            refreshCache = false;
+            refreshStarted = true;
+            if (activePortrait)
+            {
+                service.RefreshActiveCharacterPhoto(character, NativeResponse);
+            }
+            else
+            {
+                service.RefreshCharacterPhoto(character, parameters, NativeResponse);
+            }
+
+            if (!completed)
+            {
+                TryWaitForPhoto(manager, character, activePortrait, Respond);
+            }
+        }
+
+        // A render already in progress may have captured data before an explicit replacement.
+        var pendingResponse = forceRefresh && !useOnlyExisting ? (Action<Texture>)Refresh : Respond;
+        if (TryWaitForPhoto(manager, character, activePortrait, pendingResponse))
         {
             return;
         }
@@ -434,8 +466,15 @@ public static class PortraitsContext
         {
             // Native cache hits can return an unfinished render target. A newly rendered photo's
             // callback also runs before its pending flag is cleared; finish both at the render boundary.
-            if (manager != null && manager.pendingRequests.Contains(texture as RenderTexture))
+            if (completed || (manager != null && manager.pendingRequests.Contains(texture as RenderTexture)))
             {
+                return;
+            }
+
+            // Snapshot fallback matches names and ancestry, not the live hero's appearance.
+            if (refreshCache)
+            {
+                Refresh(texture);
                 return;
             }
 
@@ -451,7 +490,7 @@ public static class PortraitsContext
             service.RequestCharacterPhoto(character, NativeResponse, useOnlyExisting, width, height, parameters);
         }
 
-        if (!completed)
+        if (!completed && !refreshStarted)
         {
             TryWaitForPhoto(manager, character, activePortrait, Respond);
         }

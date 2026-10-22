@@ -269,7 +269,7 @@ internal static class TranspileHelper
         var code = instructions.ToList();
         var bindIndex = code.FindIndex(match);
 
-        if (bindIndex <= 0)
+        if (bindIndex < 0)
         {
             Main.Error($"Failed to apply transpiler patch [{patchContext}]!");
         }
@@ -278,14 +278,27 @@ internal static class TranspileHelper
         {
             if (occurrence < 0 || ++found == occurrence)
             {
-                for (var i = 0; i < codeInstructions.Length; i++)
+                if (bypass == 0 && codeInstructions.Length == 1)
                 {
-                    code.Insert(bindIndex + i, codeInstructions[i]);
+                    // Keep branch targets and exception boundaries on the same native instruction.
+                    var instruction = code[bindIndex];
+                    var replacement = codeInstructions[0];
+                    instruction.opcode = replacement.opcode;
+                    instruction.operand = replacement.operand;
+                    instruction.labels.AddRange(replacement.labels.Except(instruction.labels));
+                    instruction.blocks.AddRange(replacement.blocks.Except(instruction.blocks));
                 }
-
-                for (var i = 0; i <= bypass; i++)
+                else
                 {
-                    code.RemoveAt(bindIndex + codeInstructions.Length);
+                    for (var i = 0; i < codeInstructions.Length; i++)
+                    {
+                        code.Insert(bindIndex + i, new CodeInstruction(codeInstructions[i]));
+                    }
+
+                    for (var i = 0; i <= bypass; i++)
+                    {
+                        code.RemoveAt(bindIndex + codeInstructions.Length);
+                    }
                 }
 
                 bindIndex = code.FindIndex(bindIndex + codeInstructions.Length, match);

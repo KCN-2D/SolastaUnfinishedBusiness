@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
@@ -315,6 +316,10 @@ public static class ItemMenuModalPatcher
                 ItemMenuButton.ItemButtonInfo>(RegisterButtonForInventorySubject).Method;
 
             return instructions
+                .ReplaceCalls(AccessTools.PropertyGetter(typeof(GuiCharacter), nameof(GuiCharacter.Name)),
+                    2, "ItemMenuModal.SetupFromItem.Identity",
+                    new CodeInstruction(OpCodes.Call,
+                        new Func<GuiCharacter, string>(GuiCharacterExtensions.GetIdentityName).Method))
                 .ReplaceCalls(
                     AccessTools.Method(typeof(RulesetSpellRepertoire),
                         nameof(RulesetSpellRepertoire.CanCastSpellOfLevel)),

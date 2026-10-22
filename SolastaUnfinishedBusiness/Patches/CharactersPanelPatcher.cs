@@ -263,18 +263,29 @@ public static class CharactersPanelPatcher
         [UsedImplicitly]
         public static void Postfix(CharactersPanel __instance, float __state)
         {
-            if (Global.LastLevelUpHeroName == null)
+            var filename = Global.LastLevelUpHeroFilename;
+            if (filename == null || !ServiceRepository.GetService<ICharacterPoolService>().Pool.ContainsKey(filename))
             {
                 return;
             }
 
-            var plate = __instance.characterPlates.Find(x => x.GuiCharacter.Name == Global.LastLevelUpHeroName);
-            if (plate)
+            var plate = __instance.characterPlates.Find(x =>
+                string.Equals(x.Filename, filename, System.StringComparison.OrdinalIgnoreCase));
+            if (!plate || !plate.gameObject.activeSelf)
             {
-                __instance.OnSelectPlate(plate);
+                // A saved copy can belong to a different source category than the original.
+                __instance.characterFilteringGroup.allToggle.Toggle.isOn = true;
+                plate = __instance.characterPlates.Find(x =>
+                    string.Equals(x.Filename, filename, System.StringComparison.OrdinalIgnoreCase));
             }
 
-            Global.LastLevelUpHeroName = null;
+            if (!plate || !plate.gameObject.activeSelf)
+            {
+                return;
+            }
+
+            __instance.OnSelectPlate(plate);
+            Global.LastLevelUpHeroFilename = null;
 
             // Reset the scroll position because OnBeginShow sets it to 1.0f.
             // This keeps the selected character in view unless the panel is sorted by level

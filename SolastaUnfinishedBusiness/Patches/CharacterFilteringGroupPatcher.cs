@@ -5,6 +5,7 @@ using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -21,6 +22,11 @@ public static class CharacterFilteringGroupPatcher
             return levels.Sum();
         }
 
+        private static string GetDisplayName(RulesetCharacterHero.Snapshot snapshot)
+        {
+            return TranslatorContext.LocalizeBuiltInCharacterName(snapshot.Name, snapshot.BuiltIn, snapshot.DisplayName);
+        }
+
         [NotNull]
         [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)
@@ -32,7 +38,11 @@ public static class CharacterFilteringGroupPatcher
                 -1,
                 2, "CharacterFilteringGroup.Compare",
                 new CodeInstruction(OpCodes.Ldfld, levelsField),
-                new CodeInstruction(OpCodes.Call, myLevelMethod));
+                new CodeInstruction(OpCodes.Call, myLevelMethod))
+                .ReplaceLoadField(typeof(RulesetCharacterHero.Snapshot).GetField(nameof(RulesetCharacterHero.Snapshot.Name)),
+                    -1, 0, "CharacterFilteringGroup.Compare",
+                    new CodeInstruction(OpCodes.Call,
+                        new Func<RulesetCharacterHero.Snapshot, string>(GetDisplayName).Method));
         }
     }
 }

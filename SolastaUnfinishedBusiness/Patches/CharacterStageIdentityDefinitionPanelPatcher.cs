@@ -8,6 +8,57 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterStageIdentityDefinitionPanelPatcher
 {
+    [HarmonyPatch(typeof(CharacterStageIdentityDefinitionPanel), nameof(CharacterStageIdentityDefinitionPanel.EnterStage))]
+    [UsedImplicitly]
+    public static class EnterStage_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CharacterStageIdentityDefinitionPanel __instance)
+        {
+            ToolsContext.FunctorRespec.RestoreAppearance(__instance.CharacterBuildingService, __instance.currentHero);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterStageIdentityDefinitionPanel), nameof(CharacterStageIdentityDefinitionPanel.OnBeginShow))]
+    [UsedImplicitly]
+    public static class OnBeginShow_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(CharacterStageIdentityDefinitionPanel __instance)
+        {
+            ToolsContext.FunctorRespec.CaptureIdentityAppearanceBaseline(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterStageIdentityDefinitionPanel), nameof(CharacterStageIdentityDefinitionPanel.CancelStage))]
+    [UsedImplicitly]
+    public static class CancelStage_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CharacterStageIdentityDefinitionPanel __instance)
+        {
+            ToolsContext.FunctorRespec.PreserveIdentityAppearanceEdits(__instance);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterStageIdentityDefinitionPanel),
+        nameof(CharacterStageIdentityDefinitionPanel.OnSexToggleChangedCb))]
+    [UsedImplicitly]
+    public static class OnSexToggleChangedCb_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CharacterStageIdentityDefinitionPanel __instance)
+        {
+            ToolsContext.FunctorRespec.PreserveIdentityAppearanceEdits(__instance);
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(CharacterStageIdentityDefinitionPanel __instance)
+        {
+            ToolsContext.FunctorRespec.CaptureIdentityAppearanceBaseline(__instance);
+        }
+    }
+
     //PATCH: avoids issues during RESPEC if a hero with same name is in the pool
     [HarmonyPatch(typeof(CharacterStageIdentityDefinitionPanel),
         nameof(CharacterStageIdentityDefinitionPanel.CanProceedToNextStage))]

@@ -15,6 +15,18 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class AttunementModalPatcher
 {
+    [HarmonyPatch(typeof(AttunementModal), nameof(AttunementModal.FindAttunedCharacterOfItem))]
+    [UsedImplicitly]
+    public static class FindAttunedCharacterOfItem_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            instructions.ReplaceCalls(AccessTools.PropertyGetter(typeof(GuiCharacter), nameof(GuiCharacter.Name)),
+                1, "AttunementModal.FindAttunedCharacterOfItem.Identity",
+                new CodeInstruction(OpCodes.Call,
+                    new Func<GuiCharacter, string>(GuiCharacterExtensions.GetIdentityName).Method));
+    }
+
     internal static void FitButtonCaption(GuiLabel label)
     {
         var slot = UiTextHelpers.FindAncestorComponent<AttunementSlotBox>(label);

@@ -2275,6 +2275,12 @@ public static class CharacterBuildingManagerPatcher
     [UsedImplicitly]
     public static class AssignDefaultMorphotypes_Patch
     {
+        [UsedImplicitly]
+        public static void Postfix(CharacterBuildingManager __instance, CharacterHeroBuildingData heroBuildingData)
+        {
+            ToolsContext.FunctorRespec.RestoreAppearance(__instance, heroBuildingData.HeroCharacter);
+        }
+
         private static RangedInt PreferedSkinColors(
             RacePresentation racePresentation,
             [NotNull] CharacterHeroBuildingData heroBuildingData)

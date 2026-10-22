@@ -9,6 +9,47 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterPlateDetailedPatcher
 {
+    [HarmonyPatch(typeof(CharacterPlateDetailed), nameof(CharacterPlateDetailed.Bind), typeof(GuiCharacter))]
+    [UsedImplicitly]
+    public static class Bind_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(CharacterPlateDetailed __instance)
+        {
+            // A portrait response can arrive after the name is already displayed.
+            __instance.RefreshNameAndRace();
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterPlateDetailed), nameof(CharacterPlateDetailed.Refresh))]
+    [UsedImplicitly]
+    public static class Refresh_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(CharacterPlateDetailed __instance)
+        {
+            __instance.RefreshNameAndRace();
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterPlateDetailed), nameof(CharacterPlateDetailed.RefreshNameAndRace))]
+    [UsedImplicitly]
+    public static class RefreshNameAndRace_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(CharacterPlateDetailed __instance)
+        {
+            var creation = __instance.GetComponentInParent<CharacterCreationScreen>();
+
+            if (creation != null && creation.commonData.CharacterPlate == __instance &&
+                !string.IsNullOrEmpty(__instance.GuiCharacter?.FullName))
+            {
+                // The generic heading occupies the same space as the character's name.
+                creation.commonData.CharacterInfoLabel.gameObject.SetActive(false);
+            }
+        }
+    }
+
     //PATCH: Add classes progression to hero tooltip (MULTICLASS)
     [HarmonyPatch(typeof(CharacterPlateDetailed), nameof(CharacterPlateDetailed.OnPortraitShowed))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]

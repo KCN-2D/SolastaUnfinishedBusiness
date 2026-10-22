@@ -168,6 +168,9 @@ internal static class ToolsContext
                 session = new RespecSession(originalHero, true);
                 _session = session;
                 originScreen.Hide(true);
+                // Native photo lookup reuses snapshots by identity, even after appearance changes.
+                ServiceRepository.GetService<IGraphicsCharacterPhotoService>()
+                    .ReleaseCharacterPhoto(pool.Pool[filename], false);
                 yield return RebuildCharacter(session, null);
             }
             finally
@@ -293,12 +296,18 @@ internal static class ToolsContext
                     {
                         yield break;
                     }
+                }
 
+                CopyPersistentHeroData(originalHero, session.Hero);
+
+                if (fromCharacterPool)
+                {
                     PreserveCharacterPoolData(originalHero, session.Hero);
                     yield return SaveCharacterPoolHero(session);
                 }
                 else
                 {
+                    // The rest screen resumes native level-up from the restored experience.
                     adopted = FinalizeCampaignRespec(originalHero, session.Hero);
                 }
             }
@@ -383,6 +392,105 @@ internal static class ToolsContext
 
         internal static bool IsOriginalName(RulesetCharacterHero hero, string name) =>
             _session != null && _session.Hero == hero && string.Equals(name, _session.OriginalHero.Name, StringComparison.Ordinal);
+
+        private static bool MatchesOriginalAppearance(RespecSession session, RulesetCharacterHero hero) =>
+            session != null && session.Hero == hero &&
+            hero.RaceDefinition == session.OriginalHero.RaceDefinition &&
+            hero.SubRaceDefinition == session.OriginalHero.SubRaceDefinition &&
+            hero.Sex == session.OriginalHero.Sex;
+
+        internal static void RestoreAppearance(ICharacterBuildingService building, RulesetCharacterHero hero)
+        {
+            var session = _session;
+            if (!MatchesOriginalAppearance(session, hero))
+            {
+                return;
+            }
+
+            building.GetLastAssignedClassAndLevel(hero, out var characterClass, out _);
+            CharacterSubclassDefinition subclass = null;
+            if (characterClass)
+            {
+                hero.ClassesAndSubclasses.TryGetValue(characterClass, out subclass);
+            }
+
+            // Origin and face shape determine the remaining selectable morphs.
+            foreach (var element in session.AppearanceElements.OrderBy(pair => pair.Key))
+            {
+                if (string.IsNullOrEmpty(element.Value) || MorphotypeElementDefinition.IsModifiedBySlider(element.Key))
+                {
+                    continue;
+                }
+
+                hero.MorphotypeElements.TryGetValue(MorphotypeElementDefinition.ElementCategory.Origin, out var origin);
+                hero.MorphotypeElements.TryGetValue(MorphotypeElementDefinition.ElementCategory.FaceShape, out var face);
+                var options = building.BuildMorphotypeOptionsList(
+                    element.Key, hero.Sex, hero.RaceDefinition, hero.SubRaceDefinition, origin, face, subclass, true);
+
+                if (options.Contains(element.Value))
+                {
+                    hero.MorphotypeElements[element.Key] = element.Value;
+                }
+            }
+
+            foreach (var value in session.AppearanceAdditionalValues)
+            {
+                if (MorphotypeElementDefinition.IsModifiedBySlider(value.Key) &&
+                    hero.MorphotypeElementAdditionalValues.ContainsKey(value.Key))
+                {
+                    hero.MorphotypeElementAdditionalValues[value.Key] = value.Value;
+                }
+            }
+
+            var sizeChanged = false;
+            hero.RefreshSizeParams(ref sizeChanged);
+        }
+
+        internal static void CaptureIdentityAppearanceBaseline(CharacterStageIdentityDefinitionPanel panel)
+        {
+            var session = _session;
+            var hero = panel.currentHero;
+            if (session == null || session.Hero != hero)
+            {
+                return;
+            }
+
+            session.IdentityAppearanceElements = new Dictionary<MorphotypeElementDefinition.ElementCategory, string>(
+                hero.MorphotypeElements);
+            session.IdentityAppearanceAdditionalValues = new Dictionary<MorphotypeElementDefinition.ElementCategory, float>(
+                hero.MorphotypeElementAdditionalValues);
+        }
+
+        internal static void PreserveIdentityAppearanceEdits(CharacterStageIdentityDefinitionPanel panel)
+        {
+            var session = _session;
+            var hero = panel.currentHero;
+            if (!MatchesOriginalAppearance(session, hero) || session.IdentityAppearanceElements == null)
+            {
+                return;
+            }
+
+            // Retain original class-restricted choices that native binding could not display.
+            // Only changes made since entering the identity stage become the new authored appearance.
+            foreach (var element in hero.MorphotypeElements)
+            {
+                if (!MorphotypeElementDefinition.IsModifiedBySlider(element.Key) &&
+                    (!session.IdentityAppearanceElements.TryGetValue(element.Key, out var initial) || initial != element.Value))
+                {
+                    session.AppearanceElements[element.Key] = element.Value;
+                }
+            }
+
+            foreach (var value in hero.MorphotypeElementAdditionalValues)
+            {
+                if (MorphotypeElementDefinition.IsModifiedBySlider(value.Key) &&
+                    (!session.IdentityAppearanceAdditionalValues.TryGetValue(value.Key, out var initial) ||
+                     initial != value.Value))
+                {
+                    session.AppearanceAdditionalValues[value.Key] = value.Value;
+                }
+            }
+        }
 
         internal static void StageEntered(CharacterEditionScreen screen, CharacterStagePanel panel)
         {
@@ -501,7 +609,6 @@ internal static class ToolsContext
             }
 
             panel.Refresh();
-            panel.CommonData.CharacterPlate.RefreshNameAndRace();
         }
 
         private static void RestoreBackground(
@@ -554,60 +661,6 @@ internal static class ToolsContext
             panel.firstNameInputField.text = panel.currentHero.Name = original.Name;
             panel.lastNameInputField.text = panel.currentHero.SurName = original.SurName;
             panel.backstoryInputField.text = original.AdditionalBackstory;
-            var options = panel.customizationOptionsBySelectedOrigin[
-                panel.selectedOptionsByPart[MorphotypeElementDefinition.ElementCategory.Origin]];
-
-            for (var i = 0; i < panel.modifiers.Count; i++)
-            {
-                var modifier = panel.modifiers[i];
-                var category = MorphotypeElementDefinition.CommonCategories[i];
-
-                if (!modifier.gameObject.activeSelf || !original.MorphotypeElements.TryGetValue(category, out var value))
-                {
-                    continue;
-                }
-
-                if (modifier.sliderGroup.gameObject.activeSelf &&
-                    original.MorphotypeElementAdditionalValues.TryGetValue(category, out var amount))
-                {
-                    modifier.slider.value = amount;
-                    modifier.OnSliderCb();
-                    modifier.OnSliderDragEndCb();
-                    continue;
-                }
-
-                if (!options.TryGetValue(category, out var values))
-                {
-                    continue;
-                }
-
-                var index = values.IndexOf(value);
-                if (index < 0)
-                {
-                    continue;
-                }
-
-                if (modifier.colorsGroup.gameObject.activeSelf)
-                {
-                    modifier.OnColorSelected(index);
-                }
-                else if (index < modifier.valuesList.Count)
-                {
-                    if (modifier.selectorGroup.gameObject.activeSelf || modifier.gamepadSelector.gameObject.activeSelf)
-                    {
-                        // An unavailable morph must not trap the UI in an unbounded selector loop.
-                        for (var step = 0; step < modifier.valuesList.Count && modifier.currentValue != index; step++)
-                        {
-                            modifier.OnSelectNext();
-                        }
-                    }
-                    else if (modifier.imagesGroup.gameObject.activeSelf)
-                    {
-                        modifier.OnImageSelected(index);
-                    }
-                }
-            }
-
             var voice = panel.compatibleVoices.FindIndex(definition => definition.Name == original.voiceID);
             if (voice >= 0)
             {
@@ -646,7 +699,6 @@ internal static class ToolsContext
             hero.BuiltIn = false;
             hero.Name = original.Name;
             hero.SurName = original.SurName;
-            CopyPersistentHeroData(original, hero);
             hero.RefreshAll();
             hero.currentHitPoints = hero.TryGetAttributeValue(AttributeDefinitions.HitPoints);
         }
@@ -700,15 +752,26 @@ internal static class ToolsContext
 
         private static IEnumerator SaveCharacterPoolHero(RespecSession session)
         {
-            // SaveCharacter requests only a cached photo; creation releases that cache when it closes.
+            // Photograph the preserved inventory before SaveCharacter reads the cached photo.
             var photoReady = false;
-            ServiceRepository.GetService<IGraphicsCharacterPhotoService>().RequestCharacterPhoto(
-                session.Hero, _ => photoReady = true, false, 256, 384,
-                default(GraphicsCharacterPhotoManager.PhotoParameters));
+            Texture photo = null;
+            PortraitsContext.RequestCompletedPhoto(
+                ServiceRepository.GetService<IGraphicsCharacterPhotoService>(), session.Hero, false,
+                texture =>
+                {
+                    photo = texture;
+                    photoReady = true;
+                }, forceRefresh: true);
 
             while (!photoReady)
             {
                 yield return null;
+            }
+
+            if (!photo)
+            {
+                session.Aborted = true;
+                yield break;
             }
 
             var pool = ServiceRepository.GetService<ICharacterPoolService>();
@@ -748,15 +811,21 @@ internal static class ToolsContext
             var oldGuid = oldHero.Guid;
             var newGuid = newHero.Guid;
             EffectHelpers.GetAllEffectsBySourceGuid(oldGuid).ForEach(effect => effect.DoTerminate(oldHero));
+            DropInventoryOnFloor(gameLocationCharacter);
             EffectHelpers.GetAllEffectsBySourceGuid(newGuid).ForEach(effect => effect.SetGuid(oldGuid));
             EffectHelpers.GetAllConditionsBySourceGuid(newGuid).ForEach(condition => condition.sourceGuid = oldGuid);
+
+            // Register only fills an empty target; construction conditions already target the transient hero.
+            foreach (var condition in newHero.AllConditions)
+            {
+                condition.TargetGuid = oldGuid;
+            }
+
             newHero.Unregister();
             ServiceRepository.GetService<IRulesetEntityService>().SwapEntities(oldHero, newHero);
             newHero.Register(false);
-            CopyPersistentHeroData(oldHero, newHero);
             TransferConditionsOfCategory(oldHero, newHero, AttributeDefinitions.TagEffect);
             CleanupOldHeroConditions(oldHero, newHero);
-            DropInventoryOnFloor(gameLocationCharacter);
             campaignCharacter.RulesetCharacter = newHero;
             UpdateRestPanelUi(campaignCharacters);
             gameLocationCharacter.SetRuleset(newHero);
@@ -768,6 +837,7 @@ internal static class ToolsContext
 
             characterManager.dirtyParty = true;
             characterManager.RefreshAllCharacters();
+            ReleaseTransientHero(oldHero);
             Gui.GuiService.ShowMessage(
                 MessageModal.Severity.Informative1,
                 "RestActivity/&RestActivityRespecTitle", "Message/&RespecSuccessfulDescription",
@@ -817,6 +887,12 @@ internal static class ToolsContext
             internal readonly int TargetLevel = Math.Max(1, originalHero.ClassesHistory.Count);
             internal readonly List<UnityEngine.Coroutine> StageCoroutines = [];
             internal readonly HashSet<CharacterStagePanel> InitializedStages = [];
+            internal readonly Dictionary<MorphotypeElementDefinition.ElementCategory, string> AppearanceElements =
+                new(originalHero.MorphotypeElements);
+            internal readonly Dictionary<MorphotypeElementDefinition.ElementCategory, float> AppearanceAdditionalValues =
+                new(originalHero.MorphotypeElementAdditionalValues);
+            internal Dictionary<MorphotypeElementDefinition.ElementCategory, string> IdentityAppearanceElements;
+            internal Dictionary<MorphotypeElementDefinition.ElementCategory, float> IdentityAppearanceAdditionalValues;
             internal RulesetCharacterHero Hero;
             internal int FinalizedLevel;
             internal bool Aborted;
@@ -912,19 +988,20 @@ internal static class ToolsContext
 
         private static void DropInventoryOnFloor([NotNull] GameLocationCharacter oldCharacter)
         {
-            var oldHero = oldCharacter.RulesetCharacter;
             var position = oldCharacter.LocationPosition;
-            var personalSlots = oldHero.CharacterInventory.PersonalContainer.InventorySlots;
-            var slotsByName = oldHero.CharacterInventory.InventorySlotsByName;
+            var slots = oldCharacter.RulesetCharacter.CharacterInventory.EnumerateAllSlots(true, false, false)
+                .Where(slot => slot.EquipedItem != null).ToArray();
+            var items = slots.Select(slot => slot.EquipedItem).Distinct().ToArray();
 
-            foreach (var equipedItem in personalSlots.Select(i => i.EquipedItem).Where(i => i != null))
+            foreach (var slot in slots)
             {
-                DropItem(equipedItem, position);
+                slot.UnequipItem(true, false);
             }
 
-            foreach (var equipedItem in slotsByName.Select(s => s.Value.EquipedItem).Where(i => i != null))
+            foreach (var item in items)
             {
-                DropItem(equipedItem, position);
+                item.BearerGuid = 0;
+                DropItem(item, position);
             }
         }
 
@@ -946,10 +1023,13 @@ internal static class ToolsContext
                                              function.SpellDefinition == spellDefinition)))
                              .Where(scrollDefinition => scrollDefinition))
                 {
-                    var rulesetItem = new RulesetItem(scrollDefinition);
+                    var rulesetItem = ServiceRepository.GetService<IRulesetItemFactoryService>()
+                        .CreateStandardItem(scrollDefinition);
 
                     inventoryCommandService.CreateItemAtPosition(rulesetItem, position);
                 }
+
+                spellbook.Unregister();
             }
             else
             {

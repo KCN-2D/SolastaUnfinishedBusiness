@@ -33,6 +33,25 @@ public static class GuiCharacterPatcher
             {
                 __result = displayName;
             }
+            else if (__instance.Snapshot is { } snapshot)
+            {
+                __result = TranslatorContext.LocalizeBuiltInCharacterName(snapshot.Name, snapshot.BuiltIn, __result);
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(GuiCharacter), nameof(GuiCharacter.SurName), MethodType.Getter)]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class SurName_Getter_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GuiCharacter __instance, ref string __result)
+        {
+            if (__instance.Snapshot is { } snapshot)
+            {
+                __result = TranslatorContext.LocalizeBuiltInCharacterName(snapshot.SurName, snapshot.BuiltIn, __result);
+            }
         }
     }
 
@@ -48,6 +67,13 @@ public static class GuiCharacterPatcher
                 SimulacrumBehavior.TryGetDisplayName(duplicate, out var displayName))
             {
                 __result = displayName;
+            }
+            else if (__instance.Snapshot is { BuiltIn: true } snapshot)
+            {
+                var name = __instance.Name;
+                var surName = TranslatorContext.LocalizeBuiltInCharacterName(snapshot.SurName, true, snapshot.DisplaySurName);
+
+                __result = string.IsNullOrEmpty(surName) ? name : $"{name} {surName}";
             }
         }
     }

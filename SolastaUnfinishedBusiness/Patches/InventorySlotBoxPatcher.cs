@@ -1,7 +1,11 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using UnityEngine.UI;
@@ -16,6 +20,13 @@ public static class InventorySlotBoxPatcher
     [UsedImplicitly]
     public static class RefreshState_Patch
     {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            instructions.ReplaceCalls(AccessTools.PropertyGetter(typeof(GuiCharacter), nameof(GuiCharacter.Name)),
+                1, "InventorySlotBox.RefreshState.Identity",
+                new CodeInstruction(OpCodes.Call,
+                    new Func<GuiCharacter, string>(GuiCharacterExtensions.GetIdentityName).Method));
+
         [UsedImplicitly]
         public static void Postfix(InventorySlotBox __instance, bool overrideItem, RulesetItem itemOverride)
         {
