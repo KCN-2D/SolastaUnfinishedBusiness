@@ -38,6 +38,9 @@ internal static class InventorClass
     private static FeatureDefinitionPower _powerInventorSoulOfArtifice;
     private static int _infusionPoolIncreases;
     private static bool _spellStoringItemsLoaded;
+    private static CharacterFeatureReplacement _magicItemMasterReplacement;
+    private static FeatureDefinition _level18InfusionIncrease;
+    private static FeatureDefinitionFeatureSet _magicItemMaster;
     private static readonly List<FeatureDefinitionPowerSharedPool> SpellStoringItemPowers1 = [];
     private static readonly List<FeatureDefinitionPowerSharedPool> SpellStoringItemPowers2 = [];
 
@@ -96,8 +99,6 @@ internal static class InventorClass
             .AddToDB();
 
         var unlearn = BuildUnlearn();
-
-        InventorInfusions.Build();
 
         var builder = CharacterClassDefinitionBuilder
             .Create(ClassName)
@@ -377,7 +378,7 @@ internal static class InventorClass
 
             #region Level 18
 
-            .AddFeaturesAtLevel(18, learn2Infusion, BuildInfusionPoolIncrease())
+            .AddFeaturesAtLevel(18, learn2Infusion, BuildMagicItemMaster())
 
             #endregion
 
@@ -408,6 +409,10 @@ internal static class InventorClass
         builder.SetVocalSpellSemeClass(VocalSpellSemeClass.Arcana);
 
         Class = builder.AddToDB();
+        InventorInfusions.Build();
+        _magicItemMasterReplacement = new CharacterFeatureReplacement(
+            Class, null, 18, _level18InfusionIncrease, _magicItemMaster,
+            () => Main.Settings.EnableInventorMagicItemMaster2024);
     }
 
     /**Adds starting chest loot for PoI for Inventor class*/
@@ -690,6 +695,167 @@ internal static class InventorClass
             .AddCustomSubFeatures(new ModifyAttunementLimit(1))
             .IgnoreClassRestrictionsOnMagicalItems()
             .AddToDB();
+    }
+
+    private static FeatureDefinition BuildMagicItemMaster()
+    {
+        _level18InfusionIncrease = BuildInfusionPoolIncrease();
+        _magicItemMaster = FeatureDefinitionFeatureSetBuilder
+            .Create("FeatureSetInventorMagicItemMaster")
+            .SetGuiPresentation(Category.Feature)
+            .SetFeatureSet(
+                _level18InfusionIncrease,
+                FeatureDefinitionBuilder
+                    .Create("FeatureInventorMagicItemMasterAttunement")
+                    .SetGuiPresentationNoContent(true)
+                    .AddCustomSubFeatures(new ModifyAttunementLimit(1))
+                    .AddToDB())
+            .AddToDB();
+
+        return _level18InfusionIncrease;
+    }
+
+    internal static void SwitchMagicItemMaster()
+    {
+        _magicItemMasterReplacement?.Apply();
+    }
+
+    internal static void SynchronizeFeatures(RulesetCharacterHero hero)
+    {
+        _magicItemMasterReplacement?.Synchronize(hero);
+    }
+
+    internal sealed class ConstructCommand(
+        ConditionDefinition condition,
+        FeatureDefinitionPower power,
+        string constructTag,
+        bool allowUncommandedMovement,
+        int maximumCommandRange = 0)
+        : IValidateDefinitionApplication, ICharacterTurnStartListener, ICharacterBeforeTurnEndListener,
+            IOnConditionAddedOrRemoved
+    {
+        public bool IsValid(BaseDefinition definition, RulesetCharacter character)
+        {
+            return !IsCommanded(character);
+        }
+
+        public void OnCharacterTurnStarted(GameLocationCharacter locationCharacter)
+        {
+            var character = locationCharacter.RulesetCharacter;
+            if (IsCommanded(character))
+            {
+                return;
+            }
+
+            if (!allowUncommandedMovement)
+            {
+                locationCharacter.usedTacticalMoves = locationCharacter.MaxTacticalMoves;
+            }
+
+            locationCharacter.MyExecuteActionDodge();
+        }
+
+        public void OnCharacterBeforeTurnEnded(GameLocationCharacter locationCharacter)
+        {
+            var character = locationCharacter.RulesetCharacter;
+
+            if (character.HasConditionOfType(condition.Name) ||
+                locationCharacter.GetActionStatus(Id.PowerBonus, ActionScope.Battle) != ActionStatus.Available ||
+                !HasCommandableConstruct(character))
+            {
+                return;
+            }
+
+            character.LogCharacterUsedPower(power);
+            AddCommandCondition(character, character);
+        }
+
+        public void OnConditionAdded(RulesetCharacter target, RulesetCondition rulesetCondition)
+        {
+            if (target.Guid != rulesetCondition.SourceGuid)
+            {
+                return;
+            }
+
+            foreach (var construct in GetConstructs(target).Where(construct => IsWithinCommandRange(target, construct)))
+            {
+                AddCommandCondition(construct, target);
+            }
+        }
+
+        public void OnConditionRemoved(RulesetCharacter target, RulesetCondition rulesetCondition)
+        {
+            if (target.Guid != rulesetCondition.SourceGuid)
+            {
+                return;
+            }
+
+            foreach (var marker in GetConstructs(target)
+                         .SelectMany(construct => construct.ConditionsByCategory.Values.SelectMany(conditions => conditions))
+                         .Where(marker => marker.ConditionDefinition == condition && marker.SourceGuid == target.Guid)
+                         .ToArray())
+            {
+                if (RulesetEntity.TryGetEntity<RulesetCharacter>(marker.TargetGuid, out var construct))
+                {
+                    construct.RemoveCondition(marker);
+                }
+            }
+        }
+
+        private bool IsCommanded(RulesetCharacter character)
+        {
+            if (Gui.Battle == null)
+            {
+                return true;
+            }
+
+            var summoner = character.GetMySummoner()?.RulesetCharacter;
+
+            return summoner == null || summoner.IsIncapacitated || summoner.IsUnconscious ||
+                   summoner.AllConditions.Any(marker => marker.ConditionDefinition == condition &&
+                                                        marker.SourceGuid == summoner.Guid) &&
+                   character.AllConditions.Any(marker => marker.ConditionDefinition == condition &&
+                                                         marker.SourceGuid == summoner.Guid);
+        }
+
+        internal bool HasCommandableConstruct(RulesetCharacter character)
+        {
+            return GetConstructs(character).Any(construct => IsWithinCommandRange(character, construct));
+        }
+
+        private bool IsWithinCommandRange(RulesetCharacter source, RulesetCharacter target)
+        {
+            return maximumCommandRange <= 0 ||
+                   GameLocationCharacter.GetFromActor(source) is { } locationSource &&
+                   GameLocationCharacter.GetFromActor(target) is { } locationTarget &&
+                   locationSource.IsWithinRange(locationTarget, maximumCommandRange);
+        }
+
+        private IEnumerable<RulesetCharacter> GetConstructs(RulesetCharacter character)
+        {
+            return character.PowersUsedByMe.SelectMany(EffectHelpers.GetSummonedCreatures)
+                .OfType<RulesetCharacterMonster>()
+                .Where(construct => !construct.IsDeadOrDyingOrUnconscious &&
+                                    construct.MonsterDefinition.CreatureTags.Contains(constructTag))
+                .Distinct();
+        }
+
+        private void AddCommandCondition(RulesetCharacter target, RulesetCharacter source)
+        {
+            target.InflictCondition(
+                condition.Name,
+                DurationType.Round,
+                1,
+                (TurnOccurenceType)ExtraTurnOccurenceType.StartOfSourceTurn,
+                AttributeDefinitions.TagEffect,
+                source.Guid,
+                source.CurrentFaction.Name,
+                1,
+                condition.Name,
+                0,
+                0,
+                0);
+        }
     }
 
     internal static void SwitchSpellStoringItemSubPower(SpellDefinition spell, bool active)

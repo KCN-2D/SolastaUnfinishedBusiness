@@ -3,6 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.CustomUI;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -328,6 +330,73 @@ public static class PortraitsContext
             width,
             height,
             parameters);
+    }
+
+    internal static bool TryAssignModelPortrait(
+        GuiCharacter character,
+        RawImage image,
+        RectTransform group,
+        RectTransform back,
+        Action response)
+    {
+        var monster = character?.RulesetCharacterMonster;
+        if (!image || monster?.MonsterDefinition.GetFirstSubFeatureOfType<CustomModels.MonsterModel>() == null ||
+            ServiceRepository.GetService<IGraphicsCharacterPhotoService>() is not { } service)
+        {
+            return false;
+        }
+
+        // Native monster plates use a definition sprite instead of photographing the live model.
+        // Keep the native photo cache and binding guard used by the other character portraits.
+        image.texture = null;
+        image.gameObject.SetActive(false);
+
+        if (group)
+        {
+            group.gameObject.SetActive(false);
+        }
+
+        if (back)
+        {
+            back.gameObject.SetActive(true);
+        }
+
+        RequestCharacterPortrait(service, monster, texture =>
+        {
+            image.texture = texture;
+            CompletePortraitBinding(image, group, back, null, response);
+        }, false, 256, 384, default, image);
+        return true;
+    }
+
+    internal static void CompletePortraitBinding(
+        RawImage image,
+        RectTransform group,
+        RectTransform back,
+        Image alternateImage,
+        Action response)
+    {
+        if (back)
+        {
+            back.gameObject.SetActive(false);
+        }
+
+        if (group)
+        {
+            group.gameObject.SetActive(true);
+        }
+
+        if (image)
+        {
+            image.gameObject.SetActive(true);
+        }
+
+        if (alternateImage)
+        {
+            alternateImage.gameObject.SetActive(false);
+        }
+
+        response?.Invoke();
     }
 
     internal static void RequestSnapshotPortrait(

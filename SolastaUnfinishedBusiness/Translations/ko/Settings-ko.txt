@@ -705,3 +705,5 @@ Setting/&NoToolRequirementDescription=캐릭터는 도구 없이 아이템을 �
 ModUi/&EnableEpicBoons2024=장대한 축복 활성화
 ModUi/&EpicBoons2024Help=2024년판 테이블탑 재주가 활성화되어 있으면 장대한 축복 분류와 캐릭터 레벨 19부터 습득할 수 있는 재주를 표시합니다.
 ModUi/&EpicBoons2024RequiresTabletopHelp=이 옵션을 사용하려면 2024년판 테이블탑 재주를 활성화하세요. 이 설정에서 선택한 값은 유지됩니다.
+ModUi/&EnableInventorMagicItemMaster2024=18레벨에 <color=#D89555>마법 아이템의 달인</color>을 얻습니다 <i><color=#F0DAA0>[조율 한도 +1]</color></i>
+ModUi/&EnableArtilleristFortifiedPosition2024=아틸러리스트 15레벨에 2024년판 <color=#D89555>요새화된 위치</color>를 사용합니다 <i><color=#F0DAA0>[행동 한 번으로 캐논 두 개 생성, 추가 행동 한 번으로 둘 다 지휘]</color></i>

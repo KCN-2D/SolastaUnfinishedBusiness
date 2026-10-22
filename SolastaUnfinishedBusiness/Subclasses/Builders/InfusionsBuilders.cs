@@ -8,6 +8,7 @@ using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.Classes;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
 using UnityEngine.AddressableAssets;
@@ -23,6 +24,7 @@ internal static class InventorInfusions
     private const string ReplicaItemTitleDescription = "Item/&ReplicaItemFormatDescription";
     private const int UpgradeLevel = 10;
     private static readonly ICustomUnicityTag MagicalDamage = new CustomUnicityTag("MagicalDamage");
+    private static readonly IModifyAttackActionModifier EnhancedFocus = new ModifyAttackActionModifierEnhancedFocus();
 
     public static void Build()
     {
@@ -36,6 +38,7 @@ internal static class InventorInfusions
                 .Create($"MagicAffinity{name}")
                 .SetGuiPresentation(name, Category.Feature, FeatureDefinitionAttackModifiers.AttackModifierMagicWeapon3)
                 .SetCastingModifiers(1)
+                .AddCustomSubFeatures(EnhancedFocus)
                 .AddToDB());
 
         UpgradeInfusionPower(power, UpgradeLevel,
@@ -44,6 +47,7 @@ internal static class InventorInfusions
                 .Create($"MagicAffinity{name}Upgraded")
                 .SetGuiPresentation(name, Category.Feature, FeatureDefinitionAttackModifiers.AttackModifierMagicWeapon3)
                 .SetCastingModifiers(2)
+                .AddCustomSubFeatures(EnhancedFocus)
                 .AddToDB());
 
         #endregion
@@ -139,7 +143,7 @@ internal static class InventorInfusions
 
         #region 02 Minor Elemental
 
-        sprite = SpellDefinitions.Counterspell.GuiPresentation.SpriteReference;
+        sprite = Sprites.GetSprite("Elemental", Resources.Elemental, 128);
         name = "InfusionMinorElemental";
         //TODO: RAW needs to require attunement
 
@@ -148,15 +152,16 @@ internal static class InventorInfusions
 
         foreach (var element in elements)
         {
-            var term = Gui.Localize($"Rules/&{element}Title");
-            var title = Gui.Format($"Feature/&AdditionalDamage{name}Title", term);
-            var description = Gui.Format($"Feature/&AdditionalDamage{name}Description", term);
+            var title = $"Feature/&AdditionalDamage{name}Title";
+            var description = $"Feature/&AdditionalDamage{name}Description";
 
             power = BuildInfuseItemPower(name + element, element, sprite, IsWeapon,
                 FeatureDefinitionAdditionalDamageBuilder
                     .Create($"AdditionalDamage{name}{element}")
                     .SetGuiPresentation(title, description, ConditionDefinitions.ConditionProtectedFromEnergyLightning)
-                    .AddCustomSubFeatures(MagicalDamage)
+                    .AddCustomSubFeatures(MagicalDamage, new FormattedDefinitionText(
+                        title: () => Gui.Format(title, Gui.Localize($"Rules/&{element}Title")),
+                        description: () => Gui.Format(description, Gui.Localize($"Rules/&{element}Title"))))
                     .SetNotificationTag(name)
                     .SetDamageDice(DieType.D6, 1)
                     .SetSpecificDamageType(element)
@@ -184,7 +189,7 @@ internal static class InventorInfusions
 
         #region 06 Bloody
 
-        sprite = SpellDefinitions.CircleOfDeath.GuiPresentation.SpriteReference;
+        sprite = Sprites.GetSprite("Bloody", Resources.Bloody, 128);
         name = "InfusionBloody";
         BuildInfuseItemPowerInvocation(6, name, sprite, IsWeapon,
             FeatureDefinitionAdditionalDamageBuilder
@@ -219,9 +224,11 @@ internal static class InventorInfusions
                 FeatureDefinitionDamageAffinityBuilder
                     .Create($"DamageAffinity{name}{element}")
                     .SetGuiPresentation($"Feature/&{name}Title",
-                        Gui.Format("Feature/&DamageResistanceFormat", Gui.Localize($"Rules/&{element}Title")),
+                        "Feature/&DamageResistanceFormat",
                         ConditionDefinitions.ConditionProtectedFromEnergyLightning)
-                    .AddCustomSubFeatures(ReturningWeapon.AlwaysValid)
+                    .AddCustomSubFeatures(new FormattedDefinitionText(
+                        description: () => Gui.Format("Feature/&DamageResistanceFormat",
+                            Gui.Localize($"Rules/&{element}Title"))))
                     .SetDamageAffinityType(DamageAffinityType.Resistance)
                     .SetDamageType(element)
                     .AddToDB());
@@ -246,7 +253,7 @@ internal static class InventorInfusions
 
         #region 10 Major Elemental
 
-        sprite = SpellDefinitions.Counterspell.GuiPresentation.SpriteReference;
+        sprite = Sprites.GetSprite("Elemental", Resources.Elemental, 128);
         name = "InfusionMajorElemental";
         //TODO: RAW needs to require attunement
 
@@ -255,15 +262,16 @@ internal static class InventorInfusions
 
         foreach (var element in elements)
         {
-            var term = Gui.Localize($"Rules/&{element}Title");
-            var title = Gui.Format($"Feature/&AdditionalDamage{name}Title", term);
-            var description = Gui.Format($"Feature/&AdditionalDamage{name}Description", term);
+            var title = $"Feature/&AdditionalDamage{name}Title";
+            var description = $"Feature/&AdditionalDamage{name}Description";
 
             power = BuildInfuseItemPower(name + element, element, sprite, IsWeapon,
                 FeatureDefinitionAdditionalDamageBuilder
                     .Create($"AdditionalDamage{name}{element}")
                     .SetGuiPresentation(title, description, ConditionDefinitions.ConditionProtectedFromEnergyLightning)
-                    .AddCustomSubFeatures(MagicalDamage)
+                    .AddCustomSubFeatures(MagicalDamage, new FormattedDefinitionText(
+                        title: () => Gui.Format(title, Gui.Localize($"Rules/&{element}Title")),
+                        description: () => Gui.Format(description, Gui.Localize($"Rules/&{element}Title"))))
                     .SetNotificationTag(name)
                     .SetDamageDice(DieType.D4, 1)
                     .SetSpecificDamageType(element)
@@ -383,18 +391,18 @@ internal static class InventorInfusions
     private static void BuildCreateItemPowerInvocation(ItemDefinition item, int level = 2)
     {
         var replica = BuildItemReplica(item);
-        var description = BuildReplicaDescription(item);
+        var text = new FormattedDefinitionText(
+            title: () => replica.FormatTitle(), description: () => BuildReplicaDescription(item));
         var invocation = CustomInvocationDefinitionBuilder
             .Create($"CustomInvocationCreate{replica.name}")
             .SetGuiPresentation(Category.Feature, replica)
             .SetPoolType(InvocationPoolTypeCustom.Pools.Infusion)
             .SetRequirements(level)
-            .SetGrantedFeature(BuildCreateItemPower(replica, description))
+            .SetGrantedFeature(BuildCreateItemPower(replica, text))
+            .AddCustomSubFeatures(text)
             .AddToDB();
 
         invocation.Item = replica;
-        invocation.GuiPresentation.title = replica.FormatTitle();
-        invocation.GuiPresentation.description = description;
     }
 
     private static FeatureDefinitionPowerSharedPoolBuilder CreateInfusionPower(string name)
@@ -474,11 +482,12 @@ internal static class InventorInfusions
             .Build();
     }
 
-    private static FeatureDefinitionPowerSharedPool BuildCreateItemPower(ItemDefinition item, string description)
+    private static FeatureDefinitionPowerSharedPool BuildCreateItemPower(ItemDefinition item, FormattedDefinitionText text)
     {
         var powerName = $"PowerCreate{item.name}";
         var power = CreateInfusionPower(powerName)
             .SetGuiPresentation(Category.Feature, item)
+            .AddCustomSubFeatures(text)
             .SetEffectDescription(
                 EffectDescriptionBuilder
                     .Create()
@@ -495,9 +504,6 @@ internal static class InventorInfusions
                     .Build())
             .AddToDB();
 
-        power.GuiPresentation.title = item.FormatTitle();
-        power.GuiPresentation.description = description;
-
         return power;
     }
 
@@ -509,9 +515,8 @@ internal static class InventorInfusions
             .SetGold(0)
             .HideFromDungeonEditor()
             .SetRequiresIdentification(false)
+            .AddCustomSubFeatures(new FormattedDefinitionText(title: () => GuiReplicaTitle(baseItem)))
             .AddToDB();
-
-        replica.GuiPresentation.title = GuiReplicaTitle(baseItem);
 
         return replica;
     }
@@ -529,6 +534,24 @@ internal static class InventorInfusions
     }
 
     #region Item Filters
+
+    private sealed class ModifyAttackActionModifierEnhancedFocus : IModifyAttackActionModifier
+    {
+        public void OnAttackComputeModifier(
+            RulesetCharacter myself,
+            RulesetCharacter defender,
+            BattleDefinitions.AttackProximity attackProximity,
+            RulesetAttackMode attackMode,
+            string effectName,
+            ref ActionModifier attackModifier)
+        {
+            if (attackProximity == BattleDefinitions.AttackProximity.MagicRange &&
+                TryGetDefinition<SpellDefinition>(effectName, out _))
+            {
+                attackModifier.coverType = CoverType.None;
+            }
+        }
+    }
 
     private class InfusionItemFilter : CustomItemFilter
     {

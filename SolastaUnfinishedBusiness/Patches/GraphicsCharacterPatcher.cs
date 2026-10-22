@@ -5,6 +5,7 @@ using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 
@@ -319,14 +320,29 @@ public static class GraphicsCharacterPatcher
         }
     }
 
-    [HarmonyPatch(typeof(GraphicsCharacter), nameof(GraphicsCharacter.ResetScale))]
+    [HarmonyPatch]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
     public static class ResetScale_Patch
     {
         [UsedImplicitly]
+        public static IEnumerable<MethodBase> TargetMethods()
+        {
+            yield return AccessTools.Method(typeof(GraphicsCharacter), nameof(GraphicsCharacter.ResetScale));
+            yield return AccessTools.Method(typeof(GraphicsCharacterMonster), nameof(GraphicsCharacter.ResetScale));
+        }
+
+        [UsedImplicitly]
         public static void Postfix(GraphicsCharacter __instance, ref float __result)
         {
+            if (__instance is GraphicsCharacterMonster monster)
+            {
+                // World binding and previews reset the native root after its creation callback.
+                // Normalize the authored body against that final scale in every view.
+                CustomModels.ApplyMonsterModel(monster);
+                return;
+            }
+
             //PATCH: Allows custom races with different scales
             if (__instance.RulesetCharacter is not RulesetCharacterHero rulesetCharacterHero ||
                 !RacesContext.RaceScaleMap.TryGetValue(rulesetCharacterHero.RaceDefinition, out var scale))

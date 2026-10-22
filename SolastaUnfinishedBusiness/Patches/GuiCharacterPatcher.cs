@@ -627,7 +627,7 @@ public static class GuiCharacterPatcher
 
             if (__state)
             {
-                CompleteSimulacrumPortraitBinding(
+                PortraitsContext.CompletePortraitBinding(
                     portraitImage,
                     portraitGroup,
                     portraitBack,
@@ -639,6 +639,8 @@ public static class GuiCharacterPatcher
                 // Character plate images are pooled. Remove a previous Simulacrum binding before
                 // native code reuses this RawImage for its owner or another party member.
                 SimulacrumPortraits.Release(portraitImage);
+                __state = PortraitsContext.TryAssignModelPortrait(
+                    __instance, portraitImage, portraitGroup, portraitBack, response);
             }
 
             return !__state;
@@ -693,7 +695,7 @@ public static class GuiCharacterPatcher
 
             if (__state)
             {
-                CompleteSimulacrumPortraitBinding(
+                PortraitsContext.CompletePortraitBinding(
                     portraitRawImage,
                     portraitGroup,
                     portraitBack,
@@ -745,35 +747,5 @@ public static class GuiCharacterPatcher
             PortraitsContext.Release(portraitRawImage);
             SimulacrumPortraits.Release(portraitRawImage);
         }
-    }
-
-    private static void CompleteSimulacrumPortraitBinding(
-        RawImage portraitImage,
-        RectTransform portraitGroup,
-        RectTransform portraitBack,
-        Image alternatePortraitImage,
-        System.Action response)
-    {
-        if (portraitBack)
-        {
-            portraitBack.gameObject.SetActive(false);
-        }
-
-        if (portraitGroup)
-        {
-            portraitGroup.gameObject.SetActive(true);
-        }
-
-        if (portraitImage)
-        {
-            portraitImage.gameObject.SetActive(true);
-        }
-
-        if (alternatePortraitImage)
-        {
-            alternatePortraitImage.gameObject.SetActive(false);
-        }
-
-        response?.Invoke();
     }
 }

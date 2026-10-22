@@ -275,6 +275,17 @@ internal static class ClassesDisplay
         }
 
         UI.Label();
+        UI.Label("<color=#F0DAA0>" + Gui.Localize("Class/&InventorTitle") + ":</color>");
+        UI.Label();
+
+        toggle = Main.Settings.EnableInventorMagicItemMaster2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableInventorMagicItemMaster2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableInventorMagicItemMaster2024 = toggle;
+            Tabletop2024Context.SwitchInventorMagicItemMaster();
+        }
+
+        UI.Label();
         UI.Label("<color=#F0DAA0>" + Gui.Localize("Class/&FighterTitle") + ":</color>");
         UI.Label();
 

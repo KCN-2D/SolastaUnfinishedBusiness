@@ -1,9 +1,11 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.Classes;
@@ -29,6 +31,7 @@ public sealed class InnovationWeapon : AbstractSubclass
     private const string SummonAdvancedSteelDefenderPower = "PowerInnovationWeaponSummonAdvancedSteelDefender";
     private const string ArcaneJoltPower = "PowerInnovationWeaponArcaneJolt";
     private const string ArcaneJoltSprite = "InventorArcaneJolt";
+    private const string ArcaneJoltUsedCondition = "ConditionInnovationWeaponArcaneJoltUsed";
 
     public InnovationWeapon()
     {
@@ -83,14 +86,19 @@ public sealed class InnovationWeapon : AbstractSubclass
         out MonsterDefinition monsterDefinition)
     {
         steelDefenderPower = BuildSteelDefenderPower(out monsterDefinition);
+        var commandPower = BuildCommandSteelDefender(out var commandCondition);
+        var command = new InventorClass.ConstructCommand(commandCondition, commandPower, SteelDefenderTag, true);
+        commandCondition.AddCustomSubFeatures(command);
+        commandPower.AddCustomSubFeatures(command);
+        monsterDefinition.Features.OfType<FeatureDefinitionActionAffinity>()
+            .Single(feature => feature.Name == "ActionAffinitySteelDefenderBasic").AddCustomSubFeatures(command);
 
         return FeatureDefinitionFeatureSetBuilder
             .Create("FeatureSetInnovationWeaponSteelDefender")
             .SetGuiPresentation(Category.Feature)
             .AddFeatureSet(
-                //TODO: add short-rest camping activity to Inventor that would heal Blade by 1d8, Inventor level times per long rest, similar to Hit Die rolling by heroes 
                 steelDefenderPower,
-                BuildCommandSteelDefender(),
+                commandPower,
                 BuildSteelDefenderShortRestRecovery(),
                 BuildSteelDefenderAffinity())
             .AddToDB();
@@ -292,16 +300,17 @@ public sealed class InnovationWeapon : AbstractSubclass
                 //Bonuses from Inventor's spell attack
                 ConditionDefinitionBuilder
                     .Create("ConditionInnovationWeaponSummonSteelDefenderSpellAttack")
-                    .SetGuiPresentation(Category.Condition, Gui.EmptyContent)
+                    .SetGuiPresentationNoContent(true)
                     .SetSilent(Silent.WhenAddedOrRemoved)
                     .SetPossessive()
                     .SetAmountOrigin(ConditionDefinition.OriginOfAmount.SourceSpellAttack)
                     .SetFeatures(toHit)
+                    .AddCustomSubFeatures(ClassHolder.Inventor)
                     .AddToDB(),
                 //Bonuses from Inventor's Proficiency Bonus
                 ConditionDefinitionBuilder
                     .Create("ConditionInnovationWeaponSummonSteelDefenderProficiencyBonus")
-                    .SetGuiPresentation(Category.Condition, Gui.EmptyContent)
+                    .SetGuiPresentationNoContent(true)
                     .SetSilent(Silent.WhenAddedOrRemoved)
                     .SetAmountOrigin(ExtraOriginOfAmount.SourceProficiencyBonus)
                     .SetFeatures(toDamage)
@@ -397,10 +406,9 @@ public sealed class InnovationWeapon : AbstractSubclass
                     .Create("ActionAffinitySteelDefenderBasic")
                     .SetGuiPresentationNoContent()
                     .SetForbiddenActions(
-                        Id.AttackMain, Id.AttackOff, Id.AttackFree, Id.AttackReadied, Id.AttackOpportunity, Id.Ready,
-                        Id.PowerMain, Id.PowerBonus, Id.PowerNoCost, Id.PowerReaction, Id.SpendPower,
+                        Id.AttackMain, Id.AttackOff, Id.AttackFree, Id.AttackReadied, Id.Ready,
+                        Id.PowerMain, Id.PowerBonus, Id.PowerNoCost, Id.SpendPower,
                         Id.Shove, Id.ShoveBonus, Id.ShoveFree)
-                    .AddCustomSubFeatures(new SummonerHasConditionOrKOd())
                     .AddToDB(),
                 FeatureDefinitionActionAffinitys.ActionAffinityFightingStyleProtection,
                 FeatureDefinitionConditionAffinitys.ConditionAffinityCharmImmunity,
@@ -412,7 +420,7 @@ public sealed class InnovationWeapon : AbstractSubclass
             .SetDefaultFaction(FactionDefinitions.Party)
             .SetFullyControlledWhenAllied(true)
             .SetHeight(6)
-            .SetSizeDefinition(CharacterSizeDefinitions.Small)
+            .SetSizeDefinition(CharacterSizeDefinitions.Medium)
             .SetCharacterFamily(InventorClass.InventorConstructFamily)
             .SetAlignment(MonsterDefinitionBuilder.NeutralAlignment)
             .NoExperienceGain()
@@ -442,11 +450,13 @@ public sealed class InnovationWeapon : AbstractSubclass
         return monster;
     }
 
-    private static FeatureDefinitionPower BuildCommandSteelDefender()
+    private static FeatureDefinitionPower BuildCommandSteelDefender(out ConditionDefinition condition)
     {
-        var condition = ConditionDefinitionBuilder
+        condition = ConditionDefinitionBuilder
             .Create(CommandSteelDefenderCondition)
-            .SetGuiPresentationNoContent(true)
+            .SetGuiPresentation(Category.Condition, Sprites.GetConditionSprite("ConditionSteelDefenderCommanded"))
+            .SetConditionType(ConditionType.Beneficial)
+            .SetPossessive()
             .SetSilent(Silent.WhenAddedOrRemoved)
             .AddToDB();
 
@@ -467,15 +477,19 @@ public sealed class InnovationWeapon : AbstractSubclass
                     .Build())
             .AddToDB();
 
-        power.AddCustomSubFeatures(new ShowInCombatWhenHasBlade(), new ApplyBeforeTurnEnd(condition, power));
+        power.AddCustomSubFeatures(new ShowInCombatWhenHasBlade());
 
         return power;
     }
 
     private static FeatureDefinitionPower BuildArcaneJolt()
     {
-        //TODO: make Steel defender able to trigger this power
-        //TODO: bonus points if we manage to add healing part of this ability
+        var conditionUsed = ConditionDefinitionBuilder
+            .Create(ArcaneJoltUsedCondition)
+            .SetGuiPresentationNoContent(true)
+            .SetSilent(Silent.WhenAddedOrRemoved)
+            .SetSpecialInterruptions(ConditionInterruption.AnyBattleTurnEnd, ConditionInterruption.BattleEnd)
+            .AddToDB();
         var power = FeatureDefinitionPowerBuilder
             .Create(ArcaneJoltPower)
             .SetGuiPresentation(Category.Feature,
@@ -489,24 +503,76 @@ public sealed class InnovationWeapon : AbstractSubclass
                     .Build())
             .SetShowCasting(false)
             .DelegatedToAction()
+            .AddCustomSubFeatures(ClassHolder.Inventor)
             .AddToDB();
 
+        var damage = FeatureDefinitionPowerSharedPoolBuilder
+            .Create(ArcaneJoltPower + "Damage")
+            .SetGuiPresentation(Category.Feature, power)
+            .SetSharedPool(ActivationTime.NoCost, power)
+            .SetShowCasting(false)
+            .SetEffectDescription(EffectDescriptionBuilder.Create()
+                .SetTargetingData(Side.Enemy, RangeType.MeleeHit, 1, TargetType.IndividualsUnique)
+                .SetEffectForms(BuildArcaneJoltDamageForm())
+                .Build())
+            .AddCustomSubFeatures(ModifyPowerVisibility.Hidden, ClassHolder.Inventor)
+            .AddToDB();
+        var healing = FeatureDefinitionPowerSharedPoolBuilder
+            .Create(ArcaneJoltPower + "Healing")
+            .SetGuiPresentation(Category.Feature, power)
+            .SetSharedPool(ActivationTime.NoCost, power)
+            .SetShowCasting(false)
+            .SetEffectDescription(EffectDescriptionBuilder.Create()
+                .SetTargetingData(Side.All, RangeType.Distance, 6, TargetType.IndividualsUnique)
+                .SetEffectForms(EffectFormBuilder.Create()
+                    .SetHealingForm(HealingComputation.Dice, 0, DieType.D6, 2, false, HealingCap.MaximumHitPoints)
+                    .Build())
+                .Build())
+            .AddCustomSubFeatures(ModifyPowerVisibility.Hidden, ClassHolder.Inventor,
+                TargetingContext.BeneficialEffect.Marker,
+                new ReactionRequestSpendBundlePower.EffectContext(targetsSelf: true))
+            .AddToDB();
+        var behavior = new PhysicalAttackBeforeHitConfirmedOnEnemyArcaneJolt(power, damage, healing, conditionUsed);
+        var upgrade = new ModifyEffectDescriptionArcaneJolt();
+
         power.AddCustomSubFeatures(
-            CountPowerUseInSpecialFeatures.Marker,
-            ValidatorsValidatePowerUse.UsedLessTimesThan(1),
+            new ValidatorsValidatePowerUse(character => !character.HasConditionOfType(ArcaneJoltUsedCondition)),
             ModifyPowerVisibility.Default,
-            new PhysicalAttackBeforeHitConfirmedOnEnemyArcaneJolt(power));
+            behavior, upgrade);
+        damage.AddCustomSubFeatures(upgrade);
+        healing.AddCustomSubFeatures(upgrade);
+        GetDefinition<ConditionDefinition>("ConditionInnovationWeaponSummonSteelDefenderGeneric")
+            .AddCustomSubFeatures(behavior);
+        PowerBundle.RegisterPowerBundle(power, false, damage, healing);
 
         return power;
     }
 
-    private static EffectForm BuildArcaneJoltDamageForm()
+    private static EffectForm BuildArcaneJoltDamageForm(RulesetCharacter character = null)
     {
         return EffectFormBuilder
             .Create()
-            .SetDamageForm(DamageTypeForce, 2, DieType.D6)
-            .SetDiceAdvancement(LevelSourceType.CharacterLevel, 0, 2, 6, 9)
+            .SetDamageForm(DamageTypeForce, character?.GetClassLevel(InventorClass.Class) >= 15 ? 4 : 2, DieType.D6)
             .Build();
+    }
+
+    private sealed class ModifyEffectDescriptionArcaneJolt : IModifyEffectDescription
+    {
+        public bool IsValid(BaseDefinition definition, RulesetCharacter character, EffectDescription effectDescription)
+        {
+            return character.GetClassLevel(InventorClass.Class) >= 15;
+        }
+
+        public EffectDescription GetEffectDescription(BaseDefinition definition, EffectDescription effectDescription,
+            RulesetCharacter character, RulesetEffect rulesetEffect)
+        {
+            foreach (var form in effectDescription.EffectForms)
+            {
+                if (form.FormType == EffectForm.EffectFormType.Damage) form.DamageForm.DiceNumber = 4;
+                if (form.FormType == EffectForm.EffectFormType.Healing) form.HealingForm.DiceNumber = 4;
+            }
+            return effectDescription;
+        }
     }
 
     private static FeatureDefinitionFeatureSet BuildImprovedDefenderFeatureSet(
@@ -519,83 +585,6 @@ public sealed class InnovationWeapon : AbstractSubclass
             .AddToDB();
     }
 
-    private class SummonerHasConditionOrKOd : IValidateDefinitionApplication, ICharacterTurnStartListener
-    {
-        public void OnCharacterTurnStarted(GameLocationCharacter locationCharacter)
-        {
-            // if commanded allow anything
-            if (IsCommanded(locationCharacter.RulesetCharacter))
-            {
-                return;
-            }
-
-            // if not commanded it cannot move
-            locationCharacter.usedTacticalMoves = locationCharacter.MaxTacticalMoves;
-
-            // or use powers so force the dodge action
-            locationCharacter.MyExecuteActionDodge();
-        }
-
-        public bool IsValid(BaseDefinition definition, RulesetCharacter character)
-        {
-            //Apply limits if not commanded
-            return !IsCommanded(character);
-        }
-
-        private static bool IsCommanded(RulesetCharacter character)
-        {
-            //can act freely outside of battle
-            if (Gui.Battle == null)
-            {
-                return true;
-            }
-
-            var summoner = character.GetMySummoner()?.RulesetCharacter;
-
-            //shouldn't happen, but consider being commanded in this case
-            if (summoner == null)
-            {
-                return true;
-            }
-
-            //can act if summoner is KO
-            return summoner.IsUnconscious ||
-                   //can act if summoner commanded
-                   summoner.HasConditionOfType(CommandSteelDefenderCondition);
-        }
-    }
-
-    private class ApplyBeforeTurnEnd(ConditionDefinition condition, FeatureDefinitionPower power)
-        : ICharacterBeforeTurnEndListener
-    {
-        public void OnCharacterBeforeTurnEnded(GameLocationCharacter locationCharacter)
-        {
-            var status = locationCharacter.GetActionStatus(Id.PowerBonus, ActionScope.Battle);
-
-            if (status != ActionStatus.Available)
-            {
-                return;
-            }
-
-            var rulesetCharacter = locationCharacter.RulesetCharacter;
-
-            rulesetCharacter.LogCharacterUsedPower(power);
-            rulesetCharacter.InflictCondition(
-                condition.Name,
-                DurationType.Round,
-                1,
-                TurnOccurenceType.StartOfTurn,
-                AttributeDefinitions.TagEffect,
-                rulesetCharacter.guid,
-                rulesetCharacter.CurrentFaction.Name,
-                1,
-                condition.Name,
-                0,
-                0,
-                0);
-        }
-    }
-
     private class ShowInCombatWhenHasBlade : IValidatePowerUse
     {
         public bool CanUsePower(RulesetCharacter character, FeatureDefinitionPower featureDefinitionPower)
@@ -604,7 +593,11 @@ public sealed class InnovationWeapon : AbstractSubclass
         }
     }
 
-    private sealed class PhysicalAttackBeforeHitConfirmedOnEnemyArcaneJolt(FeatureDefinitionPower powerArcaneJolt)
+    private sealed class PhysicalAttackBeforeHitConfirmedOnEnemyArcaneJolt(
+        FeatureDefinitionPower powerArcaneJolt,
+        FeatureDefinitionPower damagePower,
+        FeatureDefinitionPower healingPower,
+        ConditionDefinition conditionUsed)
         : IPhysicalAttackBeforeHitConfirmedOnEnemy
     {
         public IEnumerator OnPhysicalAttackBeforeHitConfirmedOnEnemy(
@@ -619,27 +612,103 @@ public sealed class InnovationWeapon : AbstractSubclass
             bool firstTarget,
             bool criticalHit)
         {
-            var rulesetAttacker = attacker.RulesetCharacter;
+            var character = attacker.RulesetCharacter;
+            var isDefender = character is RulesetCharacterMonster monster &&
+                             monster.MonsterDefinition.CreatureTags.Contains(SteelDefenderTag);
+            if (!isDefender &&
+                (attackMode?.SourceDefinition is not ItemDefinition { IsWeapon: true } ||
+                 !ValidatorsWeapon.IsMagical(attackMode, attackMode.SourceObject as RulesetItem, character)))
+            {
+                yield break;
+            }
+            var owner = isDefender ? character.GetMySummoner() : attacker;
+            var rulesetOwner = owner?.RulesetCharacter;
+            if (rulesetOwner == null || rulesetOwner.GetClassLevel(InventorClass.Class) < 9)
+            {
+                yield break;
+            }
 
             bool ReactionStillValid() => Gui.Battle != null &&
+                rulesetOwner is { IsDeadOrDyingOrUnconscious: false, IsIncapacitated: false } &&
                 TargetingContext.IsValidOffensiveReactionTarget(attacker, defender, powerArcaneJolt) &&
                 defender.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false } &&
-                rulesetAttacker.CanUsePower(powerArcaneJolt, true, true);
+                rulesetOwner.CanUsePower(powerArcaneJolt, true, true);
+
+            bool HealingTargetValid(GameLocationCharacter candidate) => ReactionStillValid() &&
+                ReactionRequestSelectTarget.IsCandidateValid(owner, candidate) &&
+                candidate.RulesetCharacter is { IsDead: false, IsRemovedFromTheGame: false, IsMissingHitPoints: true } &&
+                defender.IsWithinRange(candidate, 6) && owner.CanSeeTarget(candidate) &&
+                TargetingContext.IsBeneficialTargetAllowed(owner, candidate);
 
             if (!ReactionStillValid())
             {
                 yield break;
             }
 
-            var usablePower = PowerProvider.Get(powerArcaneJolt, rulesetAttacker);
+            var usablePower = PowerProvider.Get(powerArcaneJolt, rulesetOwner);
+            var temporary = new List<RulesetUsablePower>();
+            foreach (var choice in new[] { damagePower, healingPower })
+            {
+                if (rulesetOwner.UsablePowers.Any(usable => usable.PowerDefinition == choice)) continue;
+                var usable = PowerProvider.Get(choice, rulesetOwner);
+                usable.originClass = InventorClass.Class;
+                rulesetOwner.UsablePowers.Add(usable);
+                temporary.Add(usable);
+            }
+            try
+            {
+                FeatureDefinitionPower selected = null;
+                bool ModeAvailable(FeatureDefinitionPower choice) => choice != healingPower ||
+                    ServiceRepository.GetService<IGameLocationCharacterService>().ValidCharacters.Any(HealingTargetValid);
+                yield return owner.MyReactToSelectPowerBundle(usablePower, defender, "ArcaneJolt", 1,
+                    () => rulesetOwner.GetRemainingPowerUses(powerArcaneJolt),
+                    choices => selected = choices[0], ReactionStillValid, executeSelectedPowers: false,
+                    powerFilter: ModeAvailable, waiter: attacker);
 
-            yield return attacker.MyReactToSpendPower(
-                usablePower,
-                attacker,
-                ArcaneJoltPower,
-                reactionValidated: () => actualEffectForms.Add(BuildArcaneJoltDamageForm()),
-                battleManager: battleManager,
-                reactionStillValid: ReactionStillValid);
+                if (selected == null || !ReactionStillValid()) yield break;
+                var before = rulesetOwner.GetRemainingPowerUses(powerArcaneJolt);
+                if (selected == damagePower)
+                {
+                    rulesetOwner.UsePower(usablePower);
+                    if (rulesetOwner.GetRemainingPowerUses(powerArcaneJolt) != before - 1) yield break;
+                    MarkUsed(rulesetOwner);
+                    actualEffectForms.Add(BuildArcaneJoltDamageForm(rulesetOwner));
+                    yield break;
+                }
+
+                var healingUsable = PowerProvider.Get(healingPower, rulesetOwner);
+                var parameters = new CharacterActionParams(owner, Id.SpendPower)
+                {
+                    UsablePower = healingUsable,
+                    RulesetEffect = ServiceRepository.GetService<IRulesetImplementationService>()
+                        .InstantiateEffectPower(rulesetOwner, healingUsable, false)
+                };
+                try
+                {
+                    yield return owner.MyReactToSelectTarget(
+                        ServiceRepository.GetService<IGameLocationCharacterService>().ValidCharacters.Where(HealingTargetValid),
+                        attacker, "ArcaneJoltHealing", Gui.Localize("Reaction/&CustomReactionArcaneJoltHealingDescription"),
+                        _ =>
+                        {
+                            if (rulesetOwner.GetRemainingPowerUses(powerArcaneJolt) == before - 1) MarkUsed(rulesetOwner);
+                        }, battleManager: battleManager, effectDefinition: healingPower,
+                        candidateValidator: HealingTargetValid, actionParams: parameters, isBeneficial: true);
+                }
+                finally
+                {
+                    if (!parameters.ReactionValidated) parameters.RulesetEffect.Terminate(false);
+                }
+            }
+            finally
+            {
+                foreach (var usable in temporary) rulesetOwner.UsablePowers.Remove(usable);
+            }
+        }
+
+        private void MarkUsed(RulesetCharacter owner)
+        {
+            owner.InflictCondition(conditionUsed.Name, DurationType.Round, 0, TurnOccurenceType.EndOfTurn,
+                AttributeDefinitions.TagEffect, owner.Guid, owner.CurrentFaction.Name, 1, conditionUsed.Name, 0, 0, 0);
         }
     }
 

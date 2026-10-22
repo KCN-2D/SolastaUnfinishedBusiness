@@ -2,6 +2,7 @@
 using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.CustomUI;
 using UnityEngine;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.MonsterAttackDefinitions;
 
@@ -10,6 +11,30 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class WorldLocationSpecialEffectsManagerPatcher
 {
+    [HarmonyPatch(typeof(ParticleExposedParameter), nameof(ParticleExposedParameter.GetTransform), typeof(GraphicsCharacter))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class GetTransform_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(ParticleExposedParameter __instance, [HarmonyArgument(0)] GraphicsCharacter graphicsCharacter,
+            ref Transform __result)
+        {
+            if (__instance.FromParameter != GraphicsDefinitions.FromParameter.CasterTransform)
+            {
+                return true;
+            }
+            var origin = CustomModels.GetMonsterEffectOrigin(graphicsCharacter);
+            if (!origin)
+            {
+                return true;
+            }
+
+            __result = origin;
+            return false;
+        }
+    }
+
     [HarmonyPatch(typeof(WorldLocationSpecialEffectsManager), nameof(WorldLocationSpecialEffectsManager.ChargeStarted))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

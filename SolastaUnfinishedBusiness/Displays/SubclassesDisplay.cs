@@ -43,6 +43,15 @@ internal static class SubclassesDisplay
             }
         }
 
+        DisplayClassHeading("Inventor");
+
+        toggle = Main.Settings.EnableArtilleristFortifiedPosition2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableArtilleristFortifiedPosition2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableArtilleristFortifiedPosition2024 = toggle;
+            Tabletop2024Context.SwitchArtilleristFortifiedPosition();
+        }
+
         DisplayClassHeading("Fighter");
 
         toggle = Main.Settings.EnableMartialChampion2024;

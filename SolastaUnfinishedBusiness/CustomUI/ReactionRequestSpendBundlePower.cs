@@ -21,6 +21,8 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
     private readonly GameLocationCharacter _target;
     private readonly Func<bool> _reactionStillValid;
     private readonly bool _selectionOnly;
+    private readonly bool _choiceOnly;
+    private FeatureDefinitionPower _selectedChoice;
     private readonly Func<FeatureDefinitionPower, bool> _powerFilter;
 
     internal ReactionRequestSpendBundlePower([NotNull] CharacterActionParams reactionParams,
@@ -29,11 +31,13 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
         Func<bool> reactionStillValid = null,
         int maximumPowers = 0,
         Func<int> availableBudget = null,
-        Func<FeatureDefinitionPower, bool> powerFilter = null)
+        Func<FeatureDefinitionPower, bool> powerFilter = null,
+        bool choiceOnly = false)
         : base(Name, reactionParams)
     {
         _reactionStillValid = reactionStillValid;
         _selectionOnly = maximumPowers > 0;
+        _choiceOnly = choiceOnly;
         _powerFilter = powerFilter;
         ReactionValidated = ReactionRequestCallback.Transform(reactionValidated);
         ReactionNotValidated = ReactionRequestCallback.Transform(reactionNotValidated);
@@ -61,7 +65,7 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
     {
         get
         {
-            var power = (ReactionParams.RulesetEffect as RulesetEffectPower)?.PowerDefinition;
+            var power = SelectedPower;
 
             if (!power)
             {
@@ -94,6 +98,10 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
     internal IReadOnlyList<FeatureDefinitionPower> SelectedPowers => Selection?.SelectedOptions
         .Select(PowerAt).ToArray() ?? [];
 
+    internal FeatureDefinitionPower SelectedPower => _choiceOnly
+        ? _selectedChoice
+        : (ReactionParams.RulesetEffect as RulesetEffectPower)?.PowerDefinition;
+
     private FeatureDefinitionPower PowerAt(int option) =>
         PowerBundle.GetPower(ReactionParams.SpellRepertoire.KnownSpells[option]);
 
@@ -103,8 +111,7 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
     // Custom triggers may allow an unconscious target, but every bundle still has
     // to validate its selected grant before the native command spends its resource.
     public override bool IsStillValid =>
-        (Selection?.IsValid ?? (ReactionParams.RulesetEffect is RulesetEffectPower selected &&
-        IsPowerAvailable(selected.PowerDefinition))) &&
+        (Selection?.IsValid ?? IsPowerAvailable(SelectedPower)) &&
         IsTriggerStillValid();
 
     private bool IsTriggerStillValid() =>
@@ -239,6 +246,16 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
             return;
         }
 
+        if (_choiceOnly)
+        {
+            ClearSelectedPower();
+            _selectedChoice = power;
+            ReactionParams.ActionDefinition = ServiceRepository.GetService<IGameLocationActionService>()
+                .AllActionDefinitions[(ActionDefinitions.Id)ExtraActionId.DoNothingFree];
+            ReactionParams.UsablePower = null;
+            return;
+        }
+
         var parameters = CreatePowerParameters(power);
         // Resolve the replacement before releasing the current selection. An expired
         // or stale UI index must leave a valid choice and its targets intact.
@@ -312,6 +329,7 @@ internal sealed class ReactionRequestSpendBundlePower : ReactionRequest, IReacti
 
     private void ClearSelectedPower()
     {
+        _selectedChoice = null;
         ReactionParams.RulesetEffect?.Terminate(false);
         ReactionParams.RulesetEffect = null;
         ReactionParams.TargetCharacters.Clear();

@@ -73,7 +73,7 @@ public static class UsablePowerBoxPatcher
             UiTextHelpers.FitCardTitle(__instance.titleActiveLabel);
             UiTextHelpers.FitCardTitle(__instance.titleInactiveLabel);
 
-            //PATCH: make power icons fit into box, instead of stretching
+            //PATCH: fit the complete power icon inside its native allocation.
             var img = __instance.image;
             var aspect = img ? img.GetComponent<AspectRatioFitter>() : null;
 
@@ -84,10 +84,9 @@ public static class UsablePowerBoxPatcher
 
             var rect = img.sprite.rect;
 
-            //Set aspect ratio to natural for the sprite, to remove stretching
             aspect.aspectRatio = rect.width / rect.height;
-            //Set mode that would fill parent
-            aspect.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+            img.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            aspect.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
         }
     }
 }

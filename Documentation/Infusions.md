@@ -5,18 +5,18 @@ Only one additional damage infusion can be active per weapon.
 
 # 2. - Enhance Defense [UB]
 
-Infuse armor or shield to grant a +1 to AC.
-The bonus increases to +2 when you reach level 10 of Artificer class.
+Infuse armor or a shield to grant a +1 bonus to AC.
+The bonus increases to +2 at Artificer level 10.
 
 # 3. - Enhance Focus [UB]
 
-Infuse staff or a spell focus to grant +1 to spell attack rolls and ignore enemy cover.
-The bonus increases to +2 when you reach level 10 of Artificer class.
+Infuse a staff or spellcasting focus. While it is equipped, gain a +1 bonus to spell attack rolls and ignore cover on ranged spell attacks.
+The attack bonus increases to +2 at Artificer level 10.
 
 # 4. - Enhance Weapon [UB]
 
-Infuse weapon to grant +1 to attack and damage rolls.
-The bonus increases to +2 when you reach level 10 of Artificer class. Will replace Repeating Shot or Returning Weapon infusion on weapon it is applied to.
+Infuse a weapon to grant a +1 bonus to attack and damage rolls.
+The bonus increases to +2 at Artificer level 10. This replaces Repeating Shot or Returning Weapon on the same weapon.
 
 # 5. - Major Elemental [UB]
 
@@ -163,7 +163,7 @@ Birdwatching is not easy when you can't fly. Millie Strongbreeze created these b
 
 # 34. - Resistant Armor [UB]
 
-Infuse armor with resistance to one of the elemental damage types.
+Infuse body armor or clothes with resistance to one damage type: Acid, Cold, Fire, Force, Lightning, Necrotic, Poison, Psychic, Radiant, or Thunder.
 
 # 35. - Returning Weapon [UB]
 

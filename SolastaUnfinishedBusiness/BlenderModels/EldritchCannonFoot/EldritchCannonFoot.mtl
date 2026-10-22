@@ -1,0 +1,19 @@
+newmtl CannonIron
+Ns 180
+Ka 1 1 1
+Ks .25 .25 .25
+d 1
+illum 2
+Kd 1 1 1
+map_Kd ../LongMace/texture_longmace.png
+map_Bump ../LongMace/normal_longmace.png
+
+newmtl CannonBrass
+Ns 180
+Ka 1 1 1
+Ks .25 .25 .25
+d 1
+illum 2
+Kd 1 1 1
+map_Kd ../LongMace/texture_longmace.png
+map_Bump ../LongMace/normal_longmace.png

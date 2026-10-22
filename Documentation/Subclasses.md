@@ -83,16 +83,16 @@ Learn and have always prepared:
 
 * Eldritch Cannon
 
-Starting at 3rd level, you've learned how to create a magical cannon. You can take an action to magically create a small or tiny eldritch cannon in an unoccupied space on a horizontal surface within 5 feet of you. A small eldritch cannon with 1D8 + 5 * class level hit points occupies its space, and a tiny one can be held in one hand.
-Once you create a cannon, you can't do so again until you finish a long rest or until you expend a spell slot to create one.
-You can have only one cannon at a time. On each of your turns, you can take a bonus action to cause the cannon to activate. As part of the same bonus action, you can direct the cannon to walk or climb up to 15 feet to an unoccupied space.
+Use an action to create a Small Eldritch Cannon in an unoccupied space within 1 cell of you, or a Tiny cannon you carry. Choose a Flamethrower, Force Ballista, or Protector. A Small cannon has Hit Points equal to five times your Artificer level. You can maintain one cannon at a time and create one per long rest, or spend a spell slot to create another.
+
+In combat, a bonus action commands your cannons within 12 cells, allowing them to move and activate their abilities until the start of your next turn. Ending your turn with an unused bonus action issues the command automatically.
 
 
 ### Level 5
 
 * Arcane Firearm
 
-Starting at 5th level, You know how to use a weapon you have proficiency with as a spellcasting focus for your artificer spells. When you cast an artificer spell through the weapon, roll a d8, and you gain a bonus to one of the spell's damage rolls equal to the number rolled. This damage increases to 2d8 at 15th level.
+You can use a weapon you are proficient with as a spellcasting focus for your Artificer spells. When you cast an Artificer spell through it, add 1d8 to one of the spell's damage rolls. At Artificer level 15, this bonus increases to 2d8, or remains 1d8 with the 2024 Fortified Position option enabled.
 
 
 ### Level 9
@@ -108,10 +108,9 @@ Starting at 9th level, every eldritch cannon you create is more destructive:
 
 * Fortified Position
 
-Starting at 15th level, you're a master at forming well-defended emplacements using Eldritch Cannon:
-• The cannon's damage rolls all increase to 4d8.
-• You can now summon a cannon twice until long rest.
-• You and your allies have half cover while within 10 feet of a cannon you create with Eldritch Cannon, as a result of a shimmering field of magical protection that the cannon emits.
+You can maintain two Eldritch Cannons and create two per long rest. Your cannons deal 4d8 damage. You and your allies have half cover while within 2 cells of either cannon.
+
+With the 2024 Fortified Position subclass option enabled, you can create both cannons with one action and command both with one bonus action. You can create the pair once per long rest without spending spell slots. If you spend a spell slot to create the first cannon, the second requires another spell slot. Cannon damage remains 3d8.
 
 
 
@@ -146,7 +145,9 @@ After experimenting on weapons you learned that you can use your smarts to handl
 
 * Steel Defender
 
-Your experiments with weapons has borne you a Steel Defender companion. It is immune to poison, exhaustion, being charmed or surprised. In combat, the blade shares your initiative and takes its turn immediately after you. It can move and use reaction to impose disadvantage on the attack roll of the enemy that attacks ally within 1 cell of the defender, but it takes Dodge action on turn start, unless you use bonus action to command it. If you are incapacitated, the defender can take any action of its choice.
+You gain a Steel Defender with Hit Points equal to 2 + your Intelligence modifier + five times your Artificer level. It is immune to poison, exhaustion, being charmed or surprised. In combat, it shares your initiative and takes its turn immediately after you. It can move and use its reaction to impose disadvantage on an enemy's attack against an ally within 1 cell of the defender.
+
+Without a command, the defender takes the Dodge action. Use a bonus action to command it to take other actions until the start of your next turn. Ending your turn with an unused bonus action issues the command automatically. If you are incapacitated, it can take any action of its choice.
 
 
 ### Level 5
@@ -158,17 +159,17 @@ You gain an extra attack and can now attack up to 2 times in your turn.
 
 ### Level 9
 
-* Force Jolt
+* Arcane Jolt
 
-When you hit an enemy with your attack you can channel magical energy through the strike to make target take extra 2d6 Force damage. You can use this power number of times equal to your Intelligence modifier per long rest, but no more than once per turn.
+When you hit with a magic weapon or your Steel Defender hits, choose to deal 2d6 extra Force damage to the target or restore 2d6 Hit Points to a creature you can see within 6 cells of the target hit. You can use Arcane Jolt once per turn, a number of times equal to your Intelligence modifier (minimum once) per long rest.
 
 
 ### Level 15
 
 * Improved Defender
 
-Your Force Jolt and Steel Defender become more powerful:
-• The extra damage of your Force Jolt increase to 4d6.
+Your Arcane Jolt and Steel Defender become more powerful:
+• Arcane Jolt deals 4d6 extra Force damage or restores 4d6 Hit Points.
 • Your Steel Defender gains a +2 bonus to AC.
 
 

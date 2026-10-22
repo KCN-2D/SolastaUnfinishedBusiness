@@ -789,10 +789,17 @@ public static class CustomActionIdContext
         }
 
         var isInvocationAction = IsInvocationActionId(actionId);
-        var isPowerUse = IsPowerUseActionId(actionId);
+        var isPowerUse = ExtraActionIdPowers.Contains(actionId);
 
         if (!isInvocationAction && !isPowerUse)
         {
+            // Keep native authorization and ownership, then apply the declared power's use rules.
+            if (result == ActionStatus.Available && IsPowerUseActionId(actionId) &&
+                !character.CanUsePower(action.ActivatedPower))
+            {
+                result = ActionStatus.Unavailable;
+            }
+
             return;
         }
 
@@ -936,7 +943,15 @@ public static class CustomActionIdContext
 
     internal static bool IsPowerUseActionId(Id id)
     {
-        return ExtraActionIdPowers.Contains(id);
+        if (ExtraActionIdPowers.Contains(id))
+        {
+            return true;
+        }
+
+        var actions = ServiceRepository.GetService<IGameLocationActionService>()?.AllActionDefinitions;
+
+        return actions?.TryGetValue(id, out var action) == true &&
+               action is { ClassNameOverride: "UsePower", ActivatedPower: not null };
     }
 
     internal static bool IsToggleId(Id id)

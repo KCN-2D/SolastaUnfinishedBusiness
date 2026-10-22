@@ -27,7 +27,7 @@ Simple Weapons
 
 * Magical Tinkering
 
-You know how to invest a spark of magic into mundane objects. Learn these cantrips: Dazzle,Light,Shine,Sparkle
+You know how to invest a spark of magic into mundane objects. Learn the Light cantrip.
 
 * Saving Throw Proficiencies
 
@@ -69,7 +69,7 @@ Choose between increasing your ability scores or gaining a bonus feat.
 
 * Artificer Tool Expertise
 
-You gain proficiency with all crafting tools, or expertise if you were already proficient with that tool.
+You gain proficiency with all crafting and thieves' tools, or expertise if you were already proficient with that tool.
 
 * Infusion Limit Increase
 
@@ -84,7 +84,7 @@ Select 2 new infusions to learn.
 
 * Flash of Genius
 
-When ally in 30ft fails saving throw by less than your Intelligence modifier, you can use your reaction to improvise help that would give that roll a bonus equal to your Intelligence modifier. You can use this ability Intelligence modifier times per long rest.
+When you or an ally you can perceive within 6 cells fails an ability check or saving throw, you can use a reaction to add your Intelligence modifier (minimum +1) if this turns the failure into a success. You can use this feature a number of times equal to your Intelligence modifier (minimum once) per long rest.
 
 
 ### Level 8
@@ -154,6 +154,8 @@ Choose between increasing your ability scores or gaining a bonus feat.
 * Infusion Limit Increase
 
 You can have 1 more item infused at a time.
+
+With the 2024 Magic Item Master class option enabled, your attunement limit also increases by 1.
 
 * Learn Infusion
 

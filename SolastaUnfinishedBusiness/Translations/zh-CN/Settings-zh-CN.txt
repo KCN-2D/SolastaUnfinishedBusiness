@@ -705,3 +705,5 @@ Setting/&NoToolRequirementDescription=角色无需工具即可制作物品，以
 ModUi/&EnableEpicBoons2024=启用传奇恩惠
 ModUi/&EpicBoons2024Help=启用2024版桌上规则专长时，显示传奇恩惠分类，以及角色等级达到19级后可以习得的专长。
 ModUi/&EpicBoons2024RequiresTabletopHelp=启用2024版桌上规则专长后才能使用此选项。此设置的选择会被保留。
+ModUi/&EnableInventorMagicItemMaster2024=在18级启用<color=#D89555>魔法物品大师</color><i><color=#F0DAA0>（同调上限+1）</color></i>
+ModUi/&EnableArtilleristFortifiedPosition2024=在炮术师15级时使用2024版<color=#D89555>要塞阵地</color><i><color=#F0DAA0>（一个动作制造两座炮台，一个附赠动作同时指挥两座）</color></i>

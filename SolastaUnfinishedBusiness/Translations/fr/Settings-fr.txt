@@ -705,3 +705,5 @@ Setting/&NoToolRequirementDescription=Les personnages peuvent fabriquer des obje
 ModUi/&EnableEpicBoons2024=Activer les dons épiques
 ModUi/&EpicBoons2024Help=Lorsque les dons du jeu sur table de 2024 sont activés, affiche la catégorie Dons épiques et les dons accessibles à partir du niveau de personnage 19.
 ModUi/&EpicBoons2024RequiresTabletopHelp=Activez les dons du jeu sur table de 2024 pour utiliser cette option. Votre choix pour ce réglage est conservé.
+ModUi/&EnableInventorMagicItemMaster2024=Active <color=#D89555>Maître des objets magiques</color> au niveau 18 <i><color=#F0DAA0>[limite d'harmonisation +1]</color></i>
+ModUi/&EnableArtilleristFortifiedPosition2024=Utilise la version 2024 de <color=#D89555>Position fortifiée</color> au niveau 15 d'Artilleur <i><color=#F0DAA0>[créer deux canons avec une action et commander les deux avec une action bonus]</color></i>

@@ -137,9 +137,12 @@ public static class RulesetEffectPowerPatcher
                 return;
             }
 
-            var featureOwner = character.GetFeatureOwnerOrSelf();
+            var featureOwner = character.GetClassFeatureStatsOwner();
 
-            if (featureOwner == null)
+            // Creatures without class statistics keep the native level computation.
+            if (featureOwner == null ||
+                featureOwner.GetFeatureOwnerOrSelf() == null &&
+                !featureOwner.HasSubFeatureOfType<IClassLevelProvider>())
             {
                 return;
             }

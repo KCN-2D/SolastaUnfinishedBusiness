@@ -10,6 +10,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 
@@ -645,6 +646,33 @@ public static class GraphicsCharacterFactoryManagerPatcher
         }
     }
 
+    [HarmonyPatch(typeof(GraphicsCharacterFactoryManager), nameof(GraphicsCharacterFactoryManager.CreateGraphicsCharacterRequest))]
+    [UsedImplicitly]
+    public static class CreateGraphicsCharacterRequest_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(
+            [HarmonyArgument(1)] RulesetCharacter character,
+            [HarmonyArgument(3)] ref Action<GraphicsCharacter> created)
+        {
+            if (character is not RulesetCharacterMonster monster ||
+                monster.MonsterDefinition.GetFirstSubFeatureOfType<CustomModels.MonsterModel>() == null)
+            {
+                return;
+            }
+
+            var native = created;
+            created = graphics =>
+            {
+                if (graphics is GraphicsCharacterMonster monsterGraphics)
+                {
+                    CustomModels.ApplyMonsterModel(monsterGraphics);
+                }
+                native?.Invoke(graphics);
+            };
+        }
+    }
+
     [HarmonyPatch(
         typeof(GraphicsCharacterFactoryManager),
         nameof(GraphicsCharacterFactoryManager.RefreshGraphicsCharacter),
@@ -660,6 +688,17 @@ public static class GraphicsCharacterFactoryManagerPatcher
             [HarmonyArgument(0)] GraphicsCharacterMonster graphicsCharacter,
             [HarmonyArgument(1)] ref Action refreshed)
         {
+            if (graphicsCharacter?.RulesetCharacterMonster?.MonsterDefinition
+                    .GetFirstSubFeatureOfType<CustomModels.MonsterModel>() != null)
+            {
+                var callback = refreshed;
+                refreshed = () =>
+                {
+                    CustomModels.ApplyMonsterModel(graphicsCharacter);
+                    callback?.Invoke();
+                };
+                return;
+            }
             if (graphicsCharacter?.RulesetCharacterMonster is not
                     RulesetCharacterSimulacrum duplicate ||
                 !SimulacrumBehavior.UsesInventoryAppearance(duplicate))

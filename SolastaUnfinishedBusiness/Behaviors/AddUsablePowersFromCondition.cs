@@ -2,13 +2,14 @@
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Interfaces;
 
 namespace SolastaUnfinishedBusiness.Behaviors;
 
 /**
  * Adds all powers from condition definition's feature list to character's usable powers when condition is applied
- * and removes them when condition is removed.
+ * and removes them when no remaining feature or condition grants the power.
  */
 public class AddUsablePowersFromCondition : IOnConditionAddedOrRemoved
 {
@@ -22,15 +23,12 @@ public class AddUsablePowersFromCondition : IOnConditionAddedOrRemoved
 
     public void OnConditionAdded(RulesetCharacter target, RulesetCondition rulesetCondition)
     {
-        //assuming mod won't have any case where same power is added twice to a condition
         var grantedPowers = GetGrantedUsablePowers(target);
-        var powers = grantedPowers
-            .Select(x => x.PowerDefinition)
-            .ToArray(); // avoid changing enumerator
+        var powers = new HashSet<FeatureDefinitionPower>(grantedPowers.Select(x => x.PowerDefinition));
 
         foreach (var power in rulesetCondition.ConditionDefinition.Features
                      .OfType<FeatureDefinitionPower>()
-                     .Where(x => !powers.Contains(x)))
+                     .Where(powers.Add))
         {
             grantedPowers.Add(PowerProvider.Get(power, target));
         }
@@ -38,23 +36,52 @@ public class AddUsablePowersFromCondition : IOnConditionAddedOrRemoved
 
     public void OnConditionRemoved(RulesetCharacter target, RulesetCondition rulesetCondition)
     {
+        var retainedPowers = GetRemainingPowers(target, rulesetCondition);
         var powers = rulesetCondition.ConditionDefinition.Features
-            .OfType<FeatureDefinitionPower>();
+            .OfType<FeatureDefinitionPower>()
+            .Where(power => !retainedPowers.Contains(power))
+            .ToArray();
 
         var grantedPowers = GetGrantedUsablePowers(target);
         foreach (var usablePower in grantedPowers
                      .Where(x => powers.Contains(x.PowerDefinition))
                      .ToArray())
         {
-            var effectPower = target.PowersUsedByMe
-                .FirstOrDefault(x => x.UsablePower == usablePower);
+            // TerminatePower refreshes the character. Revoke ownership first so
+            // that refresh cannot automatically reactivate a permanent power.
+            grantedPowers.Remove(usablePower);
 
-            if (effectPower != null)
+            foreach (var effectPower in target.PowersUsedByMe
+                         .Where(effect => effect.UsablePower == usablePower).ToArray())
             {
                 target.TerminatePower(effectPower);
             }
+        }
+    }
 
-            grantedPowers.Remove(usablePower);
+    private static FeatureDefinitionPower[] GetRemainingPowers(
+        RulesetCharacter target, RulesetCondition removedCondition)
+    {
+        // Instance removal updates its list before this callback; native type-based
+        // removal updates it afterwards. Browse the same remaining owners in both cases.
+        var category = target.ConditionsByCategory.Values
+            .FirstOrDefault(conditions => conditions.Contains(removedCondition));
+        var index = category?.IndexOf(removedCondition) ?? -1;
+        if (index >= 0)
+        {
+            category.RemoveAt(index);
+        }
+
+        try
+        {
+            return target.FeaturesByType<FeatureDefinitionPower>().Distinct().ToArray();
+        }
+        finally
+        {
+            if (index >= 0)
+            {
+                category.Insert(index, removedCondition);
+            }
         }
     }
 }

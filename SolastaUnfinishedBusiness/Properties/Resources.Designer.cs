@@ -782,6 +782,16 @@ namespace SolastaUnfinishedBusiness.Properties {
         /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
         /// </summary>
+        public static byte[] Bloody {
+            get {
+                object obj = ResourceManager.GetObject("Bloody", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
         public static byte[] BlueDragon {
             get {
                 object obj = ResourceManager.GetObject("BlueDragon", resourceCulture);
@@ -1359,6 +1369,16 @@ namespace SolastaUnfinishedBusiness.Properties {
             }
         }
         
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] Elemental {
+            get {
+                object obj = ResourceManager.GetObject("Elemental", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized resource of type System.Byte[].
         /// </summary>
@@ -7270,6 +7290,24 @@ namespace SolastaUnfinishedBusiness.Properties {
         public static byte[] PowerPortalStep {
             get {
                 object obj = ResourceManager.GetObject("PowerPortalStep", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionEldritchCannonCommanded {
+            get {
+                object obj = ResourceManager.GetObject("ConditionEldritchCannonCommanded", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        public static byte[] ConditionSteelDefenderCommanded {
+            get {
+                object obj = ResourceManager.GetObject("ConditionSteelDefenderCommanded", resourceCulture);
                 return ((byte[])(obj));
             }
         }

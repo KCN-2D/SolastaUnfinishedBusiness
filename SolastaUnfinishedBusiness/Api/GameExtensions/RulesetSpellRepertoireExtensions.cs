@@ -53,17 +53,21 @@ public static class RulesetSpellRepertoireExtensions
 
     public static RulesetCharacter GetCaster(this RulesetSpellRepertoire repertoire)
     {
+        if (repertoire == null)
+        {
+            return null;
+        }
+
         var caster = EffectHelpers.GetCharacterByGuid(
-            repertoire?.CharacterInventory?.BearerGuid ?? 0);
+            repertoire.CharacterInventory?.BearerGuid ?? 0);
 
         if (caster != null)
         {
             return caster;
         }
 
-        return Global.InspectedHero?.SpellRepertoires.Contains(repertoire) == true
-            ? Global.InspectedHero
-            : null;
+        return Global.GetLoadedCharacters()
+            .FirstOrDefault(character => character.SpellRepertoires.Contains(repertoire));
     }
 
     [CanBeNull]

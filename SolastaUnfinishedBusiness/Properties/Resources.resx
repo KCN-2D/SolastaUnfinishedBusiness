@@ -4067,8 +4067,8 @@
         PublicKeyToken=b77a5c561934e089
     </value>
   </data>
-  <data name="CapabilityPowerInfusionMajorElemental" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Powers\CapabilityPowerInfusionMajorElemental.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+  <data name="Elemental" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>../Resources/Infusions/Elemental.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
         PublicKeyToken=b77a5c561934e089
     </value>
   </data>
@@ -4342,8 +4342,8 @@
         PublicKeyToken=b77a5c561934e089
     </value>
   </data>
-  <data name="CapabilityPowerInfusionBloody" type="System.Resources.ResXFileRef, System.Windows.Forms">
-    <value>..\Resources\Powers\CapabilityPowerInfusionBloody.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+  <data name="Bloody" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>../Resources/Infusions/Bloody.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
         PublicKeyToken=b77a5c561934e089
     </value>
   </data>
@@ -4984,6 +4984,16 @@
   </data>
   <data name="PowerPoolResourceIcon" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\UI\PowerPoolResourceIcon.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ConditionEldritchCannonCommanded" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Conditions\ConditionEldritchCannonCommanded.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+        PublicKeyToken=b77a5c561934e089
+    </value>
+  </data>
+  <data name="ConditionSteelDefenderCommanded" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Conditions\ConditionSteelDefenderCommanded.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
         PublicKeyToken=b77a5c561934e089
     </value>
   </data>

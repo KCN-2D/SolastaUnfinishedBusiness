@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using JetBrains.Annotations;
 using UnityEngine;
 
@@ -26,6 +27,17 @@ internal static class Global
 
     // inspected hero on both location and pool
     [CanBeNull] internal static RulesetCharacterHero InspectedHero { get; set; }
+
+    internal static RulesetCharacter[] GetLoadedCharacters()
+    {
+        var registered = ServiceRepository.GetService<IRulesetEntityService>()?.RulesetEntities.Values
+            .OfType<RulesetCharacter>() ?? Enumerable.Empty<RulesetCharacter>();
+
+        return registered.Concat(new RulesetCharacter[] { LevelUpHero, InspectedHero })
+            .Where(character => character != null)
+            .Distinct()
+            .ToArray();
+    }
 
     [CanBeNull]
     private static GameLocationCharacter SelectedLocationCharacter

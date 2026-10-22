@@ -8,6 +8,7 @@ using System.Runtime.CompilerServices;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 
@@ -67,7 +68,13 @@ public static class GraphicsCharacterPhotoManagerPatcher
             return instructions.ReplaceCalls(contains, 4, "GraphicsCharacterPhotoManager.RenderCharacter.MoveNext",
                 new CodeInstruction(OpCodes.Ldarg_0),
                 new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(PortraitsContext),
-                    nameof(PortraitsContext.IsPendingPhotoRequest))));
+                    nameof(PortraitsContext.IsPendingPhotoRequest))))
+                .ReplaceCalls(AccessTools.Method(typeof(GraphicsCharacter), nameof(GraphicsCharacter.GetBoneTransform)),
+                    1, "GraphicsCharacterPhotoManager.RenderCharacter.MoveNext",
+                    new CodeInstruction(OpCodes.Ldarg_0),
+                    new CodeInstruction(OpCodes.Ldflda, AccessTools.Field(TargetMethod().DeclaringType, "photoParameters")),
+                    new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(CustomModels),
+                        nameof(CustomModels.GetMonsterPhotoTarget))));
         }
     }
 

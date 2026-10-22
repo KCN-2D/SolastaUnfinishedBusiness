@@ -705,3 +705,5 @@ Setting/&NoToolRequirementDescription=I personaggi possono fabbricare oggetti e 
 ModUi/&EnableEpicBoons2024=Abilita doni epici
 ModUi/&EpicBoons2024Help=Quando i talenti da tavolo del 2024 sono attivi, mostra la categoria Doni epici e i talenti disponibili dal 19° livello del personaggio.
 ModUi/&EpicBoons2024RequiresTabletopHelp=Abilita i talenti da tavolo del 2024 per usare questa opzione. La tua scelta per questa impostazione viene mantenuta.
+ModUi/&EnableInventorMagicItemMaster2024=Abilita <color=#D89555>Maestro degli oggetti magici</color> al livello 18 <i><color=#F0DAA0>[limite di sintonia +1]</color></i>
+ModUi/&EnableArtilleristFortifiedPosition2024=Usa la versione 2024 di <color=#D89555>Posizione fortificata</color> al livello 15 da Artigliere <i><color=#F0DAA0>[crea due cannoni con un'azione e impartisci ordini a entrambi con un'azione bonus]</color></i>

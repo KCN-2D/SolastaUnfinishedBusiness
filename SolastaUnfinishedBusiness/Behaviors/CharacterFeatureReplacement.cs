@@ -57,7 +57,9 @@ internal sealed class CharacterFeatureReplacement
     internal void Apply()
     {
         var activeFeature = _isEnabled() ? _replacementFeature : _originalFeature;
-        var unlocks = _race != null ? _race.FeatureUnlocks : _subclass.FeatureUnlocks;
+        var unlocks = _race != null
+            ? _race.FeatureUnlocks
+            : _subclass != null ? _subclass.FeatureUnlocks : _characterClass.FeatureUnlocks;
 
         for (var i = 0; i < unlocks.Count; i++)
         {
@@ -72,14 +74,7 @@ internal sealed class CharacterFeatureReplacement
             }
         }
 
-        var entityService = ServiceRepository.GetService<IRulesetEntityService>();
-
-        if (entityService == null)
-        {
-            return;
-        }
-
-        foreach (var hero in entityService.RulesetEntities.Values
+        foreach (var hero in Global.GetLoadedCharacters()
                      .OfType<RulesetCharacterHero>()
                      .Where(MatchesOrigin)
                      .ToArray())
@@ -98,7 +93,9 @@ internal sealed class CharacterFeatureReplacement
 
         var tag = _race != null
             ? AttributeDefinitions.TagRace
-            : AttributeDefinitions.GetSubclassTag(_characterClass, _featureLevel, _subclass);
+            : _subclass != null
+                ? AttributeDefinitions.GetSubclassTag(_characterClass, _featureLevel, _subclass)
+                : AttributeDefinitions.GetClassTag(_characterClass, _featureLevel);
 
         if (!hero.ActiveFeatures.TryGetValue(tag, out var features) ||
             !features.Any(feature => feature == _originalFeature || feature == _replacementFeature))
@@ -249,10 +246,10 @@ internal sealed class CharacterFeatureReplacement
     {
         return _race != null
             ? hero.RaceDefinition == _race
-            : hero.ClassesAndSubclasses.TryGetValue(_characterClass, out var subclass) &&
-              subclass == _subclass &&
-              hero.ClassesAndLevels.TryGetValue(_characterClass, out var level) &&
-              level >= _featureLevel;
+            : hero.ClassesAndLevels.TryGetValue(_characterClass, out var level) &&
+              level >= _featureLevel &&
+              (_subclass == null ||
+               hero.ClassesAndSubclasses.TryGetValue(_characterClass, out var subclass) && subclass == _subclass);
     }
 
     private bool IsFeatureActive(RulesetCharacter character, FeatureDefinition feature)

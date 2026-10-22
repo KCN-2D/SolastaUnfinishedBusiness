@@ -957,12 +957,6 @@ public static class GameLocationBattleManagerPatcher
     [UsedImplicitly]
     public static class CanAttack_Patch
     {
-        private const string MagicAffinityInfusionEnhanceArcaneFocus =
-            "MagicAffinityInfusionEnhanceArcaneFocus";
-
-        private const string MagicAffinityInfusionEnhanceArcaneFocusUpgraded =
-            "MagicAffinityInfusionEnhanceArcaneFocusUpgraded";
-
         [UsedImplicitly]
         public static bool Prefix(ref AttackEvaluationParams attackParams)
         {
@@ -1035,14 +1029,6 @@ public static class GameLocationBattleManagerPatcher
                 return;
             }
 
-            //PATCH: check if weapon has MagicAffinityInfusionEnhanceArcaneFocus Infusion
-            //TODO: create an interface if ever required by other use cases
-            if (attackParams.attacker.RulesetActor is RulesetCharacter rulesetCharacter &&
-                HasEnhancedArcaneFocus(rulesetCharacter))
-            {
-                attackParams.attackModifier.coverType = CoverType.None;
-            }
-
             //PATCH: supports `UseOfficialLightingObscurementAndVisionRules`
             //handle lighting and obscurement logic disabled in `GLC.ComputeLightingModifierForIlluminable`
             LightingAndObscurementContext.ApplyObscurementRules(attackParams);
@@ -1050,35 +1036,6 @@ public static class GameLocationBattleManagerPatcher
             //PATCH: add modifier or advantage/disadvantage for physical and spell attack
             ApplyCustomModifiers(attackParams);
             
-        }
-
-        private static bool HasEnhancedArcaneFocus(RulesetCharacter rulesetCharacter)
-        {
-            if (rulesetCharacter == null)
-            {
-                return false;
-            }
-
-            foreach (var item in rulesetCharacter.Items)
-            {
-                foreach (var dynamicItemProperty in item.DynamicItemProperties)
-                {
-                    var featureDefinition = dynamicItemProperty.FeatureDefinition;
-
-                    if (featureDefinition == null)
-                    {
-                        continue;
-                    }
-
-                    if (featureDefinition.Name is MagicAffinityInfusionEnhanceArcaneFocus
-                        or MagicAffinityInfusionEnhanceArcaneFocusUpgraded)
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
         }
 
         [NotNull]
@@ -1188,7 +1145,7 @@ public static class GameLocationBattleManagerPatcher
                 return;
             }
 
-            foreach (var modifyAttackActionModifier in attacker.GetSubFeaturesByType<IModifyAttackActionModifier>())
+            foreach (var modifyAttackActionModifier in EnumerateAttackModifiers(attacker))
             {
                 modifyAttackActionModifier.OnAttackComputeModifier(
                     attacker,
@@ -1198,6 +1155,26 @@ public static class GameLocationBattleManagerPatcher
                     attackParams.effectName,
                     ref attackParams.attackModifier);
             }
+        }
+
+        internal static IEnumerable<IModifyAttackActionModifier> EnumerateAttackModifiers(RulesetCharacter character)
+        {
+            var modifiers = character.GetSubFeaturesByType<IModifyAttackActionModifier>();
+            if (character is not (RulesetCharacterHero or RulesetCharacterSimulacrum) ||
+                character.CharacterInventory == null)
+            {
+                return modifiers;
+            }
+
+            // Native actor browsing includes static item features. Dynamic properties
+            // must join the same attack stage through their active equipped slots.
+            return modifiers.Concat(character.CharacterInventory.InventorySlotsByName.Values
+                    .Where(slot => slot.EquipedItem != null && !slot.Disabled && !slot.ConfigSlot)
+                    .SelectMany(slot => slot.EquipedItem.DynamicItemProperties)
+                    .Select(property => property.FeatureDefinition)
+                    .Where(definition => definition != null)
+                    .SelectMany(definition => definition.GetAllSubFeaturesOfType<IModifyAttackActionModifier>()))
+                .Distinct();
         }
     }
 

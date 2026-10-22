@@ -8,6 +8,7 @@ using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
+using SolastaUnfinishedBusiness.Classes;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Subclasses;
@@ -343,6 +344,8 @@ public static partial class Tabletop2024Context
         SwitchFighterStudiedAttacks();
         SwitchFighterTacticalMaster();
         SwitchFighterTacticalProgression();
+        SwitchInventorMagicItemMaster();
+        SwitchArtilleristFortifiedPosition();
         SwitchMonkWeaponProficiency();
         SwitchMonkBodyAndMind();
         SwitchMonkDeflectAttacks();
@@ -439,6 +442,16 @@ public static partial class Tabletop2024Context
         WizardEvocation.SwapEvocationPotentCantripAndSculptSpell();
         WizardEvocation.SwitchPotentCantrip2024();
         SmiteSpells2024Context.SwitchSmiteSpells();
+    }
+
+    internal static void SwitchInventorMagicItemMaster()
+    {
+        InventorClass.SwitchMagicItemMaster();
+    }
+
+    internal static void SwitchArtilleristFortifiedPosition()
+    {
+        InnovationArtillerist.SwitchFortifiedPosition2024();
     }
 
     internal static void SwitchSpeciesBaseWalkSpeed()

@@ -3133,20 +3133,32 @@ public static class RulesetCharacterPatcher
 
         private static void TerminateAllSpellsAndEffects(RulesetCharacter character)
         {
-            var spellsTopTerminate = character.SpellsCastByMe.ToList();
-            character.spellsCastByMe.Clear();
-
-            var powersToTerminate = character.powersUsedByMe.ToList();
-            character.powersUsedByMe.Clear();
-
-            foreach (var activeSpell in spellsTopTerminate)
+            // Each termination refreshes the character. Keep permanent powers from
+            // restarting until the entire effect lifetime has ended, including
+            // native force-removal paths which do not mark a summon as dead.
+            var autoActivatingPower = character.autoActivatingPower;
+            character.autoActivatingPower = true;
+            try
             {
-                character.TerminateSpell(activeSpell, false);
+                var spellsToTerminate = character.SpellsCastByMe.ToList();
+                character.spellsCastByMe.Clear();
+
+                var powersToTerminate = character.powersUsedByMe.ToList();
+                character.powersUsedByMe.Clear();
+
+                foreach (var activeSpell in spellsToTerminate)
+                {
+                    character.TerminateSpell(activeSpell, false);
+                }
+
+                foreach (var activePower in powersToTerminate)
+                {
+                    character.TerminatePower(activePower, false);
+                }
             }
-
-            foreach (var activePower in powersToTerminate)
+            finally
             {
-                character.TerminatePower(activePower, false);
+                character.autoActivatingPower = autoActivatingPower;
             }
         }
     }

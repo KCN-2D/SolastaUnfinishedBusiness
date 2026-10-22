@@ -1010,6 +1010,7 @@ public static class RulesetCharacterHeroPatcher
             Tabletop2024Context.SynchronizeSpeciesFeatures(__instance);
             Tabletop2024Context.SynchronizeSorcererFeatures(__instance);
             Tabletop2024Context.SynchronizeAssassinFeatures(__instance);
+            InventorClass.SynchronizeFeatures(__instance);
             DomainOrder.SynchronizeEmbodimentOfLaw(__instance);
 
             //PATCH: clears cached customized spell effects
@@ -1827,7 +1828,14 @@ public static class RulesetCharacterHeroPatcher
     public static class PostLoad_Patch
     {
         [UsedImplicitly]
-        private static void Postfix(RulesetCharacterHero __instance) => BarbarianRage2024Context.UpdateCharacter(__instance);
+        private static void Postfix(RulesetCharacterHero __instance)
+        {
+            BarbarianRage2024Context.UpdateCharacter(__instance);
+            foreach (var listener in __instance.GetSubFeaturesByType<IOnCharacterPostLoad>().ToArray())
+            {
+                listener.OnCharacterPostLoad(__instance);
+            }
+        }
     }
 
     [HarmonyPatch(typeof(RulesetCharacterHero), nameof(RulesetCharacterHero.RefreshProficiencies))]

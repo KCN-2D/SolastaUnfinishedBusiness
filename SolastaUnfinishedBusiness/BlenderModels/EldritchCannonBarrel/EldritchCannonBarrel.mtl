@@ -1,0 +1,35 @@
+newmtl CannonIron
+Ns 180
+Ka 1 1 1
+Ks .25 .25 .25
+d 1
+illum 2
+Kd 1 1 1
+map_Kd ../LongMace/texture_longmace.png
+map_Bump ../LongMace/normal_longmace.png
+
+newmtl BoreBlack
+Ns 24
+Ka 1 1 1
+Ks .25 .25 .25
+d 1
+illum 2
+Kd 0.015 0.018 0.021
+
+newmtl CannonBrass
+Ns 180
+Ka 1 1 1
+Ks .25 .25 .25
+d 1
+illum 2
+Kd 1 1 1
+map_Kd ../LongMace/texture_longmace.png
+map_Bump ../LongMace/normal_longmace.png
+
+newmtl ArcaneCore
+Ns 24
+Ka 1 1 1
+Ks .25 .25 .25
+d 1
+illum 2
+Kd 0.10 0.38 0.55

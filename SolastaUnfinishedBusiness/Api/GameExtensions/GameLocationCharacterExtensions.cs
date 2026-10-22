@@ -786,11 +786,37 @@ public static class GameLocationCharacterExtensions
         int maximumPowers,
         Func<int> availableBudget,
         Action<IReadOnlyList<FeatureDefinitionPower>> selectionApplied,
-        Func<bool> stillValid)
+        Func<bool> stillValid,
+        bool executeSelectedPowers = true,
+        Func<FeatureDefinitionPower, bool> powerFilter = null,
+        GameLocationCharacter waiter = null)
     {
         if (!TryGetReactionServices(out var actions, out var implementation, out var battle, null) ||
             actions is not GameLocationActionManager manager)
         {
+            yield break;
+        }
+
+        if (!executeSelectedPowers)
+        {
+            var choiceParameters = new CharacterActionParams(character, (Id)ExtraActionId.DoNothingFree)
+            {
+                StringParameter = type,
+                TargetCharacters = { target },
+                ActionModifiers = { new ActionModifier() },
+                RulesetEffect = implementation.InstantiateEffectPower(character.RulesetCharacter, usablePower, false),
+                UsablePower = usablePower
+            };
+            var choice = new ReactionRequestSpendBundlePower(choiceParameters, reactionStillValid: stillValid,
+                powerFilter: powerFilter, choiceOnly: true);
+            if (choice.SubOptionsAvailability.Count == 0) yield break;
+            var choiceCount = manager.PendingReactionRequestGroups.Count;
+            manager.AddInterruptRequest(choice);
+            yield return battle.WaitForReactions(waiter ?? character, manager, choiceCount);
+            if (choiceParameters.ReactionValidated && choice.IsStillValid && choice.SelectedPower is { } selectedPower)
+            {
+                selectionApplied([selectedPower]);
+            }
             yield break;
         }
 
@@ -818,12 +844,13 @@ public static class GameLocationCharacterExtensions
                         usedPowers.Add(allocated);
                         selectionApplied([allocated]);
                     }, reactionStillValid: stillValid,
-                    powerFilter: power => power == allocated || !usedPowers.Contains(power) &&
-                        power.CostPerUse <= availableBudget());
+                    powerFilter: power => (powerFilter?.Invoke(power) ?? true) &&
+                        (power == allocated || !usedPowers.Contains(power) &&
+                        power.CostPerUse <= availableBudget()));
                 if (scalarRequest.SubOptionsAvailability.Count == 0) yield break;
                 var scalarCount = manager.PendingReactionRequestGroups.Count;
                 manager.AddInterruptRequest(scalarRequest);
-                yield return battle.WaitForReactions(character, manager, scalarCount);
+                yield return battle.WaitForReactions(waiter ?? character, manager, scalarCount);
                 if (!scalarParameters.ReactionValidated) yield break;
             }
             yield break;
@@ -838,7 +865,7 @@ public static class GameLocationCharacterExtensions
             UsablePower = usablePower
         };
         var request = new ReactionRequestSpendBundlePower(parameters, reactionStillValid: stillValid,
-            maximumPowers: maximumPowers, availableBudget: availableBudget);
+            maximumPowers: maximumPowers, availableBudget: availableBudget, powerFilter: powerFilter);
         if (!request.Selection.HasAvailableOptions)
         {
             yield break;
@@ -860,7 +887,7 @@ public static class GameLocationCharacterExtensions
 
         var count = manager.PendingReactionRequestGroups.Count;
         manager.AddInterruptRequest(request);
-        yield return battle.WaitForReactions(character, manager, count);
+        yield return battle.WaitForReactions(waiter ?? character, manager, count);
     }
 
     internal static IEnumerator MyReactToUsePower(

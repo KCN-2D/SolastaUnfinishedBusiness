@@ -2,7 +2,8 @@
 
 /**
  * Can influence results of calls to `RulesetImplementationManager.IsValidContextForRestrictedContextProvider`
- * Note: RestrictedProperty on feature that needs modifying should not be `None` or context validation won't happen
+ * Native callers may skip context validation when RestrictedProperty is `None`.
+ * The additional-damage handler explicitly validates every restricted-context provider.
  * Note: for now supports only single modification per feature - only first `IValidateContextInsteadOfRestrictedProperty` would apply
  */
 public enum OperationType

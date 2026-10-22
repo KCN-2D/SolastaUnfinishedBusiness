@@ -113,14 +113,7 @@ internal static class SpeciesSpellcastingContext
             }
         }
 
-        var entities = ServiceRepository.GetService<IRulesetEntityService>();
-
-        if (entities == null)
-        {
-            return;
-        }
-
-        foreach (var hero in entities.RulesetEntities.Values.OfType<RulesetCharacterHero>()
+        foreach (var hero in Global.GetLoadedCharacters().OfType<RulesetCharacterHero>()
                      .Where(x => x.SpellRepertoires.Any(r => CastingFeatures.Contains(r.SpellCastingFeature)))
                      .ToArray())
         {

@@ -232,7 +232,7 @@ public sealed class InnovationArmor : AbstractSubclass
                             .HasSavingThrow(EffectSavingThrowType.Negates)
                             .Build())
                     .Build())
-            .AddCustomSubFeatures(new RestrictReactionAttackMode(
+            .AddCustomSubFeatures(ClassHolder.Inventor, new RestrictReactionAttackMode(
                 (_, _, _, attackMode, _) =>
                     attackMode?.sourceDefinition is ItemDefinition weapon &&
                     weapon.weaponDefinition?.WeaponType == CustomWeaponsContext.ThunderGauntletType.Name))

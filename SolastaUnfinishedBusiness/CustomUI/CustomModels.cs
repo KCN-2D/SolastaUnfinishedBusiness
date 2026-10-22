@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Builders;
 using UnityEngine;
@@ -15,6 +17,153 @@ namespace SolastaUnfinishedBusiness.CustomUI;
 
 public static class CustomModels
 {
+    internal sealed class MonsterModel(string name, float scale = 1f,
+        Action<GraphicsCharacterMonster, Transform> configure = null,
+        Func<GraphicsCharacterMonster, Transform> effectOrigin = null,
+        Func<GraphicsCharacterMonster,
+            IReadOnlyDictionary<AnimationDefinitions.BoneType, (Transform Transform, Vector3 LocalPosition)>> bones = null)
+    {
+        internal string Name { get; } = name;
+        internal float Scale { get; } = scale;
+        internal Action<GraphicsCharacterMonster, Transform> Configure { get; } = configure;
+        internal Func<GraphicsCharacterMonster, Transform> EffectOrigin { get; } = effectOrigin;
+        internal Func<GraphicsCharacterMonster,
+            IReadOnlyDictionary<AnimationDefinitions.BoneType, (Transform Transform, Vector3 LocalPosition)>> Bones { get; } = bones;
+    }
+
+    internal static void ApplyMonsterModel(GraphicsCharacterMonster graphics)
+    {
+        var actor = graphics?.RulesetCharacterMonster;
+        var model = actor?.MonsterDefinition.GetFirstSubFeatureOfType<MonsterModel>();
+        if (model == null)
+        {
+            return;
+        }
+
+        var prefab = GetPrefabByGuid(GetBlenderModel(model.Name).AssetGUID);
+        if (!prefab)
+        {
+            return;
+        }
+
+        var name = "UB_MonsterModel_" + model.Name;
+        var body = graphics.transform.Find(name);
+        if (!body)
+        {
+            body = UnityEngine.Object.Instantiate(prefab, graphics.transform, false).transform;
+            body.name = name;
+        }
+
+        // Retain the native skeleton, animator and spell anchors. Only the authored
+        // visible body is replaced, so the normal movement and casting lifecycle remains intact.
+        foreach (var renderer in graphics.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+        {
+            var particle = false;
+            for (var parent = renderer.transform; parent && parent != graphics.transform; parent = parent.parent)
+            {
+                if (parent.GetComponent("ParticleSystem"))
+                {
+                    particle = true;
+                    break;
+                }
+            }
+
+            if (!renderer.transform.IsChildOf(body) && !particle)
+            {
+                renderer.forceRenderingOff = true;
+            }
+        }
+
+        body.localPosition = Vector3.zero;
+        body.localRotation = Quaternion.identity;
+        var scale = graphics.transform.lossyScale;
+        body.localScale = new Vector3(model.Scale / Mathf.Abs(scale.x), model.Scale / Mathf.Abs(scale.y),
+            model.Scale / Mathf.Abs(scale.z));
+        model.Configure?.Invoke(graphics, body);
+        var bones = model.Bones?.Invoke(graphics);
+        if (bones != null)
+        {
+            foreach (var entry in bones)
+            {
+                var bone = entry.Value;
+                if (!bone.Transform)
+                {
+                    continue;
+                }
+                graphics.BonesDictionary[entry.Key] = bone.Transform;
+                // Native deterministic targeting applies logical position/surface/orientation
+                // to an initial unrotated offset, rather than sampling the animated bone.
+                graphics.InitialBonesLocalPositionDictionary[entry.Key] = bone.LocalPosition * model.Scale;
+            }
+        }
+        foreach (var renderer in body.GetComponentsInChildren<Renderer>(true))
+        {
+            renderer.enabled = true;
+            renderer.forceRenderingOff = false;
+            renderer.gameObject.layer = graphics.gameObject.layer;
+        }
+        graphics.RefreshRenderers();
+    }
+
+    internal static Transform GetMonsterEffectOrigin(GraphicsCharacter character)
+    {
+        if (character is not GraphicsCharacterMonster monster)
+        {
+            return null;
+        }
+        return monster.RulesetCharacterMonster.MonsterDefinition.GetFirstSubFeatureOfType<MonsterModel>()?
+            .EffectOrigin?.Invoke(monster);
+    }
+
+    internal static Transform GetMonsterPhotoTarget(GraphicsCharacter graphics, AnimationDefinitions.BoneType boneType,
+        ref GraphicsCharacterPhotoManager.PhotoParameters parameters)
+    {
+        var monster = graphics as GraphicsCharacterMonster;
+        var model = monster?.RulesetCharacterMonster.MonsterDefinition
+            .GetFirstSubFeatureOfType<MonsterModel>();
+        if (model != null)
+        {
+            ApplyMonsterModel(monster);
+        }
+        var body = model == null ? null : graphics.transform.Find("UB_MonsterModel_" + model.Name);
+        var mesh = body ? body.GetComponent<MeshFilter>()?.sharedMesh : null;
+        if (!mesh)
+        {
+            return graphics.GetBoneTransform(boneType);
+        }
+
+        // Portraits follow the authored silhouette without changing the model's attack anchors.
+        var bounds = new Bounds(body.TransformPoint(mesh.bounds.center), Vector3.zero);
+        foreach (var renderer in body.GetComponentsInChildren<Renderer>(true))
+        {
+            if (renderer.enabled && renderer.gameObject.activeInHierarchy)
+            {
+                bounds.Encapsulate(renderer.bounds);
+            }
+        }
+
+        var target = graphics.transform.Find("UB_MonsterPhotoTarget");
+        if (!target)
+        {
+            target = new GameObject("UB_MonsterPhotoTarget").transform;
+            target.SetParent(graphics.transform, false);
+        }
+        target.position = bounds.center;
+
+        const float fieldOfView = 30f;
+        var radius = bounds.extents.magnitude;
+        var distance = radius * 1.2f / Mathf.Sin(fieldOfView * Mathf.Deg2Rad / 2f);
+        parameters.ForceFollowOffset = true;
+        parameters.FollowOffset = new Vector3(0, radius * 0.5f, -distance);
+        parameters.ForceFieldOfView = true;
+        parameters.FieldOfView = fieldOfView;
+        parameters.ForceScreenOffset = true;
+        parameters.ScreenX = parameters.ScreenY = 0.5f;
+        parameters.ForceLightingOffset = true;
+        parameters.LightingOffset = Vector3.zero;
+        return target;
+    }
+
     // Gets or creates a prefab from a Blender Model on local disk, and returns an asset reference
     [NotNull]
     internal static AssetReference GetBlenderModel(string name)
@@ -33,7 +182,8 @@ public static class CustomModels
     {
         var blenderModels = Path.Combine(Main.ModFolder, "BlenderModels");
 
-        string[] expectedModels = ["Katana", "LightningLauncher", "LongMace", "Pike", "ThunderGauntlet"];
+        string[] expectedModels = ["EldritchCannon", "EldritchCannonBarrel", "EldritchCannonLegUpper",
+            "EldritchCannonLegLower", "EldritchCannonFoot", "Katana", "LightningLauncher", "LongMace", "Pike", "ThunderGauntlet"];
         var missingModel = false;
 
         foreach (var expectedModel in expectedModels)
@@ -71,6 +221,7 @@ public static class CustomModels
             new("BlenderModelLoader", typeof(MeshFilter), typeof(MeshRenderer));
 
         private static readonly int Alpha = Shader.PropertyToID("_Alpha");
+        private static readonly int ColorProperty = Shader.PropertyToID("_Color");
         private static readonly int SrcBlend = Shader.PropertyToID("_SrcBlend");
         private static readonly int EmissionColor = Shader.PropertyToID("_EmissionColor");
         private static readonly int SpecColor = Shader.PropertyToID("_SpecColor");
@@ -134,7 +285,7 @@ public static class CustomModels
             var prefabGuid = GetGuid(filename);
 
             meshFilter.mesh = PopulateMesh(obj);
-            meshRenderer.materials = DefineMaterial(obj);
+            meshRenderer.materials = DefineMaterial(filename, obj);
             meshRenderer.enabled = false;
             PrefabsByGuid[prefabGuid] = prefab;
 
@@ -196,26 +347,35 @@ public static class CustomModels
             mesh.RecalculateBounds();
             mesh.Optimize();
 
+            mesh.RecalculateTangents();
             return mesh;
         }
 
         [CanBeNull]
-        private static Texture2D LoadTexture(string modelName, string name)
+        private static Texture2D LoadTexture(string modelName, string name, bool linear = false)
         {
             var directoryPath = Path.Combine(Path.Combine(Main.ModFolder, "BlenderModels"), modelName);
-            var filename = Path.Combine(directoryPath, name);
+            var filename = Path.GetFullPath(Path.Combine(directoryPath, name));
+            var key = filename + (linear ? "|linear" : "|srgb");
+            if (TexturesByPath.TryGetValue(key, out var existing) && existing)
+            {
+                return existing;
+            }
 
             try
             {
                 var textureData = File.ReadAllBytes(filename);
-                var texture = new Texture2D(2, 2);
+                var texture = new Texture2D(2, 2, TextureFormat.RGBA32, true, linear);
 
                 if (!texture.LoadImage(textureData))
                 {
                     Main.Error($"Failed to load texture from {filename}");
+                    UnityEngine.Object.Destroy(texture);
+                    return null;
                 }
 
                 LoadedTextures.Add(texture);
+                TexturesByPath[key] = texture;
 
                 return texture;
             }
@@ -227,13 +387,20 @@ public static class CustomModels
             return null;
         }
 
-        private static Material[] DefineMaterial(ObjectFile obj)
+        private static Material[] DefineMaterial(string modelName, ObjectFile obj)
         {
             var materials = new Material[obj.usemtl.Count];
+            var materialByName = new Dictionary<string, Material>(StringComparer.Ordinal);
 
             for (var i = 0; i < obj.usemtl.Count; i += 1)
             {
                 var materialName = obj.usemtl[i];
+                if (materialByName.TryGetValue(materialName, out var existing))
+                {
+                    materials[i] = existing;
+                    continue;
+                }
+
                 NewMtl newMtl = null;
                 var material = new Material(Shader.Find("Standard")) { name = materialName };
 
@@ -250,21 +417,41 @@ public static class CustomModels
 
                 if (newMtl != null)
                 {
+                    if (string.IsNullOrEmpty(newMtl.map_Kd))
+                    {
+                        var albedo = new Texture2D(1, 1, TextureFormat.RGBA32, false)
+                        {
+                            name = materialName + " Albedo"
+                        };
+                        albedo.SetPixel(0, 0, new Color(newMtl.Kd.x, newMtl.Kd.y, newMtl.Kd.z));
+                        albedo.Apply();
+                        LoadedTextures.Add(albedo);
+                        material.SetTexture(MainTex, albedo);
+                        material.SetColor(ColorProperty, new Color(1f, 1f, 1f, newMtl.d));
+                    }
                     material.SetFloat(Alpha, newMtl.d);
                     material.SetFloat(Glossiness, Mathf.Clamp01(newMtl.Ns / 1000f));
                     material.SetColor(AmbientColor, new Color(newMtl.Ka.x, newMtl.Ka.y, newMtl.Ka.z));
                     material.SetColor(SpecColor, new Color(newMtl.Ks.x, newMtl.Ks.y, newMtl.Ks.z));
                     material.SetColor(EmissionColor, new Color(newMtl.Ke.x, newMtl.Ke.y, newMtl.Ke.z));
-                    material.SetInt(SrcBlend, (int)BlendMode.SrcAlpha);
-                    material.SetInt(DstBlend, (int)BlendMode.OneMinusSrcAlpha);
-                    material.SetInt(ZWrite, 0);
+                    var translucent = newMtl.d < 1f;
+                    material.SetInt(SrcBlend, translucent ? (int)BlendMode.SrcAlpha : (int)BlendMode.One);
+                    material.SetInt(DstBlend, translucent ? (int)BlendMode.OneMinusSrcAlpha : (int)BlendMode.Zero);
+                    material.SetInt(ZWrite, translucent ? 0 : 1);
                     material.DisableKeyword("_ALPHATEST_ON");
-                    material.EnableKeyword("_ALPHABLEND_ON");
-                    material.renderQueue = 3000;
+                    if (translucent)
+                    {
+                        material.EnableKeyword("_ALPHABLEND_ON");
+                    }
+                    else
+                    {
+                        material.DisableKeyword("_ALPHABLEND_ON");
+                    }
+                    material.renderQueue = translucent ? (int)RenderQueue.Transparent : (int)RenderQueue.Geometry;
 
                     if (!string.IsNullOrEmpty(newMtl.map_Kd))
                     {
-                        var mainTex = LoadTexture(obj.o, newMtl.map_Kd);
+                        var mainTex = LoadTexture(modelName, newMtl.map_Kd);
 
                         if (mainTex)
                         {
@@ -274,7 +461,7 @@ public static class CustomModels
 
                     if (!string.IsNullOrEmpty(newMtl.map_Bump))
                     {
-                        var bumpMap = LoadTexture(obj.o, newMtl.map_Bump);
+                        var bumpMap = LoadTexture(modelName, newMtl.map_Bump, true);
 
                         if (bumpMap)
                         {
@@ -289,8 +476,9 @@ public static class CustomModels
                 }
 
                 materials[i] = material;
+                materialByName.Add(materialName, material);
 
-                var materialGuid = GetGuid(materialName);
+                var materialGuid = GetGuid(modelName + "/" + materialName);
 
                 MaterialsByGuid[materialGuid] = material;
             }
@@ -306,6 +494,7 @@ public static class CustomModels
     private static readonly Dictionary<string, GameObject> PrefabsByGuid = [];
     private static readonly Dictionary<string, Material> MaterialsByGuid = [];
     private static readonly List<Texture2D> LoadedTextures = [];
+    private static readonly Dictionary<string, Texture2D> TexturesByPath = new(StringComparer.OrdinalIgnoreCase);
 
     internal static void Unload()
     {
@@ -356,6 +545,7 @@ public static class CustomModels
         }
 
         LoadedTextures.Clear();
+        TexturesByPath.Clear();
     }
 
     internal static void SwitchRenderer(bool enabled)
@@ -394,6 +584,10 @@ public static class CustomModels
     [Serializable]
     private sealed class ObjectFile
     {
+        internal const int CurrentSchemaVersion = 2;
+
+        [OptionalField] public int SchemaVersion = CurrentSchemaVersion;
+
         // ReSharper disable file InconsistentNaming
         public string o;
         public string mtllib;
@@ -415,13 +609,13 @@ public static class CustomModels
 
         public Vector3 Ka;
 
-        //[UsedImplicitly] public Vector3 Kd ;
+        [OptionalField] public Vector3 Kd = Vector3.one;
         public Vector3 Ks;
 
         public Vector3 Ke;
 
         //[UsedImplicitly] public float Ni ;
-        public float d;
+        public float d = 1f;
 
         //[UsedImplicitly] public float illum ;
         public string map_Kd;
@@ -442,11 +636,13 @@ public static class CustomModels
         }
 
         var pathObjFile = Path.Combine(pathModel, $"{filename}.obj");
+        var pathMtlFile = Path.Combine(pathModel, $"{filename}.mtl");
         var pathCacheFile = Path.Combine(pathCache, $"{filename}.cache");
 
         if (File.Exists(pathObjFile) &&
             File.Exists(pathCacheFile) &&
             File.GetLastWriteTime(pathCacheFile) >= File.GetLastWriteTime(pathObjFile) &&
+            File.GetLastWriteTime(pathCacheFile) >= File.GetLastWriteTime(pathMtlFile) &&
             Deserialize(pathCacheFile, ref objFile))
         {
             Main.Info($"Read {filename} from cache.");
@@ -487,20 +683,20 @@ public static class CustomModels
                         break;
                     case "v":
                         objFile.v.Add(new Vector3(
-                            float.Parse(token[1]),
-                            float.Parse(token[2]),
-                            float.Parse(token[3])));
+                            ParseNumber(token[1]),
+                            ParseNumber(token[2]),
+                            ParseNumber(token[3])));
                         break;
                     case "vn":
                         objFile.vn.Add(new Vector3(
-                            float.Parse(token[1]),
-                            float.Parse(token[2]),
-                            float.Parse(token[3])));
+                            ParseNumber(token[1]),
+                            ParseNumber(token[2]),
+                            ParseNumber(token[3])));
                         break;
                     case "vt":
                         objFile.vt.Add(new Vector3(
-                            float.Parse(token[1]),
-                            float.Parse(token[2])));
+                            ParseNumber(token[1]),
+                            ParseNumber(token[2])));
                         break;
                     case "f":
                         for (var i = 1; i < 4; i += 1)
@@ -554,29 +750,29 @@ public static class CustomModels
                         materials.Add(new NewMtl { newmtl = token[1] });
                         break;
                     case "Ns":
-                        materials[materials.Count - 1].Ns = float.Parse(token[1]);
+                        materials[materials.Count - 1].Ns = ParseNumber(token[1]);
                         break;
                     case "Ka":
                         materials[materials.Count - 1].Ka =
-                            new Vector3(float.Parse(token[1]), float.Parse(token[2]), float.Parse(token[3]));
+                            new Vector3(ParseNumber(token[1]), ParseNumber(token[2]), ParseNumber(token[3]));
                         break;
                     case "Kd":
-                        // materials[materials.Count - 1].Kd =
-                        //     new Vector3(float.Parse(token[1]), float.Parse(token[2]), float.Parse(token[3]));
+                        materials[materials.Count - 1].Kd =
+                            new Vector3(ParseNumber(token[1]), ParseNumber(token[2]), ParseNumber(token[3]));
                         break;
                     case "Ks":
                         materials[materials.Count - 1].Ks =
-                            new Vector3(float.Parse(token[1]), float.Parse(token[2]), float.Parse(token[3]));
+                            new Vector3(ParseNumber(token[1]), ParseNumber(token[2]), ParseNumber(token[3]));
                         break;
                     case "Ke":
                         materials[materials.Count - 1].Ke =
-                            new Vector3(float.Parse(token[1]), float.Parse(token[2]), float.Parse(token[3]));
+                            new Vector3(ParseNumber(token[1]), ParseNumber(token[2]), ParseNumber(token[3]));
                         break;
                     case "Ni":
                         // materials[materials.Count - 1].Ni = float.Parse(token[1]);
                         break;
                     case "d":
-                        materials[materials.Count - 1].d = float.Parse(token[1]);
+                        materials[materials.Count - 1].d = ParseNumber(token[1]);
                         break;
                     case "ileum":
                         // materials[materials.Count - 1].illum = float.Parse(token[1]);
@@ -600,6 +796,8 @@ public static class CustomModels
         }
     }
 
+    private static float ParseNumber(string value) => float.Parse(value, CultureInfo.InvariantCulture);
+
     private static void Serialize(ObjectFile objFile, string path)
     {
         try
@@ -622,7 +820,13 @@ public static class CustomModels
             using var file = File.Open(path, FileMode.Open);
             var bf = GetBinaryFormatter();
 
-            objFile = (ObjectFile)bf.Deserialize(file);
+            var cached = (ObjectFile)bf.Deserialize(file);
+            if (cached.SchemaVersion != ObjectFile.CurrentSchemaVersion)
+            {
+                return false;
+            }
+
+            objFile = cached;
 
             return true;
         }

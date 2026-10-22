@@ -371,6 +371,14 @@ public static class RulesetActorPatcher
                     sourceAmount = dieRoll;
                     break;
 
+                case ConditionDefinition.OriginOfAmount.SourceSpellAttack:
+                    if (addedCondition.GetFirstSubFeatureOfType<ClassHolder>() is { } classHolder &&
+                        sourceCharacter.GetClassSpellRepertoire(classHolder.Class) is { } repertoire)
+                    {
+                        sourceAmount = repertoire.SpellAttackBonus;
+                    }
+                    break;
+
                 //Do nothing for default origins
                 case ConditionDefinition.OriginOfAmount.None:
                 case ConditionDefinition.OriginOfAmount.SourceDamage:
@@ -379,7 +387,6 @@ public static class RulesetActorPatcher
                 case ConditionDefinition.OriginOfAmount.Fixed:
                 case ConditionDefinition.OriginOfAmount.SourceHalfHitPoints:
                 case ConditionDefinition.OriginOfAmount.SourceSpellCastingAbility:
-                case ConditionDefinition.OriginOfAmount.SourceSpellAttack:
                     break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(conditionDefinitionName));

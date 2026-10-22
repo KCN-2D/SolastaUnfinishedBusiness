@@ -427,6 +427,7 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2024)] public bool EnableFighterStudiedAttacks2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableFighterTacticalMaster2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableFighterTacticalProgression2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableInventorMagicItemMaster2024 { get; set; }
     public bool EnableMonkAbundantKi { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableMonkWeaponProficiency2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableMonkBodyAndMind2024 { get; set; }
@@ -617,6 +618,7 @@ public class Settings : UnityModManager.ModSettings
     // Characters - Subclasses
     //
 
+    [Tag(Type = TagType.T2024)] public bool EnableArtilleristFortifiedPosition2024 { get; set; }
     public bool EnableStrictTabletopClassSelection { get; set; }
     public bool AllowAlliesToPerceiveRangerGloomStalkerInNaturalDarkness { get; set; }
     [Tag(Type = TagType.T2014)] public bool EnableBardHealingBalladOnLongRest { get; set; }
