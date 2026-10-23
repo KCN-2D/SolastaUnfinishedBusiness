@@ -618,6 +618,7 @@ public class Settings : UnityModManager.ModSettings
     // Characters - Subclasses
     //
 
+    [Tag(Type = TagType.T2024)] public bool EnableArtilleristEldritchCannon2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableArtilleristFortifiedPosition2024 { get; set; }
     public bool EnableStrictTabletopClassSelection { get; set; }
     public bool AllowAlliesToPerceiveRangerGloomStalkerInNaturalDarkness { get; set; }

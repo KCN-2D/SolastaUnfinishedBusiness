@@ -706,4 +706,5 @@ ModUi/&EnableEpicBoons2024=Epische Gaben aktivieren
 ModUi/&EpicBoons2024Help=Wenn die Tabletop-Talente von 2024 aktiviert sind, werden die Kategorie Epische Gaben und die ab Charakterstufe 19 verfügbaren Talente angezeigt.
 ModUi/&EpicBoons2024RequiresTabletopHelp=Aktiviere die Tabletop-Talente von 2024, um diese Option zu nutzen. Deine Auswahl für diese Einstellung bleibt erhalten.
 ModUi/&EnableInventorMagicItemMaster2024=Aktiviere <color=#D89555>Meister magischer Gegenstände</color> auf Stufe 18 <i><color=#F0DAA0>[Einstimmungslimit +1]</color></i>
-ModUi/&EnableArtilleristFortifiedPosition2024=Verwende die 2024-Version von <color=#D89555>Befestigte Stellung</color> auf Artilleristenstufe 15 <i><color=#F0DAA0>[zwei Kanonen mit einer Aktion erschaffen und beide mit einer Bonusaktion befehligen]</color></i>
+ModUi/&EnableArtilleristFortifiedPosition2024=Verwende die 2024-Version von <color=#D89555>Befestigte Stellung</color> auf Artilleristenstufe 15 <i><color=#F0DAA0>[zwei Kanonen mit einer Aktion erschaffen]</color></i>
+ModUi/&EnableArtilleristEldritchCannon2024=Verwende die 2024-Version von <color=#D89555>Unheimliche Kanone</color> auf Artilleristenstufe 3 <i><color=#F0DAA0>[bei jeder Aktivierung der Kanone einen von drei Effekten wählen]</color></i>

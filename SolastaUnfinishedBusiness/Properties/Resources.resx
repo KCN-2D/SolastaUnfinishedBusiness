@@ -1539,6 +1539,21 @@
       PublicKeyToken=b03f5f7f11d50a3a
     </value>
   </data>
+  <data name="ActionEldritchCannonFlamethrower" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionEldritchCannonFlamethrower.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+      PublicKeyToken=b03f5f7f11d50a3a
+    </value>
+  </data>
+  <data name="ActionEldritchCannonForceBallista" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionEldritchCannonForceBallista.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+      PublicKeyToken=b03f5f7f11d50a3a
+    </value>
+  </data>
+  <data name="ActionEldritchCannonProtector" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Actions\ActionEldritchCannonProtector.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
+      PublicKeyToken=b03f5f7f11d50a3a
+    </value>
+  </data>
   <data name="ActionInfuse" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>../Resources/Actions/ActionInfuse.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral,
       PublicKeyToken=b03f5f7f11d50a3a

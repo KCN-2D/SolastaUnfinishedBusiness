@@ -115,6 +115,54 @@ public static class CustomModels
             .EffectOrigin?.Invoke(monster);
     }
 
+    internal static void RefreshMaterialOverlays(GraphicsCharacter character)
+    {
+        if (!character)
+        {
+            return;
+        }
+
+        foreach (var filter in character.GetComponentsInChildren<MeshFilter>(true))
+        {
+            var renderer = filter.GetComponent<MeshRenderer>();
+            var mesh = filter.sharedMesh;
+            if (!renderer || !mesh)
+            {
+                continue;
+            }
+
+            var source = OverlayMeshSources.TryGetValue(mesh, out var original) ? original : mesh;
+            if (!LoadedMeshes.Contains(source))
+            {
+                continue;
+            }
+            var overlays = renderer.sharedMaterials.Length - source.subMeshCount;
+            if (overlays <= 0 || source.subMeshCount == 1)
+            {
+                filter.sharedMesh = source;
+                continue;
+            }
+
+            var key = (source, overlays);
+            if (!OverlayMeshes.TryGetValue(key, out var overlayMesh))
+            {
+                // Native character overlays append materials. Unity otherwise draws
+                // each of those passes over only the final material's submesh.
+                overlayMesh = UnityEngine.Object.Instantiate(source);
+                overlayMesh.name = source.name + " Material Overlays";
+                overlayMesh.subMeshCount = source.subMeshCount + overlays;
+                var triangles = source.triangles;
+                for (var index = source.subMeshCount; index < overlayMesh.subMeshCount; index++)
+                {
+                    overlayMesh.SetTriangles(triangles, index, false);
+                }
+                OverlayMeshes.Add(key, overlayMesh);
+                OverlayMeshSources.Add(overlayMesh, source);
+            }
+            filter.sharedMesh = overlayMesh;
+        }
+    }
+
     internal static Transform GetMonsterPhotoTarget(GraphicsCharacter graphics, AnimationDefinitions.BoneType boneType,
         ref GraphicsCharacterPhotoManager.PhotoParameters parameters)
     {
@@ -285,6 +333,7 @@ public static class CustomModels
             var prefabGuid = GetGuid(filename);
 
             meshFilter.mesh = PopulateMesh(obj);
+            LoadedMeshes.Add(meshFilter.sharedMesh);
             meshRenderer.materials = DefineMaterial(filename, obj);
             meshRenderer.enabled = false;
             PrefabsByGuid[prefabGuid] = prefab;
@@ -492,13 +541,22 @@ public static class CustomModels
     #region Patch Helpers
 
     private static readonly Dictionary<string, GameObject> PrefabsByGuid = [];
+    private static readonly HashSet<Mesh> LoadedMeshes = [];
     private static readonly Dictionary<string, Material> MaterialsByGuid = [];
     private static readonly List<Texture2D> LoadedTextures = [];
     private static readonly Dictionary<string, Texture2D> TexturesByPath = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<(Mesh Mesh, int Overlays), Mesh> OverlayMeshes = [];
+    private static readonly Dictionary<Mesh, Mesh> OverlayMeshSources = [];
 
     internal static void Unload()
     {
         BlenderModelLoader.Unload();
+        foreach (var mesh in OverlayMeshes.Values)
+        {
+            UnityEngine.Object.Destroy(mesh);
+        }
+        OverlayMeshes.Clear();
+        OverlayMeshSources.Clear();
         var destroyedPrefabs = new HashSet<GameObject>();
 
         foreach (var prefab in PrefabsByGuid.Values)
@@ -519,6 +577,7 @@ public static class CustomModels
         }
 
         PrefabsByGuid.Clear();
+        LoadedMeshes.Clear();
         var destroyedMaterials = new HashSet<Material>();
 
         foreach (var material in MaterialsByGuid.Values)

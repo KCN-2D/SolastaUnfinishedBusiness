@@ -51,11 +51,21 @@ public sealed class InnovationArtillerist : AbstractSubclass
     private static FeatureDefinitionPower _eldritchCannonPool;
     private static FeatureDefinitionPower _explosiveCannonPool;
     private static FeatureDefinitionPower _fortifiedPositionPool;
+    private static FeatureDefinitionFeatureSet _eldritchCannonFeatureSet;
     private static FeatureDefinitionFeatureSet _fortifiedPositionFeatureSet;
     private static FeatureDefinitionFeatureSet _arcaneFirearmFeatureSet;
     private static FeatureDefinitionAdditionalDamage _arcaneFirearmDamage;
     private static FeatureDefinitionPower[] _fortifiedSummons;
-    private static readonly List<ConditionDefinition> DoubleFirepowerConditions = [];
+    private static ConditionDefinition _tinyCannonActivated;
+    private static FeatureDefinition[] _cannonModeFeatures;
+    private static FeatureDefinitionActionAffinity[] _tinyCannonModeFeatures;
+    private static readonly Dictionary<MonsterDefinition, FeatureDefinition[]> CannonModes = [];
+    private static readonly Dictionary<ConditionDefinition, FeatureDefinitionActionAffinity> TinyCannonModes = [];
+    private static readonly Dictionary<BaseDefinition, (string Title, string Description)> CannonPresentations = [];
+    private static readonly List<(FeatureDefinitionPower Pool, FeatureDefinitionPower[] Fixed,
+        FeatureDefinitionPower[] Flexible)> CannonChoiceBundles = [];
+    private static readonly List<ConditionDefinition> CannonTurnConditions = [];
+    private static readonly string[] CannonTypes = [Flamethrower, ForceBallista, Protector];
     private static readonly List<FeatureDefinitionPower> SummonPowers = [];
     private static readonly List<EffectForm> CannonDamageForms = [];
     private static readonly ConditionDefinition SpellSlotCreation = ConditionDefinitionBuilder
@@ -81,8 +91,18 @@ public sealed class InnovationArtillerist : AbstractSubclass
             .SetGuiPresentationNoContent(true)
             .SetForbiddenActions(
                 Id.AttackMain, Id.AttackOff, Id.AttackFree, Id.AttackReadied, Id.AttackOpportunity, Id.Ready,
+                Id.Shove, Id.ShoveBonus, Id.ShoveFree,
+                (Id)ExtraActionId.Grapple, (Id)ExtraActionId.GrappleBonus, (Id)ExtraActionId.GrappleNoCost)
+            .AddToDB();
+
+    private static readonly FeatureDefinitionActionAffinity ActionAffinityUncommandedCannon =
+        FeatureDefinitionActionAffinityBuilder
+            .Create($"ActionAffinity{Name}UncommandedCannon")
+            .SetGuiPresentationNoContent(true)
+            .SetForbiddenActions(
                 Id.PowerMain, Id.PowerBonus, Id.PowerNoCost, Id.PowerReaction, Id.SpendPower,
-                Id.Shove, Id.ShoveBonus, Id.ShoveFree)
+                (Id)ExtraActionId.CannonFlamethrower, (Id)ExtraActionId.CannonForceBallista,
+                (Id)ExtraActionId.CannonProtector)
             .AddToDB();
 
     private static readonly FeatureDefinitionConditionAffinity ConditionAffinityEldritchCannon =
@@ -207,13 +227,22 @@ public sealed class InnovationArtillerist : AbstractSubclass
         // Action Affinities Tiny Cannon
 
         var actionAffinityFlamethrowerTiny =
-            BuildCannonActionAffinity($"{Flamethrower}Tiny", ExtraActionId.CannonFlamethrowerBonus, true);
+            BuildCannonActionAffinity($"{Flamethrower}Tiny", ExtraActionId.CannonFlamethrowerBonus);
 
         var actionAffinityForceBallistaTiny =
-            BuildCannonActionAffinity($"{ForceBallista}Tiny", ExtraActionId.CannonForceBallistaBonus, true);
+            BuildCannonActionAffinity($"{ForceBallista}Tiny", ExtraActionId.CannonForceBallistaBonus);
 
         var actionAffinityProtectorTiny =
-            BuildCannonActionAffinity($"{Protector}Tiny", ExtraActionId.CannonProtectorBonus, true);
+            BuildCannonActionAffinity($"{Protector}Tiny", ExtraActionId.CannonProtectorBonus);
+
+        _cannonModeFeatures =
+        [
+            powerFlamethrower, powerForceBallista, powerProtector,
+            actionAffinityFlamethrower, actionAffinityForceBallista, actionAffinityProtector
+        ];
+        _tinyCannonModeFeatures =
+            [actionAffinityFlamethrowerTiny, actionAffinityForceBallistaTiny, actionAffinityProtectorTiny];
+        ActionAffinityEldritchCannon.AddCustomSubFeatures(new RestoreCannonModes());
 
         // Medium Cannon Conditions
 
@@ -221,18 +250,21 @@ public sealed class InnovationArtillerist : AbstractSubclass
             .Create($"Condition{Name}{Flamethrower}")
             .SetGuiPresentation($"Power{Name}{Flamethrower}", Category.Feature)
             .SetPossessive()
+            .AllowMultipleInstances()
             .AddToDB();
 
         var conditionForceBallista = ConditionDefinitionBuilder
             .Create($"Condition{Name}{ForceBallista}")
             .SetGuiPresentation($"Power{Name}{ForceBallista}", Category.Feature)
             .SetPossessive()
+            .AllowMultipleInstances()
             .AddToDB();
 
         var conditionProtector = ConditionDefinitionBuilder
             .Create($"Condition{Name}{Protector}")
             .SetGuiPresentation($"Power{Name}{Protector}", Category.Feature)
             .SetPossessive()
+            .AllowMultipleInstances()
             .AddToDB();
 
         // Tiny Cannon Conditions
@@ -257,6 +289,15 @@ public sealed class InnovationArtillerist : AbstractSubclass
             .SetPossessive()
             .SetFeatures(actionAffinityProtectorTiny)
             .AddToDB();
+
+        TinyCannonModes.Add(conditionFlamethrowerTiny, actionAffinityFlamethrowerTiny);
+        TinyCannonModes.Add(conditionForceBallistaTiny, actionAffinityForceBallistaTiny);
+        TinyCannonModes.Add(conditionProtectorTiny, actionAffinityProtectorTiny);
+        foreach (var condition in new[] { conditionFlamethrower, conditionForceBallista, conditionProtector,
+                     conditionFlamethrowerTiny, conditionForceBallistaTiny, conditionProtectorTiny })
+        {
+            CannonPresentations.Add(condition, (condition.GuiPresentation.Title, condition.GuiPresentation.Description));
+        }
 
         // Medium Cannon Actions
 
@@ -371,7 +412,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
                             .Build())
                     .Build())
             .AddCustomSubFeatures(ValidatorsValidatePowerUse.InCombat, new ValidatorsValidatePowerUse(character =>
-                HasCannon(character) || UsesDoubleFirepower(character) &&
+                HasCannon(character) ||
                 GetCannons(character).Count() > 1 && HasTinyCannon(character)))
             .AddToDB();
 
@@ -380,9 +421,9 @@ public sealed class InnovationArtillerist : AbstractSubclass
         conditionEldritchCannonCommand.AddCustomSubFeatures(cannonCommand);
         powerEldritchCannonCommand.AddCustomSubFeatures(cannonCommand);
         powerEldritchCannonCommand.AddCustomSubFeatures(new ValidatorsValidatePowerUse(character =>
-            cannonCommand.HasCommandableConstruct(character) || UsesDoubleFirepower(character) &&
+            cannonCommand.HasCommandableConstruct(character) ||
             GetCannons(character).Count() > 1 && HasTinyCannon(character)));
-        ActionAffinityEldritchCannon.AddCustomSubFeatures(cannonCommand);
+        ActionAffinityUncommandedCannon.AddCustomSubFeatures(cannonCommand);
 
         // Dismiss Cannon
 
@@ -471,6 +512,10 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 powerForceBallista,
                 powerProtector)
             .AddToDB();
+        _eldritchCannonFeatureSet = featureSetEldritchCannon;
+        BuildCannonCreationBundle(powerEldritchCannonPool, featureSetEldritchCannon, 3,
+            powerFlamethrower03, powerForceBallista03, powerProtector03,
+            powerTinyFlamethrower03, powerTinyForceBallista03, powerTinyProtector03);
 
         #endregion
 
@@ -520,7 +565,6 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 EffectDescriptionBuilder
                     .Create()
                     .SetTargetingData(Side.All, RangeType.Self, 0, TargetType.Sphere, 4)
-                    .SetParticleEffectParameters(Fireball)
                     .SetSavingThrowData(false, AttributeDefinitions.Dexterity, false,
                         EffectDifficultyClassComputation.FixedValue)
                     .SetParticleEffectParameters(Fireball)
@@ -549,7 +593,17 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 power.AddCustomSubFeatures(new CannonPowerStatistics(power));
                 return power;
             }).ToArray();
-        PowerBundle.RegisterPowerBundle(powerDetonateSelf, false, tinyDetonations);
+        var flexibleTinyDetonation = new DetonateTinyCannon();
+        var powerDetonateTiny = FeatureDefinitionPowerBuilder
+            .Create(powerDetonateSelf, $"Power{Name}{EldritchCannon}DetonateTiny")
+            .SetGuiPresentation(powerDetonateSelf.GuiPresentation)
+            .AddCustomSubFeatures(flexibleTinyDetonation,
+                new ValidatorsValidatePowerUse(flexibleTinyDetonation.HasCannon))
+            .AddToDB();
+        powerDetonateTiny.guiPresentation.hidden = true;
+        powerDetonateTiny.AddCustomSubFeatures(new CannonPowerStatistics(powerDetonateTiny));
+        PowerBundle.RegisterPowerBundle(powerDetonateSelf, false, tinyDetonations.Append(powerDetonateTiny));
+        CannonChoiceBundles.Add((powerDetonateSelf, tinyDetonations, [powerDetonateTiny]));
 
         var powerDetonateCannon = FeatureDefinitionPowerBuilder
             .Create($"Power{Name}{EldritchCannon}DetonateCannon")
@@ -629,8 +683,11 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 powerTinyFlamethrower09,
                 powerTinyForceBallista09,
                 powerTinyProtector09)
-            .AddFeatureSet(tinyDetonations)
+            .AddFeatureSet(tinyDetonations.Append(powerDetonateTiny).ToArray())
             .AddToDB();
+        BuildCannonCreationBundle(powerExplosiveCannonPool, featureSetExplosiveCannon, 9,
+            powerFlamethrower09, powerForceBallista09, powerProtector09,
+            powerTinyFlamethrower09, powerTinyForceBallista09, powerTinyProtector09);
 
         #endregion
 
@@ -699,6 +756,15 @@ public sealed class InnovationArtillerist : AbstractSubclass
             .AddCustomSubFeatures(AddUsablePowersFromCondition.Marker)
             .AddToDB();
 
+        TinyCannonModes.Add(conditionFlamethrowerTiny15, actionAffinityFlamethrowerTiny);
+        TinyCannonModes.Add(conditionForceBallistaTiny15, actionAffinityForceBallistaTiny);
+        TinyCannonModes.Add(conditionProtectorTiny15, actionAffinityProtectorTiny);
+        foreach (var condition in new[] { conditionFlamethrowerTiny15, conditionForceBallistaTiny15,
+                     conditionProtectorTiny15 })
+        {
+            CannonPresentations.Add(condition, (condition.GuiPresentation.Title, condition.GuiPresentation.Description));
+        }
+
         // Fortified Position
 
         var powerFortifiedPositionPool = FeatureDefinitionPowerBuilder
@@ -737,12 +803,12 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 powerTinyProtector15)
             .AddToDB();
         _fortifiedPositionFeatureSet = featureSetFortifiedPosition;
-        _fortifiedSummons =
-        [
+        BuildCannonCreationBundle(powerFortifiedPositionPool, featureSetFortifiedPosition, 15,
             powerFlamethrower15, powerForceBallista15, powerProtector15,
-            powerTinyFlamethrower15, powerTinyForceBallista15, powerTinyProtector15
-        ];
-        BuildDoubleFirepower(featureSetFortifiedPosition);
+            powerTinyFlamethrower15, powerTinyForceBallista15, powerTinyProtector15);
+        var fortifiedChoices = CannonChoiceBundles.Last();
+        _fortifiedSummons = fortifiedChoices.Fixed.Concat(fortifiedChoices.Flexible).ToArray();
+        BuildSecondCannonCreation(featureSetFortifiedPosition);
         BuildTinyCannonCommand(powerEldritchCannonCommand,
             [powerFlamethrower, powerForceBallista, powerProtector]);
 
@@ -753,18 +819,6 @@ public sealed class InnovationArtillerist : AbstractSubclass
         //
         // MAIN
         //
-
-        PowerBundle.RegisterPowerBundle(powerEldritchCannonPool, true,
-            powerFlamethrower03, powerForceBallista03, powerProtector03,
-            powerTinyFlamethrower03, powerTinyForceBallista03, powerTinyProtector03);
-
-        PowerBundle.RegisterPowerBundle(powerExplosiveCannonPool, true,
-            powerFlamethrower09, powerForceBallista09, powerProtector09,
-            powerTinyFlamethrower09, powerTinyForceBallista09, powerTinyProtector09);
-
-        PowerBundle.RegisterPowerBundle(powerFortifiedPositionPool, true,
-            powerFlamethrower15, powerForceBallista15, powerProtector15,
-            powerTinyFlamethrower15, powerTinyForceBallista15, powerTinyProtector15);
 
         Subclass = CharacterSubclassDefinitionBuilder
             .Create(Name)
@@ -818,6 +872,98 @@ public sealed class InnovationArtillerist : AbstractSubclass
             IsWeaponFocus(EquipmentDefinitions.SlotTypeOffHand));
     }
 
+    internal static void SwitchEldritchCannon2024()
+    {
+        if (_eldritchCannonFeatureSet == null)
+        {
+            return;
+        }
+
+        var enabled = Main.Settings.EnableArtilleristEldritchCannon2024;
+        _eldritchCannonFeatureSet.GuiPresentation.description = enabled
+            ? $"Feature/&FeatureSet{Name}{EldritchCannon}2024Description"
+            : $"Feature/&FeatureSet{Name}{EldritchCannon}Description";
+        foreach (var (pool, fixedPowers, flexiblePowers) in CannonChoiceBundles)
+        {
+            var selected = enabled ? flexiblePowers : fixedPowers;
+            var bundle = pool.GetBundle();
+            bundle.SubPowers.Clear();
+            bundle.SubPowers.AddRange(selected);
+            var spell = PowerBundle.GetSpell(pool);
+            spell.SubspellsList.Clear();
+            spell.SubspellsList.AddRange(selected.Select(PowerBundle.GetSpell));
+        }
+        foreach (var pair in CannonModes)
+        {
+            SetCannonModeFeatures(pair.Key.Features, pair.Value, _cannonModeFeatures, enabled);
+        }
+        foreach (var pair in TinyCannonModes)
+        {
+            SetCannonModeFeatures(pair.Key.Features, [pair.Value], _tinyCannonModeFeatures, enabled);
+        }
+        foreach (var pair in CannonPresentations)
+        {
+            var definition = pair.Key;
+            var presentation = pair.Value;
+            definition.GuiPresentation.title = enabled
+                ? $"Feature/&FeatureSet{Name}{EldritchCannon}Title"
+                : presentation.Title;
+            definition.GuiPresentation.description = enabled && definition is ConditionDefinition
+                ? $"Condition/&Condition{Name}{EldritchCannon}Description"
+                : presentation.Description;
+        }
+        foreach (var character in Global.GetLoadedCharacters())
+        {
+            SynchronizeCannonModes(character, true);
+        }
+    }
+
+    private static void SetCannonModeFeatures(List<FeatureDefinition> features,
+        FeatureDefinition[] original, FeatureDefinition[] all, bool enabled)
+    {
+        features.RemoveAll(all.Contains);
+        features.AddRange(enabled ? all : original);
+    }
+
+    private static void SynchronizeCannonModes(RulesetCharacter character, bool refresh = false)
+    {
+        if (character is RulesetCharacterMonster monster &&
+            CannonModes.TryGetValue(monster.MonsterDefinition, out var original))
+        {
+            var selected = Main.Settings.EnableArtilleristEldritchCannon2024 ? _cannonModeFeatures : original;
+            refresh |= !monster.activeFeatures.Where(_cannonModeFeatures.Contains).ToHashSet().SetEquals(selected);
+            SetCannonModeFeatures(monster.activeFeatures, original, _cannonModeFeatures,
+                Main.Settings.EnableArtilleristEldritchCannon2024);
+            if (!monster.activeFeatures.Contains(ActionAffinityUncommandedCannon))
+            {
+                monster.activeFeatures.Add(ActionAffinityUncommandedCannon);
+                refresh = true;
+            }
+            // Rebuild only this cannon's at-will activation powers. GrantPowers would
+            // also recharge unrelated resources on an already loaded character.
+            var active = monster.FeaturesByType<FeatureDefinitionPower>().ToHashSet();
+            refresh |= monster.UsablePowers.RemoveAll(usable => _cannonModeFeatures.Contains(usable.PowerDefinition) &&
+                !active.Contains(usable.PowerDefinition)) > 0;
+            refresh |= PowerProvider.EnsureGrantedPowers(monster) > 0;
+            if (refresh)
+            {
+                monster.RefreshAll();
+            }
+        }
+        else if (character.HasAnyFeature(_eldritchCannonPool, _explosiveCannonPool, _fortifiedPositionPool))
+        {
+            if (PowerProvider.EnsureGrantedPowers(character) > 0 || refresh)
+            {
+                character.RefreshAll();
+            }
+        }
+    }
+
+    private sealed class RestoreCannonModes : IOnCharacterPostLoad
+    {
+        public void OnCharacterPostLoad(RulesetCharacter character) => SynchronizeCannonModes(character);
+    }
+
     internal static void SwitchFortifiedPosition2024()
     {
         if (_fortifiedPositionPool == null)
@@ -850,10 +996,8 @@ public sealed class InnovationArtillerist : AbstractSubclass
 
             if (!enabled)
             {
-                foreach (var condition in DoubleFirepowerConditions)
-                {
-                    RemoveConditions(character, condition.Name);
-                }
+                // Creation rules do not revoke a shared command already issued.
+                RemoveConditions(character, SecondCannon);
             }
         }
     }
@@ -886,7 +1030,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
         }
     }
 
-    private static bool UsesDoubleFirepower(RulesetCharacter character) =>
+    private static bool UsesFortifiedPosition2024(RulesetCharacter character) =>
         Main.Settings.EnableArtilleristFortifiedPosition2024 && character.GetClassLevel(InventorClass.Class) >= 15;
 
     private static IEnumerable<RulesetEffectPower> GetCannons(RulesetCharacter character) =>
@@ -903,7 +1047,47 @@ public sealed class InnovationArtillerist : AbstractSubclass
         }
     }
 
-    private static void BuildDoubleFirepower(FeatureDefinitionFeatureSet featureSet)
+    private static void SynchronizeTinyCannonTracking(RulesetCharacter character)
+    {
+        var cannons = GetTinyCannons(character).ToArray();
+        character.GetAllConditions(character.AllConditionsForEnumeration);
+        var markers = character.AllConditionsForEnumeration
+            .Where(condition => condition.ConditionDefinition == _tinyCannonActivated).ToArray();
+        var markerGuids = markers.Select(condition => condition.Guid).ToHashSet();
+        foreach (var cannon in cannons)
+        {
+            // Native effect loading subscribes once for every tracked condition.
+            // This actor needs one callback per cannon, including when its saved
+            // activation marker and ownership condition are both restored.
+            foreach (var duplicate in (character.ConditionRemoved?.GetInvocationList() ?? [])
+                         .OfType<RulesetActor.ConditionRemovedHandler>()
+                         .Where(handler => handler.Target == cannon).Skip(1))
+            {
+                character.ConditionRemoved -= duplicate;
+            }
+            foreach (var duplicate in (character.ConditionOccurenceReached?.GetInvocationList() ?? [])
+                         .OfType<RulesetActor.ConditionOccurenceReachedHandler>()
+                         .Where(handler => handler.Target == cannon).Skip(1))
+            {
+                character.ConditionOccurenceReached -= duplicate;
+            }
+            foreach (var duplicate in (character.ConditionSaveRerollRequested?.GetInvocationList() ?? [])
+                         .OfType<RulesetActor.ConditionSaveRerollRequestedHandler>()
+                         .Where(handler => handler.Target == cannon).Skip(1))
+            {
+                character.ConditionSaveRerollRequested -= duplicate;
+            }
+        }
+        foreach (var marker in markers.Where(marker =>
+                     !cannons.Any(cannon => cannon.TrackedConditionGuids.Contains(marker.Guid))))
+        {
+            var cannon = cannons.FirstOrDefault(candidate => GetTinyCannonType(candidate) == marker.Amount &&
+                !candidate.TrackedConditionGuids.Any(markerGuids.Contains));
+            cannon?.TrackedConditionGuids.Add(marker.Guid);
+        }
+    }
+
+    private static void BuildSecondCannonCreation(FeatureDefinitionFeatureSet featureSet)
     {
         var continuation = ConditionDefinitionBuilder.Create(SecondCannon)
             .SetGuiPresentation(Category.Condition, Sprites.GetConditionSprite("ConditionEldritchCannonCommanded"))
@@ -911,7 +1095,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
             .SetAmountOrigin(ConditionDefinition.OriginOfAmount.Fixed)
             .SetSilent(Silent.WhenAddedOrRemoved)
             .AddToDB();
-        DoubleFirepowerConditions.Add(continuation);
+        CannonTurnConditions.Add(continuation);
         var behavior = new CreateSecondCannon(continuation);
         continuation.AddCustomSubFeatures(behavior);
         featureSet.AddCustomSubFeatures(behavior);
@@ -942,6 +1126,34 @@ public sealed class InnovationArtillerist : AbstractSubclass
             featureSet.FeatureSet.Add(second);
         }
         PowerBundle.RegisterPowerBundle(pool, false, secondPowers);
+        var choices = CannonChoiceBundles.First(bundle => bundle.Pool == _fortifiedPositionPool);
+        CannonChoiceBundles.Add((pool, secondPowers.Take(choices.Fixed.Length).ToArray(),
+            secondPowers.Skip(choices.Fixed.Length).ToArray()));
+    }
+
+    private static void BuildCannonCreationBundle(FeatureDefinitionPower pool,
+        FeatureDefinitionFeatureSet featureSet, int level, params FeatureDefinitionPower[] fixedPowers)
+    {
+        // Size is a creation choice. Activation mode remains a choice of the
+        // physical cannon, including cannons created before this option changed.
+        var flexible = new[] { (Size: "Small", Original: fixedPowers[0]),
+            (Size: "Tiny", Original: fixedPowers[3]) }.Select(choice =>
+        {
+            var power = FeatureDefinitionPowerSharedPoolBuilder
+                .Create(PowerSummonCannon + choice.Size + level)
+                .SetGuiPresentation(PowerSummonCannon + choice.Size, Category.Feature,
+                    pool.GuiPresentation.SpriteReference, hidden: true)
+                .SetSharedPool(ActivationTime.Action, pool)
+                .SetEffectDescription(EffectDescriptionBuilder.Create(choice.Original.EffectDescription).Build())
+                .SetUniqueInstance()
+                .AddCustomSubFeatures(SkipEffectRemovalOnLocationChange.Always, CannonLimiter)
+                .AddToDB();
+            SummonPowers.Add(power);
+            featureSet.FeatureSet.Add(power);
+            return (FeatureDefinitionPower)power;
+        }).ToArray();
+        PowerBundle.RegisterPowerBundle(pool, true, fixedPowers.Concat(flexible));
+        CannonChoiceBundles.Add((pool, fixedPowers, flexible));
     }
 
     private static void BuildTinyCannonCommand(FeatureDefinitionPower command,
@@ -949,10 +1161,12 @@ public sealed class InnovationArtillerist : AbstractSubclass
     {
         var activated = ConditionDefinitionBuilder.Create($"Condition{Name}TinyCannonActivated")
             .SetGuiPresentationNoContent(true)
+            .SetSpecialDuration(DurationType.Round, 1, TurnOccurenceType.StartOfTurn)
             .SetAmountOrigin(ConditionDefinition.OriginOfAmount.Fixed)
             .SetSilent(Silent.Always)
             .AllowMultipleInstances()
             .AddToDB();
+        _tinyCannonActivated = activated;
         var additionalActions = Enumerable.Range(1, 2).Select(index => FeatureDefinitionAdditionalActionBuilder
             .Create($"AdditionalAction{Name}TinyCannon{index}")
             .SetGuiPresentationNoContent(true)
@@ -966,7 +1180,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
             .SetSilent(Silent.Always)
             .SetFeatures(additionalActions.Take(count))
             .AddToDB()).ToArray();
-        DoubleFirepowerConditions.AddRange(commands);
+        CannonTurnConditions.AddRange(commands);
         command.AddCustomSubFeatures(new CommandTinyCannons(commands));
         for (var index = 0; index < powers.Length; index++)
         {
@@ -975,47 +1189,43 @@ public sealed class InnovationArtillerist : AbstractSubclass
         }
     }
 
-    private static int GetTinyCannonCount(RulesetCharacter character, int type = 0)
+    private static int GetTinyCannonType(RulesetEffectPower cannon)
     {
-        character.GetAllConditions(character.AllConditionsForEnumeration);
-        var types = new[] { Flamethrower, ForceBallista, Protector };
-        return character.AllConditionsForEnumeration.Count(condition =>
-            types.Where((_, index) => type == 0 || index + 1 == type).Any(name =>
-                condition.ConditionDefinition.IsSubtypeOf($"Condition{Name}{name}Tiny")));
+        foreach (var guid in cannon.TrackedConditionGuids)
+        {
+            if (RulesetEntity.TryGetEntity<RulesetCondition>(guid, out var condition) &&
+                condition.TargetGuid == cannon.User?.Guid)
+            {
+                var type = Array.FindIndex(CannonTypes, name =>
+                    condition.ConditionDefinition.IsSubtypeOf($"Condition{Name}{name}Tiny")) + 1;
+                if (type > 0)
+                {
+                    return type;
+                }
+            }
+        }
+        return 0;
     }
 
-    private static bool HasCannon(RulesetCharacter character)
-    {
-        return ValidatorsCharacter.HasAnyOfConditions(
-            $"Condition{Name}{Flamethrower}",
-            $"Condition{Name}{ForceBallista}",
-            $"Condition{Name}{Protector}")(character);
-    }
+    private static IEnumerable<RulesetEffectPower> GetTinyCannons(RulesetCharacter character, int type = 0) =>
+        GetCannons(character).Where(cannon => GetTinyCannonType(cannon) is var cannonType &&
+            cannonType > 0 && (type == 0 || cannonType == type));
 
-    private static bool HasTinyCannon(RulesetCharacter character)
-    {
-        return ValidatorsCharacter.HasAnyOfConditions(
-            $"Condition{Name}{Flamethrower}Tiny",
-            $"Condition{Name}{ForceBallista}Tiny",
-            $"Condition{Name}{Protector}Tiny")(character);
-    }
+    private static bool HasCannon(RulesetCharacter character) =>
+        GetCannons(character).SelectMany(EffectHelpers.GetSummonedCreatures).Any(cannon =>
+            cannon is RulesetCharacterMonster monster && monster.MonsterDefinition.CreatureTags.Contains(CreatureTag));
+
+    private static bool HasTinyCannon(RulesetCharacter character) => GetTinyCannons(character).Any();
 
     private static FeatureDefinitionActionAffinity BuildCannonActionAffinity(
         string actionName,
-        ExtraActionId actionId,
-        bool requiresFreeHand = false)
+        ExtraActionId actionId)
     {
-        var builder = FeatureDefinitionActionAffinityBuilder
+        return FeatureDefinitionActionAffinityBuilder
             .Create($"ActionAffinity{Name}{actionName}")
             .SetGuiPresentationNoContent(true)
-            .SetAuthorizedActions((Id)actionId);
-
-        if (requiresFreeHand)
-        {
-            builder.AddCustomSubFeatures(new ValidateDefinitionApplication(ValidatorsCharacter.HasFreeHandConsiderGrapple));
-        }
-
-        return builder.AddToDB();
+            .SetAuthorizedActions((Id)actionId)
+            .AddToDB();
     }
 
     private static void BuildCannonAction(
@@ -1027,7 +1237,8 @@ public sealed class InnovationArtillerist : AbstractSubclass
     {
         _ = ActionDefinitionBuilder
             .Create($"Action{Name}{actionName}")
-            .SetGuiPresentation($"Power{Name}{presentationName}", Category.Feature, activatedPower)
+            .SetGuiPresentation($"Power{Name}{presentationName}", Category.Feature,
+                Sprites.GetActionSprite($"Action{EldritchCannon}{presentationName}"))
             .OverrideClassName("UsePower")
             .SetStealthBreakerBehavior(StealthBreakerBehavior.RollIfTargets)
             .RequiresAuthorization()
@@ -1142,6 +1353,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
             .ClearAttackIterations()
             .SetFeatures(
                 ActionAffinityEldritchCannon,
+                ActionAffinityUncommandedCannon,
                 ConditionAffinityEldritchCannon,
                 MoveModeEldritchCannon,
                 ConditionAffinityPoisonImmunity,
@@ -1157,6 +1369,8 @@ public sealed class InnovationArtillerist : AbstractSubclass
             .AddToDB();
 
         monster.guiPresentation.description = Gui.NoLocalization;
+        CannonModes.Add(monster, monsterAdditionalFeatures.Where(_cannonModeFeatures.Contains).ToArray());
+        CannonPresentations.Add(monster, (monster.GuiPresentation.Title, monster.GuiPresentation.Description));
 
         return monster;
     }
@@ -1171,11 +1385,16 @@ public sealed class InnovationArtillerist : AbstractSubclass
     [DefaultExecutionOrder(1000)]
     private sealed class CannonPresentation : MonoBehaviour
     {
-        private sealed class Leg(Transform[] bones, Transform[] parts, Vector3 mount)
+        private sealed class Leg(Transform foot, Vector3[] restPoints, Transform[] parts, Vector3 mount)
         {
-            internal Transform[] Bones { get; } = bones;
+            internal Transform Foot { get; } = foot;
+            internal Vector3[] RestPoints { get; } = restPoints;
             internal Transform[] Parts { get; } = parts;
             internal Vector3 Mount { get; } = mount;
+            internal float[] Lengths { get; } = Enumerable.Range(0, 3)
+                .Select(index => Vector3.Distance(restPoints[index], restPoints[index + 1])).ToArray();
+            internal Vector3[] Joints { get; } = new Vector3[4];
+            internal Vector3 BracedFoot { get; set; } = restPoints[3];
         }
 
         private readonly List<Leg> _legs = [];
@@ -1183,22 +1402,23 @@ public sealed class InnovationArtillerist : AbstractSubclass
         private readonly List<Texture2D> _ownedTextures = [];
         private readonly Dictionary<AnimationDefinitions.BoneType, (Transform Transform, Vector3 LocalPosition)> _bones = [];
         private GraphicsCharacterMonster _graphics;
-        private Transform _hub;
-        private Vector3 _restHub;
-        private Quaternion _restHubRotation;
         private Transform _barrel;
         private Transform _muzzle;
         private Vector3 _barrelOrigin;
-        private Vector3 _aimPoint;
+        private Vector3 _aimVector;
+        private bool _aimAlongDirection;
         private bool _aiming;
         private bool _shot;
         private float _recoilStarted = float.NegativeInfinity;
+        private float _movementBlend;
+        private float _idleTime;
+        private bool _moving;
         private AnimatorCullingMode _originalCullingMode;
         private MeshRenderer[] _renderers;
 
         internal int RecoilCount { get; private set; }
         internal Transform Muzzle => _muzzle;
-        internal Transform EffectOrigin => _aiming ? _muzzle : null;
+        internal Transform EffectOrigin => _aiming && _shot ? _muzzle : null;
         internal IReadOnlyDictionary<AnimationDefinitions.BoneType, (Transform Transform, Vector3 LocalPosition)> Bones => _bones;
 
         internal void Bind(GraphicsCharacterMonster graphics)
@@ -1209,9 +1429,17 @@ public sealed class InnovationArtillerist : AbstractSubclass
             }
             _graphics = graphics;
             var bones = graphics.GetComponentsInChildren<Transform>(true);
-            _hub = bones.Single(bone => bone.name == "Spider_b_Hub");
-            _restHub = graphics.transform.InverseTransformPoint(_hub.position);
-            _restHubRotation = Quaternion.Inverse(graphics.transform.rotation) * _hub.rotation;
+            var hub = bones.Single(bone => bone.name == "Spider_b_Hub");
+            // A graphics instance may bind during any idle or movement frame. Recover
+            // the neutral rig from the skin instead of retaining that transient pose.
+            var skin = graphics.GetComponentsInChildren<SkinnedMeshRenderer>(true)
+                .First(renderer => renderer.bones.Contains(hub));
+            var skinBones = skin.bones;
+            var bindPoses = skin.sharedMesh.bindposes;
+            var skinToGraphics = graphics.transform.worldToLocalMatrix * skin.transform.localToWorldMatrix;
+            Matrix4x4 RestPose(Transform bone) =>
+                skinToGraphics * bindPoses[Array.IndexOf(skinBones, bone)].inverse;
+            var restHub = RestPose(hub).MultiplyPoint3x4(Vector3.zero);
             _barrel = CreatePart("EldritchCannonBarrel", "Barrel");
             _barrelOrigin = new Vector3(0, 0.525f, -0.035f);
             _barrel.localPosition = _barrelOrigin;
@@ -1232,11 +1460,16 @@ public sealed class InnovationArtillerist : AbstractSubclass
                     CreatePart("EldritchCannonLegLower", $"{side}{number}Lower"),
                     CreatePart("EldritchCannonFoot", $"{side}{number}Foot")
                 };
-                var mount = graphics.transform.InverseTransformPoint(chain[0].position) - _restHub;
+                var restPositions = chain.Select(bone => RestPose(bone).MultiplyPoint3x4(Vector3.zero)).ToArray();
+                var mount = restPositions[0] - restHub;
                 mount.y = 0;
                 mount = mount.normalized * 0.24f;
                 mount.y = 0.13f;
-                _legs.Add(new Leg(chain, parts, mount));
+                var restPoints = restPositions.Select(NativePointOffset).ToArray();
+                restPoints[0] = mount * CannonModelScale + Vector3.up * CannonBodyLift;
+                var outward = new Vector3(restPoints[1].x, 0, restPoints[1].z).normalized;
+                restPoints[1] += outward * 0.065f;
+                _legs.Add(new Leg(chain[3], restPoints, parts, mount));
             }
 
             ConfigureMaterials();
@@ -1310,45 +1543,65 @@ public sealed class InnovationArtillerist : AbstractSubclass
             }
         }
 
-        private Vector3 BonePosition(Transform bone, bool knee = false)
+        private Vector3 NativePointOffset(Vector3 point)
         {
-            // The photo root can have a different scale from a world actor. Resolve
-            // the posed native skeleton at its declared model scale in both views.
-            var point = _graphics.transform.InverseTransformPoint(bone.position) *
-                _graphics.RulesetCharacterMonster.GetModelScale();
+            point *= _graphics.RulesetCharacterMonster.GetModelScale();
             point.x *= 1.3f;
             point.z *= 1.3f;
-            if (knee)
-            {
-                var outward = new Vector3(point.x, 0, point.z).normalized * 0.065f;
-                point += outward;
-            }
-            return _graphics.transform.position + _graphics.transform.rotation * point;
+            return point;
         }
 
-        internal void RefreshPose()
+        private void PoseLeg(Leg leg)
         {
-            if (!_graphics || !_hub)
+            var rotation = _graphics.transform.rotation;
+            var origin = _graphics.transform.position;
+            var footOffset = _aiming ? leg.BracedFoot : leg.RestPoints[3];
+            if (!_aiming && _movementBlend > 0f)
             {
-                return;
+                var nativeFoot = NativePointOffset(_graphics.transform.InverseTransformPoint(leg.Foot.position));
+                footOffset = Vector3.Lerp(footOffset, nativeFoot, _movementBlend);
             }
-            var scale = _graphics.RulesetCharacterMonster.GetModelScale();
-            var hubOffset = (_graphics.transform.InverseTransformPoint(_hub.position) - _restHub) * scale;
-            hubOffset.x *= 1.3f;
-            hubOffset.z *= 1.3f;
-            hubOffset.y += CannonBodyLift;
-            transform.position = _graphics.transform.position + _graphics.transform.rotation * hubOffset;
-            transform.rotation = _hub.rotation * Quaternion.Inverse(_restHubRotation);
-            foreach (var leg in _legs)
+            var foot = origin + rotation * footOffset;
+            var footDirection = rotation * (leg.RestPoints[3] - leg.RestPoints[2]).normalized;
+            var root = transform.TransformPoint(leg.Mount);
+            var ankleDirection = foot - footDirection * leg.Lengths[2] - root;
+            if (ankleDirection.sqrMagnitude < 0.000001f)
+            {
+                ankleDirection = rotation * (leg.RestPoints[2] - leg.RestPoints[0]);
+            }
+            var distance = Mathf.Clamp(ankleDirection.magnitude,
+                Mathf.Abs(leg.Lengths[0] - leg.Lengths[1]) + 0.00001f,
+                leg.Lengths[0] + leg.Lengths[1] - 0.00001f);
+            var axis = ankleDirection.normalized;
+            var pole = Vector3.ProjectOnPlane(rotation * (leg.RestPoints[1] - leg.RestPoints[0]), axis);
+            if (pole.sqrMagnitude < 0.000001f)
+            {
+                pole = Vector3.Cross(axis, _graphics.transform.forward);
+            }
+            if (pole.sqrMagnitude < 0.000001f)
+            {
+                pole = Vector3.Cross(axis, _graphics.transform.right);
+            }
+            var along = (leg.Lengths[0] * leg.Lengths[0] - leg.Lengths[1] * leg.Lengths[1] +
+                         distance * distance) / (2f * distance);
+            var height = Mathf.Sqrt(Mathf.Max(0f, leg.Lengths[0] * leg.Lengths[0] - along * along));
+            leg.Joints[0] = root;
+            leg.Joints[1] = root + axis * along + pole.normalized * height;
+            leg.Joints[2] = root + axis * distance;
+            leg.Joints[3] = leg.Joints[2] + footDirection * leg.Lengths[2];
             for (var index = 0; index < leg.Parts.Length; index++)
             {
-                var start = index == 0 ? transform.TransformPoint(leg.Mount) : BonePosition(leg.Bones[index], index == 1);
-                var end = BonePosition(leg.Bones[index + 1], index == 0);
-                var direction = end - start;
-                var outward = Vector3.ProjectOnPlane((start + end) * 0.5f - BonePosition(_hub), direction);
+                var start = leg.Joints[index];
+                var direction = leg.Joints[index + 1] - start;
+                var outward = Vector3.ProjectOnPlane((start + leg.Joints[index + 1]) * 0.5f - transform.position,
+                    direction);
                 if (outward.sqrMagnitude < 0.000001f)
                 {
                     outward = Vector3.ProjectOnPlane(_graphics.transform.forward, direction);
+                }
+                if (outward.sqrMagnitude < 0.000001f)
+                {
+                    outward = Vector3.ProjectOnPlane(_graphics.transform.right, direction);
                 }
                 var part = leg.Parts[index];
                 part.position = start;
@@ -1356,27 +1609,80 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 var parentScale = transform.lossyScale;
                 const float width = 0.22f;
                 part.localScale = new Vector3(width / Mathf.Abs(parentScale.x),
-                    direction.magnitude / Mathf.Abs(parentScale.y), width / Mathf.Abs(parentScale.z));
+                    leg.Lengths[index] / Mathf.Abs(parentScale.y), width / Mathf.Abs(parentScale.z));
+            }
+        }
+
+        private static float ServoAdjustment(float time, float start, float hold)
+        {
+            const float travel = 0.22f;
+            var elapsed = time - start;
+            if (elapsed < 0f || elapsed >= travel * 2f + hold)
+            {
+                return 0f;
+            }
+            if (elapsed < travel)
+            {
+                return Mathf.SmoothStep(0f, 1f, elapsed / travel);
+            }
+            return elapsed < travel + hold ? 1f :
+                Mathf.SmoothStep(1f, 0f, (elapsed - travel - hold) / travel);
+        }
+
+        internal void RefreshPose()
+        {
+            if (!_graphics)
+            {
+                return;
+            }
+            // The native root owns travel and wall orientation. Its animal skeleton
+            // supplies foot contacts only; it never drives the machine's carriage or firing pose.
+            transform.position = _graphics.transform.position + _graphics.transform.up * CannonBodyLift;
+            transform.rotation = _graphics.transform.rotation;
+            foreach (var leg in _legs)
+            {
+                PoseLeg(leg);
             }
 
+            Quaternion aim;
             if (_aiming)
             {
-                var direction = transform.InverseTransformDirection(_aimPoint - _muzzle.position);
+                var direction = transform.InverseTransformDirection(
+                    _aimAlongDirection ? _aimVector : _aimVector - _barrel.position);
                 var pitch = -Mathf.Atan2(direction.y, new Vector2(direction.x, direction.z).magnitude) * Mathf.Rad2Deg;
-                _barrel.localRotation = Quaternion.Euler(Mathf.Clamp(pitch, -20f, 45f), 0, 0);
+                var yaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
+                aim = Quaternion.Euler(pitch, yaw, 0);
             }
             else
             {
-                _barrel.localRotation = Quaternion.RotateTowards(_barrel.localRotation, Quaternion.identity, Time.deltaTime * 100f);
+                var cycle = _idleTime % 13f;
+                var yaw = ServoAdjustment(cycle, 2f, 0.5f) * 3f - ServoAdjustment(cycle, 8.5f, 0.35f) * 2f;
+                var pitch = ServoAdjustment(cycle, 5.5f, 0.25f) * 1.5f;
+                aim = _moving ? Quaternion.identity : Quaternion.Euler(pitch, yaw, 0);
             }
+            _barrel.localRotation = Quaternion.RotateTowards(_barrel.localRotation, aim, Time.deltaTime * 180f);
             var elapsed = Time.time - _recoilStarted;
-            var recoil = elapsed is >= 0f and < 0.35f ? Mathf.Sin(elapsed / 0.35f * Mathf.PI) * 0.09f : 0f;
-            _barrel.localPosition = _barrelOrigin - Vector3.forward * recoil;
+            var recovery = elapsed is >= 0f and < 0.28f ? 1f - elapsed / 0.28f : 0f;
+            var recoil = recovery * recovery * 0.09f;
+            _barrel.localPosition = _barrelOrigin - _barrel.localRotation * Vector3.forward * recoil;
         }
 
-        internal void AimAt(Vector3 target, bool shot)
+        internal void AimAt(Vector3 target, bool shot) => BeginAim(target, shot, false);
+
+        internal void AimAlong(Vector3 direction, bool shot) => BeginAim(direction, shot, true);
+
+        private void BeginAim(Vector3 target, bool shot, bool alongDirection)
         {
-            _aimPoint = target;
+            if (!_aiming)
+            {
+                foreach (var leg in _legs)
+                {
+                    leg.BracedFoot = Quaternion.Inverse(_graphics.transform.rotation) *
+                        (leg.Joints[3] - _graphics.transform.position);
+                }
+            }
+            _aimVector = target;
+            _aimAlongDirection = alongDirection;
             _aiming = true;
             _shot = shot;
             RefreshPose();
@@ -1415,9 +1721,13 @@ public sealed class InnovationArtillerist : AbstractSubclass
             }
             // The visible rig uses rigid mesh parts, so its hidden source skin cannot
             // decide whether the animator is needed during a move or a visible shot.
-            var moving = GameLocationCharacter.GetFromActor(_graphics.RulesetCharacterMonster) is
-                { MoveInProgress: true } or { Climbing: true };
-            var animate = moving || _aiming;
+            _moving = GameLocationCharacter.GetFromActor(_graphics.RulesetCharacterMonster) is
+                { MoveInProgress: true } or { MoveStepInProgress: true } or { MovingToDestination: true } or
+                { Jumping: true } or { Climbing: true } or { Falling: true } or { IsCharging: true } or
+                { IgnoreForPlacementDuringPushAnimation: true };
+            _movementBlend = Mathf.MoveTowards(_movementBlend, _moving && !_aiming ? 1f : 0f, Time.deltaTime * 8f);
+            _idleTime = _moving || _aiming ? 0f : _idleTime + Time.deltaTime;
+            var animate = _moving || _aiming;
             foreach (var renderer in _renderers)
             {
                 if (animate || renderer.isVisible)
@@ -1524,7 +1834,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
         {
             effectDescription.fixedSavingThrowDifficultyClass = GetDC(character);
             var owner = character.GetClassFeatureStatsOwner();
-            if (power.Name == $"Power{Name}{Protector}" && owner != null && UsesDoubleFirepower(owner))
+            if (power.Name == $"Power{Name}{Protector}" && owner != null && UsesFortifiedPosition2024(owner))
             {
                 var temporaryHitPoints = effectDescription.EffectForms
                     .First(form => form.FormType == EffectForm.EffectFormType.TemporaryHitPoints).TemporaryHitPointsForm;
@@ -1550,12 +1860,34 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 if (presentation)
                 {
                     var point = world.transform.position + world.transform.forward * 5f;
+                    var parameters = action.ActionParams;
+                    var effect = parameters.RulesetEffect.EffectDescription;
                     var target = action.ActionParams.TargetCharacters.FirstOrDefault();
-                    if (target != null && factory.TryFindWorldCharacter(target, out var targetWorld))
+                    var shot = power.Name is $"Power{Name}{Flamethrower}" or $"Power{Name}{ForceBallista}";
+                    if (effect.TargetType == TargetType.Cone)
                     {
-                        point = targetWorld.DeterministicCenterTargetPosition;
+                        var positioning = ServiceRepository.GetService<IGameLocationPositioningService>();
+                        var gridPoint = parameters.Positions.Count > 0 ? parameters.Positions[0] :
+                            action.ActingCharacter.LocationPosition;
+                        var impact = !parameters.HasMagneticTargeting &&
+                                     IsUsingFloatingImpactPoint(effect.RangeType, effect.TargetType)
+                            ? parameters.CursorHoveredPosition
+                            : positioning.GetWorldPositionFromGridPosition(gridPoint);
+                        var origin = Vector3.zero;
+                        var direction = Vector3.zero;
+                        ServiceRepository.GetService<IGameLocationTargetingService>().ComputeTargetingParameters(
+                            impact, action.ActingCharacter, action.ActingCharacter.LocationPosition,
+                            effect.ShapeType, effect.RangeType, ref origin, ref direction);
+                        presentation.AimAlong(direction, shot);
                     }
-                    presentation.AimAt(point, power.Name is $"Power{Name}{Flamethrower}" or $"Power{Name}{ForceBallista}");
+                    else
+                    {
+                        if (target != null && factory.TryFindWorldCharacter(target, out var targetWorld))
+                        {
+                            point = targetWorld.DeterministicCenterTargetPosition;
+                        }
+                        presentation.AimAt(point, shot);
+                    }
                 }
             }
 
@@ -1624,11 +1956,13 @@ public sealed class InnovationArtillerist : AbstractSubclass
 
     // Eldritch Detonation
 
-    private sealed class DetonateTinyCannon(ConditionDefinition condition) : IPowerOrSpellFinishedByMe
+    private sealed class DetonateTinyCannon(ConditionDefinition condition = null) : IPowerOrSpellFinishedByMe
     {
         private RulesetEffectPower GetCannon(RulesetCharacter character) => GetCannons(character)
             .FirstOrDefault(effect => effect.EffectDescription.EffectForms.GetAppliedConditionDefinitions()
-                .Any(definition => definition.IsSubtypeOf(condition.Name)));
+                .Any(definition => condition
+                    ? definition.IsSubtypeOf(condition.Name)
+                    : TinyCannonModes.Keys.Any(tiny => definition.IsSubtypeOf(tiny.Name))));
 
         internal bool HasCannon(RulesetCharacter character) => GetCannon(character) != null;
 
@@ -1716,29 +2050,34 @@ public sealed class InnovationArtillerist : AbstractSubclass
     {
         public int Priority => 0;
 
-        public void OnLocationCharacterRestored(RulesetCharacter character) => OnCharacterPostLoad(character);
+        public void OnLocationCharacterRestored(RulesetCharacter character)
+        {
+            SynchronizeTinyCannonTracking(character);
+            OnCharacterPostLoad(character);
+        }
 
         public void OnCharacterPostLoad(RulesetCharacter character)
         {
+            SynchronizeCannonModes(character);
             SynchronizeCannonPool(character);
             RemoveConditions(character, SecondCannon);
         }
 
         public void OnCharacterBattleStarted(GameLocationCharacter character, bool surprise) =>
-            ClearContinuation(character.RulesetCharacter);
+            ClearTurnConditions(character.RulesetCharacter);
 
         public void OnCharacterBattleEnded(GameLocationCharacter character) =>
-            ClearContinuation(character.RulesetCharacter);
+            ClearTurnConditions(character.RulesetCharacter);
 
         public void OnCharacterTurnStarted(GameLocationCharacter character) =>
-            ClearContinuation(character.RulesetCharacter);
+            ClearTurnConditions(character.RulesetCharacter);
 
         public void OnCharacterBeforeTurnEnded(GameLocationCharacter character) =>
             RemoveConditions(character.RulesetCharacter, SecondCannon);
 
-        private static void ClearContinuation(RulesetCharacter character)
+        private static void ClearTurnConditions(RulesetCharacter character)
         {
-            foreach (var condition in DoubleFirepowerConditions)
+            foreach (var condition in CannonTurnConditions)
             {
                 RemoveConditions(character, condition.Name);
             }
@@ -1751,7 +2090,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 return true;
             }
             var ready = GetContinuation(character);
-            return UsesDoubleFirepower(character) && ready != null && GetCannons(character).Count() == 1 &&
+            return UsesFortifiedPosition2024(character) && ready != null && GetCannons(character).Count() == 1 &&
                    (ready.Amount == 0 || HasSpellSlot(character));
         }
 
@@ -1780,7 +2119,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 var spellSlotPaid = character.HasConditionOfType(SpellSlotCreation.Name);
                 RemoveConditions(character, SpellSlotCreation.Name);
                 RemoveConditions(character, SecondCannon);
-                if (UsesDoubleFirepower(character) && _fortifiedSummons.Contains(definition) &&
+                if (UsesFortifiedPosition2024(character) && _fortifiedSummons.Contains(definition) &&
                     GetCannons(character).Count() == 1 && (!spellSlotPaid || HasSpellSlot(character)))
                 {
                     character.InflictCondition(continuation.Name, DurationType.Permanent, 0,
@@ -1791,7 +2130,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
             }
 
             var ready = GetContinuation(character);
-            if (!UsesDoubleFirepower(character) || ready == null || ready.Amount != 0 && !HasSpellSlot(character))
+            if (!UsesFortifiedPosition2024(character) || ready == null || ready.Amount != 0 && !HasSpellSlot(character))
             {
                 character.TerminatePower(effect);
                 yield break;
@@ -1821,8 +2160,8 @@ public sealed class InnovationArtillerist : AbstractSubclass
         public IEnumerator OnPowerOrSpellFinishedByMe(CharacterActionMagicEffect action, BaseDefinition definition)
         {
             var character = action.ActingCharacter.RulesetCharacter;
-            var count = GetTinyCannonCount(character);
-            if (!UsesDoubleFirepower(character) || action.Countered || action.ExecutionFailed || count == 0 ||
+            var count = GetTinyCannons(character).Count();
+            if (action.Countered || action.ExecutionFailed || count == 0 ||
                 GetCannons(character).Count() < 2 || actions.Any(condition => character.HasConditionOfType(condition.Name)))
             {
                 yield break;
@@ -1837,29 +2176,44 @@ public sealed class InnovationArtillerist : AbstractSubclass
     private sealed class ActivateTinyCannon(int type, ConditionDefinition activated)
         : IPowerOrSpellFinishedByMe, IValidatePowerUse
     {
+        private RulesetEffectPower GetAvailableCannon(RulesetCharacter character)
+        {
+            character.GetAllConditions(character.AllConditionsForEnumeration);
+            var used = character.AllConditionsForEnumeration
+                .Where(condition => condition.ConditionDefinition == activated)
+                .Select(condition => condition.Guid).ToHashSet();
+            return GetTinyCannons(character, Main.Settings.EnableArtilleristEldritchCannon2024 ? 0 : type)
+                .OrderBy(cannon => GetTinyCannonType(cannon) == type ? 0 : 1)
+                .FirstOrDefault(cannon => !cannon.TrackedConditionGuids.Any(used.Contains));
+        }
+
         public bool CanUsePower(RulesetCharacter character, FeatureDefinitionPower power)
         {
-            if (!UsesDoubleFirepower(character) || GetTinyCannonCount(character) == 0)
+            if (Gui.Battle == null || !HasTinyCannon(character))
             {
                 return true;
             }
 
-            var count = GetTinyCannonCount(character, type);
-            var used = character.AllConditionsForEnumeration.Count(condition =>
-                condition.ConditionDefinition == activated && condition.Amount == type);
-            return count > used &&
+            return GetAvailableCannon(character) != null &&
                    (GetCannons(character).Count() <= 1 || character.HasConditionOfType(ConditionCommandCannon));
         }
 
         public IEnumerator OnPowerOrSpellFinishedByMe(CharacterActionMagicEffect action, BaseDefinition definition)
         {
             var character = action.ActingCharacter.RulesetCharacter;
-            if (UsesDoubleFirepower(character) && GetTinyCannonCount(character, type) > 0 &&
-                !action.Countered && !action.ExecutionFailed)
+            if (Gui.Battle != null && !action.Countered && !action.ExecutionFailed &&
+                GetAvailableCannon(character) is { } cannon)
             {
-                character.InflictCondition(activated.Name, DurationType.Round, 1, TurnOccurenceType.StartOfTurn,
+                var marker = character.InflictCondition(activated.Name, DurationType.Round, 1,
+                    TurnOccurenceType.StartOfTurn,
                     AttributeDefinitions.TagEffect, character.Guid, character.CurrentFaction.Name,
-                    0, activated.Name, type, 0, 0);
+                    0, activated.Name, GetTinyCannonType(cannon), 0, 0);
+                // The creating effect owns this physical cannon and its activation.
+                // Ending either of two identical cannons removes only its own marker.
+                // Its existing ownership condition already subscribes this actor
+                // to the native tracking callbacks. Re-subscribing every turn
+                // would retain duplicate handlers after the marker expires.
+                cannon.TrackedConditionGuids.Add(marker.Guid);
             }
             yield break;
         }

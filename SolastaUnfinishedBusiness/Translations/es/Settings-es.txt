@@ -706,4 +706,5 @@ ModUi/&EnableEpicBoons2024=Activar dones épicos
 ModUi/&EpicBoons2024Help=Cuando las dotes de mesa de 2024 están activadas, muestra la categoría Dones épicos y las dotes disponibles a partir del nivel 19 de personaje.
 ModUi/&EpicBoons2024RequiresTabletopHelp=Activa las dotes de mesa de 2024 para usar esta opción. Se conserva tu selección para este ajuste.
 ModUi/&EnableInventorMagicItemMaster2024=Activa <color=#D89555>Maestro de objetos mágicos</color> al nivel 18 <i><color=#F0DAA0>[límite de sintonización +1]</color></i>
-ModUi/&EnableArtilleristFortifiedPosition2024=Usa la versión de 2024 de <color=#D89555>Posición fortificada</color> al nivel 15 de Artillero <i><color=#F0DAA0>[crea dos cañones con una acción y da órdenes a ambos con una acción adicional]</color></i>
+ModUi/&EnableArtilleristFortifiedPosition2024=Usa la versión de 2024 de <color=#D89555>Posición fortificada</color> al nivel 15 de Artillero <i><color=#F0DAA0>[crea dos cañones con una acción]</color></i>
+ModUi/&EnableArtilleristEldritchCannon2024=Usa la versión de 2024 de <color=#D89555>Cañón sobrenatural</color> al nivel 3 de Artillero <i><color=#F0DAA0>[elige uno de tres efectos cada vez que actives el cañón]</color></i>

@@ -890,7 +890,7 @@ public static class RulesetImplementationManagerPatcher
             return false;
         }
 
-        // original vanilla code
+        // Vanilla termination flow with condition callback cleanup.
         private static void TerminateEffect(
             RulesetImplementationManager __instance, RulesetEffect activeEffect, bool showGraphics = true)
         {
@@ -901,6 +901,7 @@ public static class RulesetImplementationManagerPatcher
             {
                 __instance.conditionGuidsToProcess.AddRange(activeEffect.TrackedConditionGuids);
 
+                var trackingTargets = new HashSet<RulesetCharacter>();
                 foreach (var guid in __instance.conditionGuidsToProcess.ToArray())
                 {
                     RulesetCondition rulesetCondition = null;
@@ -911,9 +912,38 @@ public static class RulesetImplementationManagerPatcher
                         continue;
                     }
 
-                    if (RulesetEntity.TryGetEntity(rulesetCondition.TargetGuid, out RulesetCharacter entity))
+                    if (!RulesetEntity.TryGetEntity(rulesetCondition.TargetGuid, out RulesetCharacter entity) ||
+                        !trackingTargets.Add(entity))
                     {
-                        entity.ConditionRemoved -= activeEffect.ConditionRemoved;
+                        continue;
+                    }
+
+                    // Native tracking can register once per condition on the same
+                    // target. Release every subscription owned by this effect before
+                    // removing conditions, without touching other effects' callbacks.
+                    foreach (var handler in (entity.ConditionRemoved?.GetInvocationList() ?? [])
+                                 .OfType<RulesetActor.ConditionRemovedHandler>()
+                                 .Where(handler => handler.Target == activeEffect))
+                    {
+                        entity.ConditionRemoved -= handler;
+                    }
+                    foreach (var handler in (entity.ConditionOccurenceReached?.GetInvocationList() ?? [])
+                                 .OfType<RulesetActor.ConditionOccurenceReachedHandler>()
+                                 .Where(handler => handler.Target == activeEffect))
+                    {
+                        entity.ConditionOccurenceReached -= handler;
+                    }
+                    foreach (var handler in (entity.ConditionSaveRerollRequested?.GetInvocationList() ?? [])
+                                 .OfType<RulesetActor.ConditionSaveRerollRequestedHandler>()
+                                 .Where(handler => handler.Target == activeEffect))
+                    {
+                        entity.ConditionSaveRerollRequested -= handler;
+                    }
+                    foreach (var handler in (entity.ActorReplaced?.GetInvocationList() ?? [])
+                                 .OfType<RulesetActor.ActorReplacedHandler>()
+                                 .Where(handler => handler.Target == activeEffect))
+                    {
+                        entity.ActorReplaced -= handler;
                     }
                 }
 

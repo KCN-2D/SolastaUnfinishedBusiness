@@ -45,6 +45,13 @@ internal static class SubclassesDisplay
 
         DisplayClassHeading("Inventor");
 
+        toggle = Main.Settings.EnableArtilleristEldritchCannon2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableArtilleristEldritchCannon2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableArtilleristEldritchCannon2024 = toggle;
+            Tabletop2024Context.SwitchArtilleristEldritchCannon();
+        }
+
         toggle = Main.Settings.EnableArtilleristFortifiedPosition2024;
         if (UI.Toggle(Gui.Localize("ModUi/&EnableArtilleristFortifiedPosition2024"), ref toggle, UI.AutoWidth()))
         {

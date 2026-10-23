@@ -706,4 +706,5 @@ ModUi/&EnableEpicBoons2024=偉業の証を有効化
 ModUi/&EpicBoons2024Help=2024年版のテーブルトップ特技が有効な場合、偉業の証のカテゴリとキャラクター・レベル19以降で修得できる特技を表示します。
 ModUi/&EpicBoons2024RequiresTabletopHelp=2024年版のテーブルトップ特技を有効にすると利用できます。この設定の選択は保持されます。
 ModUi/&EnableInventorMagicItemMaster2024=レベル18で<color=#D89555>魔法のアイテムの達人</color>を得られるようにします<i><color=#F0DAA0>（同調上限+1）</color></i>
-ModUi/&EnableArtilleristFortifiedPosition2024=砲術士のレベル15の特徴を2024年版の<color=#D89555>魔導砲台</color>に変更します<i><color=#F0DAA0>（1回のアクションで2体を作成し、1回のボーナス・アクションで両方に指示）</color></i>
+ModUi/&EnableArtilleristFortifiedPosition2024=砲術士のレベル15の特徴を2024年版の<color=#D89555>魔導砲台</color>に変更します<i><color=#F0DAA0>（1回のアクションで2体を作成）</color></i>
+ModUi/&EnableArtilleristEldritchCannon2024=砲術士のレベル3の特徴を2024年版の<color=#D89555>魔導砲</color>に変更します<i><color=#F0DAA0>（起動のたびに3種類の効果から選択）</color></i>

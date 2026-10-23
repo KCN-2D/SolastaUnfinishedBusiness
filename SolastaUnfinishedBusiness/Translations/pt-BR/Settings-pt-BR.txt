@@ -706,4 +706,5 @@ ModUi/&EnableEpicBoons2024=Ativar Dádivas Épicas
 ModUi/&EpicBoons2024Help=Quando os talentos de mesa de 2024 estão ativados, mostra a categoria Dádivas Épicas e os talentos disponíveis a partir do nível 19 de personagem.
 ModUi/&EpicBoons2024RequiresTabletopHelp=Ative os talentos de mesa de 2024 para usar esta opção. Sua escolha para esta configuração é mantida.
 ModUi/&EnableInventorMagicItemMaster2024=Ativa <color=#D89555>Mestre dos Itens Mágicos</color> no nível 18 <i><color=#F0DAA0>[limite de sintonização +1]</color></i>
-ModUi/&EnableArtilleristFortifiedPosition2024=Usa a versão de 2024 de <color=#D89555>Posição Fortificada</color> no nível 15 de Artilheiro <i><color=#F0DAA0>[criar dois canhões com uma ação e comandar ambos com uma ação bônus]</color></i>
+ModUi/&EnableArtilleristFortifiedPosition2024=Usa a versão de 2024 de <color=#D89555>Posição Fortificada</color> no nível 15 de Artilheiro <i><color=#F0DAA0>[criar dois canhões com uma ação]</color></i>
+ModUi/&EnableArtilleristEldritchCannon2024=Usa a versão de 2024 de <color=#D89555>Canhão Eldritch</color> no nível 3 de Artilheiro <i><color=#F0DAA0>[escolher um dos três efeitos a cada ativação do canhão]</color></i>

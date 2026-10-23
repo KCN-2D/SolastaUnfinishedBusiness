@@ -14,6 +14,17 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GraphicsCharacterPatcher
 {
+    [HarmonyPatch(typeof(GraphicsCharacter), nameof(GraphicsCharacter.EnableGhostEffect))]
+    [UsedImplicitly]
+    public static class EnableGhostEffect_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GraphicsCharacter __instance)
+        {
+            CustomModels.RefreshMaterialOverlays(__instance);
+        }
+    }
+
     [HarmonyPatch(typeof(GraphicsCharacter), nameof(GraphicsCharacter.CharacterSpeed), MethodType.Setter)]
     [UsedImplicitly]
     public static class CharacterSpeed_Patch

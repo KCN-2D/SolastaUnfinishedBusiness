@@ -706,4 +706,5 @@ ModUi/&EnableEpicBoons2024=Enable Epic Boons
 ModUi/&EpicBoons2024Help=While 2024 tabletop feats are enabled, show the Epic Boons category and feats available at character level 19 or higher.
 ModUi/&EpicBoons2024RequiresTabletopHelp=Enable 2024 tabletop feats to use this option. Your choice for this setting is retained.
 ModUi/&EnableInventorMagicItemMaster2024=Enable <color=#D89555>Magic Item Master</color> at level 18 <i><color=#F0DAA0>[attunement limit +1]</color></i>
-ModUi/&EnableArtilleristFortifiedPosition2024=Use 2024 <color=#D89555>Fortified Position</color> at Artillerist level 15 <i><color=#F0DAA0>[create two cannons with one action and command both with one bonus action]</color></i>
+ModUi/&EnableArtilleristFortifiedPosition2024=Use 2024 <color=#D89555>Fortified Position</color> at Artillerist level 15 <i><color=#F0DAA0>[create two cannons with one action]</color></i>
+ModUi/&EnableArtilleristEldritchCannon2024=Use 2024 <color=#D89555>Eldritch Cannon</color> at Artillerist level 3 <i><color=#F0DAA0>[choose one of three effects each time the cannon is activated]</color></i>
