@@ -16,6 +16,7 @@ using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
 using SolastaUnfinishedBusiness.Validators;
+using TA;
 using UnityEngine;
 using Resources = SolastaUnfinishedBusiness.Properties.Resources;
 using static RuleDefinitions;
@@ -1385,18 +1386,24 @@ public sealed class InnovationArtillerist : AbstractSubclass
     [DefaultExecutionOrder(1000)]
     private sealed class CannonPresentation : MonoBehaviour
     {
-        private sealed class Leg(Transform foot, Vector3[] restPoints, Transform[] parts, Vector3 mount)
+        private sealed class Leg(Vector3[] restPoints, Transform[] parts, Vector3 mount, int pair)
         {
-            internal Transform Foot { get; } = foot;
             internal Vector3[] RestPoints { get; } = restPoints;
             internal Transform[] Parts { get; } = parts;
             internal Vector3 Mount { get; } = mount;
+            internal int Pair { get; } = pair;
             internal float[] Lengths { get; } = Enumerable.Range(0, 3)
                 .Select(index => Vector3.Distance(restPoints[index], restPoints[index + 1])).ToArray();
             internal Vector3[] Joints { get; } = new Vector3[4];
-            internal Vector3 BracedFoot { get; set; } = restPoints[3];
+            internal Vector3 FootPosition { get; set; }
+            internal Vector3 StepFrom { get; set; }
+            internal Vector3 StepTo { get; set; }
+            internal bool Swinging { get; set; }
         }
 
+        private const float LegWidth = 0.22f;
+        private const float StepDistance = 0.32f;
+        private const float StepLift = 0.045f;
         private readonly List<Leg> _legs = [];
         private readonly HashSet<Material> _ownedMaterials = [];
         private readonly List<Texture2D> _ownedTextures = [];
@@ -1410,11 +1417,36 @@ public sealed class InnovationArtillerist : AbstractSubclass
         private bool _aiming;
         private bool _shot;
         private float _recoilStarted = float.NegativeInfinity;
-        private float _movementBlend;
         private float _idleTime;
         private bool _moving;
+        private bool _airborne;
+        private bool _wasAirborne;
+        private Vector3 _previousPosition;
+        private Quaternion _previousRotation;
+        private Vector3 _supportNormal;
+        private Vector3 _stepNormal;
+        private int _stepPair = -1;
+        private int _nextPair;
+        private float _stepProgress;
+        private float _stepLength;
+        private bool _settling = true;
+        private bool _firstStep = true;
+        private bool _finishingStep;
         private AnimatorCullingMode _originalCullingMode;
         private MeshRenderer[] _renderers;
+        private Vector3[] _footVertices;
+        private Vector3[] _bodyVertices;
+        private Vector3[] _barrelVertices;
+        private bool _floorProbed;
+        private bool _hasFloor;
+        private Vector3 _floorProbePosition;
+        private Vector3 _floorPoint;
+        private Vector3 _floorNormal;
+        private bool _floorProjectionCached;
+        private Vector3 _projectionNormal;
+        private Vector3 _projectionBarrelPosition;
+        private Quaternion _projectionBarrelRotation;
+        private float _lowestCarriageProjection;
 
         internal int RecoilCount { get; private set; }
         internal Transform Muzzle => _muzzle;
@@ -1428,18 +1460,6 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 return;
             }
             _graphics = graphics;
-            var bones = graphics.GetComponentsInChildren<Transform>(true);
-            var hub = bones.Single(bone => bone.name == "Spider_b_Hub");
-            // A graphics instance may bind during any idle or movement frame. Recover
-            // the neutral rig from the skin instead of retaining that transient pose.
-            var skin = graphics.GetComponentsInChildren<SkinnedMeshRenderer>(true)
-                .First(renderer => renderer.bones.Contains(hub));
-            var skinBones = skin.bones;
-            var bindPoses = skin.sharedMesh.bindposes;
-            var skinToGraphics = graphics.transform.worldToLocalMatrix * skin.transform.localToWorldMatrix;
-            Matrix4x4 RestPose(Transform bone) =>
-                skinToGraphics * bindPoses[Array.IndexOf(skinBones, bone)].inverse;
-            var restHub = RestPose(hub).MultiplyPoint3x4(Vector3.zero);
             _barrel = CreatePart("EldritchCannonBarrel", "Barrel");
             _barrelOrigin = new Vector3(0, 0.525f, -0.035f);
             _barrel.localPosition = _barrelOrigin;
@@ -1452,26 +1472,37 @@ public sealed class InnovationArtillerist : AbstractSubclass
             foreach (var side in new[] { "L", "R" })
             foreach (var number in new[] { 1, 4 })
             {
-                var chain = Enumerable.Range(1, 4).Select(joint => bones.Single(bone =>
-                    bone.name == $"Spider_b_{side}Leg{number}{joint}")).ToArray();
                 var parts = new[]
                 {
                     CreatePart("EldritchCannonLegUpper", $"{side}{number}Upper"),
                     CreatePart("EldritchCannonLegLower", $"{side}{number}Lower"),
                     CreatePart("EldritchCannonFoot", $"{side}{number}Foot")
                 };
-                var restPositions = chain.Select(bone => RestPose(bone).MultiplyPoint3x4(Vector3.zero)).ToArray();
-                var mount = restPositions[0] - restHub;
-                mount.y = 0;
-                mount = mount.normalized * 0.24f;
-                mount.y = 0.13f;
-                var restPoints = restPositions.Select(NativePointOffset).ToArray();
-                restPoints[0] = mount * CannonModelScale + Vector3.up * CannonBodyLift;
-                var outward = new Vector3(restPoints[1].x, 0, restPoints[1].z).normalized;
-                restPoints[1] += outward * 0.065f;
-                _legs.Add(new Leg(chain[3], restPoints, parts, mount));
+                var outward = new Vector3(side == "L" ? -1f : 1f, 0f, number == 1 ? 1f : -1f).normalized;
+                var mount = outward * 0.24f + Vector3.up * 0.13f;
+                var hip = mount * CannonModelScale + Vector3.up * CannonBodyLift;
+                var ankle = outward * 0.34f + Vector3.up * 0.13f;
+                var middle = (hip + ankle) * 0.5f;
+                var kneeUp = Vector3.ProjectOnPlane(Vector3.up, ankle - hip).normalized;
+                var knee = middle + kneeUp * ((0.34f - middle.y) / kneeUp.y);
+                // The carriage is authored at model scale; the articulated links and
+                // contacts use world metres. Equal links can fold close to the hip
+                // without moving a planted foot to satisfy a minimum reach radius.
+                var restPoints = new[]
+                {
+                    hip,
+                    knee,
+                    ankle,
+                    outward * 0.40f + Vector3.up * 0.015f
+                };
+                _legs.Add(new Leg(restPoints, parts, mount, (side == "L") == (number == 1) ? 0 : 1));
             }
 
+            _footVertices = _legs[0].Parts[2].GetComponent<MeshFilter>().sharedMesh.vertices;
+            _bodyVertices = GetComponent<MeshFilter>().sharedMesh.vertices;
+            _barrelVertices = _barrel.GetComponent<MeshFilter>().sharedMesh.vertices;
+            RefreshFloorPlane();
+            ResetFootContacts(true);
             ConfigureMaterials();
             _renderers = GetComponentsInChildren<MeshRenderer>(true);
             _originalCullingMode = graphics.Animator.cullingMode;
@@ -1543,25 +1574,405 @@ public sealed class InnovationArtillerist : AbstractSubclass
             }
         }
 
-        private Vector3 NativePointOffset(Vector3 point)
+        private Vector3 NeutralFoot(Leg leg, Vector3 position, Quaternion rotation)
         {
-            point *= _graphics.RulesetCharacterMonster.GetModelScale();
-            point.x *= 1.3f;
-            point.z *= 1.3f;
-            return point;
+            return position + rotation * leg.RestPoints[3];
+        }
+
+        private void RefreshFloorPlane()
+        {
+            var position = _graphics.transform.position;
+            if (_floorProbed && _floorProbePosition == position)
+            {
+                return;
+            }
+            _floorProbed = true;
+            _floorProbePosition = position;
+            _hasFloor = false;
+            var reach = _legs[0].Lengths.Sum() + CannonModelScale;
+            var hits = Physics.RaycastAll(position + Vector3.up * reach, Vector3.down, reach * 2f,
+                Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+            var distance = float.PositiveInfinity;
+            foreach (var hit in hits)
+            {
+                if (hit.distance >= distance || hit.point.y > position.y + CannonBodyLift ||
+                    Vector3.Dot(hit.normal, Vector3.up) < 0.5f ||
+                    hit.transform.GetComponentInParent<WorldLocationCharacter>())
+                {
+                    continue;
+                }
+                distance = hit.distance;
+                _hasFloor = true;
+                _floorPoint = hit.point;
+                _floorNormal = hit.normal;
+            }
+        }
+
+        private Vector3 VisualFloorOffset(Vector3 position, Quaternion rotation)
+        {
+            if (!_hasFloor)
+            {
+                return Vector3.zero;
+            }
+            var normal = Quaternion.Inverse(rotation) * _floorNormal;
+            var barrelPosition = _barrel.localPosition;
+            var barrelRotation = _barrel.localRotation;
+            if (!_floorProjectionCached || !normal.Equals(_projectionNormal) ||
+                !barrelPosition.Equals(_projectionBarrelPosition) || !barrelRotation.Equals(_projectionBarrelRotation))
+            {
+                _floorProjectionCached = true;
+                _projectionNormal = normal;
+                _projectionBarrelPosition = barrelPosition;
+                _projectionBarrelRotation = barrelRotation;
+                var lowest = float.PositiveInfinity;
+                foreach (var vertex in _bodyVertices)
+                {
+                    lowest = Mathf.Min(lowest, Vector3.Dot(vertex * CannonModelScale, normal));
+                }
+                foreach (var vertex in _barrelVertices)
+                {
+                    lowest = Mathf.Min(lowest, Vector3.Dot(
+                        (barrelPosition + barrelRotation * vertex) * CannonModelScale, normal));
+                }
+                _lowestCarriageProjection = lowest + Vector3.Dot(Vector3.up * CannonBodyLift, normal);
+            }
+            var clearance = Vector3.Dot(position - _floorPoint, _floorNormal) + _lowestCarriageProjection;
+            return clearance >= 0.001f ? Vector3.zero :
+                Vector3.up * ((0.001f - clearance) / Vector3.Dot(Vector3.up, _floorNormal));
+        }
+
+        private float LowestFootOffset(Leg leg, Quaternion rotation, Vector3 normal)
+        {
+            var direction = rotation * (leg.RestPoints[3] - leg.RestPoints[2]).normalized;
+            var sole = Vector3.ProjectOnPlane(-(rotation * Vector3.up), direction).normalized;
+            var shoeRotation = Quaternion.LookRotation(sole, direction);
+            var scale = new Vector3(LegWidth, leg.Lengths[2], LegWidth);
+            var lowest = float.PositiveInfinity;
+            foreach (var vertex in _footVertices)
+            {
+                var offset = shoeRotation * Vector3.Scale(vertex, scale) - direction * leg.Lengths[2];
+                lowest = Mathf.Min(lowest, Vector3.Dot(offset, normal));
+            }
+            return lowest;
+        }
+
+        private Vector3 FindFootContact(Leg leg, Vector3 neutral, Quaternion rotation)
+        {
+            var position = neutral - rotation * leg.RestPoints[3];
+            var up = rotation * Vector3.up;
+            // Only the presentation queries terrain. The native actor still owns
+            // walkability, placement, jumping and the orientation of a wall climb.
+            var hits = Physics.RaycastAll(neutral + up * 0.25f, -up, 0.6f, Physics.DefaultRaycastLayers,
+                QueryTriggerInteraction.Ignore);
+            var distance = float.PositiveInfinity;
+            foreach (var hit in hits)
+            {
+                if (hit.distance >= distance || Vector3.Dot(hit.normal, up) < 0.5f ||
+                    hit.transform.GetComponentInParent<WorldLocationCharacter>())
+                {
+                    continue;
+                }
+                distance = hit.distance;
+                neutral = hit.point + hit.normal * (0.001f - LowestFootOffset(leg, rotation, hit.normal));
+            }
+            return ConstrainFootToSurfaces(leg, neutral, position, rotation);
+        }
+
+        private Vector3 ConstrainFootToSurfaces(Leg leg, Vector3 foot, Vector3 position, Quaternion rotation)
+        {
+            // The native placement face remains authoritative while its graphics
+            // pivot between the floor and a wall. Photo instances have no world placement.
+            if (_graphics.GetComponentInParent<WorldLocationCharacter>() &&
+                GameLocationCharacter.GetFromActor(_graphics.RulesetCharacterMonster) is { } character &&
+                character.StandingSide is not (CellFlags.Side.None or CellFlags.Side.Bottom))
+            {
+                var side = (Vector3)CellFlags.SideToDirection(character.StandingSide);
+                var normal = -side;
+                var positioning = ServiceRepository.GetService<IGameLocationPositioningService>();
+                var point = positioning.GetWorldPositionFromGridPosition(character.LocationPosition) + side * 0.5f;
+                var clearance = Vector3.Dot(foot - point, normal) + LowestFootOffset(leg, rotation, normal);
+                if (clearance < 0.001f)
+                {
+                    foot += normal * (0.001f - clearance);
+                }
+            }
+            if (Vector3.Dot(rotation * Vector3.up, Vector3.up) > 0.999f)
+            {
+                return foot;
+            }
+
+            // At a wall corner a tilted support ray can start below the floor.
+            // Keep both planes: vertical correction is tangent to a vertical wall.
+            var reach = leg.Lengths.Sum() + LegWidth;
+            var hits = Physics.RaycastAll(foot + Vector3.up * reach, Vector3.down, reach * 2f,
+                Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+            var distance = float.PositiveInfinity;
+            foreach (var hit in hits)
+            {
+                if (hit.distance >= distance || hit.point.y > position.y + CannonBodyLift ||
+                    Vector3.Dot(hit.normal, Vector3.up) < 0.5f ||
+                    hit.transform.GetComponentInParent<WorldLocationCharacter>())
+                {
+                    continue;
+                }
+                distance = hit.distance;
+                var clearance = Vector3.Dot(foot - hit.point, hit.normal) +
+                    LowestFootOffset(leg, rotation, hit.normal);
+                if (clearance < 0.001f)
+                {
+                    foot += Vector3.up * ((0.001f - clearance) / Vector3.Dot(hit.normal, Vector3.up));
+                }
+            }
+            return foot;
+        }
+
+        private void ResetFootContacts(bool grounded)
+        {
+            var root = _graphics.transform;
+            foreach (var leg in _legs)
+            {
+                var neutral = NeutralFoot(leg, root.position, root.rotation);
+                leg.FootPosition = grounded ? FindFootContact(leg, neutral, root.rotation) : neutral;
+                leg.Swinging = false;
+            }
+            _previousPosition = root.position;
+            _previousRotation = root.rotation;
+            _supportNormal = root.up;
+            _stepPair = -1;
+            _stepProgress = 0f;
+            _settling = true;
+            _firstStep = true;
+            _finishingStep = false;
+        }
+
+        private bool HasDiscontinuousRoot()
+        {
+            var root = _graphics.transform;
+            var delta = root.position - _previousPosition;
+            return Vector3.Angle(_supportNormal, root.up) > 15f || delta.sqrMagnitude > 16f ||
+                !_moving && (delta.sqrMagnitude > 0.25f || Quaternion.Angle(_previousRotation, root.rotation) > 55f);
+        }
+
+        private void UpdateFootContacts()
+        {
+            var root = _graphics.transform;
+            RefreshFloorPlane();
+            if (_airborne || _wasAirborne || HasDiscontinuousRoot())
+            {
+                // Airborne feet follow the carriage. New surfaces and discontinuous
+                // native placement establish fresh anchors instead of stretching links.
+                ResetFootContacts(!_airborne);
+                _wasAirborne = _airborne;
+                return;
+            }
+
+            var position = _previousPosition;
+            var rotation = _previousRotation;
+            var delta = root.position - position;
+            var angle = Quaternion.Angle(rotation, root.rotation);
+            var travel = delta.magnitude + angle * Mathf.Deg2Rad * 0.4f;
+            var steps = Mathf.Clamp(Mathf.CeilToInt(travel / 0.03f), 1, 32);
+            // A slow rendered frame can contain several footsteps. Integrate the
+            // native root's path without changing its transform or discarding contacts.
+            for (var step = 1; step <= steps; step++)
+            {
+                var fraction = (float)step / steps;
+                AdvanceFootContacts(Vector3.Lerp(position, root.position, fraction),
+                    Quaternion.Slerp(rotation, root.rotation, fraction), Time.deltaTime / steps);
+            }
+        }
+
+        private void AdvanceFootContacts(Vector3 position, Quaternion rotation, float elapsed)
+        {
+            var up = rotation * Vector3.up;
+            var delta = position - _previousPosition;
+            var turn = rotation * Quaternion.Inverse(_previousRotation);
+            var travel = 0f;
+            foreach (var leg in _legs)
+            {
+                var displacement = Vector3.ProjectOnPlane(
+                    NeutralFoot(leg, position, rotation) -
+                    NeutralFoot(leg, _previousPosition, _previousRotation), up);
+                travel = Mathf.Max(travel, displacement.magnitude);
+            }
+            if (!_settling && _stepPair >= 0 && !_finishingStep && travel > 0.0001f)
+            {
+                var remaining = Mathf.Max(0f, (1f - _stepProgress) * _stepLength - travel);
+                var factor = remaining / travel;
+                var landingPosition = position + delta * factor;
+                var landingRotation = Quaternion.SlerpUnclamped(Quaternion.identity, turn, factor) * rotation;
+                var reachable = true;
+                foreach (var leg in _legs)
+                {
+                    var landingFoot = ConstrainFootToSurfaces(leg, leg.Swinging ? leg.StepTo : leg.FootPosition,
+                        landingPosition, landingRotation);
+                    reachable &= CanReachFoot(leg, landingFoot,
+                        landingPosition, landingRotation, 0.00001f);
+                }
+                if (!reachable)
+                {
+                    // Translation can stop while a native turn continues. Land the
+                    // raised pair once at a reachable neutral contact, rather than
+                    // pursuing an obsolete projected destination throughout the turn.
+                    BeginStep(_stepPair, position, rotation, delta, turn, travel, true);
+                }
+            }
+            if (!_settling && _stepPair >= 0 && travel > 0.0001f)
+            {
+                var remaining = (1f - _stepProgress) * _stepLength;
+                if (remaining > 0.00001f && travel > remaining + 0.00001f)
+                {
+                    // Land at the actual stride boundary, then give the unused root
+                    // travel to the next pair instead of lengthening every stance.
+                    var fraction = remaining / travel;
+                    AdvanceFootContacts(Vector3.Lerp(_previousPosition, position, fraction),
+                        Quaternion.Slerp(_previousRotation, rotation, fraction), elapsed * fraction);
+                    AdvanceFootContacts(position, rotation, elapsed * (1f - fraction));
+                    return;
+                }
+            }
+            _previousPosition = position;
+            _previousRotation = rotation;
+
+            var settling = travel < 0.0001f;
+            if (_settling != settling)
+            {
+                _settling = settling;
+                _firstStep = true;
+                if (_stepPair >= 0)
+                {
+                    BeginStep(_stepPair, position, rotation, delta, turn, travel);
+                }
+            }
+
+            if (_stepPair >= 0)
+            {
+                // Cadence follows actual native travel, including turns. When travel
+                // stops, finish placing the raised pair rather than freezing it in air.
+                _stepProgress = Mathf.Min(1f, _stepProgress +
+                    (_settling ? elapsed * 5f : travel / _stepLength));
+                if (_stepProgress > 0.9999f)
+                {
+                    _stepProgress = 1f;
+                }
+                foreach (var leg in _legs)
+                {
+                    if (!leg.Swinging)
+                    {
+                        continue;
+                    }
+                    leg.FootPosition = Vector3.Lerp(leg.StepFrom, leg.StepTo,
+                        Mathf.SmoothStep(0f, 1f, _stepProgress)) +
+                        _stepNormal * (Mathf.Sin(_stepProgress * Mathf.PI) * StepLift);
+                    if (_stepProgress >= 1f)
+                    {
+                        leg.Swinging = false;
+                    }
+                }
+                if (_stepProgress >= 1f)
+                {
+                    _nextPair = 1 - _stepPair;
+                    _stepPair = -1;
+                    _finishingStep = false;
+                }
+            }
+
+            if (_stepPair >= 0)
+            {
+                return;
+            }
+
+            var firstError = 0f;
+            var secondError = 0f;
+            foreach (var leg in _legs)
+            {
+                var error = Vector3.ProjectOnPlane(
+                    NeutralFoot(leg, position, rotation) - leg.FootPosition, up).magnitude;
+                if (leg.Pair == 0)
+                {
+                    firstError = Mathf.Max(firstError, error);
+                }
+                else
+                {
+                    secondError = Mathf.Max(secondError, error);
+                }
+            }
+            var threshold = travel > 0.0001f || _moving ? 0.055f : 0.005f;
+            var nextError = _nextPair == 0 ? firstError : secondError;
+            var pair = nextError > threshold ? _nextPair : 1 - _nextPair;
+            if ((pair == 0 ? firstError : secondError) <= threshold)
+            {
+                return;
+            }
+
+            BeginStep(pair, position, rotation, delta, turn, travel);
+        }
+
+        private void BeginStep(int pair, Vector3 position, Quaternion rotation, Vector3 delta,
+            Quaternion turn, float travel, bool finishAtNeutral = false)
+        {
+            var up = rotation * Vector3.up;
+            var linear = Vector3.ProjectOnPlane(delta, up).magnitude;
+            var angular = Quaternion.Angle(Quaternion.identity, turn) * Mathf.Deg2Rad * 0.4f;
+            var stride = Mathf.Lerp(StepDistance, 0.16f, angular / Mathf.Max(0.0001f, linear + angular));
+            _stepPair = pair;
+            _stepProgress = 0f;
+            _stepNormal = up;
+            _finishingStep = finishAtNeutral;
+            _stepLength = _firstStep || finishAtNeutral ? stride * 0.25f : stride;
+            // Restarting can leave the other pair near the back of its stance.
+            // Finish this raised pair before that planted pair runs out of reach.
+            for (var attempt = 0; !_settling && attempt < 5; attempt++)
+            {
+                var factor = _stepLength / Mathf.Max(0.0001f, travel);
+                var futurePosition = position + delta * factor;
+                var futureRotation = Quaternion.SlerpUnclamped(Quaternion.identity, turn, factor) * rotation;
+                var reachable = true;
+                foreach (var leg in _legs)
+                {
+                    if (leg.Pair == pair)
+                    {
+                        continue;
+                    }
+                    reachable &= CanReachFoot(leg, leg.FootPosition, futurePosition, futureRotation, 0.02f);
+                }
+                if (reachable)
+                {
+                    break;
+                }
+                _stepLength *= 0.5f;
+            }
+            _firstStep = false;
+            var anticipation = _settling || finishAtNeutral ? 0f :
+                (_stepLength + stride * 0.5f) / Mathf.Max(0.0001f, travel);
+            var targetPosition = position + delta * anticipation;
+            var targetRotation = Quaternion.SlerpUnclamped(Quaternion.identity, turn, anticipation) * rotation;
+            foreach (var leg in _legs)
+            {
+                if (leg.Pair != pair)
+                {
+                    continue;
+                }
+                leg.Swinging = true;
+                leg.StepFrom = leg.FootPosition;
+                leg.StepTo = FindFootContact(leg, NeutralFoot(leg, targetPosition, targetRotation), targetRotation);
+            }
+        }
+
+        private bool CanReachFoot(Leg leg, Vector3 foot, Vector3 position, Quaternion rotation, float margin)
+        {
+            var ankle = foot - rotation * (leg.RestPoints[3] - leg.RestPoints[2]);
+            var mount = position + rotation * leg.RestPoints[0] + VisualFloorOffset(position, rotation);
+            return Vector3.Distance(ankle, mount) < leg.Lengths[0] + leg.Lengths[1] - margin;
         }
 
         private void PoseLeg(Leg leg)
         {
             var rotation = _graphics.transform.rotation;
-            var origin = _graphics.transform.position;
-            var footOffset = _aiming ? leg.BracedFoot : leg.RestPoints[3];
-            if (!_aiming && _movementBlend > 0f)
-            {
-                var nativeFoot = NativePointOffset(_graphics.transform.InverseTransformPoint(leg.Foot.position));
-                footOffset = Vector3.Lerp(footOffset, nativeFoot, _movementBlend);
-            }
-            var foot = origin + rotation * footOffset;
+            // A planted shoe also rotates during a change of support plane. Keep
+            // its whole sole above the floor throughout that transition.
+            leg.FootPosition = ConstrainFootToSurfaces(leg, leg.FootPosition, _graphics.transform.position, rotation);
+            var foot = leg.FootPosition;
             var footDirection = rotation * (leg.RestPoints[3] - leg.RestPoints[2]).normalized;
             var root = transform.TransformPoint(leg.Mount);
             var ankleDirection = foot - footDirection * leg.Lengths[2] - root;
@@ -1605,11 +2016,15 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 }
                 var part = leg.Parts[index];
                 part.position = start;
+                if (index == 2)
+                {
+                    // The shoe's +Z is its sole, not an outward-facing decoration.
+                    outward = Vector3.ProjectOnPlane(-_graphics.transform.up, direction);
+                }
                 part.rotation = Quaternion.LookRotation(outward.normalized, direction.normalized);
                 var parentScale = transform.lossyScale;
-                const float width = 0.22f;
-                part.localScale = new Vector3(width / Mathf.Abs(parentScale.x),
-                    leg.Lengths[index] / Mathf.Abs(parentScale.y), width / Mathf.Abs(parentScale.z));
+                part.localScale = new Vector3(LegWidth / Mathf.Abs(parentScale.x),
+                    leg.Lengths[index] / Mathf.Abs(parentScale.y), LegWidth / Mathf.Abs(parentScale.z));
             }
         }
 
@@ -1635,36 +2050,54 @@ public sealed class InnovationArtillerist : AbstractSubclass
             {
                 return;
             }
-            // The native root owns travel and wall orientation. Its animal skeleton
-            // supplies foot contacts only; it never drives the machine's carriage or firing pose.
-            transform.position = _graphics.transform.position + _graphics.transform.up * CannonBodyLift;
+            RefreshFloorPlane();
+            // Photo creation reparents and rotates an already configured graphics
+            // instance before requesting its bounds, without waiting for LateUpdate.
+            if (HasDiscontinuousRoot())
+            {
+                ResetFootContacts(!_airborne);
+            }
+            // The native root owns travel and wall orientation. The machine owns
+            // its rigid carriage, planted contacts, joint lengths and firing pose.
+            transform.position = _graphics.transform.position + _graphics.transform.up * CannonBodyLift +
+                VisualFloorOffset(_graphics.transform.position, _graphics.transform.rotation);
             transform.rotation = _graphics.transform.rotation;
+            var previousBarrelRotation = _barrel.localRotation;
+            var elapsed = Time.time - _recoilStarted;
+            var recovery = elapsed is >= 0f and < 0.28f ? 1f - elapsed / 0.28f : 0f;
+            var recoil = recovery * recovery * 0.09f;
+            // Correct clearance after aiming, then resolve an aimed-at target from
+            // that corrected origin. Both passes share one rotation time budget.
+            for (var pass = 0; pass < 2; pass++)
+            {
+                var aim = BarrelAim();
+                // Protection must face upward before a short animation can launch.
+                _barrel.localRotation = _aiming && _aimAlongDirection && !_shot ? aim :
+                    Quaternion.RotateTowards(previousBarrelRotation, aim, Time.deltaTime * 180f);
+                _barrel.localPosition = _barrelOrigin - _barrel.localRotation * Vector3.forward * recoil;
+                transform.position = _graphics.transform.position + _graphics.transform.up * CannonBodyLift +
+                    VisualFloorOffset(_graphics.transform.position, _graphics.transform.rotation);
+            }
             foreach (var leg in _legs)
             {
                 PoseLeg(leg);
             }
+        }
 
-            Quaternion aim;
+        private Quaternion BarrelAim()
+        {
             if (_aiming)
             {
                 var direction = transform.InverseTransformDirection(
                     _aimAlongDirection ? _aimVector : _aimVector - _barrel.position);
                 var pitch = -Mathf.Atan2(direction.y, new Vector2(direction.x, direction.z).magnitude) * Mathf.Rad2Deg;
                 var yaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
-                aim = Quaternion.Euler(pitch, yaw, 0);
+                return Quaternion.Euler(pitch, yaw, 0);
             }
-            else
-            {
-                var cycle = _idleTime % 13f;
-                var yaw = ServoAdjustment(cycle, 2f, 0.5f) * 3f - ServoAdjustment(cycle, 8.5f, 0.35f) * 2f;
-                var pitch = ServoAdjustment(cycle, 5.5f, 0.25f) * 1.5f;
-                aim = _moving ? Quaternion.identity : Quaternion.Euler(pitch, yaw, 0);
-            }
-            _barrel.localRotation = Quaternion.RotateTowards(_barrel.localRotation, aim, Time.deltaTime * 180f);
-            var elapsed = Time.time - _recoilStarted;
-            var recovery = elapsed is >= 0f and < 0.28f ? 1f - elapsed / 0.28f : 0f;
-            var recoil = recovery * recovery * 0.09f;
-            _barrel.localPosition = _barrelOrigin - _barrel.localRotation * Vector3.forward * recoil;
+            var cycle = _idleTime % 13f;
+            var idleYaw = ServoAdjustment(cycle, 2f, 0.5f) * 3f - ServoAdjustment(cycle, 8.5f, 0.35f) * 2f;
+            var idlePitch = ServoAdjustment(cycle, 5.5f, 0.25f) * 1.5f;
+            return _moving ? Quaternion.identity : Quaternion.Euler(idlePitch, idleYaw, 0);
         }
 
         internal void AimAt(Vector3 target, bool shot) => BeginAim(target, shot, false);
@@ -1673,14 +2106,6 @@ public sealed class InnovationArtillerist : AbstractSubclass
 
         private void BeginAim(Vector3 target, bool shot, bool alongDirection)
         {
-            if (!_aiming)
-            {
-                foreach (var leg in _legs)
-                {
-                    leg.BracedFoot = Quaternion.Inverse(_graphics.transform.rotation) *
-                        (leg.Joints[3] - _graphics.transform.position);
-                }
-            }
             _aimVector = target;
             _aimAlongDirection = alongDirection;
             _aiming = true;
@@ -1721,11 +2146,13 @@ public sealed class InnovationArtillerist : AbstractSubclass
             }
             // The visible rig uses rigid mesh parts, so its hidden source skin cannot
             // decide whether the animator is needed during a move or a visible shot.
-            _moving = GameLocationCharacter.GetFromActor(_graphics.RulesetCharacterMonster) is
+            var character = GameLocationCharacter.GetFromActor(_graphics.RulesetCharacterMonster);
+            _moving = character is
                 { MoveInProgress: true } or { MoveStepInProgress: true } or { MovingToDestination: true } or
                 { Jumping: true } or { Climbing: true } or { Falling: true } or { IsCharging: true } or
                 { IgnoreForPlacementDuringPushAnimation: true };
-            _movementBlend = Mathf.MoveTowards(_movementBlend, _moving && !_aiming ? 1f : 0f, Time.deltaTime * 8f);
+            _airborne = character is { Jumping: true } or { Falling: true } or
+                { IgnoreForPlacementDuringPushAnimation: true };
             _idleTime = _moving || _aiming ? 0f : _idleTime + Time.deltaTime;
             var animate = _moving || _aiming;
             foreach (var renderer in _renderers)
@@ -1740,7 +2167,15 @@ public sealed class InnovationArtillerist : AbstractSubclass
         }
 
         [UsedImplicitly]
-        private void LateUpdate() => RefreshPose();
+        private void LateUpdate()
+        {
+            if (!_graphics)
+            {
+                return;
+            }
+            UpdateFootContacts();
+            RefreshPose();
+        }
 
         [UsedImplicitly]
         private void OnDestroy()
@@ -1864,7 +2299,11 @@ public sealed class InnovationArtillerist : AbstractSubclass
                     var effect = parameters.RulesetEffect.EffectDescription;
                     var target = action.ActionParams.TargetCharacters.FirstOrDefault();
                     var shot = power.Name is $"Power{Name}{Flamethrower}" or $"Power{Name}{ForceBallista}";
-                    if (effect.TargetType == TargetType.Cone)
+                    if (power.Name == $"Power{Name}{Protector}")
+                    {
+                        presentation.AimAlong(world.GraphicsCharacter.transform.up, false);
+                    }
+                    else if (effect.TargetType == TargetType.Cone)
                     {
                         var positioning = ServiceRepository.GetService<IGameLocationPositioningService>();
                         var gridPoint = parameters.Positions.Count > 0 ? parameters.Positions[0] :
