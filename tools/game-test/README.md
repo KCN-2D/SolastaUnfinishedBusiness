@@ -46,6 +46,10 @@ JSON の主要項目は次のとおりです。
 
 共通の `save-smoke` はセーブ読込と通常移動を担当します。個別機能の観測、期待値、作成時の既定値は、Git管理しない `Scenarios/` のローカル入口が所有します。ローカル入口は `-ScenarioAdapter`、`-ScenarioSource`、`-ScenarioType`、`-ScenarioValidator`、`-ScenarioObservation` をCLI引数で明示します。ケースのadapter名と観測有無がこの指定と一致することを要求し、JSONからソースや型、メソッドを選ぶ機能は設けません。
 
+セーブを使わないローカル入口は `-ScenarioSaveScenario $false` を明示し、操作と期待値を固定したvalidatorで検証します。省略時はセーブを使う既存動作を維持します。
+
+追加のコンパイル参照DLLは `-ScenarioReferencePath` で明示し、原本のパス・SHA-256と保存コピーを実行記録に残します。
+
 移動以外の操作は、ローカル入口で固定した`IActionOperation`を`RunScenario`へ渡します。`Kind`とケースの`operation.kind`を一致させ、操作固有の入力はローカルvalidatorで検証します。`Execute`はメインスレッドで通常のゲーム処理を実行し、前提不足は`BlockedConditionException`、取得できた期待値との不一致は渡された`check`で報告します。`IActionObservation`は操作前後の読み取りに使います。共通入口がセーブの読込、操作区間の記録、画像取得、終了と復元を担当し、各adapterの`Dispose`は成功・失敗の両方で呼ばれます。
 
 ロード後の準備に召喚が必要なケースは、`-SetupPowerName '<所持能力の完全名>'` を指定して作成します。準備用の使用者は `-SetupActorSource`（既定 `party`）と `-SetupActorIndex`（既定 `0`）、召喚位置は `-SetupPositionOffset`（既定 `@(1,0,0)`）、召喚後のゲスト総数は `-SetupExpectedGuestCount`（既定 `1`）で固定します。

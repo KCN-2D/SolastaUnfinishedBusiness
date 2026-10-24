@@ -38,18 +38,27 @@ function Invoke-CaseValidationContracts([string]$Definitions,[string]$Directory)
         [void][IO.Directory]::CreateDirectory($Directory)
         $source=Join-Path $Directory 'ContractFixtureOperation.cs'
         $validator=Join-Path $Directory 'Assert-ContractFixture.ps1'
+        $reference=Join-Path $Directory 'ContractReference.dll'
+        [IO.File]::Copy([object].Assembly.Location,$reference)
         [IO.File]::WriteAllText($source,'public sealed class ContractFixtureOperation { }',[Text.UTF8Encoding]::new($false))
         $validatorText=@'
 param([object]$Case)
-Assert-GtProperties $Case.operation @('kind','actorSource','actorIndex','actionValue','manualGate','manualGateTimeoutSeconds','verifyFocusLoss') @('kind','actorIndex','actionValue','manualGate','manualGateTimeoutSeconds')
+Assert-GtProperties $Case.operation @('kind','actorSource','actorIndex','actionValue','manualGate','manualGateTimeoutSeconds','verifyFocusLoss') @('kind','actionValue')
 if ($Case.operation.kind -ne 'fixture-action') { throw 'The fixture validator only accepts its compiled action kind.' }
 if (($Case.operation.actionValue -isnot [int] -and $Case.operation.actionValue -isnot [long]) -or $Case.operation.actionValue -ne 17) { throw 'The fixture actionValue must equal 17.' }
+Assert-GtProperties $Case.expected @('loadedPartyCount','requireUserLocation','requireExploration','fixtureObserved') @()
+if ('fixtureObserved' -in $Case.expected.PSObject.Properties.Name -and $Case.expected.fixtureObserved -ne $true) { throw 'The fixture observation must be expected.' }
 '@
         [IO.File]::WriteAllText($validator,$validatorText,[Text.UTF8Encoding]::new($false))
         $records=@(foreach ($mode in @('legacy-move','built-in-non-move','explicit-local-non-move','local-validator-rejection',
                 'invalid-actor-source','invalid-actor-index','invalid-manual-gate','invalid-gate-timeout',
-                'json-api-name','json-local-without-cli','built-in-cli-override')) {
-            $local=$mode -notin @('legacy-move','built-in-non-move','built-in-cli-override')
+                'json-api-name','json-local-without-cli','built-in-cli-override',
+                'explicit-local-no-save','local-no-save-validator-rejection','local-no-save-setup',
+                'built-in-save-flag-override','local-save-flag-only',
+                'explicit-local-reference','local-invalid-reference','local-missing-reference',
+                'built-in-reference-only-override','local-reference-only')) {
+            $local=$mode -notin @('legacy-move','built-in-non-move','built-in-cli-override','built-in-save-flag-override','built-in-reference-only-override')
+            $noSave=$mode -in @('explicit-local-no-save','local-no-save-validator-rejection','local-no-save-setup')
             $operation=[ordered]@{kind=$(if ($mode -eq 'legacy-move') {'move'}else{'fixture-action'});actorIndex=0;manualGate=$false;manualGateTimeoutSeconds=0}
             if ($local) { $operation['actionValue']=17 } else { $operation['offset']=@(1,0,0) }
             switch ($mode) {
@@ -66,17 +75,37 @@ if (($Case.operation.actionValue -isnot [int] -and $Case.operation.actionValue -
                 expected=[ordered]@{loadedPartyCount=2;requireUserLocation=$true;requireExploration=$true}
                 observation=[ordered]@{enabled=$false};timeoutSeconds=30
             }
+            if ($noSave) {
+                $case.initialState=[ordered]@{settingsFile='FixtureSettings.xml'}
+                $case.expected=[ordered]@{fixtureObserved=($mode -ne 'local-no-save-validator-rejection')}
+                $case.timeoutSeconds=15
+                [void]$operation.Remove('actorIndex')
+                [void]$operation.Remove('manualGate')
+                [void]$operation.Remove('manualGateTimeoutSeconds')
+            }
+            if ($mode -eq 'local-no-save-setup') { $case.initialState['setup']=[ordered]@{kind='use-power'} }
             $path=Join-Path $Directory ($mode + '.json')
             Write-GtJson $path $case
-            $returned=$null;$failure=$null;$continued=$false
+            $returned=$null;$failure=$null;$continued=$false;$adapter=$null
             try {
-                if ($mode -eq 'built-in-cli-override' -or $local -and $mode -ne 'json-local-without-cli') {
-                    $adapter=Get-GtAdapter -Name $case.adapter -ScenarioSource @($source) -ScenarioType 'ContractFixtureOperation' -ScenarioValidator $validator -ScenarioObservation $false
+                if ($mode -in @('built-in-save-flag-override','local-save-flag-only')) {
+                    $adapter=Get-GtAdapter -Name $case.adapter -ScenarioSaveScenario $false
                     $returned=Read-GtCase $path -AdapterDefinition $adapter
-                } else { $returned=Read-GtCase $path }
+                } elseif ($mode -in @('built-in-reference-only-override','local-reference-only')) {
+                    $adapter=Get-GtAdapter -Name $case.adapter -ScenarioReferencePath @($reference)
+                    $returned=Read-GtCase $path -AdapterDefinition $adapter
+                } elseif ($mode -eq 'built-in-cli-override' -or $local -and $mode -ne 'json-local-without-cli') {
+                    $parameters=@{Name=$case.adapter;ScenarioSource=@($source);ScenarioType='ContractFixtureOperation';ScenarioValidator=$validator;ScenarioObservation=$false}
+                    if ($noSave) { $parameters['ScenarioSaveScenario']=$false }
+                    if ($mode -eq 'explicit-local-reference') { $parameters['ScenarioReferencePath']=@($reference,$reference) }
+                    if ($mode -eq 'local-invalid-reference') { $parameters['ScenarioReferencePath']=@($source) }
+                    if ($mode -eq 'local-missing-reference') { $parameters['ScenarioReferencePath']=@((Join-Path $Directory 'MissingReference.dll')) }
+                    $adapter=Get-GtAdapter @parameters
+                    $returned=Read-GtCase $path -AdapterDefinition $adapter
+                } else { $adapter=Get-GtAdapter $case.adapter; $returned=Read-GtCase $path }
                 $continued=$true
             } catch { $failure=$_.Exception.Message }
-            $expectedContinuation=$mode -in @('legacy-move','explicit-local-non-move')
+            $expectedContinuation=$mode -in @('legacy-move','explicit-local-non-move','explicit-local-no-save','explicit-local-reference')
             $reason=switch ($mode) {
                 'built-in-non-move' {'Non-move operations require an explicit local scenario validator.'}
                 'local-validator-rejection' {'The fixture actionValue must equal 17.'}
@@ -87,15 +116,29 @@ if (($Case.operation.actionValue -isnot [int] -and $Case.operation.actionValue -
                 'json-api-name' {'Unknown JSON property: methodName'}
                 'json-local-without-cli' {'Unknown adapter. Local scenarios require explicit CLI source, type, validator and observation arguments.'}
                 'built-in-cli-override' {'Local scenario arguments cannot override a built-in adapter.'}
+                'built-in-save-flag-override' {'Local scenario arguments cannot override a built-in adapter.'}
+                'local-save-flag-only' {'A local scenario requires an adapter name, source files, probe type, validator and explicit observation selection.'}
+                'local-no-save-validator-rejection' {'The fixture observation must be expected.'}
+                'local-no-save-setup' {'Initial setup requires a saved-game adapter.'}
+                'built-in-reference-only-override' {'Local scenario arguments cannot override a built-in adapter.'}
+                'local-reference-only' {'A local scenario requires an adapter name, source files, probe type, validator and explicit observation selection.'}
+                'local-invalid-reference' {'ScenarioReferencePath must contain DLL files.'}
+                'local-missing-reference' { 'Missing file: ' + (Join-Path $Directory 'MissingReference.dll') }
                 default {$null}
             }
             $checks=@(
                 [ordered]@{name='acceptance';expected=$expectedContinuation;actual=$continued;passed=($continued -eq $expectedContinuation)},
                 [ordered]@{name='rejection boundary';expected=$reason;actual=$failure;passed=($failure -ceq $reason)}
             )
-            if ($expectedContinuation -and $continued) {
+            if ($expectedContinuation -and $continued -and -not $noSave) {
                 $checks+= [ordered]@{name='legacy defaults preserved';passed=($returned.operation.actorSource -ceq 'party' -and $returned.operation.verifyFocusLoss -eq $false)}
                 $checks+= [ordered]@{name='validated operation retained';passed=($returned.operation.kind -ceq $operation.kind)}
+            }
+            if ($expectedContinuation -and $continued) {
+                $checks+= [ordered]@{name='save selection preserved';passed=($adapter.saveScenario -eq (-not $noSave))}
+            }
+            if ($mode -eq 'explicit-local-reference' -and $continued) {
+                $checks+= [ordered]@{name='reference path resolved and deduplicated';passed=(@($adapter.referencePaths).Count -eq 1 -and $adapter.referencePaths[0] -ceq $reference)}
             }
             [ordered]@{mode=$mode;status=$(if (@($checks | Where-Object passed -eq $false).Count) {'FAIL'}else{'PASS'});casePath=$path;checks=$checks}
         })

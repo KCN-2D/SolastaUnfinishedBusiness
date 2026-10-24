@@ -14,15 +14,17 @@ param(
     [string[]]$ScenarioSource=@(),
     [string]$ScenarioType,
     [string]$ScenarioValidator,
-    [Nullable[bool]]$ScenarioObservation=$null
+    [Nullable[bool]]$ScenarioObservation=$null,
+    [Nullable[bool]]$ScenarioSaveScenario=$null,
+    [string[]]$ScenarioReferencePath=@()
 )
 . (Join-Path $PSScriptRoot 'GameTest.Common.ps1')
 . (Join-Path $script:GameTestRepo 'tools\runtime-verification\NativeDisplaySettings.ps1')
 if (-not $EvidenceRoot) { $EvidenceRoot=$script:GameTestArtifactRoot }
 $CasePath=Resolve-GtArtifactPath $CasePath
-$localRequested=$ScenarioAdapter -or @($ScenarioSource).Count -gt 0 -or $ScenarioType -or $ScenarioValidator -or $null -ne $ScenarioObservation
+$localRequested=$ScenarioAdapter -or @($ScenarioSource).Count -gt 0 -or $ScenarioType -or $ScenarioValidator -or $null -ne $ScenarioObservation -or $null -ne $ScenarioSaveScenario -or @($ScenarioReferencePath).Count -gt 0
 if ($localRequested) {
-    $adapter=Get-GtAdapter -Name $ScenarioAdapter -ScenarioSource $ScenarioSource -ScenarioType $ScenarioType -ScenarioValidator $ScenarioValidator -ScenarioObservation $ScenarioObservation
+    $adapter=Get-GtAdapter -Name $ScenarioAdapter -ScenarioSource $ScenarioSource -ScenarioType $ScenarioType -ScenarioValidator $ScenarioValidator -ScenarioObservation $ScenarioObservation -ScenarioSaveScenario $ScenarioSaveScenario -ScenarioReferencePath $ScenarioReferencePath
     $case=Read-GtCase $CasePath -AdapterDefinition $adapter
 } else {
     $case=Read-GtCase $CasePath
@@ -97,6 +99,17 @@ try {
         Copy-GtFile $path $archived -ExpectedSha256 $hash
         $result.adapterSources+=[ordered]@{path=$path;sha256=$hash;archivePath=$archived}
     }
+    $result['adapterReferences']=@()
+    $runtimeReferencePaths=@()
+    $referenceIndex=0
+    foreach ($path in $adapter.referencePaths) {
+        $referenceIndex++
+        $hash=Get-GtHash $path
+        $archived=Join-Path $run ('InputAdapterReferences/{0:D3}-{1}' -f $referenceIndex,[IO.Path]::GetFileName($path))
+        Copy-GtFile $path $archived -ExpectedSha256 $hash
+        $result.adapterReferences+=[ordered]@{path=$path;sha256=$hash;archivePath=$archived}
+        $runtimeReferencePaths+=$archived
+    }
     Copy-GtFile $CasePath (Join-Path $run 'InputCase.json')
     Assert-GtProperties $case.initialState @('savePath','saveSha256','settingsFile','settingsSha256','nativePreferences','setup') @('settingsFile','settingsSha256','nativePreferences')
     $settingsFile=Resolve-GtArtifactPath $case.initialState.settingsFile
@@ -126,7 +139,7 @@ try {
         Copy-GtFile $original $clone
         $case.initialState.savePath=$clone
         $case.initialState | Add-Member -NotePropertyName originalSavePath -NotePropertyValue $original
-    } else {
+    } elseif (-not $adapter.caseValidator) {
         Assert-GtProperties $case.operation @('kind') @('kind')
         Assert-GtProperties $case.expected @('initialized') @('initialized')
         if ($case.operation.kind -ne 'startup' -or $case.expected.initialized -ne $true) { throw 'Invalid startup case.' }
@@ -197,7 +210,7 @@ try {
         else {
             $parameters.ProbeSource=$fixedProbeSources
             $parameters.ProbeType=@($fixedProbeType)
-            $parameters.ReferencePath=@((Join-Path $game 'Solasta_Data\Managed\UnityModManager\0Harmony.dll'))
+            $parameters.ReferencePath=@((Join-Path $game 'Solasta_Data\Managed\UnityModManager\0Harmony.dll')) + $runtimeReferencePaths
             if ($ObserveDisplay) {
                 $parameters.ProbeSource=@((Join-Path $script:GameTestRepo 'tools\runtime-verification\Probes\DisplayStateProbe.cs')) + $parameters.ProbeSource
                 $parameters.ProbeType=@('DisplayStateProbe') + $parameters.ProbeType

@@ -1994,7 +1994,7 @@ internal static class SpellBoxExtensions
             gui.spriteReference = sprite;
         }
 
-        title.Text = gui.Title;
+        title.Text = dataProvider.Title;
         UiTextHelpers.KeepSpellBoxTextInside(instance);
 
         image.SetupSprite(gui.spriteReference, true);

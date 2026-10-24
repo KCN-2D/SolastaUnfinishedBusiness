@@ -32,10 +32,14 @@ internal static class EquipmentSelectionLayout
         private readonly List<EquipmentLine> _lines = [];
         private CharacterStageWithEquipmentPanel _panel;
         private GridLayoutGroup _grid;
+        private VerticalLayoutGroup _vertical;
         private float _minimumHeight;
         private float _nameOffset;
         private int _columns;
         private int _lastSignature = int.MinValue;
+        private Vector2 _equipmentPosition;
+        private float _featuresHeight;
+        private float _featuresEquipmentSpacing;
 
         internal void Bind(CharacterStageWithEquipmentPanel panel)
         {
@@ -43,8 +47,9 @@ internal static class EquipmentSelectionLayout
             {
                 _panel = panel;
                 _grid = panel.equipmentTable.GetComponent<GridLayoutGroup>();
+                _vertical = panel.equipmentTable.GetComponent<VerticalLayoutGroup>();
 
-                if (_grid)
+                if (_grid || _vertical)
                 {
                     var prefab = panel.equipmentLinePrefab.GetComponent<EquipmentLine>();
 
@@ -56,10 +61,22 @@ internal static class EquipmentSelectionLayout
                         _nameOffset = nameBounds.xMin - prefab.RectTransform.rect.xMin;
                     }
 
-                    _minimumHeight = _grid.cellSize.y;
-                    _columns = _grid.constraint == GridLayoutGroup.Constraint.FixedColumnCount
+                    _minimumHeight = _grid ? _grid.cellSize.y : prefab.RectTransform.rect.height;
+                    _columns = !_grid ? 1 : _grid.constraint == GridLayoutGroup.Constraint.FixedColumnCount
                         ? _grid.constraintCount
                         : Mathf.Max(1, Mathf.RoundToInt(panel.equipmentTable.rect.width / _grid.cellSize.x));
+                }
+
+                _equipmentPosition = panel.equipmentGroup.anchoredPosition;
+
+                if (panel is CharacterStageBackgroundSelectionPanel background &&
+                    UiTextHelpers.TryGetDescendantLocalBounds(background.backgroundFeaturesGroup,
+                        panel.equipmentGroup.parent, out var features) &&
+                    UiTextHelpers.TryGetDescendantLocalBounds(panel.equipmentGroup,
+                        panel.equipmentGroup.parent, out var equipment))
+                {
+                    _featuresHeight = background.backgroundFeaturesGroup.rect.height;
+                    _featuresEquipmentSpacing = Mathf.Max(0, features.yMin - equipment.yMax);
                 }
             }
 
@@ -79,7 +96,7 @@ internal static class EquipmentSelectionLayout
 
         private void Refresh()
         {
-            if (!_panel || !_grid || _panel.equipmentTable.rect.width <= 0)
+            if (!_panel || !_grid && !_vertical || _panel.equipmentTable.rect.width <= 0)
             {
                 return;
             }
@@ -128,8 +145,10 @@ internal static class EquipmentSelectionLayout
             }
 
             var columns = Mathf.Clamp(_columns, 1, Mathf.Max(1, _lines.Count));
+            var padding = _grid ? _grid.padding : _vertical.padding;
+            var spacing = _grid ? _grid.spacing : new Vector2(0, _vertical.spacing);
             var width = Mathf.Max(1f,
-                (table.rect.width - _grid.padding.horizontal - _grid.spacing.x * (columns - 1)) / columns);
+                (table.rect.width - padding.horizontal - spacing.x * (columns - 1)) / columns);
             var height = _minimumHeight;
 
             foreach (var line in _lines)
@@ -173,13 +192,25 @@ internal static class EquipmentSelectionLayout
                 }
             }
 
-            _grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-            _grid.constraintCount = columns;
-            _grid.cellSize = new Vector2(width, height);
+            if (_grid)
+            {
+                _grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+                _grid.constraintCount = columns;
+                _grid.cellSize = new Vector2(width, height);
+            }
+            else
+            {
+                foreach (var line in _lines)
+                {
+                    line.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+                    line.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+                }
+            }
+
             LayoutRebuilder.ForceRebuildLayoutImmediate(table);
 
             var rows = Mathf.CeilToInt((float)_lines.Count / columns);
-            var tableHeight = _grid.padding.vertical + rows * height + Mathf.Max(0, rows - 1) * _grid.spacing.y;
+            var tableHeight = padding.vertical + rows * height + Mathf.Max(0, rows - 1) * spacing.y;
 
             table.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, tableHeight);
 
@@ -200,9 +231,41 @@ internal static class EquipmentSelectionLayout
 
                 classes.classFeaturesGroup.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, Mathf.Max(0, available));
             }
+            else if (_panel is CharacterStageBackgroundSelectionPanel background)
+            {
+                RefreshBackgroundSections(background);
+            }
 
             LayoutRebuilder.MarkLayoutForRebuild(_panel.RectTransform);
             _lastSignature = signature;
+        }
+
+        private void RefreshBackgroundSections(CharacterStageBackgroundSelectionPanel background)
+        {
+            var equipment = _panel.equipmentGroup;
+            var parent = equipment.parent;
+
+            // The native lower sections are anchored to the bottom of the panel.
+            // Reserve their space and let the existing feature scroll view absorb equipment growth.
+            equipment.anchoredPosition = _equipmentPosition;
+
+            if (!UiTextHelpers.TryGetDescendantLocalBounds(equipment, parent, out var equipmentBounds) ||
+                !UiTextHelpers.TryGetDescendantLocalBounds(background.backgroundFlagsGroup, parent, out var flags))
+            {
+                return;
+            }
+
+            var overlap = Mathf.Max(0, flags.yMax + GroupSpacing - equipmentBounds.yMin);
+
+            equipment.anchoredPosition += Vector2.up * overlap;
+
+            if (UiTextHelpers.TryGetDescendantLocalBounds(background.backgroundFeaturesGroup, parent, out var features))
+            {
+                var available = features.yMax - equipmentBounds.yMax - overlap - _featuresEquipmentSpacing;
+
+                background.backgroundFeaturesGroup.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
+                    Mathf.Clamp(available, 0, _featuresHeight));
+            }
         }
     }
 

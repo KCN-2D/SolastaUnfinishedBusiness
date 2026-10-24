@@ -197,10 +197,12 @@ function Get-GtAdapter(
     [string[]] $ScenarioSource=@(),
     [string] $ScenarioType,
     [string] $ScenarioValidator,
-    [Nullable[bool]] $ScenarioObservation=$null
+    [Nullable[bool]] $ScenarioObservation=$null,
+    [Nullable[bool]] $ScenarioSaveScenario=$null,
+    [string[]] $ScenarioReferencePath=@()
 ) {
     $builtIn=@('startup','save-smoke','native-summon-icons')
-    $localRequested=@($ScenarioSource).Count -gt 0 -or $ScenarioType -or $ScenarioValidator -or $null -ne $ScenarioObservation
+    $localRequested=@($ScenarioSource).Count -gt 0 -or $ScenarioType -or $ScenarioValidator -or $null -ne $ScenarioObservation -or $null -ne $ScenarioSaveScenario -or @($ScenarioReferencePath).Count -gt 0
     if ($localRequested) {
         if ($Name -in $builtIn) { throw 'Local scenario arguments cannot override a built-in adapter.' }
         if ($Name -notmatch '^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$' -or @($ScenarioSource).Count -eq 0 -or
@@ -214,12 +216,18 @@ function Get-GtAdapter(
         } | Select-Object -Unique)
         $validator=Get-GtPath $ScenarioValidator; Assert-GtFile $validator
         if ([IO.Path]::GetExtension($validator) -ne '.ps1') { throw 'ScenarioValidator must be a PowerShell script.' }
-        return [pscustomobject]@{ name=$Name; saveScenario=$true; observation=[bool]$ScenarioObservation; sources=$sources; probeType=$ScenarioType; caseValidator=$validator }
+        $references=@($ScenarioReferencePath | ForEach-Object {
+            $path=Get-GtPath $_; Assert-GtFile $path
+            if ([IO.Path]::GetExtension($path) -ne '.dll') { throw 'ScenarioReferencePath must contain DLL files.' }
+            $path
+        } | Select-Object -Unique)
+        $saveScenario=if ($null -eq $ScenarioSaveScenario) { $true } else { [bool]$ScenarioSaveScenario }
+        return [pscustomobject]@{ name=$Name; saveScenario=$saveScenario; observation=[bool]$ScenarioObservation; sources=$sources; probeType=$ScenarioType; caseValidator=$validator; referencePaths=$references }
     }
     switch ($Name) {
-        'startup' { return [pscustomobject]@{ name=$Name; saveScenario=$false; observation=$false; sources=@(); probeType=$null; caseValidator=$null } }
-        'save-smoke' { return [pscustomobject]@{ name=$Name; saveScenario=$true; observation=$false; sources=@((Join-Path $PSScriptRoot 'Probes\SaveSmokeProbe.cs')); probeType='GameTestSaveSmokeProbe'; caseValidator=$null } }
-        'native-summon-icons' { return [pscustomobject]@{ name=$Name; saveScenario=$false; observation=$false; sources=@((Join-Path $script:GameTestRepo 'tools\runtime-verification\Probes\NativeSummonIconInventoryProbe.cs')); probeType='NativeSummonIconInventoryProbe'; caseValidator=$null } }
+        'startup' { return [pscustomobject]@{ name=$Name; saveScenario=$false; observation=$false; sources=@(); probeType=$null; caseValidator=$null; referencePaths=@() } }
+        'save-smoke' { return [pscustomobject]@{ name=$Name; saveScenario=$true; observation=$false; sources=@((Join-Path $PSScriptRoot 'Probes\SaveSmokeProbe.cs')); probeType='GameTestSaveSmokeProbe'; caseValidator=$null; referencePaths=@() } }
+        'native-summon-icons' { return [pscustomobject]@{ name=$Name; saveScenario=$false; observation=$false; sources=@((Join-Path $script:GameTestRepo 'tools\runtime-verification\Probes\NativeSummonIconInventoryProbe.cs')); probeType='NativeSummonIconInventoryProbe'; caseValidator=$null; referencePaths=@() } }
         default { throw 'Unknown adapter. Local scenarios require explicit CLI source, type, validator and observation arguments.' }
     }
 }
