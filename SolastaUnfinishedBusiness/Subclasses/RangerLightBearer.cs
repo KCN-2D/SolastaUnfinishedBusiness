@@ -139,7 +139,7 @@ public sealed class RangerLightBearer : AbstractSubclass
                 EffectDescriptionBuilder
                     .Create()
                     .SetDurationData(DurationType.Minute, 1)
-                    .SetTargetingData(Side.Enemy, RangeType.Self, 0, TargetType.Sphere, 4)
+                    .SetTargetingData(Side.All, RangeType.Self, 0, TargetType.Sphere, 4)
                     .SetSavingThrowData(
                         false,
                         AttributeDefinitions.Constitution,

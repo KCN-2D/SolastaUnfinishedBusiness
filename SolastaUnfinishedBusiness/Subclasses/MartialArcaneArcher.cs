@@ -326,7 +326,7 @@ public sealed class MartialArcaneArcher : AbstractSubclass
             .SetEffectDescription(
                 EffectDescriptionBuilder
                     .Create()
-                    .SetTargetingData(Side.Enemy, RangeType.Distance, 6, TargetType.Cube, 7)
+                    .SetTargetingData(Side.All, RangeType.Distance, 6, TargetType.Cube, 7)
                     .SetEffectForms(
                         EffectFormBuilder
                             .Create()

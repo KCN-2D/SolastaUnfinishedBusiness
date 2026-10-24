@@ -111,7 +111,7 @@ public sealed class OathOfAncients : AbstractSubclass
                 EffectDescriptionBuilder
                     .Create()
                     .SetDurationData(DurationType.Minute, 1)
-                    .SetTargetingData(Side.Enemy, RangeType.Self, 0, TargetType.Sphere, 6)
+                    .SetTargetingData(Side.All, RangeType.Self, 0, TargetType.Sphere, 6)
                     .SetRestrictedCreatureFamilies(
                         CharacterFamilyDefinitions.Fey.Name,
                         CharacterFamilyDefinitions.Fiend.Name,

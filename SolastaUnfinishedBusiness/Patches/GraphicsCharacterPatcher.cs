@@ -79,8 +79,15 @@ public static class GraphicsCharacterPatcher
         }
 
         [UsedImplicitly]
-        public static void Postfix(GraphicsCharacter __instance, MethodBase __originalMethod)
+        public static void Postfix(GraphicsCharacter __instance, MethodBase __originalMethod, object[] __args)
         {
+            if (__originalMethod.Name == nameof(GraphicsCharacter.TriggerHit) &&
+                (!__instance.IsBoundToGameCharacter ||
+                 GameLocationCharacter.GetFromActor(__instance.RulesetCharacter)?.WillBePushedByMagicalEffect != true))
+            {
+                CustomModels.ReactToMonsterHit(__instance, (bool)__args[0]);
+            }
+
             if (__originalMethod.Name is "SpeechStarted" or "SpeechEnded" or "ListenStarted" or "ListenEnded")
             {
                 CivilianAnimationContext.RequestCivilianRefresh();

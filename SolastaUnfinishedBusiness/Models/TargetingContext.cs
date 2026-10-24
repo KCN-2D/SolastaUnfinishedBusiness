@@ -28,8 +28,24 @@ internal static class TargetingContext
     {
         internal static readonly SelectiveTargets Marker = new(false);
         internal static readonly SelectiveTargets VisibleTargets = new(true);
+        internal static readonly SelectiveTargets AdditionalTargets = new(selectOnlyAdditionalTargets: true);
         internal bool RequiresSight { get; }
-        private SelectiveTargets(bool requiresSight) { RequiresSight = requiresSight; }
+        internal int MaximumTargets { get; }
+        internal bool PreservePrimaryTarget { get; }
+        internal bool SelectOnlyAdditionalTargets { get; }
+
+        internal SelectiveTargets(bool requiresSight = false, int maximumTargets = -1,
+            bool preservePrimaryTarget = false, bool selectOnlyAdditionalTargets = false)
+        {
+            if (maximumTargets < -1 || preservePrimaryTarget && maximumTargets == 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(maximumTargets));
+            }
+            RequiresSight = requiresSight;
+            MaximumTargets = maximumTargets;
+            PreservePrimaryTarget = preservePrimaryTarget;
+            SelectOnlyAdditionalTargets = selectOnlyAdditionalTargets;
+        }
     }
 
     // Some native control conditions use Neutral for removal rules. Targeting
@@ -251,13 +267,19 @@ internal static class TargetingContext
     internal static bool IsEffectRecipientAllowed(GameLocationCharacter actor, GameLocationCharacter target,
         BaseDefinition definition, EffectDescription description)
     {
+        description = GetOriginalDescription(description);
+        if (actor != null && actor == target && description?.TargetExcludeCaster == true) return false;
         if (!Main.Settings.AllowPartyFriendlyFire || !IsPlayerPartyActor(actor)) return true;
+        // Area recipients are collected by the native shape, not deliberately
+        // chosen one by one. The interference toggle does not grant protection
+        // from an indiscriminate effect's normal collateral damage or aid.
+        if (HasAutomaticAreaRecipients(definition, description) && !IsHostileOnly(actor, definition)) return true;
         if (description?.EffectForms.Any(form => form.FormType == EffectForm.EffectFormType.Counter &&
                 form.CounterForm?.Type == CounterForm.CounterType.DissipateSpells) == true &&
             !DispelCheckContext.IsTargetAllowed(actor, target)) return false;
         if (IsPartyAllyTarget(actor, target, true) && IsHarmfulTargetEffect(definition, description))
         {
-            return CanAffectAlly(actor, target, definition, GetOriginalDescription(description));
+            return CanAffectAlly(actor, target, definition, description);
         }
         return !IsPartyAdverseInterruptTarget(actor, target, harmful: false) ||
                !IsBeneficialEffect(definition, description) ||
@@ -292,6 +314,7 @@ internal static class TargetingContext
 
         if (Main.Settings.AllowPartyFriendlyFire && IsPlayerPartyActor(actor) &&
             IsPartyAllyTarget(actor, target, true) &&
+            !HasAutomaticAreaRecipients(definition, original) &&
             (original == null || IsHarmfulTargetEffect(definition, original)))
         {
             return CanTargetAlly(actor, target, definition, original);
@@ -424,6 +447,14 @@ internal static class TargetingContext
         description != null && ExpandedDescriptions.TryGetValue(description, out var expanded)
             ? expanded.Original : description;
 
+    internal static bool HasAutomaticAreaRecipients(BaseDefinition definition, EffectDescription description)
+    {
+        var original = GetOriginalDescription(description);
+        return original is { TargetSide: Side.All, IsAoE: true, TargetType: not TargetType.ArcFromIndividual } &&
+               !TargetDefinition(definition).HasSubFeatureOfType<HostileTargetsOnly>() &&
+               !TargetDefinition(definition).HasSubFeatureOfType<SelectiveTargets>();
+    }
+
     internal static void TrackDerivedDescription(EffectDescription source, EffectDescription derived)
     {
         if (source != derived && ExpandedDescriptions.TryGetValue(source, out var expanded))
@@ -478,16 +509,16 @@ internal static class TargetingContext
         }
 
         if (effect != null &&
-            !IsEffectRecipientAllowed(actor, target, effect.SourceDefinition, effect.EffectDescription))
+            (!IsEffectRecipientAllowed(actor, target, effect.SourceDefinition, effect.EffectDescription) ||
+             actor != null && target != null && !IsSelectedAreaTarget(effect, actor, target)))
         {
             return false;
         }
 
         return effect == null || !ExpandedEffects.TryGetValue(effect, out var expanded) ||
                actor == null || target == null ||
-               (actor.IsOppositeSide(target.Side) ||
-                CanAffectAlly(actor, target, effect.SourceDefinition, expanded.Original)) &&
-               IsSelectedAreaTarget(effect, actor, target);
+               actor.IsOppositeSide(target.Side) ||
+               CanAffectAlly(actor, target, effect.SourceDefinition, expanded.Original);
     }
 
     internal static bool ValidateActionTargets(CharacterActionParams parameters)
@@ -501,10 +532,12 @@ internal static class TargetingContext
 
         var actor = parameters.ActingCharacter;
         if (!parameters.TargetCharacters.All(target =>
-                IsEffectRecipientAllowed(actor, target, effect.SourceDefinition, description)))
+                IsEffectRecipientAllowed(actor, target, effect.SourceDefinition, description) &&
+                (actor == null || target == null || IsSelectedAreaTarget(effect, actor, target))))
         {
             return false;
         }
+        if (HasAutomaticAreaRecipients(effect.SourceDefinition, description)) return true;
         var proxyDelivery = parameters.ActionDefinition?.Id == ActionDefinitions.Id.SpendPower &&
                             actor?.RulesetCharacter is RulesetCharacterEffectProxy proxy &&
                             EffectHelpers.GetEffectByGuid(proxy.EffectGuid) is { Terminated: false };
@@ -527,7 +560,7 @@ internal static class TargetingContext
     }
 
     internal static int FilterExpandedTargets(GameLocationCharacter source, EffectDescription description,
-        List<GameLocationCharacter> targets, List<ActionModifier> modifiers = null)
+        List<GameLocationCharacter> targets, List<ActionModifier> modifiers = null, RulesetEffect effect = null)
     {
         if (source == null || description == null)
         {
@@ -535,19 +568,22 @@ internal static class TargetingContext
         }
 
         var isExpanded = ExpandedDescriptions.TryGetValue(description, out var expanded);
+        effect ??= expanded?.Effect;
+        var definition = expanded?.Definition ?? TargetDefinition(effect?.SourceDefinition);
+        var hasSelection = effect?.Attributes.ContainsKey(SelectionPrepared) == true;
         var filterNativePartyTargets = Main.Settings.AllowPartyFriendlyFire && IsPlayerPartyActor(source) &&
             (IsHarmfulTargetEffect(null, description) || IsBeneficialEffect(null, description));
-        if (!isExpanded && !filterNativePartyTargets) return 0;
+        if (!isExpanded && !filterNativePartyTargets && !hasSelection) return 0;
 
         var removed = 0;
         for (var index = targets.Count - 1; index >= 0; index--)
         {
             var target = targets[index];
-            var allowed = IsEffectRecipientAllowed(source, target, expanded?.Definition, description) &&
+            var allowed = IsEffectRecipientAllowed(source, target, definition, description) &&
                 (!isExpanded ||
                  (source.IsOppositeSide(target.Side) ||
-                  CanAffectAlly(source, target, expanded.Definition, expanded.Original)) &&
-                 (expanded.Effect == null || IsSelectedAreaTarget(expanded.Effect, source, target)));
+                  CanAffectAlly(source, target, expanded.Definition, expanded.Original))) &&
+                (effect == null || IsSelectedAreaTarget(effect, source, target));
             if (allowed)
             {
                 continue;
@@ -569,11 +605,23 @@ internal static class TargetingContext
     {
         var selective = TargetDefinition(effect.SourceDefinition).GetFirstSubFeatureOfType<SelectiveTargets>();
         return selective == null || !effect.Attributes.ContainsKey(SelectionPrepared) ||
+            selective.SelectOnlyAdditionalTargets && source.IsOppositeSide(target.Side) ||
             !effect.Attributes.ContainsKey(SelectionExcluded + target.Guid) &&
-            (source.IsOppositeSide(target.Side) ||
-             effect.Attributes.ContainsKey(SelectionAttributeName + ":" + target.Guid)) &&
+            effect.Attributes.ContainsKey(SelectionAttributeName + ":" + target.Guid) &&
             (!selective.RequiresSight || effect.EffectDescription.RecurrentEffect == RecurrentEffect.No ||
              source.CanSeeTarget(target));
+    }
+
+    internal static int GetSubtargetCandidateLimit(RulesetEffect effect)
+    {
+        var selective = TargetDefinition(effect.SourceDefinition).GetFirstSubFeatureOfType<SelectiveTargets>();
+        // The native arc routine sorts and truncates before the choice is made.
+        // Preserve every eligible candidate for the shared selection policy;
+        // effects without this contract retain the native cap.
+        return selective is { PreservePrimaryTarget: true } &&
+               effect.EffectDescription.TargetType == TargetType.ArcFromIndividual
+            ? int.MaxValue
+            : effect.ComputeTargetParameter();
     }
 
     internal static IEnumerator SelectAreaTargets(CharacterActionMagicEffect action)
@@ -584,49 +632,75 @@ internal static class TargetingContext
         var definition = TargetDefinition(effect.SourceDefinition);
         var description = GetOriginalDescription(effect.EffectDescription);
         var selective = definition.GetFirstSubFeatureOfType<SelectiveTargets>();
-        if (!Main.Settings.AllowPartyFriendlyFire || !IsManualPartyActor(actor) ||
-            selective == null || description.TargetSide != Side.Enemy ||
+        if (selective == null || description.TargetSide is not (Side.Enemy or Side.All) ||
+            selective.SelectOnlyAdditionalTargets && !IsExpandedFriendlyFireDescription(effect.EffectDescription) ||
             effect.Attributes.ContainsKey(SelectionPrepared))
         {
             yield break;
         }
 
-        var characters = ServiceRepository.GetService<IGameLocationCharacterService>();
         bool CandidateValid(GameLocationCharacter target) =>
             !effect.Terminated && !action.Aborted &&
             ReactionRequestSelectTarget.IsCandidateValid(actor, target) &&
             IsValidOffensiveTarget(actor, target, definition, description) &&
             (!selective.RequiresSight || actor.CanSeeTarget(target)) &&
             parameters.TargetCharacters.Contains(target);
-        var candidates = characters.ValidCharacters.Where(CandidateValid).Distinct().ToList();
+        var nativeTargets = selective.SelectOnlyAdditionalTargets
+            ? parameters.TargetCharacters.Where(target => actor.IsOppositeSide(target.Side)).Distinct().ToList()
+            : [];
+        var candidates = parameters.TargetCharacters.Where(target => !nativeTargets.Contains(target) &&
+            CandidateValid(target)).Distinct().ToList();
+        var primary = selective.PreservePrimaryTarget && description.TargetType == TargetType.ArcFromIndividual
+            ? parameters.TargetCharacters.FirstOrDefault()
+            : null;
+        if (selective.PreservePrimaryTarget && (primary == null || !candidates.Contains(primary)))
+        {
+            action.Abort(CharacterAction.InterruptionType.Abort);
+            effect.Terminate(false);
+            yield break;
+        }
+        var maximum = selective.MaximumTargets < 0 ? -1 : selective.MaximumTargets - (primary == null ? 0 : 1);
         List<GameLocationCharacter> selectedTargets = null;
         var cancelled = false;
-        yield return SelectOffensiveTargets(actor, candidates, actor, definition, CandidateValid, -1,
-            selected => selectedTargets = selected, isHarmfulInterruption: false, preselectHostiles: true,
-            selectionCancelled: () => cancelled = true);
+        if (maximum != 0)
+        {
+            yield return SelectOffensiveTargets(actor, candidates.Where(target => target != primary), actor,
+                definition, CandidateValid, maximum, selected => selectedTargets = selected,
+                isHarmfulInterruption: false, preselectHostiles: true, selectionCancelled: () => cancelled = true);
+        }
         if (cancelled)
         {
             action.Abort(CharacterAction.InterruptionType.Abort);
             effect.Terminate(false);
             yield break;
         }
-        foreach (var selected in selectedTargets ?? [])
+        selectedTargets = (selectedTargets ?? []).Where(CandidateValid).Distinct().ToList();
+        selectedTargets.AddRange(nativeTargets);
+        if (primary != null)
         {
-            if (CandidateValid(selected))
+            if (!CandidateValid(primary))
             {
-                effect.Attributes[SelectionAttributeName + ":" + selected.Guid] = SelectionAttribute();
+                action.Abort(CharacterAction.InterruptionType.Abort);
+                effect.Terminate(false);
+                yield break;
             }
+            selectedTargets.Add(primary);
+        }
+        foreach (var selected in selectedTargets)
+        {
+            effect.Attributes[SelectionAttributeName + ":" + selected.Guid] = SelectionAttribute();
         }
 
-        // Keep the native default for creatures entering a recurrent effect later,
-        // and preserve legacy saved inclusions. Explicit exclusions apply to either side.
-        foreach (var excluded in candidates.Except(selectedTargets ?? []))
+        // Full recipient choices retain an inclusion whitelist. Added-target
+        // choices leave the native hostile recipients automatic.
+        foreach (var excluded in parameters.TargetCharacters.Except(selectedTargets))
         {
             effect.Attributes[SelectionExcluded + excluded.Guid] = SelectionAttribute();
         }
 
         effect.Attributes[SelectionPrepared] = SelectionAttribute();
-        FilterExpandedTargets(actor, effect.EffectDescription, parameters.TargetCharacters, parameters.ActionModifiers);
+        FilterExpandedTargets(actor, effect.EffectDescription, parameters.TargetCharacters, parameters.ActionModifiers,
+            effect);
     }
 
     internal static IEnumerator SelectOffensiveTargets(GameLocationCharacter actor,

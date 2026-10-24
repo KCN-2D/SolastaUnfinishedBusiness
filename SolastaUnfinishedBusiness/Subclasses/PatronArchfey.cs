@@ -61,7 +61,7 @@ public class PatronArchfey : AbstractSubclass
                 EffectDescriptionBuilder
                     .Create()
                     .SetDurationData(DurationType.Round, 1, TurnOccurenceType.StartOfTurn)
-                    .SetTargetingData(Side.Enemy, RangeType.Self, 0, TargetType.Cone, 3)
+                    .SetTargetingData(Side.All, RangeType.Self, 0, TargetType.Cone, 3)
                     .ExcludeCaster()
                     .SetSavingThrowData(false, AttributeDefinitions.Wisdom, false,
                         EffectDifficultyClassComputation.SpellCastingFeature)
@@ -77,7 +77,7 @@ public class PatronArchfey : AbstractSubclass
                 EffectDescriptionBuilder
                     .Create()
                     .SetDurationData(DurationType.Round, 1, TurnOccurenceType.EndOfSourceTurn)
-                    .SetTargetingData(Side.Enemy, RangeType.Self, 0, TargetType.Cone, 3)
+                    .SetTargetingData(Side.All, RangeType.Self, 0, TargetType.Cone, 3)
                     .ExcludeCaster()
                     .SetSavingThrowData(false, AttributeDefinitions.Wisdom, false,
                         EffectDifficultyClassComputation.SpellCastingFeature)
@@ -103,7 +103,7 @@ public class PatronArchfey : AbstractSubclass
                 EffectDescriptionBuilder
                     .Create()
                     .SetDurationData(DurationType.Round, 1, TurnOccurenceType.StartOfTurn)
-                    .SetTargetingData(Side.Enemy, RangeType.Self, 0, TargetType.Cone, 3)
+                    .SetTargetingData(Side.All, RangeType.Self, 0, TargetType.Cone, 3)
                     .ExcludeCaster()
                     .SetSavingThrowData(false, AttributeDefinitions.Wisdom, false,
                         EffectDifficultyClassComputation.SpellCastingFeature)

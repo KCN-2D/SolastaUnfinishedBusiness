@@ -278,7 +278,8 @@ public sealed class PathOfTheWildMagic : AbstractSubclass
                         .Build())
                 .AddToDB();
 
-            powerDrain.AddCustomSubFeatures(TargetingContext.SelectiveTargets.VisibleTargets);
+            powerDrain.AddCustomSubFeatures(new TargetingContext.SelectiveTargets(
+                requiresSight: true, selectOnlyAdditionalTargets: true));
 
             return new WildSurgeEffect { EffectName = "Drain", Power = powerDrain };
         }

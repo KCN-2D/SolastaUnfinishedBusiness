@@ -12,6 +12,7 @@ $result=[ordered]@{
     processGuardsScope='Actual guard function AST with mocked process lookup and settings boundaries.'
     processLifecycle=[ordered]@{status='NOT_RUN';reason='Process lifecycle checks have not run.'}
     nativeActionProof=[ordered]@{status='NOT_RUN';reason='Native action proof contracts have not run.'}
+    caseValidation=[ordered]@{status='NOT_RUN';reason='Saved-game case validation contracts have not run.'}
 }
 
 function Read-ContractSource([string]$Path) {
@@ -28,6 +29,82 @@ function Read-ContractFunction([object]$Ast,[string]$Name) {
     },$true))
     if ($functions.Count -ne 1) { throw "The contract requires one function named $Name." }
     return $functions[0].Extent.Text
+}
+
+function Invoke-CaseValidationContracts([string]$Definitions,[string]$Directory) {
+    & {
+        param($Definitions,$Directory)
+        . ([scriptblock]::Create($Definitions))
+        [void][IO.Directory]::CreateDirectory($Directory)
+        $source=Join-Path $Directory 'ContractFixtureOperation.cs'
+        $validator=Join-Path $Directory 'Assert-ContractFixture.ps1'
+        [IO.File]::WriteAllText($source,'public sealed class ContractFixtureOperation { }',[Text.UTF8Encoding]::new($false))
+        $validatorText=@'
+param([object]$Case)
+Assert-GtProperties $Case.operation @('kind','actorSource','actorIndex','actionValue','manualGate','manualGateTimeoutSeconds','verifyFocusLoss') @('kind','actorIndex','actionValue','manualGate','manualGateTimeoutSeconds')
+if ($Case.operation.kind -ne 'fixture-action') { throw 'The fixture validator only accepts its compiled action kind.' }
+if (($Case.operation.actionValue -isnot [int] -and $Case.operation.actionValue -isnot [long]) -or $Case.operation.actionValue -ne 17) { throw 'The fixture actionValue must equal 17.' }
+'@
+        [IO.File]::WriteAllText($validator,$validatorText,[Text.UTF8Encoding]::new($false))
+        $records=@(foreach ($mode in @('legacy-move','built-in-non-move','explicit-local-non-move','local-validator-rejection',
+                'invalid-actor-source','invalid-actor-index','invalid-manual-gate','invalid-gate-timeout',
+                'json-api-name','json-local-without-cli','built-in-cli-override')) {
+            $local=$mode -notin @('legacy-move','built-in-non-move','built-in-cli-override')
+            $operation=[ordered]@{kind=$(if ($mode -eq 'legacy-move') {'move'}else{'fixture-action'});actorIndex=0;manualGate=$false;manualGateTimeoutSeconds=0}
+            if ($local) { $operation['actionValue']=17 } else { $operation['offset']=@(1,0,0) }
+            switch ($mode) {
+                'local-validator-rejection' {$operation.actionValue=18}
+                'invalid-actor-source' {$operation['actorSource']='unrecognized'}
+                'invalid-actor-index' {$operation.actorIndex=-1}
+                'invalid-manual-gate' {$operation.manualGate='true'}
+                'invalid-gate-timeout' {$operation.manualGate=$true;$operation.manualGateTimeoutSeconds=31}
+                'json-api-name' {$operation['methodName']='UnregisteredMethod'}
+            }
+            $case=[ordered]@{
+                schemaVersion=1;id=('contract-' + $mode);adapter=$(if ($local) {'fixture-local'}else{'save-smoke'})
+                initialState=[ordered]@{savePath='Fixture.sav';originalSavePath='FixtureOriginal.sav';saveSha256=('0' * 64)};operation=$operation
+                expected=[ordered]@{loadedPartyCount=2;requireUserLocation=$true;requireExploration=$true}
+                observation=[ordered]@{enabled=$false};timeoutSeconds=30
+            }
+            $path=Join-Path $Directory ($mode + '.json')
+            Write-GtJson $path $case
+            $returned=$null;$failure=$null;$continued=$false
+            try {
+                if ($mode -eq 'built-in-cli-override' -or $local -and $mode -ne 'json-local-without-cli') {
+                    $adapter=Get-GtAdapter -Name $case.adapter -ScenarioSource @($source) -ScenarioType 'ContractFixtureOperation' -ScenarioValidator $validator -ScenarioObservation $false
+                    $returned=Read-GtCase $path -AdapterDefinition $adapter
+                } else { $returned=Read-GtCase $path }
+                $continued=$true
+            } catch { $failure=$_.Exception.Message }
+            $expectedContinuation=$mode -in @('legacy-move','explicit-local-non-move')
+            $reason=switch ($mode) {
+                'built-in-non-move' {'Non-move operations require an explicit local scenario validator.'}
+                'local-validator-rejection' {'The fixture actionValue must equal 17.'}
+                'invalid-actor-source' {'actorSource must be party or guest.'}
+                'invalid-actor-index' {'actorIndex must be a nonnegative Int32.'}
+                'invalid-manual-gate' {'Manual gate must contain a Boolean and integer seconds.'}
+                'invalid-gate-timeout' {'manualGateTimeoutSeconds must be 1..timeoutSeconds when manualGate is enabled.'}
+                'json-api-name' {'Unknown JSON property: methodName'}
+                'json-local-without-cli' {'Unknown adapter. Local scenarios require explicit CLI source, type, validator and observation arguments.'}
+                'built-in-cli-override' {'Local scenario arguments cannot override a built-in adapter.'}
+                default {$null}
+            }
+            $checks=@(
+                [ordered]@{name='acceptance';expected=$expectedContinuation;actual=$continued;passed=($continued -eq $expectedContinuation)},
+                [ordered]@{name='rejection boundary';expected=$reason;actual=$failure;passed=($failure -ceq $reason)}
+            )
+            if ($expectedContinuation -and $continued) {
+                $checks+= [ordered]@{name='legacy defaults preserved';passed=($returned.operation.actorSource -ceq 'party' -and $returned.operation.verifyFocusLoss -eq $false)}
+                $checks+= [ordered]@{name='validated operation retained';passed=($returned.operation.kind -ceq $operation.kind)}
+            }
+            [ordered]@{mode=$mode;status=$(if (@($checks | Where-Object passed -eq $false).Count) {'FAIL'}else{'PASS'});casePath=$path;checks=$checks}
+        })
+        [ordered]@{
+            status=$(if (@($records | Where-Object status -ne 'PASS').Count) {'FAIL'}else{'PASS'})
+            scope='Actual adapter and case-validation functions with owned JSON, CLI source and validator fixtures. No game launch, JSON API dispatch or operation execution.'
+            cases=$records
+        }
+    } $Definitions $Directory
 }
 
 function Invoke-ProcessGuardContract([string]$Definitions,[string]$Guard,[string]$Mode) {
@@ -347,6 +424,12 @@ try {
     $display=Read-ContractSource $archived['tools/runtime-verification/NativeDisplaySettings.ps1']
     $runtime=Read-ContractSource $archived['tools/runtime-verification/Invoke-RuntimeVerification.ps1']
     $common=Read-ContractSource $archived['tools/game-test/GameTest.Common.ps1']
+    $caseDefinitions=@(
+        Read-ContractFunction $common 'Assert-GtProperties'
+        Read-ContractFunction $common 'Assert-GtInitialSetup'
+        Read-ContractFunction $common 'Read-GtCase'
+    ) -join [Environment]::NewLine
+    $result.caseValidation=Invoke-CaseValidationContracts $caseDefinitions (Join-Path $run 'CaseValidation')
     $registrySetting=@($display.FindAll({
         param($node)
         $node -is [Management.Automation.Language.AssignmentStatementAst] -and
@@ -424,13 +507,13 @@ try {
     }
     if ($result.processLifecycle.status -eq 'ERROR') {
         $result.status='ERROR'; $result.reason='A process lifecycle fixture could not complete.'
-    } elseif (@($result.processGuards | Where-Object status -ne 'PASS').Count -or $result.processLifecycle.status -eq 'FAIL' -or $result.nativeActionProof.status -eq 'FAIL') {
-        $result.status='FAIL'; $result.reason='A process guard, lifecycle or native action proof contract failed.'
+    } elseif (@($result.processGuards | Where-Object status -ne 'PASS').Count -or $result.processLifecycle.status -eq 'FAIL' -or $result.nativeActionProof.status -eq 'FAIL' -or $result.caseValidation.status -eq 'FAIL') {
+        $result.status='FAIL'; $result.reason='A process guard, lifecycle, native action proof or case validation contract failed.'
     } elseif ($SkipProcessLifecycle) {
         $result.processLifecycle=[ordered]@{status='SKIPPED';reason='Skipped by -SkipProcessLifecycle.'}
-        $result.status='PASS'; $result.reason="All 30 process guard contracts and $($proofCases.Count) native action proof contracts passed. Process lifecycle checks were skipped."
+        $result.status='PASS'; $result.reason="All 30 process guard contracts, $($proofCases.Count) native action proof contracts and $($result.caseValidation.cases.Count) case validation contracts passed. Process lifecycle checks were skipped."
     } else {
-        $result.status='PASS'; $result.reason="All 30 process guard contracts, $($cases.Count) owned process lifecycle cases and $($proofCases.Count) native action proof contracts passed."
+        $result.status='PASS'; $result.reason="All 30 process guard contracts, $($cases.Count) owned process lifecycle cases, $($proofCases.Count) native action proof contracts and $($result.caseValidation.cases.Count) case validation contracts passed."
     }
 } catch {
     $result.status='ERROR'; $result.reason=$_.Exception.Message

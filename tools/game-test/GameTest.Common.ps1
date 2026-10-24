@@ -258,15 +258,23 @@ function Read-GtCase([string] $Path, [object] $AdapterDefinition=$null) {
         foreach ($key in @('manualGate','manualGateTimeoutSeconds')) { if ($key -notin $case.operation.PSObject.Properties.Name) { throw "Missing operation property: $key" } }
         if ($case.operation.manualGate -isnot [bool] -or ($case.operation.manualGateTimeoutSeconds -isnot [int] -and $case.operation.manualGateTimeoutSeconds -isnot [long])) { throw 'Manual gate must contain a Boolean and integer seconds.' }
         if ($case.operation.manualGate -and ($case.operation.manualGateTimeoutSeconds -lt 1 -or $case.operation.manualGateTimeoutSeconds -gt $case.timeoutSeconds)) { throw 'manualGateTimeoutSeconds must be 1..timeoutSeconds when manualGate is enabled.' }
-        Assert-GtProperties $case.operation @('kind','actorSource','actorIndex','offset','manualGate','manualGateTimeoutSeconds','verifyFocusLoss') @('kind','actorIndex','offset','manualGate','manualGateTimeoutSeconds')
+        $moveOperation=$case.operation.kind -eq 'move'
+        if ($moveOperation -or -not $adapter.caseValidator) {
+            Assert-GtProperties $case.operation @('kind','actorSource','actorIndex','offset','manualGate','manualGateTimeoutSeconds','verifyFocusLoss') @('kind','actorIndex','offset','manualGate','manualGateTimeoutSeconds')
+        } elseif ($case.operation.kind -isnot [string] -or $case.operation.kind -notmatch '^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$') {
+            throw 'A local operation must have a valid kind and an explicit scenario validator.'
+        }
         if ('actorSource' -notin $case.operation.PSObject.Properties.Name) { $case.operation | Add-Member -NotePropertyName actorSource -NotePropertyValue 'party' }
         elseif ($null -eq $case.operation.actorSource) { $case.operation.actorSource='party' }
         if ($case.operation.actorSource -notin @('party','guest')) { throw 'actorSource must be party or guest.' }
         if (-not $adapter.caseValidator) { Assert-GtProperties $case.expected @('loadedPartyCount','requireUserLocation','requireExploration') @('loadedPartyCount','requireUserLocation','requireExploration') }
         if ($case.operation.actorIndex -isnot [int] -and $case.operation.actorIndex -isnot [long]) { throw 'actorIndex must be an integer.' }
-        if ($case.operation.kind -ne 'move' -or $case.operation.actorIndex -lt 0 -or $case.operation.actorIndex -gt [int]::MaxValue -or @($case.operation.offset).Count -ne 3) { throw 'Invalid move operation.' }
-        foreach ($offset in $case.operation.offset) { if ($offset -isnot [int] -and $offset -isnot [long]) { throw 'Move offsets must be integers.' }; if ([Math]::Abs($offset) -gt 3) { throw 'Smoke movement is limited to three cells per axis.' } }
-        if (@($case.operation.offset | Where-Object { $_ -ne 0 }).Count -eq 0) { throw 'A smoke move must change position.' }
+        if ($case.operation.actorIndex -lt 0 -or $case.operation.actorIndex -gt [int]::MaxValue) { throw 'actorIndex must be a nonnegative Int32.' }
+        if ($moveOperation) {
+            if (@($case.operation.offset).Count -ne 3) { throw 'Move offsets must contain three integers.' }
+            foreach ($offset in $case.operation.offset) { if ($offset -isnot [int] -and $offset -isnot [long]) { throw 'Move offsets must be integers.' }; if ([Math]::Abs($offset) -gt 3) { throw 'Smoke movement is limited to three cells per axis.' } }
+            if (@($case.operation.offset | Where-Object { $_ -ne 0 }).Count -eq 0) { throw 'A smoke move must change position.' }
+        } elseif (-not $adapter.caseValidator) { throw 'Non-move operations require an explicit local scenario validator.' }
         if ($case.expected.loadedPartyCount -isnot [int] -and $case.expected.loadedPartyCount -isnot [long]) { throw 'loadedPartyCount must be an integer.' }
         if ($case.expected.loadedPartyCount -lt 1 -or $case.expected.loadedPartyCount -gt 6 -or $case.expected.requireUserLocation -isnot [bool] -or $case.expected.requireExploration -isnot [bool]) { throw 'Invalid expected initial state.' }
     }

@@ -616,7 +616,25 @@ internal static class FixesContext
 
     private static void FixMinorMagicEffectsIssues()
     {
-        SpiritGuardians.AddCustomSubFeatures(TargetingContext.SelectiveTargets.Marker);
+        SpiritGuardians.AddCustomSubFeatures(TargetingContext.SelectiveTargets.AdditionalTargets);
+        Slow.AddCustomSubFeatures(new TargetingContext.SelectiveTargets(maximumTargets: 6));
+
+        // These bursts affect every qualifying creature, including the upgrades
+        // of Turn Undead. Creature-family and perception filters still apply.
+        var automaticAreaPowers = new HashSet<FeatureDefinitionPower>
+        {
+            PowerClericTurnUndead, PowerOathOfDevotionTurnUnholy, PowerTraditionLightBlindingFlash
+        };
+        foreach (var power in DatabaseRepository.GetDatabase<FeatureDefinitionPower>())
+        {
+            var visited = new HashSet<FeatureDefinitionPower>();
+            for (var current = power; current && visited.Add(current); current = current.OverriddenPower)
+            {
+                if (!automaticAreaPowers.Contains(current)) continue;
+                power.EffectDescription.TargetSide = Side.All;
+                break;
+            }
+        }
 
         // The guardian explicitly damages hostile creatures, including its proxy delivery.
         GuardianOfFaith.AddCustomSubFeatures(TargetingContext.HostileTargetsOnly.Marker);

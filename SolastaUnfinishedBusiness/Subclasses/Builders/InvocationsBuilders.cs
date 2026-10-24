@@ -716,7 +716,7 @@ internal static class InvocationsBuilders
             .SetEffectDescription(
                 EffectDescriptionBuilder
                     .Create()
-                    .SetTargetingData(Side.Enemy, RangeType.Distance, 6, TargetType.Cube, 3)
+                    .SetTargetingData(Side.Enemy, RangeType.Distance, 6, TargetType.ArcFromIndividual, 1, 1)
                     .SetEffectForms(EffectFormBuilder
                         .Create()
                         .SetBonusMode(AddBonusMode.AbilityBonus)
@@ -727,7 +727,9 @@ internal static class InvocationsBuilders
                     .Build())
             .AddToDB();
 
-        powerVexingHex.AddCustomSubFeatures(new FilterTargetingCharacterCanApplyHex(powerVexingHex));
+        powerVexingHex.AddCustomSubFeatures(
+            new FilterTargetingCharacterCanApplyHex(powerVexingHex),
+            new TargetingContext.SelectiveTargets(preservePrimaryTarget: true));
 
         return InvocationDefinitionWithPrerequisitesBuilder
             .Create(NAME)

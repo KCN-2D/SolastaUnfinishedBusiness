@@ -7,6 +7,7 @@ using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Models;
 using SolastaUnfinishedBusiness.Properties;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionPowers;
@@ -276,6 +277,7 @@ internal static partial class SpellBuilders
                         PhantasmalKiller.EffectDescription.EffectParticleParameters.effectParticleReference)
                     .Build())
             .SetRequiresConcentration(true)
+            .AddCustomSubFeatures(TargetingContext.SelectiveTargets.Marker)
             .AddToDB();
     }
 

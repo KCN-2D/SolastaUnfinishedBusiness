@@ -173,7 +173,8 @@ internal static partial class SpellBuilders
                 .Build())
             .AddToDB();
 
-        spell.AddCustomSubFeatures(TargetingContext.SelectiveTargets.VisibleTargets);
+        spell.AddCustomSubFeatures(new TargetingContext.SelectiveTargets(
+            requiresSight: true, selectOnlyAdditionalTargets: true));
 
         return spell;
     }
@@ -891,7 +892,8 @@ internal static partial class SpellBuilders
             .SetEffectDescription(
                 EffectDescriptionBuilder
                     .Create()
-                    .SetTargetingData(Side.Enemy, RangeType.Self, 0, TargetType.Cube, 3)
+                    .SetTargetingData(Side.All, RangeType.Self, 0, TargetType.Cube, 3)
+                    .ExcludeCaster()
                     .SetEffectAdvancement(EffectIncrementMethod.CasterLevelTable, additionalDicePerIncrement: 1)
                     .SetSavingThrowData(false, AttributeDefinitions.Dexterity, false,
                         EffectDifficultyClassComputation.SpellCastingFeature)

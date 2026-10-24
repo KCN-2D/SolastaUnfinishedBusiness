@@ -1569,6 +1569,7 @@ internal static partial class SpellBuilders
                     .SetParticleEffectParameters(ConjureFey)
                     .SetEffectEffectParameters(PowerBardTraditionManacalonsPerfection)
                     .Build())
+            .AddCustomSubFeatures(TargetingContext.SelectiveTargets.Marker)
             .AddToDB();
 
         return spell;

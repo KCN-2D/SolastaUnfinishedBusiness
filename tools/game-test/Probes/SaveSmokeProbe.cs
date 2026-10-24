@@ -38,12 +38,13 @@ public static class GameTestSaveSmokeProbe
     private static bool scenarioPassed;
     private static bool loadRequested;
     private static float deadline;
-    private static GameLocationCharacter movedActor;
+    private static GameLocationCharacter scenarioActor;
     private static string resultActorName;
     private static string resultActualPosition;
     private static int3 sourcePosition;
     private static int3 targetPosition;
     private static IActionObservation actionObservation;
+    private static IActionOperation actionOperation;
     private static bool ownMinimized;
 
     public interface IActionObservation : IDisposable
@@ -52,6 +53,14 @@ public static class GameTestSaveSmokeProbe
         void Configure(string casePath, Action<string> log, Action<bool, string> check, Action<string, string> recordOperation);
         void Begin(GameLocationCharacter actor);
         IEnumerator Complete();
+    }
+
+    public interface IActionOperation : IDisposable
+    {
+        string Adapter { get; }
+        string Kind { get; }
+        void Configure(string casePath, Action<string> log, Action<bool, string> check, Action<string, string> recordOperation);
+        IEnumerator Execute(GameLocationCharacter actor);
     }
     [Serializable, DataContract]
     public sealed class CaseDefinition
@@ -197,9 +206,9 @@ public static class GameTestSaveSmokeProbe
         [DataMember(EmitDefaultValue = false)] public string verificationScope;
     }
 
-    private sealed class BlockedConditionException : Exception
+    public sealed class BlockedConditionException : Exception
     {
-        internal BlockedConditionException(string message) : base(message) { }
+        public BlockedConditionException(string message) : base(message) { }
     }
 
     private sealed class ExpectedResultException : Exception
@@ -209,16 +218,20 @@ public static class GameTestSaveSmokeProbe
 
     public static IEnumerator Run(Action<string> write) => RunScenario(write, null);
 
-    public static IEnumerator RunScenario(Action<string> write, IActionObservation observation)
+    public static IEnumerator RunScenario(Action<string> write, IActionObservation observation) =>
+        RunScenario(write, observation, null);
+
+    public static IEnumerator RunScenario(Action<string> write, IActionObservation observation, IActionOperation operation)
     {
         actionObservation = observation;
+        actionOperation = operation;
         log = write ?? throw new ArgumentNullException(nameof(write));
         outcomeRecorded = false;
         scenarioPassed = false;
         loadRequested = false;
         deadline = 0;
         blockedSaves = 0;
-        movedActor = null;
+        scenarioActor = null;
         ownMinimized = false;
         resultActorName = resultActualPosition = null;
         var stack = new Stack<IEnumerator>();
@@ -253,12 +266,14 @@ public static class GameTestSaveSmokeProbe
         }
         try { RestoreOwnedWindow(); }
         catch (Exception error) { failure = error; }
-        if (movedActor != null)
+        if (scenarioActor != null)
         {
-            resultActorName = movedActor.Name;
-            resultActualPosition = Position(movedActor.LocationPosition);
+            resultActorName = scenarioActor.Name;
+            resultActualPosition = Position(scenarioActor.LocationPosition);
         }
         try { actionObservation?.Dispose(); }
+        catch (Exception error) { failure = error; }
+        try { actionOperation?.Dispose(); }
         catch (Exception error) { failure = error; }
 
         if (failure != null)
@@ -323,7 +338,9 @@ public static class GameTestSaveSmokeProbe
             log("FAIL: native test cleanup: " + error);
         }
         if (failure == null && scenarioPassed)
-            RecordOutcome("PASS", "UB initialized, the isolated save loaded, one existing native move completed at the expected cell, and native test state was released.");
+            RecordOutcome("PASS", actionOperation == null
+                ? "UB initialized, the isolated save loaded, one existing native move completed at the expected cell, and native test state was released."
+                : "UB initialized, the isolated save loaded, the declared native operation completed, and native test state was released.");
         else if (!outcomeRecorded) RecordOutcome("ERROR", "The native scenario ended without a result.");
         RecordOperation("teardown", "Native game/session ended, write guards removed and original input stamps verified.");
     }
@@ -366,22 +383,24 @@ public static class GameTestSaveSmokeProbe
         var actorSource = testCase.operation.actorSource == "guest" ? actors.GuestCharacters : actors.PartyCharacters;
         if (testCase.operation.actorIndex < 0 || testCase.operation.actorIndex >= actorSource.Count)
             throw new BlockedConditionException("The configured " + testCase.operation.actorSource + " actor index is absent from the loaded save.");
-        movedActor = actorSource[testCase.operation.actorIndex];
+        scenarioActor = actorSource[testCase.operation.actorIndex];
         var selection = ServiceRepository.GetService<IGameLocationSelectionService>();
-        selection.SelectCharacter(movedActor, true, false);
+        selection.SelectCharacter(scenarioActor, true, false);
         yield return SettleFrames(8);
-        sourcePosition = movedActor.LocationPosition;
-        targetPosition = sourcePosition + new int3(testCase.operation.offset[0], testCase.operation.offset[1], testCase.operation.offset[2]);
+        sourcePosition = scenarioActor.LocationPosition;
+        targetPosition = actionOperation == null
+            ? sourcePosition + new int3(testCase.operation.offset[0], testCase.operation.offset[1], testCase.operation.offset[2])
+            : sourcePosition;
         var positioning = ServiceRepository.GetService<IGameLocationPositioningService>();
-        if (!positioning.CanPlaceCharacter(movedActor, targetPosition, CellHelpers.PlacementMode.PlanningStation))
+        if (actionOperation == null && !positioning.CanPlaceCharacter(scenarioActor, targetPosition, CellHelpers.PlacementMode.PlanningStation))
             throw new BlockedConditionException("The configured destination is not a legal native placement cell: " + targetPosition);
-        Check(selection.SelectedCharacters.Contains(movedActor), "the native selection service selects the configured actor");
+        Check(selection.SelectedCharacters.Contains(scenarioActor), "the native selection service selects the configured actor");
         yield return Capture("GameTest-Ready.png");
         WriteJson("GameTest-Ready.json", new EvidenceRecord
         {
             kind = "manual-gate", phase = "ready", status = "READY", utc = DateTime.UtcNow.ToString("O"),
             detail = "The copied save is loaded. Release the optional manual gate with continue.json; native screen and input checks have separate evidence.",
-            actor = movedActor.Name, from = Position(sourcePosition), to = Position(targetPosition),
+            actor = scenarioActor.Name, from = Position(sourcePosition), to = Position(targetPosition),
             partyCount = actors.PartyCharacters.Count, frame = Time.frameCount, width = Screen.width, height = Screen.height
         });
         if (testCase.operation.manualGate)
@@ -395,10 +414,10 @@ public static class GameTestSaveSmokeProbe
             RecordOperation("manual-continued", "The fixed continuation flag released the manual gate.");
         }
         yield return DismissTutorial();
-        Check(movedActor.LocationPosition == sourcePosition,
+        Check(scenarioActor.LocationPosition == sourcePosition,
             "the actor remains at the initial cell before the configured action");
         yield return Capture("GameTest-BeforeAction.png");
-        actionObservation?.Begin(movedActor);
+        actionObservation?.Begin(scenarioActor);
         try
         {
             if (testCase.operation.verifyFocusLoss)
@@ -424,19 +443,28 @@ public static class GameTestSaveSmokeProbe
                     throw new BlockedConditionException("The visible render window did not remain deactivated after its non-activating display restore.");
                 RecordOperation("focus-loss", "The actual focus callback and main-thread Application.isFocused value are false before the existing native action.");
             }
-            RecordOperation("action", "ICommandService.MoveCharacter actor=" + movedActor.Name + " from=" + Position(sourcePosition) + " to=" + Position(targetPosition));
-            bool completed = false;
-            bool aborted = true;
-            ServiceRepository.GetService<ICommandService>().MoveCharacter(movedActor, targetPosition, movedActor.Orientation,
-                0f, ActionDefinitions.MoveStance.Run, wasAborted => { aborted = wasAborted; completed = true; }, false, true);
-            var actionDeadline = Mathf.Min(deadline, Time.realtimeSinceStartup + 45f);
-            var actions = ServiceRepository.GetService<IGameLocationActionService>();
-            while ((!completed || actions.IsCharacterActing(movedActor)) && Time.realtimeSinceStartup < actionDeadline) yield return null;
-            Check(completed && !actions.IsCharacterActing(movedActor), "the existing native move action reaches its completion callback");
-            Check(!aborted, "the existing native move action completes without aborting");
-            Check(movedActor.LocationPosition == targetPosition,
-                "the existing native move reaches the expected cell: actual=" + Position(movedActor.LocationPosition));
-            RecordOperation("action-completed", "The existing native move completed at its expected cell.");
+            if (actionOperation != null)
+            {
+                RecordOperation("action", "Declared native operation=" + actionOperation.Kind + "; actor=" + scenarioActor.Name);
+                yield return actionOperation.Execute(scenarioActor);
+                RecordOperation("action-completed", "The declared native operation completed.");
+            }
+            else
+            {
+                RecordOperation("action", "ICommandService.MoveCharacter actor=" + scenarioActor.Name + " from=" + Position(sourcePosition) + " to=" + Position(targetPosition));
+                bool completed = false;
+                bool aborted = true;
+                ServiceRepository.GetService<ICommandService>().MoveCharacter(scenarioActor, targetPosition, scenarioActor.Orientation,
+                    0f, ActionDefinitions.MoveStance.Run, wasAborted => { aborted = wasAborted; completed = true; }, false, true);
+                var actionDeadline = Mathf.Min(deadline, Time.realtimeSinceStartup + 45f);
+                var actions = ServiceRepository.GetService<IGameLocationActionService>();
+                while ((!completed || actions.IsCharacterActing(scenarioActor)) && Time.realtimeSinceStartup < actionDeadline) yield return null;
+                Check(completed && !actions.IsCharacterActing(scenarioActor), "the existing native move action reaches its completion callback");
+                Check(!aborted, "the existing native move action completes without aborting");
+                Check(scenarioActor.LocationPosition == targetPosition,
+                    "the existing native move reaches the expected cell: actual=" + Position(scenarioActor.LocationPosition));
+                RecordOperation("action-completed", "The existing native move completed at its expected cell.");
+            }
         }
         finally { RestoreOwnedWindow(); }
         if (testCase.operation.verifyFocusLoss) yield return SettleFrames(6);
@@ -461,10 +489,13 @@ public static class GameTestSaveSmokeProbe
             "; actorSource=" + testCase?.operation?.actorSource + "; actorIndex=" + testCase?.operation?.actorIndex +
             "; offset=" + (testCase?.operation?.offset == null ? "<null>" : string.Join(",", testCase.operation.offset)) +
             "; party=" + testCase?.expected?.loadedPartyCount + "; observation=" + testCase?.observation?.enabled);
-        if (testCase == null || testCase.schemaVersion != 1 || testCase.adapter != (actionObservation?.Adapter ?? "save-smoke") ||
+        if (actionObservation != null && actionOperation != null && actionObservation.Adapter != actionOperation.Adapter)
+            throw new InvalidOperationException("The operation and observation adapters must match.");
+        if (testCase == null || testCase.schemaVersion != 1 || testCase.adapter != (actionOperation?.Adapter ?? actionObservation?.Adapter ?? "save-smoke") ||
             testCase.initialState == null || testCase.operation == null || testCase.expected == null ||
-            testCase.operation.kind != "move" || testCase.operation.offset == null || testCase.operation.offset.Length != 3 ||
-            testCase.operation.offset.All(value => value == 0) || testCase.operation.offset.Any(value => Math.Abs((long)value) > 3) ||
+            testCase.operation.kind != (actionOperation?.Kind ?? "move") ||
+            actionOperation == null && (testCase.operation.offset == null || testCase.operation.offset.Length != 3 ||
+                testCase.operation.offset.All(value => value == 0) || testCase.operation.offset.Any(value => Math.Abs((long)value) > 3)) ||
             testCase.timeoutSeconds < 30 || testCase.timeoutSeconds > 1800 ||
             testCase.operation.manualGate && (testCase.operation.manualGateTimeoutSeconds < 1 || testCase.operation.manualGateTimeoutSeconds > testCase.timeoutSeconds))
             throw new InvalidOperationException("The archived case does not satisfy the fixed save-smoke schema.");
@@ -484,6 +515,7 @@ public static class GameTestSaveSmokeProbe
         if (testCase.observation == null || testCase.observation.enabled != (actionObservation != null))
             throw new InvalidOperationException("The archived observation selection does not match the fixed adapter.");
         actionObservation?.Configure(casePath, log, Check, RecordOperation);
+        actionOperation?.Configure(casePath, log, Check, RecordOperation);
         var caseRoot = Path.GetDirectoryName(Path.GetFullPath(casePath));
         testCase.initialState.savePath = Path.GetFullPath(testCase.initialState.savePath);
         testCase.initialState.originalSavePath = Path.GetFullPath(testCase.initialState.originalSavePath);

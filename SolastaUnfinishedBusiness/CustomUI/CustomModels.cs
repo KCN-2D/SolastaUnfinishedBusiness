@@ -22,7 +22,8 @@ public static class CustomModels
         Func<GraphicsCharacterMonster, Transform> effectOrigin = null,
         Func<GraphicsCharacterMonster,
             IReadOnlyDictionary<AnimationDefinitions.BoneType, (Transform Transform, Vector3 LocalPosition)>> bones = null,
-        bool nativeAnimationAudioEnabled = true)
+        bool nativeAnimationAudioEnabled = true,
+        Action<GraphicsCharacterMonster, bool> hitReaction = null)
     {
         internal string Name { get; } = name;
         internal float Scale { get; } = scale;
@@ -31,6 +32,16 @@ public static class CustomModels
         internal Func<GraphicsCharacterMonster,
             IReadOnlyDictionary<AnimationDefinitions.BoneType, (Transform Transform, Vector3 LocalPosition)>> Bones { get; } = bones;
         internal bool NativeAnimationAudioEnabled { get; } = nativeAnimationAudioEnabled;
+        internal Action<GraphicsCharacterMonster, bool> HitReaction { get; } = hitReaction;
+    }
+
+    internal static void ReactToMonsterHit(GraphicsCharacter character, bool blocking)
+    {
+        if (character is GraphicsCharacterMonster monster)
+        {
+            monster.RulesetCharacterMonster?.MonsterDefinition.GetFirstSubFeatureOfType<MonsterModel>()?
+                .HitReaction?.Invoke(monster, blocking);
+        }
     }
 
     internal static bool UsesNativeAnimationAudio(GraphicsCharacter graphics) =>

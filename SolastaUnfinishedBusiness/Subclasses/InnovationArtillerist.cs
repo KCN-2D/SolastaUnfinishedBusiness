@@ -1368,7 +1368,8 @@ public sealed class InnovationArtillerist : AbstractSubclass
             .AddFeatures(monsterAdditionalFeatures)
             .AddCustomSubFeatures(new CustomModels.MonsterModel(EldritchCannon, CannonModelScale, ConfigureCannonGraphics,
                 graphics => graphics.GetComponentInChildren<CannonPresentation>()?.EffectOrigin,
-                graphics => graphics.GetComponentInChildren<CannonPresentation>()?.Bones, nativeAnimationAudioEnabled: false))
+                graphics => graphics.GetComponentInChildren<CannonPresentation>()?.Bones, nativeAnimationAudioEnabled: false,
+                hitReaction: (graphics, blocking) => graphics.GetComponentInChildren<CannonPresentation>()?.ReactToHit(blocking)))
             .AddToDB();
 
         monster.guiPresentation.description = Gui.NoLocalization;
@@ -1416,6 +1417,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
         private const float StepDistance = 0.32f * CannonSizeMultiplier;
         private const float StepLift = 0.045f * CannonSizeMultiplier;
         private const float BodyCompression = 0.035f * CannonSizeMultiplier;
+        private const float ProneCompression = 0.06f * CannonSizeMultiplier;
         private const uint FootstepEvent = 3528527799; // Native Play_SFX_Golem_FS_Soft.
         private const float MaximumElevation = 30f;
         private const float MaximumDepression = 10f;
@@ -1447,6 +1449,11 @@ public sealed class InnovationArtillerist : AbstractSubclass
         private bool _airborne;
         private bool _wasAirborne;
         private GameLocationCharacter _character;
+        private bool _prone;
+        private float _proneAmount;
+        private float _hitStarted = float.NegativeInfinity;
+        private float _dodgeStarted = float.NegativeInfinity;
+        private float _dodgeSide = 1f;
         private bool _jumpPreparing;
         private bool _jumpFlying;
         private float _jumpStarted;
@@ -1480,6 +1487,9 @@ public sealed class InnovationArtillerist : AbstractSubclass
 
         internal int RecoilCount { get; private set; }
         internal int FootstepCount { get; private set; }
+        internal int ProneTransitionCount { get; private set; }
+        internal int HitReactionCount { get; private set; }
+        internal int DodgeReactionCount { get; private set; }
         internal Transform Muzzle => _muzzle;
         internal Transform EffectOrigin => _aiming && _shot ? _muzzle : null;
         internal IReadOnlyDictionary<AnimationDefinitions.BoneType, (Transform Transform, Vector3 LocalPosition)> Bones => _bones;
@@ -1636,7 +1646,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
             }
         }
 
-        private Vector3 VisualFloorOffset(Vector3 position, Quaternion rotation)
+        private Vector3 VisualFloorOffset(Vector3 position, Quaternion rotation, Vector3? liftDirection = null)
         {
             if (!_hasFloor)
             {
@@ -1667,7 +1677,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
             _floorProjectionCached = true;
             _projectionNormal = normal;
             var clearance = Vector3.Dot(position - _floorPoint, _floorNormal) + lowest +
-                            Vector3.Dot(Vector3.up * (CannonBodyLift - _bodyCompression), normal);
+                            Vector3.Dot((liftDirection ?? rotation * Vector3.up) * (CannonBodyLift - _bodyCompression), _floorNormal);
             return clearance >= 0.001f ? Vector3.zero :
                 Vector3.up * ((0.001f - clearance) / Vector3.Dot(Vector3.up, _floorNormal));
         }
@@ -2050,6 +2060,12 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 leg.Lengths[0] + leg.Lengths[1] - 0.00001f);
             var axis = ankleDirection.normalized;
             var pole = Vector3.ProjectOnPlane(rotation * (leg.RestPoints[1] - leg.RestPoints[0]), axis);
+            if (_proneAmount > 0f)
+            {
+                // Fold the knees out beside the carriage while its feet stay planted.
+                var outward = Vector3.ProjectOnPlane(rotation * leg.RestPoints[3], rotation * Vector3.up);
+                pole = Vector3.ProjectOnPlane(Vector3.Lerp(pole.normalized, outward.normalized, _proneAmount * 0.85f), axis);
+            }
             if (pole.sqrMagnitude < 0.000001f)
             {
                 pole = Vector3.Cross(axis, _graphics.transform.forward);
@@ -2109,6 +2125,16 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 Mathf.SmoothStep(1f, 0f, (elapsed - travel - hold) / travel);
         }
 
+        private static float ReactionWeight(float elapsed, float attack, float recovery)
+        {
+            if (elapsed < 0f || elapsed >= attack + recovery)
+            {
+                return 0f;
+            }
+            return elapsed < attack ? Mathf.SmoothStep(0f, 1f, elapsed / attack) :
+                Mathf.SmoothStep(1f, 0f, (elapsed - attack) / recovery);
+        }
+
         internal void RefreshPose()
         {
             if (!_graphics)
@@ -2124,9 +2150,15 @@ public sealed class InnovationArtillerist : AbstractSubclass
             }
             // The native root owns travel and wall orientation. The machine owns
             // its rigid carriage, planted contacts, joint lengths and firing pose.
-            transform.position = _graphics.transform.position + _graphics.transform.up * (CannonBodyLift - _bodyCompression) +
-                VisualFloorOffset(_graphics.transform.position, _graphics.transform.rotation);
-            transform.rotation = _graphics.transform.rotation;
+            var hit = ReactionWeight(Time.time - _hitStarted, 0.07f, 0.35f);
+            var dodge = ReactionWeight(Time.time - _dodgeStarted, 0.12f, 0.38f);
+            var bodyPosition = _graphics.transform.position + _graphics.transform.rotation *
+                new Vector3(dodge * _dodgeSide * 0.025f, 0f, -hit * 0.016f) * CannonSizeMultiplier;
+            var bodyRotation = _graphics.transform.rotation *
+                Quaternion.Euler(-hit * 3f, 0f, -dodge * _dodgeSide * 7f);
+            transform.position = bodyPosition + _graphics.transform.up * (CannonBodyLift - _bodyCompression) +
+                VisualFloorOffset(bodyPosition, bodyRotation, _graphics.transform.up);
+            transform.rotation = bodyRotation;
             var previousYaw = _yaw;
             var previousPitch = _pitch;
             var previousYawVelocity = _yawVelocity;
@@ -2153,8 +2185,8 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 _cradle.localRotation = Quaternion.Euler(0, _yaw, 0);
                 _barrel.localRotation = Quaternion.Euler(_pitch, 0, 0);
                 _barrel.localPosition = -(_barrel.localRotation * Vector3.forward) * recoil;
-                transform.position = _graphics.transform.position + _graphics.transform.up * (CannonBodyLift - _bodyCompression) +
-                    VisualFloorOffset(_graphics.transform.position, _graphics.transform.rotation);
+                transform.position = bodyPosition + _graphics.transform.up * (CannonBodyLift - _bodyCompression) +
+                    VisualFloorOffset(bodyPosition, bodyRotation, _graphics.transform.up);
             }
             foreach (var leg in _legs)
             {
@@ -2175,7 +2207,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
             var cycle = _idleTime % 13f;
             var idleYaw = ServoAdjustment(cycle, 2f, 0.5f) * 3f - ServoAdjustment(cycle, 8.5f, 0.35f) * 2f;
             var idlePitch = ServoAdjustment(cycle, 5.5f, 0.25f) * 1.5f;
-            return _moving ? (0f, 0f) : (idleYaw, idlePitch);
+            return _moving ? (0f, 0f) : (idleYaw * (1f - _proneAmount), idlePitch + _proneAmount * 5f);
         }
 
         internal void AimProtection(CharacterActionMagicEffect action)
@@ -2266,8 +2298,9 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 _landingStarted = Time.time;
             }
             _airborne = airborne;
-            _idleTime = _moving || _aiming ? 0f : _idleTime + Time.deltaTime;
-            var animate = _moving || _aiming;
+            _idleTime = _moving || _aiming || _prone ? 0f : _idleTime + Time.deltaTime;
+            var animate = _moving || _aiming || (_prone ? _proneAmount < 1f : _proneAmount > 0f) ||
+                          Time.time - _hitStarted < 0.42f || Time.time - _dodgeStarted < 0.5f;
             foreach (var renderer in _renderers)
             {
                 if (animate || renderer.isVisible)
@@ -2287,11 +2320,18 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 return;
             }
             var landing = Time.time - _landingStarted;
+            _proneAmount = Mathf.MoveTowards(_proneAmount, _prone ? 1f : 0f, Time.deltaTime / 0.32f);
             _bodyCompression = _jumpPreparing ? BodyCompression * Mathf.SmoothStep(0f, 1f, (Time.time - _jumpStarted) / 0.18f) :
                 _airborne ? BodyCompression * Mathf.SmoothStep(1f, 0f, (Time.time - _flightStarted) / 0.12f) :
                 landing is >= 0f and < 0.35f ? BodyCompression *
                     (landing < 0.1f ? Mathf.SmoothStep(0f, 1f, landing / 0.1f) :
                         Mathf.SmoothStep(1f, 0f, (landing - 0.1f) / 0.25f)) : 0f;
+            if (!_airborne)
+            {
+                _bodyCompression += ProneCompression * _proneAmount + CannonSizeMultiplier *
+                    (0.012f * ReactionWeight(Time.time - _hitStarted, 0.07f, 0.35f) +
+                     0.015f * ReactionWeight(Time.time - _dodgeStarted, 0.12f, 0.38f));
+            }
             UpdateFootContacts();
             RefreshPose();
         }
@@ -2352,6 +2392,9 @@ public sealed class InnovationArtillerist : AbstractSubclass
 
         private void UnbindCharacter()
         {
+            _prone = false;
+            _proneAmount = 0f;
+            _hitStarted = _dodgeStarted = float.NegativeInfinity;
             _jumpPreparing = false;
             _jumpFlying = false;
             _airborne = false;
@@ -2364,6 +2407,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
             }
             _character.JumpStarted -= OnJumpStarted;
             _character.JumpFinished -= OnJumpFinished;
+            _character.ProneStatusChanged -= OnProneStatusChanged;
             _character = null;
         }
 
@@ -2381,6 +2425,36 @@ public sealed class InnovationArtillerist : AbstractSubclass
             }
             _character.JumpStarted += OnJumpStarted;
             _character.JumpFinished += OnJumpFinished;
+            _character.ProneStatusChanged += OnProneStatusChanged;
+            _prone = _character.Prone;
+            _proneAmount = _prone ? 1f : 0f;
+        }
+
+        private void OnProneStatusChanged(GameLocationCharacter character)
+        {
+            if (_prone != character.Prone)
+            {
+                _prone = character.Prone;
+                ProneTransitionCount++;
+            }
+        }
+
+        internal void ReactToHit(bool blocking)
+        {
+            if (blocking)
+            {
+                if (_dodgeStarted != Time.time)
+                {
+                    _dodgeSide = -_dodgeSide;
+                    _dodgeStarted = Time.time;
+                    DodgeReactionCount++;
+                }
+            }
+            else if (_hitStarted != Time.time)
+            {
+                _hitStarted = Time.time;
+                HitReactionCount++;
+            }
         }
 
         [UsedImplicitly]

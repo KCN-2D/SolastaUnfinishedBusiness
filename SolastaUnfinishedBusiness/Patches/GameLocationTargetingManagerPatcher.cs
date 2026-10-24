@@ -54,6 +54,12 @@ public static class GameLocationTargetingManagerPatcher
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             instructions = instructions.ReplaceCalls(
+                AccessTools.Method(typeof(RulesetEffect), nameof(RulesetEffect.ComputeTargetParameter)), 1,
+                "GameLocationTargetingManager.ComputeAndSortSubtargets.SelectionCandidates",
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TargetingContext),
+                    nameof(TargetingContext.GetSubtargetCandidateLimit))));
+
+            instructions = instructions.ReplaceCalls(
                 AccessTools.Method(typeof(List<GameLocationCharacter>), nameof(List<GameLocationCharacter>.Add)), 1,
                 "GameLocationTargetingManager.ComputeAndSortSubtargets.Candidates",
                 new CodeInstruction(OpCodes.Ldarg_1), new CodeInstruction(OpCodes.Ldarg_2),
@@ -79,8 +85,8 @@ public static class GameLocationTargetingManagerPatcher
 
         private static bool IsSubtargetAllowed(GameLocationCharacter target, RuleDefinitions.Side casterSide,
             GameLocationCharacter caster, RulesetEffect effect) =>
-            target.IsOppositeSide(casterSide) || TargetingContext.CanTargetAlly(caster, target,
-                effect.SourceDefinition, effect.EffectDescription);
+            TargetingContext.IsValidOffensiveTarget(caster, target, effect.SourceDefinition,
+                effect.EffectDescription);
     }
 
     //PATCH: UseHeightOneCylinderEffect

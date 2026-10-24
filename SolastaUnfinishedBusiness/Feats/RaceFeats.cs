@@ -938,7 +938,7 @@ internal static class RaceFeats
             .AddToDB();
 
         power.AddCustomSubFeatures(
-            TargetingContext.SelectiveTargets.Marker,
+            TargetingContext.SelectiveTargets.AdditionalTargets,
             new MagicEffectFinishedByMeDragonFear(power));
 
         var featDragonFearStr = FeatDefinitionWithPrerequisitesBuilder

@@ -118,7 +118,7 @@ public sealed class PathOfTheSpirits : AbstractSubclass
         PowerSpiritGuardians.effectDescription.EffectForms[2].ConditionForm.ConditionDefinition =
             ConditionSpiritGuardiansSelf;
         PowerSpiritGuardians.AddCustomSubFeatures(
-            TargetingContext.SelectiveTargets.Marker,
+            TargetingContext.SelectiveTargets.AdditionalTargets,
             new ModifyEffectDescriptionSpiritGuardians(PowerSpiritGuardians));
 
         PowerSpiritGuardiansRageCost.effectDescription.EffectForms[1].ConditionForm.ConditionDefinition =
@@ -126,7 +126,7 @@ public sealed class PathOfTheSpirits : AbstractSubclass
         PowerSpiritGuardiansRageCost.effectDescription.EffectForms[2].ConditionForm.ConditionDefinition =
             ConditionSpiritGuardiansSelf;
         PowerSpiritGuardiansRageCost.AddCustomSubFeatures(
-            TargetingContext.SelectiveTargets.Marker,
+            TargetingContext.SelectiveTargets.AdditionalTargets,
             new ModifyEffectDescriptionSpiritGuardians(PowerSpiritGuardiansRageCost));
 
         #endregion
