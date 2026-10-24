@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -25,6 +26,170 @@ internal static class DungeonMakerContext
     internal static readonly HashSet<string> OutdoorRooms = new(StringComparer.Ordinal);
     private static readonly ConditionalWeakTable<UserCampaignPoolManager, CampaignFileCache> CampaignFiles = new();
     private static readonly ConditionalWeakTable<MonsterDefinition, MonsterDefinition> UserMonsterReferences = new();
+    private static readonly ReadCampaignFile ReadCampaignFromDisk = AccessTools.MethodDelegate<ReadCampaignFile>(
+        AccessTools.Method(typeof(UserCampaignPoolManager), "ReadCampaignFromDisk"));
+
+    private delegate UserCampaign ReadCampaignFile(UserCampaignPoolManager owner, string path,
+        ref bool someContentRemoved, bool fromGamingPlatform, bool fromExternalSource, List<string> removedContent);
+    internal static bool CampaignReadRegistrationTracked { get; set; }
+    internal static bool CampaignSaveCompletionTracked { get; set; }
+    internal static bool CanPreloadCampaignFiles => CampaignReadRegistrationTracked && CampaignSaveCompletionTracked;
+
+    internal static IEnumerator PreloadCampaignFiles(UserCampaignPoolManager owner)
+    {
+        var directory = TacticalAdventuresApplication.UserCampaignsDirectory;
+        var localFiles = Directory.Exists(directory) ? Directory.GetFiles(directory, "*.json") : [];
+        var platformFiles = ServiceRepository.GetService<IGamingPlatformService>()?.UserContentPaths.ToArray() ?? [];
+
+        return PreloadCampaignFiles(owner, localFiles, platformFiles);
+    }
+
+    private static IEnumerator PreloadCampaignFiles(
+        UserCampaignPoolManager owner, string[] localFiles, string[] platformFiles)
+    {
+        var cache = CampaignFiles.GetValue(owner, _ => new CampaignFileCache());
+        var preload = new CampaignPreload();
+        cache.Preload = preload;
+
+        foreach (var source in new[] { (Files: localFiles, Platform: false), (Files: platformFiles, Platform: true) })
+        {
+            foreach (var path in source.Files)
+            {
+                if (Main.IsApplicationQuitting || !ReferenceEquals(cache.Preload, preload) || preload.Consuming)
+                {
+                    yield break;
+                }
+
+                // Leave inaccessible paths to the normal enumeration's error handling.
+                if (TryGetCampaignFileStamp(path, out var beforeRead))
+                {
+                    var removedContent = new List<string>();
+                    var someContentRemoved = false;
+                    preload.RegistrationReached = false;
+                    preload.NativeSaveObserved = false;
+                    preload.SavedPath = null;
+                    preload.Reading = true;
+                    UserCampaign campaign;
+
+                    try
+                    {
+                        campaign = ReadCampaignFromDisk(owner, path, ref someContentRemoved,
+                            source.Platform, false, removedContent);
+                    }
+                    finally
+                    {
+                        preload.Reading = false;
+                    }
+
+                    if (campaign != null)
+                    {
+                        preload.Campaigns.Add(campaign);
+                    }
+
+                    var resultPath = path;
+
+                    if (!source.Platform && preload.NativeSaveObserved && campaign != null && !File.Exists(path))
+                    {
+                        resultPath = preload.SavedPath;
+                    }
+
+                    if (TryGetCampaignFileStamp(resultPath, out var stamp) &&
+                        (stamp.Equals(beforeRead) ||
+                         preload.NativeSaveObserved &&
+                         string.Equals(resultPath, preload.SavedPath, StringComparison.OrdinalIgnoreCase) &&
+                         stamp.Equals(preload.SavedStamp)))
+                    {
+                        var key = (resultPath, source.Platform);
+
+                        if (!preload.Reads.TryGetValue(key, out var reads))
+                        {
+                            reads = new Queue<PreloadedCampaignRead>();
+                            preload.Reads.Add(key, reads);
+                        }
+
+                        var read = new PreloadedCampaignRead(stamp, campaign,
+                            preload.RegistrationReached, someContentRemoved, removedContent.ToArray());
+                        reads.Enqueue(read);
+                    }
+                }
+
+                yield return null;
+            }
+        }
+    }
+
+    internal static void MarkCampaignPreloadRegistration(UserCampaignPoolManager owner)
+    {
+        if (CampaignFiles.TryGetValue(owner, out var cache) && cache.Preload is { Consuming: false, Reading: true } preload)
+        {
+            preload.RegistrationReached = true;
+        }
+    }
+
+    internal static void MarkCampaignPreloadSaveCompleted(UserCampaignPoolManager owner, string path)
+    {
+        if (CampaignFiles.TryGetValue(owner, out var cache) &&
+            cache.Preload is { Consuming: false, Reading: true } preload &&
+            TryGetCampaignFileStamp(path, out var stamp))
+        {
+            preload.NativeSaveObserved = true;
+            preload.SavedPath = path;
+            preload.SavedStamp = stamp;
+        }
+    }
+
+    internal static void CancelCampaignPreload(UserCampaignPoolManager owner)
+    {
+        if (owner != null && CampaignFiles.TryGetValue(owner, out var cache))
+        {
+            cache.Preload = null;
+        }
+    }
+
+    internal static bool TryGetPreloadedCampaignFile(
+        UserCampaignPoolManager owner, string path, bool fromGamingPlatform, bool fromExternalSource,
+        Dictionary<string, UserCampaign> pool, ref bool someContentRemoved, List<string> removedContent,
+        out UserCampaign campaign)
+    {
+        campaign = null;
+
+        if (fromExternalSource || !CampaignFiles.TryGetValue(owner, out var cache) ||
+            cache.Preload is not { Consuming: true } preload ||
+            !preload.Reads.TryGetValue((path, fromGamingPlatform), out var reads) || reads.Count == 0)
+        {
+            return false;
+        }
+
+        var read = reads.Dequeue();
+
+        if (!TryGetCampaignFileStamp(path, out var stamp) || !stamp.Equals(read.Stamp))
+        {
+            return false;
+        }
+
+        campaign = read.Campaign;
+        someContentRemoved |= read.SomeContentRemoved;
+        removedContent?.AddRange(read.RemovedContent);
+
+        if (read.Registered && campaign != null && !pool.ContainsKey(campaign.Title))
+        {
+            pool[campaign.Title] = campaign;
+        }
+
+        return true;
+    }
+
+    internal static void ReleaseCampaignFileEnumeration(List<UserCampaign> retained)
+    {
+        if (retained is CampaignEnumerationRetention retention &&
+            CampaignFiles.TryGetValue(retention.Owner, out var cache) &&
+            ReferenceEquals(cache.Preload, retention.Preload))
+        {
+            cache.Preload = null;
+        }
+
+        retained?.Clear();
+    }
 
     internal static void RegisterUserMonsterDefinition(MonsterDefinition definition, MonsterDefinition reference) =>
         UserMonsterReferences.Add(definition, reference);
@@ -36,11 +201,17 @@ internal static class DungeonMakerContext
     // saved-campaign supplementation, while reusing unchanged disk content it owns.
     internal static List<UserCampaign> RetainCampaignFilesForEnumeration(UserCampaignPoolManager owner)
     {
-        var retained = new List<UserCampaign>();
-
         if (!CampaignFiles.TryGetValue(owner, out var cache))
         {
-            return retained;
+            return [];
+        }
+
+        var retained = new CampaignEnumerationRetention(owner, cache.Preload);
+
+        if (cache.Preload is { } preload)
+        {
+            preload.Consuming = true;
+            retained.AddRange(preload.Campaigns);
         }
 
         foreach (var pair in cache.Files.ToArray())
@@ -191,6 +362,36 @@ internal static class DungeonMakerContext
     private sealed class CampaignFileCache
     {
         internal Dictionary<string, CachedCampaignFile> Files { get; } = new(StringComparer.OrdinalIgnoreCase);
+        internal CampaignPreload Preload { get; set; }
+    }
+
+    private sealed class CampaignPreload
+    {
+        internal readonly Dictionary<(string Path, bool Platform), Queue<PreloadedCampaignRead>> Reads = new();
+        internal readonly List<UserCampaign> Campaigns = [];
+        internal bool RegistrationReached;
+        internal bool NativeSaveObserved;
+        internal string SavedPath;
+        internal CampaignFileStamp SavedStamp;
+        internal bool Reading;
+        internal bool Consuming;
+    }
+
+    private sealed class PreloadedCampaignRead(CampaignFileStamp stamp, UserCampaign campaign,
+        bool registered, bool someContentRemoved, string[] removedContent)
+    {
+        internal CampaignFileStamp Stamp { get; } = stamp;
+        internal UserCampaign Campaign { get; } = campaign;
+        internal bool Registered { get; } = registered;
+        internal bool SomeContentRemoved { get; } = someContentRemoved;
+        internal string[] RemovedContent { get; } = removedContent;
+    }
+
+    private sealed class CampaignEnumerationRetention(UserCampaignPoolManager owner, CampaignPreload preload)
+        : List<UserCampaign>
+    {
+        internal UserCampaignPoolManager Owner { get; } = owner;
+        internal CampaignPreload Preload { get; } = preload;
     }
 
     private sealed class CachedCampaignFile(

@@ -14,15 +14,27 @@ namespace SolastaUnfinishedBusiness.Patches;
 public static class ContainerPanelPatcher
 {
     private static IEnumerable<CodeInstruction> ReplaceSlotsGetter(IEnumerable<CodeInstruction> instructions,
-        string context)
+        ILGenerator generator, string context)
     {
         var oldMethod = typeof(RulesetContainer).GetProperty(nameof(RulesetContainer.InventorySlots))!.GetGetMethod();
         var newMethod =
             typeof(InventoryManagementContext).GetMethod(nameof(InventoryManagementContext.GetFilteredSlots));
 
-        return instructions.ReplaceCalls(oldMethod, context,
-            new CodeInstruction(OpCodes.Ldarg_0),
-            new CodeInstruction(OpCodes.Call, newMethod));
+        // The native visible-slot loop reads the same list twice per item. Resolve the
+        // filtering controls once for this synchronous refresh, retaining the live list.
+        var slots = generator.DeclareLocal(typeof(List<RulesetInventorySlot>));
+        var result = new List<CodeInstruction>
+        {
+            new(OpCodes.Ldarg_0),
+            new(OpCodes.Call, AccessTools.PropertyGetter(typeof(ContainerPanel), nameof(ContainerPanel.Container))),
+            new(OpCodes.Ldarg_0),
+            new(OpCodes.Call, newMethod),
+            new(OpCodes.Stloc, slots)
+        };
+        result.AddRange(instructions.ReplaceCalls(oldMethod, context,
+            new CodeInstruction(OpCodes.Pop),
+            new CodeInstruction(OpCodes.Ldloc, slots)));
+        return result;
     }
 
     //PATCH: Enable Inventory Filtering and Sorting
@@ -32,12 +44,13 @@ public static class ContainerPanelPatcher
     public static class RefreshVisibleSlots_Patch
     {
         [UsedImplicitly]
-        internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions,
+            ILGenerator generator)
         {
             var oldMethod = typeof(RectTransform).GetProperty(nameof(RectTransform.anchoredPosition))!.GetSetMethod();
             var newMethod = new Action<RectTransform, Vector2>(SetAnchor).Method;
 
-            return ReplaceSlotsGetter(instructions, "ContainerPanel.RefreshVisibleSlots.1")
+            return ReplaceSlotsGetter(instructions, generator, "ContainerPanel.RefreshVisibleSlots.1")
                 .ReplaceCall(oldMethod, 1, "ContainerPanel.RefreshVisibleSlots.2",
                     new CodeInstruction(OpCodes.Call, newMethod));
         }
@@ -58,9 +71,10 @@ public static class ContainerPanelPatcher
     public static class ComputeTableHeight_Patch
     {
         [UsedImplicitly]
-        internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        internal static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions,
+            ILGenerator generator)
         {
-            return ReplaceSlotsGetter(instructions, "ContainerPanel.ComputeTableHeight");
+            return ReplaceSlotsGetter(instructions, generator, "ContainerPanel.ComputeTableHeight");
         }
     }
 

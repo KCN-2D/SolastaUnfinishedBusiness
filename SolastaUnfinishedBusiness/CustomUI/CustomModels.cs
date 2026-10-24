@@ -17,6 +17,293 @@ namespace SolastaUnfinishedBusiness.CustomUI;
 
 public static class CustomModels
 {
+    internal static bool RequiresWieldedEquipmentRefresh(ItemDefinition definition) =>
+        definition.IsWeapon ||
+        definition.IsFocusItem &&
+        (definition.SlotsWhereActive.Contains(EquipmentDefinitions.SlotTypeMainHand) ||
+         definition.SlotsWhereActive.Contains(EquipmentDefinitions.SlotTypeOffHand));
+
+    internal sealed class SphericalGrip(Vector3 modelCenter, Vector3 palmOffset, Vector3 upperArm,
+        Vector2 forearm, Vector2 wrist, float fingerExtension)
+    {
+        internal Vector3 ModelCenter { get; } = modelCenter;
+        internal Vector3 PalmOffset { get; } = palmOffset;
+        internal float FingerExtension { get; } = fingerExtension;
+        internal float[] ArmMuscles { get; } =
+            [upperArm.x, upperArm.y, upperArm.z, forearm.x, forearm.y, wrist.x, wrist.y];
+    }
+
+    internal static void ApplyWieldedItemPresentation(GraphicsCharacter graphics, RulesetItem item, string slot)
+    {
+        var grip = item.ItemDefinition.GetFirstSubFeatureOfType<SphericalGrip>();
+        if (grip == null ||
+            slot != EquipmentDefinitions.SlotTypeMainHand && slot != EquipmentDefinitions.SlotTypeOffHand ||
+            !graphics.WieldedInstantiatedItems.TryGetValue(slot, out var model) || !model)
+        {
+            return;
+        }
+
+        var presentation = model.GetComponent<SphericalGripPresentation>() ??
+                           model.AddComponent<SphericalGripPresentation>();
+        presentation.Bind(graphics, slot, grip);
+    }
+
+    internal static void RefreshWieldedItemPresentations(GraphicsCharacter graphics)
+    {
+        foreach (var model in graphics.WieldedInstantiatedItems.Values)
+        {
+            if (model)
+            {
+                model.GetComponent<SphericalGripPresentation>()?.RequestRefresh();
+            }
+        }
+    }
+
+    private sealed class SphericalGripPresentation : MonoBehaviour
+    {
+        private static readonly string[] ArmMuscleNames =
+        [
+            "Arm Down-Up", "Arm Front-Back", "Arm Twist In-Out", "Forearm Stretch",
+            "Forearm Twist In-Out", "Hand Down-Up", "Hand In-Out"
+        ];
+
+        private GraphicsCharacter _graphics;
+        private string _slot;
+        private SphericalGrip _grip;
+        private Transform _hand;
+        private Transform _index;
+        private Transform _pinky;
+        private Transform[] _posedBones;
+        private Quaternion[] _poseCorrections;
+        private Quaternion[] _animationRotations;
+        private Quaternion[] _appliedRotations;
+        private int _layer;
+        private bool _leftHand;
+        private bool _refreshRequested;
+        private bool _resolutionAttempted;
+        private bool _poseApplied;
+        internal int ResolutionAttempts { get; private set; }
+        internal int ApplyCount { get; private set; }
+        internal bool IsConfigured { get; private set; }
+        internal float ClosedWeight { get; private set; }
+        internal float PalmUpDot { get; private set; }
+        internal Vector3 TargetCenter { get; private set; }
+
+        internal void Bind(GraphicsCharacter graphics, string slot, SphericalGrip grip)
+        {
+            _graphics = graphics;
+            _slot = slot;
+            _grip = grip;
+            _leftHand = slot == EquipmentDefinitions.SlotTypeOffHand;
+            IsConfigured = false;
+            _refreshRequested = false;
+        }
+
+        internal void RequestRefresh()
+        {
+            RestoreAnimationPose();
+            IsConfigured = false;
+            _resolutionAttempted = false;
+            _refreshRequested = true;
+        }
+
+        [UsedImplicitly]
+        private void LateUpdate()
+        {
+            if (!_refreshRequested || !_graphics ||
+                !_graphics.WieldedInstantiatedItems.TryGetValue(_slot, out var current) ||
+                current != gameObject || !_graphics.Animator || !_graphics.Animator.enabled ||
+                !_graphics.Animator.isInitialized)
+            {
+                return;
+            }
+
+            var animator = _graphics.Animator;
+            if (!IsConfigured && !_resolutionAttempted)
+            {
+                _resolutionAttempted = true;
+                ResolutionAttempts++;
+                IsConfigured = ConfigurePose(animator);
+            }
+
+            if (!IsConfigured)
+            {
+                return;
+            }
+
+            for (var i = 0; i < _posedBones.Length; i++)
+            {
+                var rotation = _posedBones[i].localRotation;
+                if (!_poseApplied || rotation != _appliedRotations[i])
+                {
+                    _animationRotations[i] = rotation;
+                }
+                _appliedRotations[i] = _poseCorrections[i] * _animationRotations[i];
+                _posedBones[i].localRotation = _appliedRotations[i];
+            }
+            _poseApplied = true;
+            ApplyCount++;
+            ClosedWeight = animator.GetLayerWeight(_layer);
+            var knuckles = (_index.position + _pinky.position) * 0.5f;
+            var palm = (_hand.position + knuckles) * 0.5f;
+            var along = (knuckles - _hand.position).normalized;
+            var across = (_pinky.position - _index.position).normalized;
+            var normal = Vector3.Cross(along, across).normalized * (_leftHand ? 1 : -1);
+            across = Vector3.Cross(normal, along).normalized * (_leftHand ? 1 : -1);
+            var offset = _grip.PalmOffset;
+            var scale = transform.lossyScale;
+            var itemScale = Mathf.Abs(scale.x);
+            TargetCenter = palm + (along * offset.x + across * offset.y + normal * offset.z) * itemScale;
+            transform.rotation = Quaternion.LookRotation(along, normal);
+            transform.position += TargetCenter - transform.TransformPoint(_grip.ModelCenter);
+            PalmUpDot = Vector3.Dot(normal, _graphics.transform.up);
+
+        }
+
+        private bool ConfigurePose(Animator animator)
+        {
+            if (!animator.isHuman || !animator.avatar || !animator.avatar.isValid)
+            {
+                return false;
+            }
+
+            _hand = animator.GetBoneTransform(_leftHand ? HumanBodyBones.LeftHand : HumanBodyBones.RightHand);
+            _index = animator.GetBoneTransform(_leftHand ? HumanBodyBones.LeftIndexProximal : HumanBodyBones.RightIndexProximal);
+            _pinky = animator.GetBoneTransform(_leftHand ? HumanBodyBones.LeftLittleProximal : HumanBodyBones.RightLittleProximal);
+            _layer = animator.GetLayerIndex(_leftHand ? "LeftHandClosed" : "RightHandClosed");
+            if (!_hand || !_index || !_pinky || _layer < 0)
+            {
+                return false;
+            }
+
+            var side = _leftHand ? "Left" : "Right";
+            var names = HumanTrait.MuscleName;
+            var indices = new int[ArmMuscleNames.Length];
+            for (var i = 0; i < indices.Length; i++)
+            {
+                indices[i] = Array.IndexOf(names, side + " " + ArmMuscleNames[i]);
+                if (indices[i] < 0)
+                {
+                    return false;
+                }
+            }
+
+            var bones = new List<Transform>();
+            foreach (HumanBodyBones bone in Enum.GetValues(typeof(HumanBodyBones)))
+            {
+                var name = bone.ToString();
+                if (!name.StartsWith(side, StringComparison.Ordinal) ||
+                    !(name.Contains("Arm") || name.Contains("Hand") || name.Contains("Thumb") ||
+                      name.Contains("Index") || name.Contains("Middle") || name.Contains("Ring") ||
+                      name.Contains("Little")))
+                {
+                    continue;
+                }
+                var target = animator.GetBoneTransform(bone);
+                if (target)
+                {
+                    bones.Add(target);
+                }
+            }
+            _posedBones = bones.ToArray();
+            _poseCorrections = new Quaternion[_posedBones.Length];
+            _animationRotations = new Quaternion[_posedBones.Length];
+            _appliedRotations = new Quaternion[_posedBones.Length];
+
+            var transforms = animator.GetComponentsInChildren<Transform>(true);
+            var positions = new Vector3[transforms.Length];
+            var rotations = new Quaternion[transforms.Length];
+            var scales = new Vector3[transforms.Length];
+            for (var i = 0; i < transforms.Length; i++)
+            {
+                positions[i] = transforms[i].localPosition;
+                rotations[i] = transforms[i].localRotation;
+                scales[i] = transforms[i].localScale;
+            }
+            for (var i = 0; i < _posedBones.Length; i++)
+            {
+                _animationRotations[i] = _posedBones[i].localRotation;
+            }
+
+            using var poseHandler = new HumanPoseHandler(animator.avatar, animator.transform);
+            var original = new HumanPose();
+            poseHandler.GetHumanPose(ref original);
+            var pose = new HumanPose
+            {
+                bodyPosition = original.bodyPosition,
+                bodyRotation = original.bodyRotation,
+                muscles = (float[])original.muscles.Clone()
+            };
+            for (var i = 0; i < indices.Length; i++)
+            {
+                pose.muscles[indices[i]] = _grip.ArmMuscles[i];
+            }
+            for (var i = 0; i < names.Length; i++)
+            {
+                if (!names[i].StartsWith(side + " ", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+                if (names[i].EndsWith("Stretched", StringComparison.Ordinal))
+                {
+                    pose.muscles[i] = _grip.FingerExtension;
+                }
+                else if (names[i].EndsWith("Spread", StringComparison.Ordinal))
+                {
+                    pose.muscles[i] = 0;
+                }
+            }
+            try
+            {
+                poseHandler.SetHumanPose(ref pose);
+                for (var i = 0; i < _posedBones.Length; i++)
+                {
+                    _poseCorrections[i] = _posedBones[i].localRotation * Quaternion.Inverse(_animationRotations[i]);
+                }
+            }
+            finally
+            {
+                try
+                {
+                    poseHandler.SetHumanPose(ref original);
+                }
+                finally
+                {
+                    for (var i = 0; i < transforms.Length; i++)
+                    {
+                        transforms[i].localPosition = positions[i];
+                        transforms[i].localRotation = rotations[i];
+                        transforms[i].localScale = scales[i];
+                    }
+                }
+            }
+            _poseApplied = false;
+            return true;
+        }
+
+        private void RestoreAnimationPose()
+        {
+            if (!_poseApplied)
+            {
+                return;
+            }
+            for (var i = 0; i < _posedBones.Length; i++)
+            {
+                if (_posedBones[i] && _posedBones[i].localRotation == _appliedRotations[i])
+                {
+                    _posedBones[i].localRotation = _animationRotations[i];
+                }
+            }
+            _poseApplied = false;
+        }
+
+        [UsedImplicitly]
+        private void OnDisable() => RestoreAnimationPose();
+
+        [UsedImplicitly]
+        private void OnDestroy() => RestoreAnimationPose();
+    }
+
     internal sealed class MonsterModel(string name, float scale = 1f,
         Action<GraphicsCharacterMonster, Transform> configure = null,
         Func<GraphicsCharacterMonster, Transform> effectOrigin = null,
@@ -248,7 +535,7 @@ public static class CustomModels
     {
         var blenderModels = Path.Combine(Main.ModFolder, "BlenderModels");
 
-        string[] expectedModels = ["EldritchCannon", "EldritchCannonCradle", "EldritchCannonBarrel", "EldritchCannonLegUpper",
+        string[] expectedModels = ["ArcaneFocusOrb", "EldritchCannon", "EldritchCannonCradle", "EldritchCannonBarrel", "EldritchCannonLegUpper",
             "EldritchCannonLegLower", "EldritchCannonFoot", "Katana", "LightningLauncher", "LongMace", "Pike", "ThunderGauntlet"];
         var missingModel = false;
 
@@ -283,9 +570,6 @@ public static class CustomModels
 
     internal sealed class BlenderModelLoader : MonoBehaviour
     {
-        private static readonly GameObject Template =
-            new("BlenderModelLoader", typeof(MeshFilter), typeof(MeshRenderer));
-
         private static readonly int Alpha = Shader.PropertyToID("_Alpha");
         private static readonly int ColorProperty = Shader.PropertyToID("_Color");
         private static readonly int SrcBlend = Shader.PropertyToID("_SrcBlend");
@@ -298,6 +582,9 @@ public static class CustomModels
         private static readonly int MainTex = Shader.PropertyToID("_MainTex");
         private static readonly int BumpMap = Shader.PropertyToID("_BumpMap");
         private static BlenderModelLoader _shared;
+        private readonly List<AssetBundle> _materialBundles = [];
+        private Transform _prefabRoot;
+        private GameObject _template;
         public string directoryPath;
 
         [NotNull]
@@ -312,6 +599,12 @@ public static class CustomModels
 
                 _shared = new GameObject().AddComponent<BlenderModelLoader>();
                 DontDestroyOnLoad(_shared.gameObject);
+                var prefabRoot = new GameObject("Blender Model Prefabs");
+                prefabRoot.SetActive(false);
+                prefabRoot.transform.SetParent(_shared.transform, false);
+                _shared._prefabRoot = prefabRoot.transform;
+                _shared._template = new GameObject("BlenderModelLoader", typeof(MeshFilter), typeof(MeshRenderer));
+                _shared._template.transform.SetParent(_shared._prefabRoot, false);
 
                 return _shared;
             }
@@ -320,7 +613,7 @@ public static class CustomModels
         public void LoadModel(string filename)
         {
             // should get better performance by instantiating the prefab outside the coroutine
-            var prefab = Instantiate(Template);
+            var prefab = Instantiate(_template, _prefabRoot, false);
             var meshFilter = prefab.GetComponent<MeshFilter>();
             var meshRenderer = prefab.GetComponent<MeshRenderer>();
 
@@ -336,6 +629,14 @@ public static class CustomModels
             }
 
             _shared.StopAllCoroutines();
+            foreach (var bundle in _shared._materialBundles)
+            {
+                if (bundle)
+                {
+                    bundle.Unload(true);
+                }
+            }
+            _shared._materialBundles.Clear();
             Destroy(_shared.gameObject);
             _shared = null;
         }
@@ -351,9 +652,7 @@ public static class CustomModels
             var prefabGuid = GetGuid(filename);
 
             meshFilter.mesh = PopulateMesh(obj);
-            LoadedMeshes.Add(meshFilter.sharedMesh);
             meshRenderer.materials = DefineMaterial(filename, obj);
-            meshRenderer.enabled = false;
             PrefabsByGuid[prefabGuid] = prefab;
 
             Main.Info($"Model {filename} loaded.");
@@ -362,6 +661,7 @@ public static class CustomModels
         private static Mesh PopulateMesh(ObjectFile obj)
         {
             var mesh = new Mesh();
+            LoadedMeshes.Add(mesh);
             var triplets = new List<int[]>();
             var subMeshes = new List<int>();
 
@@ -454,10 +754,49 @@ public static class CustomModels
             return null;
         }
 
-        private static Material[] DefineMaterial(string modelName, ObjectFile obj)
+        private Dictionary<string, Material> LoadMaterialTemplates(string modelName)
+        {
+            var bundlePath = Path.Combine(Main.ModFolder, "BlenderModels", modelName,
+                modelName + ".materials.bundle");
+            var templates = new Dictionary<string, Material>(StringComparer.Ordinal);
+            if (!File.Exists(bundlePath))
+            {
+                return templates;
+            }
+
+            var bundle = AssetBundle.LoadFromFile(bundlePath);
+            if (!bundle)
+            {
+                throw new InvalidDataException($"Cannot load model material bundle {bundlePath}.");
+            }
+
+            try
+            {
+                foreach (var material in bundle.LoadAllAssets<Material>())
+                {
+                    if (!material || !material.shader || !material.shader.isSupported)
+                    {
+                        throw new InvalidDataException($"Unsupported material in {bundlePath}.");
+                    }
+
+                    templates.Add(material.name, material);
+                }
+
+                _materialBundles.Add(bundle);
+                return templates;
+            }
+            catch
+            {
+                bundle.Unload(true);
+                throw;
+            }
+        }
+
+        private Material[] DefineMaterial(string modelName, ObjectFile obj)
         {
             var materials = new Material[obj.usemtl.Count];
             var materialByName = new Dictionary<string, Material>(StringComparer.Ordinal);
+            var templates = LoadMaterialTemplates(modelName);
 
             for (var i = 0; i < obj.usemtl.Count; i += 1)
             {
@@ -469,7 +808,10 @@ public static class CustomModels
                 }
 
                 NewMtl newMtl = null;
-                var material = new Material(Shader.Find("Standard")) { name = materialName };
+                var hasTemplate = templates.TryGetValue(materialName, out var template);
+                var material = hasTemplate ? new Material(template) : new Material(Shader.Find("Standard"));
+                LoadedMaterials.Add(material);
+                material.name = materialName;
 
                 foreach (var materialDescription in obj.Materials)
                 {
@@ -493,30 +835,62 @@ public static class CustomModels
                         albedo.SetPixel(0, 0, new Color(newMtl.Kd.x, newMtl.Kd.y, newMtl.Kd.z));
                         albedo.Apply();
                         LoadedTextures.Add(albedo);
-                        material.SetTexture(MainTex, albedo);
+                        if (material.HasProperty(MainTex))
+                        {
+                            material.SetTexture(MainTex, albedo);
+                        }
+                    }
+                    if (material.HasProperty(ColorProperty))
+                    {
                         material.SetColor(ColorProperty, new Color(1f, 1f, 1f, newMtl.d));
                     }
-                    material.SetFloat(Alpha, newMtl.d);
-                    material.SetFloat(Glossiness, Mathf.Clamp01(newMtl.Ns / 1000f));
-                    material.SetColor(AmbientColor, new Color(newMtl.Ka.x, newMtl.Ka.y, newMtl.Ka.z));
-                    material.SetColor(SpecColor, new Color(newMtl.Ks.x, newMtl.Ks.y, newMtl.Ks.z));
-                    material.SetColor(EmissionColor, new Color(newMtl.Ke.x, newMtl.Ke.y, newMtl.Ke.z));
-                    var translucent = newMtl.d < 1f;
-                    material.SetInt(SrcBlend, translucent ? (int)BlendMode.SrcAlpha : (int)BlendMode.One);
-                    material.SetInt(DstBlend, translucent ? (int)BlendMode.OneMinusSrcAlpha : (int)BlendMode.Zero);
-                    material.SetInt(ZWrite, translucent ? 0 : 1);
-                    material.DisableKeyword("_ALPHATEST_ON");
-                    if (translucent)
+                    if (material.HasProperty(Alpha))
                     {
-                        material.EnableKeyword("_ALPHABLEND_ON");
+                        material.SetFloat(Alpha, newMtl.d);
                     }
-                    else
+                    if (material.HasProperty(Glossiness))
                     {
-                        material.DisableKeyword("_ALPHABLEND_ON");
+                        material.SetFloat(Glossiness, Mathf.Clamp01(newMtl.Ns / 1000f));
                     }
-                    material.renderQueue = translucent ? (int)RenderQueue.Transparent : (int)RenderQueue.Geometry;
+                    if (material.HasProperty(AmbientColor))
+                    {
+                        material.SetColor(AmbientColor, new Color(newMtl.Ka.x, newMtl.Ka.y, newMtl.Ka.z));
+                    }
+                    if (material.HasProperty(SpecColor))
+                    {
+                        material.SetColor(SpecColor, new Color(newMtl.Ks.x, newMtl.Ks.y, newMtl.Ks.z));
+                    }
+                    if (material.HasProperty(EmissionColor))
+                    {
+                        material.SetColor(EmissionColor, new Color(newMtl.Ke.x, newMtl.Ke.y, newMtl.Ke.z));
+                    }
+                    if (!hasTemplate)
+                    {
+                        if (newMtl.Ke.sqrMagnitude > 0)
+                        {
+                            material.EnableKeyword("_EMISSION");
+                        }
+                        else
+                        {
+                            material.DisableKeyword("_EMISSION");
+                        }
+                        var translucent = newMtl.d < 1f;
+                        material.SetInt(SrcBlend, translucent ? (int)BlendMode.SrcAlpha : (int)BlendMode.One);
+                        material.SetInt(DstBlend, translucent ? (int)BlendMode.OneMinusSrcAlpha : (int)BlendMode.Zero);
+                        material.SetInt(ZWrite, translucent ? 0 : 1);
+                        material.DisableKeyword("_ALPHATEST_ON");
+                        if (translucent)
+                        {
+                            material.EnableKeyword("_ALPHABLEND_ON");
+                        }
+                        else
+                        {
+                            material.DisableKeyword("_ALPHABLEND_ON");
+                        }
+                        material.renderQueue = translucent ? (int)RenderQueue.Transparent : (int)RenderQueue.Geometry;
+                    }
 
-                    if (!string.IsNullOrEmpty(newMtl.map_Kd))
+                    if (material.HasProperty(MainTex) && !string.IsNullOrEmpty(newMtl.map_Kd))
                     {
                         var mainTex = LoadTexture(modelName, newMtl.map_Kd);
 
@@ -526,14 +900,17 @@ public static class CustomModels
                         }
                     }
 
-                    if (!string.IsNullOrEmpty(newMtl.map_Bump))
+                    if (material.HasProperty(BumpMap) && !string.IsNullOrEmpty(newMtl.map_Bump))
                     {
                         var bumpMap = LoadTexture(modelName, newMtl.map_Bump, true);
 
                         if (bumpMap)
                         {
                             material.SetTexture(BumpMap, bumpMap);
-                            material.EnableKeyword("_NORMALMAP");
+                            if (!hasTemplate)
+                            {
+                                material.EnableKeyword("_NORMALMAP");
+                            }
                         }
                     }
                 }
@@ -561,6 +938,7 @@ public static class CustomModels
     private static readonly Dictionary<string, GameObject> PrefabsByGuid = [];
     private static readonly HashSet<Mesh> LoadedMeshes = [];
     private static readonly Dictionary<string, Material> MaterialsByGuid = [];
+    private static readonly HashSet<Material> LoadedMaterials = [];
     private static readonly List<Texture2D> LoadedTextures = [];
     private static readonly Dictionary<string, Texture2D> TexturesByPath = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<(Mesh Mesh, int Overlays), Mesh> OverlayMeshes = [];
@@ -568,13 +946,20 @@ public static class CustomModels
 
     internal static void Unload()
     {
-        BlenderModelLoader.Unload();
         foreach (var mesh in OverlayMeshes.Values)
         {
             UnityEngine.Object.Destroy(mesh);
         }
         OverlayMeshes.Clear();
         OverlayMeshSources.Clear();
+        foreach (var mesh in LoadedMeshes)
+        {
+            if (mesh)
+            {
+                UnityEngine.Object.Destroy(mesh);
+            }
+        }
+        LoadedMeshes.Clear();
         var destroyedPrefabs = new HashSet<GameObject>();
 
         foreach (var prefab in PrefabsByGuid.Values)
@@ -584,23 +969,14 @@ public static class CustomModels
                 continue;
             }
 
-            var meshFilter = prefab.GetComponent<MeshFilter>();
-
-            if (meshFilter && meshFilter.sharedMesh)
-            {
-                UnityEngine.Object.Destroy(meshFilter.sharedMesh);
-            }
-
             UnityEngine.Object.Destroy(prefab);
         }
 
         PrefabsByGuid.Clear();
-        LoadedMeshes.Clear();
-        var destroyedMaterials = new HashSet<Material>();
 
-        foreach (var material in MaterialsByGuid.Values)
+        foreach (var material in LoadedMaterials)
         {
-            if (!material || !destroyedMaterials.Add(material))
+            if (!material)
             {
                 continue;
             }
@@ -608,6 +984,7 @@ public static class CustomModels
             UnityEngine.Object.Destroy(material);
         }
 
+        LoadedMaterials.Clear();
         MaterialsByGuid.Clear();
         var destroyedTextures = new HashSet<Texture2D>();
 
@@ -623,24 +1000,7 @@ public static class CustomModels
 
         LoadedTextures.Clear();
         TexturesByPath.Clear();
-    }
-
-    internal static void SwitchRenderer(bool enabled)
-    {
-        foreach (var gameObject in PrefabsByGuid.Values)
-        {
-            if (!gameObject)
-            {
-                continue;
-            }
-
-            var meshRenderer = gameObject.GetComponent<MeshRenderer>();
-
-            if (meshRenderer)
-            {
-                meshRenderer.enabled = enabled;
-            }
-        }
+        BlenderModelLoader.Unload();
     }
 
     [CanBeNull]

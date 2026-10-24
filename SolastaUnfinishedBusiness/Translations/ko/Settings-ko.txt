@@ -662,8 +662,8 @@ ModUi/&SpeechVoiceVoxHelp=UB의 다운로드 및 설정 버튼으로 VOICEVOX를
 ModUi/&SpeechVoiceVoxConnecting=VOICEVOX에 연결 중…
 ModUi/&SpeechVoiceVoxConnected=VOICEVOX 연결됨: 음성 스타일 {0}개 사용 가능
 ModUi/&SpeechVoiceVoxUnavailable=VOICEVOX에 연결할 수 없습니다. 설정을 완료하거나 이미 실행 중인 VOICEVOX를 확인한 뒤 음성 목록을 새로 고치세요.
-ModUi/&SpeechVoiceVoxInstall=VOICEVOX 다운로드 및 설정
-ModUi/&SpeechVoiceVoxInstallHelp=첫 다운로드는 약 1.9GB입니다. 설정 후에는 Solasta가 필요에 따라 VOICEVOX를 실행하고 종료합니다. 다운로드는 취소하고 이어받을 수 있습니다. 음성 사용에는 각 화자의 이용 약관이 적용됩니다.
+ModUi/&SpeechVoiceVoxInstall=VOICEVOX 엔진 {0} 다운로드 및 설정
+ModUi/&SpeechVoiceVoxInstallHelp=Windows CPU용 최신 안정 버전 엔진을 다운로드합니다. Solasta가 필요에 따라 엔진을 시작하고 종료합니다. 다운로드는 취소하고 재개할 수 있습니다. 음성은 각 화자의 이용 약관에 따라 사용하세요.
 ModUi/&SpeechVoiceVoxDownloadProgress=VOICEVOX 다운로드 중: {0}
 ModUi/&SpeechVoiceVoxVerifying=VOICEVOX 다운로드 확인 중
 ModUi/&SpeechVoiceVoxExtracting=VOICEVOX 설정 중
@@ -708,3 +708,25 @@ ModUi/&EpicBoons2024RequiresTabletopHelp=이 옵션을 사용하려면 2024년�
 ModUi/&EnableInventorMagicItemMaster2024=18레벨에 <color=#D89555>마법 아이템의 달인</color>을 얻습니다 <i><color=#F0DAA0>[조율 한도 +1]</color></i>
 ModUi/&EnableArtilleristFortifiedPosition2024=아틸러리스트 15레벨에 2024년판 <color=#D89555>요새화된 위치</color>를 사용합니다 <i><color=#F0DAA0>[행동 한 번으로 캐논 두 개 생성]</color></i>
 ModUi/&EnableArtilleristEldritchCannon2024=아틸러리스트 3레벨에 2024년판 <color=#D89555>엘드리치 캐논</color>을 사용합니다 <i><color=#F0DAA0>[캐논을 활성화할 때마다 세 가지 효과 중 하나 선택]</color></i>
+ModUi/&SpeechVoiceVoxEngineVersion=VOICEVOX 엔진: {0}
+ModUi/&SpeechVoiceVoxVersionUnknown=버전 확인 안 됨
+ModUi/&SpeechVoiceVoxCheckAutomatically=본체 및 엔진 업데이트 자동 확인
+ModUi/&SpeechVoiceVoxCheckUpdates=VOICEVOX 업데이트 확인
+ModUi/&SpeechVoiceVoxReleases=엔진 배포 페이지
+ModUi/&SpeechVoiceVoxUpdateNotChecked=엔진 업데이트를 아직 확인하지 않았습니다.
+ModUi/&SpeechVoiceVoxUpdateChecking=엔진 업데이트 확인 중…
+ModUi/&SpeechVoiceVoxUpdateFailed=엔진 업데이트를 확인하지 못했습니다.
+ModUi/&SpeechVoiceVoxUpdateAvailable=엔진 {0}을 사용할 수 있습니다. 연결된 버전: {1}.
+ModUi/&SpeechVoiceVoxCurrentVersion=엔진 {0}에 대한 업데이트가 없습니다.
+ModUi/&SpeechVoiceVoxLatestVersion=최신 엔진: {0}
+ModUi/&SpeechVoiceVoxUpdateManaged=엔진 {0} 다운로드 및 설정
+ModUi/&SpeechVoiceVoxAppVersion=VOICEVOX 본체: {0}
+ModUi/&SpeechVoiceVoxAppUpdateChecking=본체 업데이트 확인 중…
+ModUi/&SpeechVoiceVoxAppUpdateFailed=본체 업데이트를 확인하지 못했습니다.
+ModUi/&SpeechVoiceVoxAppUpdateNotChecked=본체 업데이트를 아직 확인하지 않았습니다.
+ModUi/&SpeechVoiceVoxAppUpdateAvailable=본체 {0}을 사용할 수 있습니다. 설치된 버전: {1}.
+ModUi/&SpeechVoiceVoxAppCurrentVersion=본체 {0}에 대한 업데이트가 없습니다.
+ModUi/&SpeechVoiceVoxAppLatestVersion=최신 본체: {0}
+ModUi/&SpeechVoiceVoxAppReleases=VOICEVOX 본체 배포 페이지
+ModUi/&SpeechVoiceVoxCheckAndInstall=최신 엔진 확인 및 설치
+ModUi/&SpeechVoiceVoxCheckAndUpdate=관리 중인 엔진 업데이트 확인 및 설치

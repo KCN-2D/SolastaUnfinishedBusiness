@@ -321,6 +321,10 @@ __pycache__/
 /tools/runtime-verification/Probes/*
 !/tools/runtime-verification/Probes/NativeSummonIconInventoryProbe.cs
 !/tools/runtime-verification/Probes/DisplayStateProbe.cs
+!/tools/runtime-verification/Probes/PresentationCapture.cs
+!/tools/runtime-verification/Tests/
+/tools/runtime-verification/Tests/*
+!/tools/runtime-verification/Tests/PresentationCaptureProbe.cs
 /tools/blender-models/
 /tools/asset-authoring/workspace/
 

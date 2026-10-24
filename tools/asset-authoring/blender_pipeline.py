@@ -11,6 +11,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import re
 import sys
 import traceback
 import time
@@ -456,7 +457,142 @@ def parse_ub_obj(path, expected_object_name=None, *, minimum_normal_dot=0.0, req
                       "bounds_metres_y_up": bounds(vertices)}
 
 
-def render_preview(path, target=(0.0, 0.0, 0.55), *, direction=(2.4, -4.0, 2.3), ortho_scale=1.70):
+def output_file(output, relative):
+    require(isinstance(relative, str) and relative and not Path(relative).is_absolute(),
+            "Quality paths must be relative to the run output")
+    path = (output / relative).resolve()
+    require(path.is_relative_to(output.resolve()), "Quality path escapes the run output: " + relative)
+    require(path.is_file(), "Quality input is missing: " + relative)
+    return path
+
+
+def finite_vector(value, length, label):
+    require(isinstance(value, list) and len(value) == length and
+            all(type(number) in (int, float) and math.isfinite(number) for number in value),
+            label + " must contain finite numbers")
+    return value
+
+
+def quality_fields(value, allowed, required, label):
+    require(isinstance(value, dict), label + " must be an object")
+    require(not (set(value) - set(allowed)), label + " contains unknown fields: " + str(set(value) - set(allowed)))
+    require(set(required) <= set(value), label + " is missing required fields: " + str(set(required) - set(value)))
+
+
+def preview_receipt(path, *, view):
+    """Record the camera and renderer that produced an existing PNG."""
+    path = Path(path)
+    require(path.is_file(), "Cannot capture a missing preview")
+    scene = bpy.context.scene
+    require(scene.camera is not None and isinstance(view, str) and view, "Preview needs a camera and view name")
+    bpy.context.view_layer.update()
+    image = bpy.data.images.load(str(path), check_existing=False)
+    try:
+        dimensions = list(image.size)
+    finally:
+        bpy.data.images.remove(image)
+    direction = (scene.camera.matrix_world.to_3x3() @ Vector((0, 0, 1))).normalized()
+    receipt = {"schema_version": 1, "image": path.name, "sha256": file_hash(path),
+               "view": view, "width": dimensions[0], "height": dimensions[1],
+               "engine": scene.render.engine, "camera_direction": list(direction),
+               "camera_projection": scene.camera.data.type, "frame": scene.frame_current}
+    path.with_suffix(path.suffix + ".capture.json").write_text(
+        json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+    return receipt
+
+
+def validate_quality_profile(output, profile_path):
+    """Check model-owned requirements against exported assets and captured renders."""
+    profile = json.loads(Path(profile_path).read_text(encoding="utf-8-sig"))
+    quality_fields(profile, ("schema_version", "required_stages", "obj_assets", "previews"),
+                   ("schema_version", "required_stages"), "Quality profile")
+    require(type(profile["schema_version"]) is int and profile["schema_version"] == 1,
+            "Unsupported quality profile version")
+    stages = profile["required_stages"]
+    require(isinstance(stages, list) and stages and
+            all(isinstance(stage, str) and re.fullmatch(r"[a-z][a-z0-9_-]*", stage) for stage in stages) and
+            len(stages) == len(set(stages)) and "validate-quality" not in stages,
+            "Quality required_stages must contain distinct pipeline stage names")
+    artifacts = []
+    for stage in stages:
+        report_path = output_file(output, "reports/" + stage + ".json")
+        report = json.loads(report_path.read_text(encoding="utf-8-sig"))
+        require(report.get("stage") == stage and report.get("status") == "passed",
+                "Required stage did not pass: " + stage)
+        artifacts.append(report_path)
+    assets, previews = profile.get("obj_assets", []), profile.get("previews", [])
+    require(isinstance(assets, list) and isinstance(previews, list) and (assets or previews),
+            "Quality profile must require assets or previews")
+    asset_results, preview_results, seen = [], [], set()
+    for asset in assets:
+        quality_fields(asset, ("path", "bounds_metres_y_up", "materials", "max_triangles"),
+                       ("path", "bounds_metres_y_up", "materials", "max_triangles"), "OBJ requirement")
+        path = output_file(output, asset["path"])
+        require(path.suffix.lower() == ".obj" and path not in seen, "Duplicate or unsupported quality asset")
+        seen.add(path)
+        _, measured = parse_ub_obj(path)
+        budget = asset["max_triangles"]
+        require(type(budget) is int and budget > 0 and measured["triangles"] <= budget,
+                "OBJ exceeds the required triangle budget: " + asset["path"])
+        materials = asset["materials"]
+        require(isinstance(materials, list) and materials and
+                all(isinstance(name, str) and name for name in materials) and len(set(materials)) == len(materials),
+                "Quality materials must be distinct names")
+        require(set(materials) == set(measured["materials"]), "OBJ materials differ from the quality profile")
+        box = asset["bounds_metres_y_up"]
+        quality_fields(box, ("min", "max", "tolerance_metres"), ("min", "max"), "Quality bounds")
+        low, high = finite_vector(box["min"], 3, "Bounds min"), finite_vector(box["max"], 3, "Bounds max")
+        require(all(a <= b for a, b in zip(low, high, strict=True)), "Quality bounds min exceeds max")
+        tolerance = box.get("tolerance_metres", TOLERANCE)
+        require(type(tolerance) in (int, float) and math.isfinite(tolerance) and tolerance >= 0,
+                "Bounds tolerance must be finite and nonnegative")
+        error = max(abs(actual - expected) for side in ("min", "max")
+                    for actual, expected in zip(measured["bounds_metres_y_up"][side], box[side], strict=True))
+        require(error <= tolerance, "OBJ dimensions differ from the quality profile")
+        asset_results.append({"path": asset["path"], "bounds_error_metres": error, "measurements": measured})
+        artifacts.extend((path, path.with_suffix(".mtl")))
+    seen.clear()
+    for preview in previews:
+        quality_fields(preview, ("path", "view", "width", "height", "engine", "camera_direction", "angle_tolerance_degrees"),
+                       ("path", "view", "width", "height", "engine", "camera_direction"), "Preview requirement")
+        path = output_file(output, preview["path"])
+        require(path not in seen and path.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n", "Duplicate or non-PNG preview")
+        seen.add(path)
+        receipt_path = output_file(output, preview["path"] + ".capture.json")
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8-sig"))
+        require(receipt.get("schema_version") == 1 and receipt.get("image") == path.name and
+                receipt.get("sha256") == file_hash(path), "Preview capture does not match the actual PNG")
+        image = bpy.data.images.load(str(path), check_existing=False)
+        try:
+            dimensions = tuple(image.size)
+        finally:
+            bpy.data.images.remove(image)
+        require(all(type(preview[axis]) is int and preview[axis] > 0 for axis in ("width", "height")),
+                "Preview dimensions must be positive integers")
+        require(dimensions == (preview["width"], preview["height"]) == (receipt.get("width"), receipt.get("height")),
+                "Preview dimensions differ from the quality profile")
+        require(all(isinstance(preview[key], str) and preview[key] for key in ("view", "engine")),
+                "Preview view and engine must be named")
+        require(receipt.get("view") == preview["view"] and receipt.get("engine") == preview["engine"],
+                "Preview view or renderer differs from the quality profile")
+        expected = Vector(finite_vector(preview["camera_direction"], 3, "Required camera direction"))
+        actual = Vector(finite_vector(receipt.get("camera_direction"), 3, "Captured camera direction"))
+        tolerance = preview.get("angle_tolerance_degrees", 0.5)
+        require(expected.length > 0 and actual.length > 0 and type(tolerance) in (int, float) and
+                math.isfinite(tolerance) and 0 <= tolerance < 180, "Invalid preview camera tolerance/direction")
+        error = math.degrees(expected.angle(actual))
+        require(error <= tolerance, "Preview camera direction differs from the quality profile")
+        preview_results.append({"path": preview["path"], "view": preview["view"], "engine": receipt["engine"],
+                                "width": dimensions[0], "height": dimensions[1], "camera_error_degrees": error})
+        artifacts.extend((path, receipt_path))
+    return {"scope": "declared Blender OBJ geometry, material names and captured rendered views",
+            "required_stages": stages, "obj_assets_checked": asset_results, "previews_checked": preview_results,
+            "profile_sha256": file_hash(Path(profile_path)), "input_sha256": inputs_report(output, artifacts),
+            "unity": "not_run", "game": "not_run"}
+
+
+def render_preview(path, target=(0.0, 0.0, 0.55), *, direction=(2.4, -4.0, 2.3), ortho_scale=1.70,
+                   view="perspective"):
     scene = bpy.context.scene
     scene.render.engine = "BLENDER_WORKBENCH"
     scene.render.resolution_x, scene.render.resolution_y = 384, 384
@@ -487,6 +623,7 @@ def render_preview(path, target=(0.0, 0.0, 0.55), *, direction=(2.4, -4.0, 2.3),
     scene.render.filepath = str(path)
     bpy.ops.render.render(write_still=True)
     require(path.is_file() and path.stat().st_size > 1000, "Preview PNG was not written")
+    preview_receipt(path, view=view)
 
 
 def render_views(output, prefix, points):
@@ -498,7 +635,7 @@ def render_views(output, prefix, points):
     paths = []
     for name, direction in views.items():
         path = output / "previews" / f"{prefix}_{name}.png"
-        render_preview(path, target, direction=direction, ortho_scale=scale)
+        render_preview(path, target, direction=direction, ortho_scale=scale, view=name)
         paths.append(path)
     return paths
 
@@ -705,14 +842,16 @@ def verify_rig(output):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--stage", choices=("generate", "verify-static", "verify-rig"), required=True)
+    parser.add_argument("--stage", choices=("generate", "verify-static", "verify-rig", "validate-quality"), required=True)
+    parser.add_argument("--quality-profile", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
     owned_paths = ("static", "static/UBSampleProp", "rig",
                    "sources/UBSampleProp.blend", "sources/UBSampleRig.blend",
                    "static/UBSampleProp/UBSampleProp.obj", "static/UBSampleProp/UBSampleProp.mtl",
                    "rig/UBSampleRig.fbx", "previews/static.png", "previews/contact_sheet.png",
-                   "reports/generate.json", "reports/verify-static.json", "reports/verify-rig.json")
+                   "reports/generate.json", "reports/verify-static.json", "reports/verify-rig.json",
+                   "reports/validate-quality.json")
     owned_paths += tuple(f"previews/rig_frame_{frame:03d}.png" for frame in PREVIEW_FRAMES)
     owned_paths += tuple(f"previews/{prefix}_{view}.png" for prefix in ("static", "rig_frame_007")
                          for view in ("front", "side", "top", "perspective"))
@@ -729,8 +868,12 @@ def main():
     started = time.perf_counter()
     try:
         require(tuple(bpy.app.version) == VERSION, "This pipeline is verified with Blender 4.5.9 LTS only")
-        stage = {"generate": generate, "verify-static": verify_static, "verify-rig": verify_rig}[args.stage]
-        report.update(stage(output))
+        if args.stage == "validate-quality":
+            require(args.quality_profile is not None, "validate-quality requires --quality-profile")
+            report.update(validate_quality_profile(output, args.quality_profile))
+        else:
+            stage = {"generate": generate, "verify-static": verify_static, "verify-rig": verify_rig}[args.stage]
+            report.update(stage(output))
         report["status"] = "passed"
     except Exception as error:
         report["error"] = str(error)

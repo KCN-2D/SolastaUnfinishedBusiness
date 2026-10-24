@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -227,6 +227,17 @@ public static class GraphicsCharacterPatcher
 
         return ActionDefinitions.IsSpellAction(actionId)
                || actionId is ActionDefinitions.Id.GrantBardicInspiration;
+    }
+
+    [HarmonyPatch(typeof(GraphicsCharacter), "CheckWieldedItems")]
+    [UsedImplicitly]
+    public static class CheckWieldedItems_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GraphicsCharacter __instance)
+        {
+            CustomModels.RefreshWieldedItemPresentations(__instance);
+        }
     }
 
     [HarmonyPatch(typeof(GraphicsCharacter), "CheckWieldedItem")]

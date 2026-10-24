@@ -662,8 +662,8 @@ ModUi/&SpeechVoiceVoxHelp=Über die Download- und Einrichtungsschaltfläche in U
 ModUi/&SpeechVoiceVoxConnecting=Verbindung zu VOICEVOX wird hergestellt…
 ModUi/&SpeechVoiceVoxConnected=VOICEVOX verbunden: {0} Stimmstile verfügbar
 ModUi/&SpeechVoiceVoxUnavailable=VOICEVOX ist nicht verfügbar. Schließen Sie die Einrichtung ab oder prüfen Sie ein bereits laufendes VOICEVOX und aktualisieren Sie dann die Stimmenliste.
-ModUi/&SpeechVoiceVoxInstall=VOICEVOX herunterladen und einrichten
-ModUi/&SpeechVoiceVoxInstallHelp=Der erste Download ist etwa 1,9 GB groß. Nach der Einrichtung startet und beendet Solasta VOICEVOX bei Bedarf. Der Download kann abgebrochen und fortgesetzt werden. Für die Nutzung der Stimmen gelten die Bedingungen des jeweiligen Sprechers.
+ModUi/&SpeechVoiceVoxInstall=VOICEVOX-Engine {0} herunterladen und einrichten
+ModUi/&SpeechVoiceVoxInstallHelp=Lädt die neueste stabile Windows-CPU-Engine herunter. Solasta startet und beendet sie bei Bedarf. Downloads können abgebrochen und fortgesetzt werden. Beachte die Nutzungsbedingungen der jeweiligen Sprecher.
 ModUi/&SpeechVoiceVoxDownloadProgress=VOICEVOX wird heruntergeladen: {0}
 ModUi/&SpeechVoiceVoxVerifying=VOICEVOX-Download wird überprüft
 ModUi/&SpeechVoiceVoxExtracting=VOICEVOX wird eingerichtet
@@ -708,3 +708,25 @@ ModUi/&EpicBoons2024RequiresTabletopHelp=Aktiviere die Tabletop-Talente von 2024
 ModUi/&EnableInventorMagicItemMaster2024=Aktiviere <color=#D89555>Meister magischer Gegenstände</color> auf Stufe 18 <i><color=#F0DAA0>[Einstimmungslimit +1]</color></i>
 ModUi/&EnableArtilleristFortifiedPosition2024=Verwende die 2024-Version von <color=#D89555>Befestigte Stellung</color> auf Artilleristenstufe 15 <i><color=#F0DAA0>[zwei Kanonen mit einer Aktion erschaffen]</color></i>
 ModUi/&EnableArtilleristEldritchCannon2024=Verwende die 2024-Version von <color=#D89555>Unheimliche Kanone</color> auf Artilleristenstufe 3 <i><color=#F0DAA0>[bei jeder Aktivierung der Kanone einen von drei Effekten wählen]</color></i>
+ModUi/&SpeechVoiceVoxEngineVersion=VOICEVOX-Engine: {0}
+ModUi/&SpeechVoiceVoxVersionUnknown=Version nicht verfügbar
+ModUi/&SpeechVoiceVoxCheckAutomatically=Anwendungs- und Engine-Updates automatisch prüfen
+ModUi/&SpeechVoiceVoxCheckUpdates=VOICEVOX-Updates prüfen
+ModUi/&SpeechVoiceVoxReleases=Engine-Veröffentlichungen
+ModUi/&SpeechVoiceVoxUpdateNotChecked=Engine-Updates wurden noch nicht geprüft.
+ModUi/&SpeechVoiceVoxUpdateChecking=Engine-Updates werden geprüft…
+ModUi/&SpeechVoiceVoxUpdateFailed=Engine-Updates konnten nicht geprüft werden.
+ModUi/&SpeechVoiceVoxUpdateAvailable=Engine {0} ist verfügbar. Verbunden: {1}.
+ModUi/&SpeechVoiceVoxCurrentVersion=Für Engine {0} ist kein Update verfügbar.
+ModUi/&SpeechVoiceVoxLatestVersion=Neueste Engine: {0}
+ModUi/&SpeechVoiceVoxUpdateManaged=Engine {0} herunterladen und einrichten
+ModUi/&SpeechVoiceVoxAppVersion=VOICEVOX-Anwendung: {0}
+ModUi/&SpeechVoiceVoxAppUpdateChecking=Anwendungsupdates werden geprüft…
+ModUi/&SpeechVoiceVoxAppUpdateFailed=Anwendungsupdates konnten nicht geprüft werden.
+ModUi/&SpeechVoiceVoxAppUpdateNotChecked=Anwendungsupdates wurden noch nicht geprüft.
+ModUi/&SpeechVoiceVoxAppUpdateAvailable=Anwendung {0} ist verfügbar. Installiert: {1}.
+ModUi/&SpeechVoiceVoxAppCurrentVersion=Für Anwendung {0} ist kein Update verfügbar.
+ModUi/&SpeechVoiceVoxAppLatestVersion=Neueste Anwendung: {0}
+ModUi/&SpeechVoiceVoxAppReleases=VOICEVOX-Anwendungsveröffentlichungen
+ModUi/&SpeechVoiceVoxCheckAndInstall=Neueste Engine prüfen und einrichten
+ModUi/&SpeechVoiceVoxCheckAndUpdate=Neueste verwaltete Engine prüfen und aktualisieren

@@ -1,9 +1,12 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.CustomUI;
+using UnityEngine;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -33,6 +36,15 @@ public static class SpellsByLevelGroupPatcher
     [UsedImplicitly]
     public static class CommonBind_Patch
     {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            instructions.ReplaceCalls(
+                typeof(List<SpellDefinition>).GetMethod(nameof(List<SpellDefinition>.Sort),
+                    [typeof(IComparer<SpellDefinition>)]),
+                1, "SpellsByLevelGroup.CommonBind.Sort",
+                new CodeInstruction(OpCodes.Call,
+                    new Action<List<SpellDefinition>, IComparer<SpellDefinition>>(UiTextHelpers.SortSpellDefinitions).Method));
+
         [UsedImplicitly]
         public static void Prefix(
             SpellsByLevelGroup __instance,
@@ -82,5 +94,18 @@ public static class SpellsByLevelGroupPatcher
         {
             UiTextHelpers.EndSpellBoxGridLayout(__instance);
         }
+    }
+
+    [HarmonyPatch(typeof(SpellsByLevelGroup), nameof(SpellsByLevelGroup.Compare))]
+    [UsedImplicitly]
+    private static class Compare_Patch
+    {
+        [UsedImplicitly]
+        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            instructions.ReplaceCalls(typeof(Gui).GetMethod(nameof(Gui.Localize),
+                    [typeof(string), typeof(bool), typeof(GameObject), typeof(string)]),
+                2, "SpellsByLevelGroup.Compare.Title",
+                new CodeInstruction(OpCodes.Call,
+                    new Func<string, bool, GameObject, string, string>(UiTextHelpers.LocalizeSpellSortTitle).Method));
     }
 }

@@ -4,8 +4,10 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Validators;
+using UnityEngine;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.CharacterClassDefinitions;
@@ -34,6 +36,7 @@ internal static class CustomItemsContext
 
     internal static void Load()
     {
+        LoadArcaneFocusOrbModel();
         _helmOfAwareness ??= BuildHelmOfAwareness();
         _glovesOfThievery ??= BuildGlovesOfThievery();
 
@@ -43,6 +46,29 @@ internal static class CustomItemsContext
         SwitchUniversalSylvanArmorAndLightbringer();
         SwitchMagicStaffFoci();
         SwitchAllMagicThrownReturn();
+    }
+
+    private static void LoadArcaneFocusOrbModel()
+    {
+        var orb = GetDefinition<ItemDefinition>("ArcaneFocusOrb");
+        var model = CustomModels.GetBlenderModel(orb.Name);
+        orb.itemPresentation = new ItemPresentation(orb.ItemPresentation)
+        {
+            assetReference = model
+        };
+
+        orb.AddCustomSubFeatures(new CustomModels.SphericalGrip(
+            new Vector3(-0.010f, -0.070f, -0.035f),
+            new Vector3(0.010f, 0, 0.065f),
+            new Vector3(-0.55f, 0, 0.5f), new Vector2(0, 1), Vector2.zero, 0));
+
+        var prefab = CustomModels.GetPrefabByGuid(model.AssetGUID);
+        if (prefab && !prefab.transform.Find("EffectDummy"))
+        {
+            var lightAnchor = new GameObject("EffectDummy").transform;
+            lightAnchor.SetParent(prefab.transform, false);
+            lightAnchor.localPosition = prefab.GetComponent<MeshFilter>().sharedMesh.bounds.center;
+        }
     }
 
     private static ItemDefinition BuildHelmOfAwareness()

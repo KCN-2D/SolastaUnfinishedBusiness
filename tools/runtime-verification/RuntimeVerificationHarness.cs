@@ -26,8 +26,19 @@ public sealed class RuntimeVerificationHarness : MonoBehaviour
     private bool executionObservationFailed;
     private int processId;
     private uint mainThreadId;
-    private int lastFocusLossFrame = -1;
+    private long focusCallbackSequence;
+    private long lastFocusLossSequence = -1;
+    private long focusLossBoundarySequence = -1;
     private readonly List<Action> startupCleanups = new List<Action>();
+
+    internal static void AssertMainThread()
+    {
+        if (ReferenceEquals(current, null) ||
+            UBVerification.DesktopReader.CurrentNativeThreadId() != current.mainThreadId)
+        {
+            throw new InvalidOperationException("Presentation observation requires the installed game main thread.");
+        }
+    }
 
     public static bool Load(UnityModManager.ModEntry entry)
     {
@@ -421,6 +432,7 @@ public sealed class RuntimeVerificationHarness : MonoBehaviour
         [DataMember] public float timeScale;
         [DataMember] public bool focused;
         [DataMember] public bool? focusCallbackValue;
+        [DataMember] public long focusCallbackSequence, lastFocusLossSequence, focusLossBoundarySequence;
         [DataMember] public bool? pauseCallbackValue;
         [DataMember] public bool runInBackground;
         [DataMember] public bool batchMode;
@@ -437,7 +449,15 @@ public sealed class RuntimeVerificationHarness : MonoBehaviour
         current.WriteExecution("operation");
     }
 
-    internal static bool ObservedFocusLossSince(int frame) => current && current.lastFocusLossFrame >= frame;
+    internal static long CaptureFocusCallbackSequence()
+    {
+        AssertMainThread();
+        current.focusLossBoundarySequence = current.focusCallbackSequence;
+        return current.focusLossBoundarySequence;
+    }
+
+    internal static bool ObservedFocusLossAfter(long sequence) =>
+        current && sequence >= 0 && current.lastFocusLossSequence > sequence;
 
     private void Update()
     {
@@ -450,7 +470,8 @@ public sealed class RuntimeVerificationHarness : MonoBehaviour
 
     private void OnApplicationFocus(bool focused)
     {
-        if (!focused) lastFocusLossFrame = Time.frameCount;
+        focusCallbackSequence++;
+        if (!focused) lastFocusLossSequence = focusCallbackSequence;
         WriteExecution("focus-change", focused, null);
     }
     private void OnApplicationPause(bool paused) { WriteExecution("pause-change", null, paused); }
@@ -466,6 +487,8 @@ public sealed class RuntimeVerificationHarness : MonoBehaviour
                 nativeThreadId = UBVerification.DesktopReader.CurrentNativeThreadId(),
                 gameTime = Time.time, timeScale = Time.timeScale, focused = Application.isFocused,
                 focusCallbackValue = focusCallbackValue, pauseCallbackValue = pauseCallbackValue,
+                focusCallbackSequence = this.focusCallbackSequence, lastFocusLossSequence = this.lastFocusLossSequence,
+                focusLossBoundarySequence = this.focusLossBoundarySequence,
                 runInBackground = Application.runInBackground, batchMode = Application.isBatchMode,
                 graphicsDeviceType = SystemInfo.graphicsDeviceType.ToString(), graphicsDeviceName = SystemInfo.graphicsDeviceName,
                 graphicsDeviceAvailable = SystemInfo.graphicsDeviceType != UnityEngine.Rendering.GraphicsDeviceType.Null,

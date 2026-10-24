@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
@@ -28,7 +29,7 @@ public static class UserCampaignPoolManagerPatcher
         [UsedImplicitly]
         public static Exception Finalizer(Exception __exception, List<UserCampaign> __state)
         {
-            __state?.Clear();
+            DungeonMakerContext.ReleaseCampaignFileEnumeration(__state);
 
             return __exception;
         }
@@ -89,8 +90,30 @@ public static class UserCampaignPoolManagerPatcher
         public static IEnumerable<CodeInstruction> Transpiler(
             IEnumerable<CodeInstruction> instructions, ILGenerator generator)
         {
-            return DungeonMakerContext.ReuseUserContentParsing<UserCampaign>(
-                instructions, generator, "UserCampaignPoolManager.ReadCampaignFromDisk");
+            var code = DungeonMakerContext.ReuseUserContentParsing<UserCampaign>(
+                instructions, generator, "UserCampaignPoolManager.ReadCampaignFromDisk").ToList();
+            var dictionaryExtensions = typeof(UserCampaignPoolManager).Assembly
+                .GetType("System.Collections.Generic.DictionaryExtensions");
+            var registrations = code.Select((instruction, index) => (instruction, index))
+                .Where(pair => pair.instruction.operand is MethodInfo method &&
+                               method.DeclaringType == dictionaryExtensions && method.Name == "TryAdd")
+                .Select(pair => pair.index).ToArray();
+            if (registrations.Length != 1)
+            {
+                DungeonMakerContext.CampaignReadRegistrationTracked = false;
+                Main.Error("Failed to locate campaign registration in UserCampaignPoolManager.ReadCampaignFromDisk.");
+                return code;
+            }
+
+            code.InsertRange(registrations[0] + 1,
+            [
+                new CodeInstruction(OpCodes.Ldarg_0),
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(DungeonMakerContext),
+                    nameof(DungeonMakerContext.MarkCampaignPreloadRegistration)))
+            ]);
+            DungeonMakerContext.CampaignReadRegistrationTracked = true;
+
+            return code;
         }
 
         [UsedImplicitly]
@@ -100,11 +123,20 @@ public static class UserCampaignPoolManagerPatcher
             bool __2,
             bool __3,
             List<string> __4,
+            ref bool __1,
             Dictionary<string, UserCampaign> ___pool,
             ref UserCampaign __result,
             out DungeonMakerContext.CampaignFileRead __state)
         {
             __state = null;
+
+            if (DungeonMakerContext.TryGetPreloadedCampaignFile(__instance, __0, __2, __3, ___pool,
+                    ref __1, __4, out var preloaded))
+            {
+                __result = preloaded;
+
+                return false;
+            }
 
             if (!DungeonMakerContext.TryGetCachedCampaignFile(__instance, __0, __2, __3, __4, out var campaign, out __state))
             {
@@ -112,6 +144,7 @@ public static class UserCampaignPoolManagerPatcher
             }
 
             campaign.IsWorkshopItem = __2 || __3;
+            DungeonMakerContext.MarkCampaignPreloadRegistration(__instance);
 
             if (__3 || !___pool.ContainsKey(campaign.Title))
             {
@@ -154,9 +187,35 @@ public static class UserCampaignPoolManagerPatcher
             var deleteMethod = typeof(File).GetMethod("Delete");
             var backupAndDeleteMethod = new Action<string, UserContent>(DungeonMakerContext.BackupAndDelete).Method;
 
-            return instructions.ReplaceCalls(deleteMethod, "UserCampaignPoolManager.SaveUserCampaign",
+            var code = instructions.ReplaceCalls(deleteMethod, "UserCampaignPoolManager.SaveUserCampaign",
                 new CodeInstruction(OpCodes.Ldarg_1),
-                new CodeInstruction(OpCodes.Call, backupAndDeleteMethod));
+                new CodeInstruction(OpCodes.Call, backupAndDeleteMethod)).ToList();
+            var writingData = AccessTools.PropertyGetter(typeof(UserCampaignPoolManager),
+                nameof(UserCampaignPoolManager.WritingData));
+            var written = code.FindIndex(instruction => instruction.Calls(writingData));
+            var filename = AccessTools.Method(typeof(UserCampaignPoolManager),
+                nameof(UserCampaignPoolManager.BuildUserCampaignFilename), [typeof(string)]);
+            var filenameIndex = code.FindIndex(instruction => instruction.Calls(filename));
+
+            if (written < 2 || code[written - 1].opcode != OpCodes.Ldarg_0 ||
+                code[written - 2].opcode != OpCodes.Endfinally || filenameIndex < 0 ||
+                filenameIndex + 1 >= code.Count || code[filenameIndex + 1].opcode != OpCodes.Stloc_0)
+            {
+                DungeonMakerContext.CampaignSaveCompletionTracked = false;
+                Main.Error("Failed to locate completed file write in UserCampaignPoolManager.SaveUserCampaign.");
+                return code;
+            }
+
+            code.InsertRange(written,
+            [
+                new CodeInstruction(OpCodes.Ldarg_0),
+                new CodeInstruction(OpCodes.Ldloc_0),
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(DungeonMakerContext),
+                    nameof(DungeonMakerContext.MarkCampaignPreloadSaveCompleted)))
+            ]);
+            DungeonMakerContext.CampaignSaveCompletionTracked = true;
+
+            return code;
         }
     }
 

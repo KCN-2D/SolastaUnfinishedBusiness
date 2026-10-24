@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
@@ -7,7 +7,6 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Classes;
-using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Feats;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
@@ -35,9 +34,6 @@ internal static class LevelUpHelper
         [NotNull] RulesetCharacterHero rulesetCharacterHero,
         bool levelingUp)
     {
-        //PATCH: enable custom models renderer
-        CustomModels.SwitchRenderer(true);
-
         CharacterClassDefinition lastClass = null;
         CharacterSubclassDefinition lastSubclass = null;
 
@@ -74,9 +70,6 @@ internal static class LevelUpHelper
 
     internal static void UnregisterHero([NotNull] RulesetCharacterHero rulesetCharacterHero)
     {
-        //PATCH: disable custom models renderer
-        CustomModels.SwitchRenderer(false);
-
         LevelUpTab.Remove(rulesetCharacterHero);
         Tabletop2024Context.ClearHumanOriginFeatSelection(rulesetCharacterHero);
     }

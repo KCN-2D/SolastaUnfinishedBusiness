@@ -3,6 +3,7 @@ param(
     [string]$BlenderPath,
     [string]$OutputRoot,
     [string]$PipelinePath,
+    [string]$QualityProfilePath,
     [ValidateNotNullOrEmpty()]
     [string[]]$Stages = @('generate', 'verify-static', 'verify-rig'),
     [ValidatePattern('^[A-Za-z][A-Za-z0-9_-]*$')]
@@ -54,6 +55,24 @@ if ($Stages.Count -eq 0 -or @($Stages | Where-Object { $_ -notmatch '^[a-z][a-z0
     @($Stages | Select-Object -Unique).Count -ne $Stages.Count) {
     throw 'Stages must contain distinct stage names using lowercase letters, numbers, underscores, or hyphens.'
 }
+$validationPipeline = Join-Path $PSScriptRoot 'blender_pipeline.py'
+$executionPlan = @($Stages | ForEach-Object { [pscustomobject]@{stage=$_;pipeline=$pipeline;arguments=@()} })
+if ($QualityProfilePath) {
+    $QualityProfilePath = (Resolve-Path -LiteralPath $QualityProfilePath).Path
+    if (-not (Test-Path -LiteralPath $QualityProfilePath -PathType Leaf) -or
+        [IO.Path]::GetExtension($QualityProfilePath) -ne '.json') { throw 'QualityProfilePath must name a JSON file.' }
+    $qualityProfile = Get-Content -LiteralPath $QualityProfilePath -Raw | ConvertFrom-Json
+    if ($qualityProfile.schema_version -ne 1 -or -not $qualityProfile.required_stages -or
+        'validate-quality' -in $Stages) { throw 'Invalid quality profile version, required stages, or reserved stage.' }
+    $previousIndex = -1
+    foreach ($requiredStage in $qualityProfile.required_stages) {
+        $index = [array]::IndexOf($Stages, [string]$requiredStage)
+        if ($index -le $previousIndex) { throw "Quality profile requires stage '$requiredStage' in the declared order." }
+        $previousIndex = $index
+    }
+    $executionPlan += [pscustomobject]@{stage='validate-quality';pipeline=$validationPipeline;
+        arguments=@('--quality-profile',$QualityProfilePath)}
+}
 $successFile = if ($ResultName) { "last-$ResultName-success.json" } else { 'last-success.json' }
 New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
 $runName = (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
@@ -62,7 +81,8 @@ New-Item -ItemType Directory -Path $runDirectory | Out-Null
 $run = [ordered]@{
     status = 'running'
     pipeline = $pipeline
-    stages = $Stages
+    requested_stages = $Stages
+    stages = @($executionPlan | ForEach-Object stage)
     blender = $versionLines[0]
     blender_executable = $BlenderPath
     pipeline_sha256 = (Get-FileHash -LiteralPath $pipeline -Algorithm SHA256).Hash
@@ -73,11 +93,15 @@ $run = [ordered]@{
     stage_results = @()
     unity = 'not_run'
     game = 'not_run'
+    validation_scope = if ($QualityProfilePath) { 'blender_quality_profile' } else { 'declared_pipeline_stages' }
+    quality = [ordered]@{status=if ($QualityProfilePath) { 'pending' } else { 'not_requested' };
+        profile=$QualityProfilePath;report=$null}
 }
 $runReport = Join-Path $runDirectory 'run.json'
 $inputHashes = @{}
 $inputHashes[$pipeline] = $run.pipeline_sha256
 $inputHashes[(Join-Path $PSScriptRoot 'blender_pipeline.py')] = $run.validation_sha256
+if ($QualityProfilePath) { $inputHashes[$QualityProfilePath] = (Get-FileHash -LiteralPath $QualityProfilePath -Algorithm SHA256).Hash }
 $archiveDirectory = Join-Path $runDirectory 'InputSources'
 New-Item -ItemType Directory -Path $archiveDirectory | Out-Null
 $run['input_archive'] = @()
@@ -97,16 +121,18 @@ function Assert-InputsUnchanged {
     }
 }
 try {
-    foreach ($stage in $stages) {
+    foreach ($step in $executionPlan) {
+        $stage = $step.stage
         $stageTimer = [Diagnostics.Stopwatch]::StartNew()
         Assert-InputsUnchanged
         Write-Host "Running $stage ($($versionLines[0]))"
         $blenderArgs = @(
             '--background', '--factory-startup', '--disable-autoexec', '--offline-mode',
             '--threads', [string]$Threads, '--python-exit-code', '1',
-            '--python-expr', 'import sys; sys.dont_write_bytecode = True', '--python', $pipeline,
+            '--python-expr', 'import sys; sys.dont_write_bytecode = True', '--python', $step.pipeline,
             '--', '--stage', $stage, '--output', $runDirectory
         )
+        $blenderArgs += $step.arguments
         $stageLog = Join-Path $runDirectory ("reports\$stage.log")
         New-Item -ItemType Directory -Path (Split-Path -Parent $stageLog) -Force | Out-Null
         & $BlenderPath @blenderArgs 2>&1 | Tee-Object -FilePath $stageLog
@@ -121,6 +147,7 @@ try {
             throw "Stage '$stage' did not report success."
         }
         $run.completed_stages += $stage
+        if ($stage -eq 'validate-quality') { $run.quality.status = 'passed'; $run.quality.report = $stageReportPath }
         $stageTimer.Stop()
         $run.stage_results += [ordered]@{stage=$stage;status=$stageReport.status;report=$stageReportPath;
             report_sha256=(Get-FileHash -LiteralPath $stageReportPath -Algorithm SHA256).Hash;
@@ -131,6 +158,7 @@ try {
 catch {
     $run.status = 'failed'
     $run.error = $_.Exception.Message
+    if ($QualityProfilePath) { $run.quality.status = if ($stage -eq 'validate-quality') { 'failed' } else { 'not_run' } }
     if ($stage -and $stage -notin $run.completed_stages) {
         $failedReport = Join-Path $runDirectory "reports\$stage.json"
         $measurements = $null
@@ -149,9 +177,9 @@ finally {
             [ordered]@{path=$_.FullName.Substring($runDirectory.Length + 1).Replace('\','/');
                 sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash}
         })
-    $run | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $runReport -Encoding UTF8
+    $run | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $runReport -Encoding UTF8
 }
 # Only successful runs become the current result. A failed rerun cannot make
 # an old report or an old render look like a newly completed validation.
-$run | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $OutputRoot $successFile) -Encoding UTF8
+$run | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $OutputRoot $successFile) -Encoding UTF8
 Write-Host "Validated output: $runDirectory"

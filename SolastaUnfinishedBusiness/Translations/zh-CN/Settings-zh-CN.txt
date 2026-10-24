@@ -662,8 +662,8 @@ ModUi/&SpeechVoiceVoxHelp=通过UB的下载与安装按钮添加VOICEVOX。安�
 ModUi/&SpeechVoiceVoxConnecting=正在连接VOICEVOX…
 ModUi/&SpeechVoiceVoxConnected=已连接VOICEVOX：可使用{0}种语音风格
 ModUi/&SpeechVoiceVoxUnavailable=无法连接VOICEVOX。请完成安装，或检查已在运行的VOICEVOX，然后刷新语音列表。
-ModUi/&SpeechVoiceVoxInstall=下载并安装VOICEVOX
-ModUi/&SpeechVoiceVoxInstallHelp=首次下载约1.9GB。安装完成后，Solasta会按需启动和关闭VOICEVOX。下载可以取消后继续。使用语音须遵守各说话人的使用条款。
+ModUi/&SpeechVoiceVoxInstall=下载并设置VOICEVOX引擎{0}
+ModUi/&SpeechVoiceVoxInstallHelp=下载适用于Windows CPU的最新稳定版引擎。Solasta会按需启动和停止引擎。下载可以取消和继续。语音使用须遵守各说话人的条款。
 ModUi/&SpeechVoiceVoxDownloadProgress=正在下载VOICEVOX：{0}
 ModUi/&SpeechVoiceVoxVerifying=正在检查VOICEVOX下载内容
 ModUi/&SpeechVoiceVoxExtracting=正在安装VOICEVOX
@@ -708,3 +708,25 @@ ModUi/&EpicBoons2024RequiresTabletopHelp=启用2024版桌上规则专长后才�
 ModUi/&EnableInventorMagicItemMaster2024=在18级启用<color=#D89555>魔法物品大师</color><i><color=#F0DAA0>（同调上限+1）</color></i>
 ModUi/&EnableArtilleristFortifiedPosition2024=在炮术师15级时使用2024版<color=#D89555>要塞阵地</color><i><color=#F0DAA0>（一个动作制造两座炮台）</color></i>
 ModUi/&EnableArtilleristEldritchCannon2024=在炮术师3级时使用2024版<color=#D89555>魔能炮台</color><i><color=#F0DAA0>（每次激活炮台时从三种效果中选择一种）</color></i>
+ModUi/&SpeechVoiceVoxEngineVersion=VOICEVOX引擎：{0}
+ModUi/&SpeechVoiceVoxVersionUnknown=未获取版本
+ModUi/&SpeechVoiceVoxCheckAutomatically=自动检查应用和引擎更新
+ModUi/&SpeechVoiceVoxCheckUpdates=检查VOICEVOX更新
+ModUi/&SpeechVoiceVoxReleases=引擎发布页面
+ModUi/&SpeechVoiceVoxUpdateNotChecked=尚未检查引擎更新。
+ModUi/&SpeechVoiceVoxUpdateChecking=正在检查引擎更新……
+ModUi/&SpeechVoiceVoxUpdateFailed=无法检查引擎更新。
+ModUi/&SpeechVoiceVoxUpdateAvailable=引擎{0}已发布。当前连接：{1}。
+ModUi/&SpeechVoiceVoxCurrentVersion=引擎{0}暂无更新。
+ModUi/&SpeechVoiceVoxLatestVersion=最新引擎：{0}
+ModUi/&SpeechVoiceVoxUpdateManaged=下载并设置引擎{0}
+ModUi/&SpeechVoiceVoxAppVersion=VOICEVOX应用：{0}
+ModUi/&SpeechVoiceVoxAppUpdateChecking=正在检查应用更新……
+ModUi/&SpeechVoiceVoxAppUpdateFailed=无法检查应用更新。
+ModUi/&SpeechVoiceVoxAppUpdateNotChecked=尚未检查应用更新。
+ModUi/&SpeechVoiceVoxAppUpdateAvailable=应用{0}已发布。已安装：{1}。
+ModUi/&SpeechVoiceVoxAppCurrentVersion=应用{0}暂无更新。
+ModUi/&SpeechVoiceVoxAppLatestVersion=最新应用：{0}
+ModUi/&SpeechVoiceVoxAppReleases=VOICEVOX应用发布页面
+ModUi/&SpeechVoiceVoxCheckAndInstall=检查并安装最新引擎
+ModUi/&SpeechVoiceVoxCheckAndUpdate=检查并更新受管理的引擎

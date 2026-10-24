@@ -662,8 +662,8 @@ ModUi/&SpeechVoiceVoxHelp=UBのダウンロード・セットアップボタン�
 ModUi/&SpeechVoiceVoxConnecting=VOICEVOXに接続しています……
 ModUi/&SpeechVoiceVoxConnected=VOICEVOXに接続しました。{0}種類の音声・演技スタイルを利用できます。
 ModUi/&SpeechVoiceVoxUnavailable=VOICEVOXに接続できません。セットアップを完了するか、起動済みのVOICEVOXを確認してから音声リストを更新してください。
-ModUi/&SpeechVoiceVoxInstall=VOICEVOXをダウンロードしてセットアップ
-ModUi/&SpeechVoiceVoxInstallHelp=初回ダウンロードは約1.9GBです。導入後はSolastaが必要に応じてVOICEVOXを起動・終了します。ダウンロードは中止・再開できます。音声の利用には各話者の利用規約が適用されます。
+ModUi/&SpeechVoiceVoxInstall=VOICEVOX Engine {0}をダウンロードしてセットアップ
+ModUi/&SpeechVoiceVoxInstallHelp=Windows CPU向けの最新安定版をダウンロードします。導入後はSolastaが必要に応じて起動・終了します。ダウンロードは中止・再開できます。音声は各話者の利用規約に従って使用してください。
 ModUi/&SpeechVoiceVoxDownloadProgress=VOICEVOXをダウンロードしています：{0}
 ModUi/&SpeechVoiceVoxVerifying=VOICEVOXのダウンロード内容を確認しています
 ModUi/&SpeechVoiceVoxExtracting=VOICEVOXをセットアップしています
@@ -708,3 +708,25 @@ ModUi/&EpicBoons2024RequiresTabletopHelp=2024年版のテーブルトップ特�
 ModUi/&EnableInventorMagicItemMaster2024=レベル18で<color=#D89555>魔法のアイテムの達人</color>を得られるようにします<i><color=#F0DAA0>（同調上限+1）</color></i>
 ModUi/&EnableArtilleristFortifiedPosition2024=砲術士のレベル15の特徴を2024年版の<color=#D89555>魔導砲台</color>に変更します<i><color=#F0DAA0>（1回のアクションで2体を作成）</color></i>
 ModUi/&EnableArtilleristEldritchCannon2024=砲術士のレベル3の特徴を2024年版の<color=#D89555>魔導砲</color>に変更します<i><color=#F0DAA0>（起動のたびに3種類の効果から選択）</color></i>
+ModUi/&SpeechVoiceVoxEngineVersion=VOICEVOX Engine：{0}
+ModUi/&SpeechVoiceVoxVersionUnknown=バージョン未取得
+ModUi/&SpeechVoiceVoxCheckAutomatically=本体とエンジンの更新を自動確認
+ModUi/&SpeechVoiceVoxCheckUpdates=VOICEVOXの更新を確認
+ModUi/&SpeechVoiceVoxReleases=エンジンの配布ページ
+ModUi/&SpeechVoiceVoxUpdateNotChecked=エンジンの更新は未確認です。
+ModUi/&SpeechVoiceVoxUpdateChecking=エンジンの更新を確認しています……
+ModUi/&SpeechVoiceVoxUpdateFailed=エンジンの更新を確認できませんでした。
+ModUi/&SpeechVoiceVoxUpdateAvailable=エンジン{0}が公開されています。接続中：{1}。
+ModUi/&SpeechVoiceVoxCurrentVersion=エンジン{0}の更新はありません。
+ModUi/&SpeechVoiceVoxLatestVersion=最新エンジン：{0}
+ModUi/&SpeechVoiceVoxUpdateManaged=エンジン{0}をダウンロードしてセットアップ
+ModUi/&SpeechVoiceVoxAppVersion=VOICEVOX本体：{0}
+ModUi/&SpeechVoiceVoxAppUpdateChecking=本体の更新を確認しています……
+ModUi/&SpeechVoiceVoxAppUpdateFailed=本体の更新を確認できませんでした。
+ModUi/&SpeechVoiceVoxAppUpdateNotChecked=本体の更新は未確認です。
+ModUi/&SpeechVoiceVoxAppUpdateAvailable=本体{0}が公開されています。導入済み：{1}。
+ModUi/&SpeechVoiceVoxAppCurrentVersion=本体{0}の更新はありません。
+ModUi/&SpeechVoiceVoxAppLatestVersion=最新の本体：{0}
+ModUi/&SpeechVoiceVoxAppReleases=VOICEVOX本体の配布ページ
+ModUi/&SpeechVoiceVoxCheckAndInstall=最新版を確認してエンジンを導入
+ModUi/&SpeechVoiceVoxCheckAndUpdate=最新版を確認して管理中のエンジンを更新

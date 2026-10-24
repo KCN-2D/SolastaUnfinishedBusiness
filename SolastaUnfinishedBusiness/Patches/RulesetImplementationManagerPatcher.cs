@@ -555,17 +555,8 @@ public static class RulesetImplementationManagerPatcher
                 return DiceByRank.GetDiceOfRank(rank, table, allowEmptyEntries);
             }
 
-            var character = formsParams.sourceCharacter.GetClassFeatureStatsOwner();
-            var klass = character.FindClassHoldingFeature(featureDefinitionPower);
-            var klassLevel = character.GetClassLevel(klass);
-
-            rank = effectForm.LevelType switch
-            {
-                LevelSourceType.ClassLevel => klassLevel,
-                LevelSourceType.ClassLevelHalfUp => Mathf.CeilToInt(0.5f * klassLevel),
-                LevelSourceType.EffectLevel => formsParams.activeEffect.EffectLevel,
-                _ => rank
-            };
+            rank = EffectHelpers.GetPowerEffectFormLevel(formsParams.sourceCharacter, featureDefinitionPower,
+                effectForm.LevelType, rank, formsParams.activeEffect);
 
             return DiceByRank.GetDiceOfRank(rank, table, allowEmptyEntries);
         }

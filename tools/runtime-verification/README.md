@@ -69,6 +69,10 @@ public static class ExampleProbe
 
 ## 実行
 
+装備やモデルを撮影するプローブは、共通ソース`Probes/PresentationCapture.cs`を`-ProbeSource`へ追加します。`PresentationCapture.Capture(camera, renderers, name, width, height)`を`yield return`で待つと、描画更新後のPNGと`<name>.capture.json`を保存します。カメラ・材質・対象bounds・撮影フレームを記録し、対象が描画範囲外の場合や均一画像の場合は失敗します。カメラとライトは呼び出し元が所有し、撮影処理はカメラの設定とRenderTextureを復元します。
+
+`MeasureSphereSurface(skins, center, radius, influencingBones)`は、現在のスキンをBakeMeshした三角面と球の距離を測ります。`surfaceGap`は正なら面との隙間、負なら交差量です。形状の内部判定は行いません。検査対象の骨と許容値は個別ケースで指定します。共通処理の回帰確認には`Tests/PresentationCaptureProbe.cs`を使用します。
+
 通常は runner にビルド、反映、起動をまとめて行わせます。UB 本体のビルドは必ず指定 wrapper を使い、Roslyn の直接実行は一時検証 DLL だけに限定します。
 
 ```powershell
@@ -82,14 +86,14 @@ public static class ExampleProbe
 
 - `-Sync`: 既存の `tools/runtime-verification/Invoke-SolastaSemiAutoTest.ps1 -SkipBuild -Sync` で成果物をゲームへ反映します。修正版 UB は終了後も残します。
 - `-SkipBuild`: 直前の指定 wrapper ビルドを再利用するときだけ指定します。使用したビルドログを同じ証跡フォルダへ保存してください。
-- `-ValidateOnly`: ビルド/同期/ゲーム起動/設定変更は行わず、既存のビルド成果物を参照してプローブをコンパイルし、入口の型とシグネチャを検証します。結果は `incomplete`、`compilationSucceeded=true` です。実行時の検証成功とは扱いません。
+- `-ValidateOnly`: 既存のビルド成果物を参照してプローブをコンパイルし、入口の型とシグネチャを検証します。ゲームの実行と並行できます。ビルド/同期/ゲーム起動/設定変更は行わず、結果は `incomplete`、`compilationSucceeded=true` です。実行時の検証成功とは扱いません。
 - `-ProbeSource` と `-ProbeType`: 配列で複数指定できます。型は指定順に実行します。
 - `-ReferencePath`: プローブ固有の追加参照 DLL を明示します。Unity、ゲーム、UMM、UB と基礎 .NET Framework 参照は既定で含みます。
 - `-TimeoutSeconds`: 既定 120 秒。起動とプローブ完了までの時間です。時間切れを成功と扱いません。
 
 `-Sync` を省略したときもビルド出力と導入済み UB DLL の SHA-256 が一致していることを要求します。古い DLL を実行して新しいコードの検証済みとは扱いません。
 
-## ローカルの神性介入プローブを再実行する
+## 追加参照を使うプローブ
 
 リポジトリのルートから実行します。`$gameDirectory` は実際のインストール先へ変更してください。`I2.dll` はそのゲームの `Managed` ディレクトリを参照し、別バージョンをダウンロードしません。
 
@@ -104,9 +108,7 @@ $gameDirectory = 'D:\Games\Solasta'
     -Sync
 ```
 
-このプローブは、分離したネイティブのツールチップ、状態アイコン、コンソールと、能力消費・休息回復の共通処理を確認します。言語はゲームで有効なものだけを対象にし、標準構成では7言語です。検証のために無効言語を登録して有効化しません。無効言語を含む全対応言語のキー、プレースホルダ、翻訳内容は別の静的確認で補います。
-
-休息はネイティブの使用回数回復後の状態を作り、UBの回復処理を呼ぶ確認です。実戦闘の手動操作、休息UI全体、セーブのserialize/deserialize、マルチプレイは対象外です。新しいツールチップのproviderへ状態値を渡す検証を、セーブ往復の検証として報告しません。実行ごとの件数と成否は証跡へ記録し、この手順書へ固定しません。
+プローブ固有の入力、操作、期待結果はケース定義とシナリオ側で管理します。実行ごとの件数、成否、通常処理と差し替えた条件は証跡へ記録します。
 
 ## 検証 mod を外した通常起動
 

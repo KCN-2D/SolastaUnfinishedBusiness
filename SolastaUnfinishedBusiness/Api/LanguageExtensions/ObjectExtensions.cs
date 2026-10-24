@@ -30,7 +30,7 @@ internal static class ObjectExtensions
 
         var typeToReflect = originalObject.GetType();
 
-        if (IsPrimitive(typeToReflect))
+        if (originalObject is Object || IsPrimitive(typeToReflect))
         {
             return originalObject;
         }

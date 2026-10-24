@@ -95,19 +95,25 @@ public static class InventorySlotBoxPatcher
 
         private static void TintNonProficientItems(InventorySlotBox box, ItemDefinition item)
         {
-            RulesetCharacter character = RulesetCharacterSimulacrum.FindBySlot(box.InventorySlot);
-
-            character ??= box.GuiCharacter?.RulesetCharacterHero ?? Global.InspectedHero;
-
             if (!item || !box.equipedItemImage)
             {
                 return;
             }
 
             var color = Color.white;
-            if ((Main.Settings.EnableInventoryTaintNonProficientItemsRed &&
-                 !(character?.IsProficientWithItem(item) ?? true))
-                || (Main.Settings.EnableInventoryTintKnownRecipesRed && RecipeHelper.RecipeIsKnown(item)))
+            if (Main.Settings.EnableInventoryTaintNonProficientItemsRed)
+            {
+                // Bound slots retain their actual inventory subject, including Simulacra.
+                RulesetCharacter character = box.GuiCharacter?.RulesetCharacter;
+                character ??= RulesetCharacterSimulacrum.FindBySlot(box.InventorySlot);
+                character ??= Global.InspectedHero;
+                if (!(character?.IsProficientWithItem(item) ?? true))
+                {
+                    color = Color.red;
+                }
+            }
+
+            if (Main.Settings.EnableInventoryTintKnownRecipesRed && RecipeHelper.RecipeIsKnown(item))
             {
                 color = Color.red;
             }

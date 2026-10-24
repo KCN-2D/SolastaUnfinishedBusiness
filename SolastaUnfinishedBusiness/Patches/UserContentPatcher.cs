@@ -44,7 +44,21 @@ public static class UserContentPatcher
                                  !method.IsAbstract && method.GetMethodBody() != null &&
                                  !ownedLoadMethods.Contains(method));
 
-            return availabilityChecks.Concat(payloadChecks);
+            // Validation registers user definitions while resolving their references, then
+            // removes them again. Use the same live-table lookup through that lifecycle.
+            var registrationChecks = typeof(UserCampaign)
+                .GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic |
+                            BindingFlags.DeclaredOnly)
+                .Where(method =>
+                {
+                    var parameters = method.GetParameters();
+
+                    return parameters.Length > 0 && typeof(UserContent).IsAssignableFrom(parameters[0].ParameterType) &&
+                           method.ReturnType == typeof(void) && !method.ContainsGenericParameters &&
+                           method.GetMethodBody() != null;
+                });
+
+            return availabilityChecks.Concat(payloadChecks).Concat(registrationChecks);
         }
 
         [UsedImplicitly]

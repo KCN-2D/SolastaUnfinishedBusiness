@@ -37,6 +37,38 @@ internal static class UiTextHelpers
     private const float StatValueMinFontScale = 0.72f;
     private const float StatValueAbsoluteMinFontSize = 8f;
     private const int MaxSpellLevel = 9;
+    private static Dictionary<string, string> _spellSortTitles;
+
+    internal static void SortSpellDefinitions(List<SpellDefinition> spells, IComparer<SpellDefinition> comparer)
+    {
+        // Keep each native comparer and release translations at the end of this sort.
+        var previousTitles = _spellSortTitles;
+        _spellSortTitles = new Dictionary<string, string>(StringComparer.Ordinal);
+        try
+        {
+            spells.Sort(comparer);
+        }
+        finally
+        {
+            _spellSortTitles = previousTitles;
+        }
+    }
+
+    internal static string LocalizeSpellSortTitle(string key, bool forceCaps, GameObject parent, string language)
+    {
+        if (_spellSortTitles == null || key == null || forceCaps || parent || language != null)
+        {
+            return Gui.Localize(key, forceCaps, parent, language);
+        }
+
+        if (!_spellSortTitles.TryGetValue(key, out var title))
+        {
+            title = Gui.Localize(key);
+            _spellSortTitles.Add(key, title);
+        }
+
+        return title;
+    }
 
     private static readonly (string Roman, int Level)[] SpellLevelTokens =
     [

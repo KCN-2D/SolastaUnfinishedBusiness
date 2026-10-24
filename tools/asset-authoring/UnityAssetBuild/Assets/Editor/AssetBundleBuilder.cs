@@ -2,9 +2,13 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Threading;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.Animations;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
 namespace SolastaAssetAuthoring
@@ -14,13 +18,75 @@ namespace SolastaAssetAuthoring
     {
         private const string EditorVersion = "2019.4.37f1";
         private const string ProjectMarker = "SolastaUBAssetAuthoring:UnityProject:1";
-        private const string ModelPath = "Assets/Input/SampleRig.fbx";
-        private const string GeneratedFolder = "Assets/Generated";
-        private const string ClipPath = GeneratedFolder + "/SampleMotion.anim";
-        private const string ControllerPath = GeneratedFolder + "/SampleRig.controller";
-        private const string PrefabPath = GeneratedFolder + "/SampleRig.prefab";
         private const string BundleName = "ub_authoring_sample";
         private const int SampleCount = 25;
+        private const string JobMarker = "SolastaUBAssetAuthoring:UnityJob:1";
+        private const string JobFolder = ".asset-authoring-jobs";
+        private static double nextPoll;
+        private static bool workerBusy;
+        private static string loadedSourceHash;
+        internal static string SavingFolder;
+
+        [Serializable]
+        private sealed class Job
+        {
+            public int schemaVersion = 0;
+            public string jobId = null;
+            public string inputSha256 = null;
+            public string kind = null;
+        }
+
+        [Serializable] private sealed class InputAsset { public string path = null; public string sha256 = null; }
+        [Serializable] private sealed class MaterialProperty
+        {
+            public string name = null;
+            public string kind = null;
+            public float value = 0;
+            public float[] rgba = null;
+            public string texture = null;
+        }
+        [Serializable] private sealed class MaterialSpec
+        {
+            public string name = null;
+            public string shader = null;
+            public string[] requiredPasses = null;
+            public MaterialProperty[] properties = null;
+            public int renderQueue = -1;
+        }
+        [Serializable] private sealed class MaterialRecipe
+        {
+            public int schemaVersion = 0;
+            public string bundleName = null;
+            public InputAsset[] assets = null;
+            public MaterialSpec[] materials = null;
+        }
+        [Serializable] private sealed class MaterialValidation
+        {
+            public string name;
+            public string shader;
+            public bool shaderSupported;
+            public string[] passes;
+            public int renderQueue;
+        }
+        [Serializable] private sealed class MaterialIdentityContract
+        {
+            public string kind, expectedAsset, alternativeAsset, expectedName, alternativeName, rejection;
+            public int expectedInstanceId, alternativeInstanceId;
+            public bool rejected;
+        }
+
+        [Serializable]
+        private sealed class WorkerReceipt
+        {
+            public int schemaVersion = 2;
+            public int processId;
+            public int mainThread;
+            public string processStartedUtc;
+            public string projectPath;
+            public string unityVersion;
+            public string sourceSha256;
+            public string updatedUtc;
+        }
 
         [Serializable]
         private sealed class Validation
@@ -53,15 +119,48 @@ namespace SolastaAssetAuthoring
             public Validation imported;
             public Validation reloaded;
             public string error;
+            public string validationScope = "rig";
+            public InputAsset[] inputAssets;
+            public MaterialValidation[] materials;
+            public MaterialIdentityContract[] identityContracts;
+            public string transport;
+            public string jobId;
+            public int processId;
+            public int mainThread;
+            public string activeScenePathBefore;
+            public string activeScenePathAfter;
+            public bool activeSceneDirtyBefore;
+            public bool activeSceneDirtyAfter;
+            public int sceneCountBefore;
+            public int sceneCountAfter;
             public string gameValidation = "not_run";
         }
 
         public static void Build()
         {
+            var materialJob = Environment.GetCommandLineArgs().Contains("-materialRecipe");
+            var success = materialJob
+                ? BuildMaterials(GetArgument("-materialRecipe"), GetArgument("-bundleOutput"), null, null)
+                : BuildValidated(GetArgument("-sampleFbx"), GetArgument("-bundleOutput"), null, null);
+            if (!success)
+            {
+                EditorApplication.Exit(1);
+            }
+        }
+
+        private static bool BuildValidated(string input, string destination, string jobId, string expectedHash)
+        {
             var report = new Report
             {
                 unityVersion = Application.unityVersion,
-                startedUtc = DateTime.UtcNow.ToString("o")
+                startedUtc = DateTime.UtcNow.ToString("o"),
+                transport = jobId == null ? "batch" : "gui_worker",
+                jobId = jobId,
+                processId = System.Diagnostics.Process.GetCurrentProcess().Id,
+                mainThread = Thread.CurrentThread.ManagedThreadId,
+                activeScenePathBefore = SceneManager.GetActiveScene().path,
+                activeSceneDirtyBefore = SceneManager.GetActiveScene().isDirty,
+                sceneCountBefore = SceneManager.sceneCount
             };
             string reportPath = null;
             try
@@ -71,12 +170,17 @@ namespace SolastaAssetAuthoring
                 Require(File.Exists(marker) && File.ReadAllText(marker).Trim() == ProjectMarker,
                     "Use Invoke-UnityAssetBuild.ps1 to create an isolated, marked project copy.");
                 RejectReparsePoints(projectRoot);
-                var sampleFbx = Path.GetFullPath(GetArgument("-sampleFbx"));
-                var output = Path.GetFullPath(GetArgument("-bundleOutput"));
-                Require(SamePath(sampleFbx, Path.Combine(projectRoot, ModelPath)),
-                    "-sampleFbx must be the copied Assets/Input/SampleRig.fbx.");
-                Require(SamePath(output, Path.Combine(projectRoot, "BuildOutput")),
-                    "-bundleOutput must be this project copy's BuildOutput directory.");
+                var modelPath = jobId == null ? "Assets/Input/SampleRig.fbx" : "Assets/AuthoringJobs/" + jobId + "/Input/SampleRig.fbx";
+                var generatedFolder = jobId == null ? "Assets/Generated" : "Assets/AuthoringJobs/" + jobId + "/Generated";
+                var clipPath = generatedFolder + "/SampleMotion.anim";
+                var controllerPath = generatedFolder + "/SampleRig.controller";
+                var prefabPath = generatedFolder + "/SampleRig.prefab";
+                var sampleFbx = Path.GetFullPath(input);
+                var output = Path.GetFullPath(destination);
+                if (jobId != null) { RequireJob(projectRoot, jobId); }
+                Require(SamePath(sampleFbx, Path.Combine(projectRoot, modelPath)), "The FBX is outside this build's input directory.");
+                var expectedOutput = jobId == null ? Path.Combine(projectRoot, "BuildOutput") : Path.Combine(projectRoot, JobFolder, jobId, "Output");
+                Require(SamePath(output, expectedOutput), "The output is outside this build's isolated directory.");
                 RejectReparsePoints(sampleFbx);
                 RejectReparsePoints(output);
                 Directory.CreateDirectory(output);
@@ -85,10 +189,16 @@ namespace SolastaAssetAuthoring
                 Require(Application.unityVersion == EditorVersion, "Unity " + EditorVersion + " is required.");
                 Require(File.Exists(sampleFbx), "The copied FBX does not exist.");
                 report.inputSha256 = Sha256(sampleFbx);
+                Require(expectedHash == null || report.inputSha256 == expectedHash, "The copied FBX changed after submission.");
 
                 report.stage = "import";
-                AssetDatabase.ImportAsset(ModelPath, ImportAssetOptions.ForceSynchronousImport);
-                var importer = AssetImporter.GetAtPath(ModelPath) as ModelImporter;
+                if (jobId != null)
+                {
+                    AssetDatabase.ImportAsset("Assets/AuthoringJobs/" + jobId,
+                        ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ImportRecursive);
+                }
+                AssetDatabase.ImportAsset(modelPath, ImportAssetOptions.ForceSynchronousImport);
+                var importer = AssetImporter.GetAtPath(modelPath) as ModelImporter;
                 Require(importer != null, "FBX ModelImporter was not created.");
                 importer.animationType = ModelImporterAnimationType.Generic;
                 importer.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
@@ -103,7 +213,7 @@ namespace SolastaAssetAuthoring
                 importer.materialImportMode = ModelImporterMaterialImportMode.None;
                 importer.animationCompression = ModelImporterAnimationCompression.Off;
                 importer.SaveAndReimport();
-                importer = (ModelImporter)AssetImporter.GetAtPath(ModelPath);
+                importer = (ModelImporter)AssetImporter.GetAtPath(modelPath);
                 var takes = importer.defaultClipAnimations;
                 Require(takes != null && takes.Length == 1, "The sample FBX must contain exactly one animation take.");
                 takes[0].name = "SampleMotion";
@@ -111,28 +221,33 @@ namespace SolastaAssetAuthoring
                 importer.clipAnimations = takes;
                 importer.SaveAndReimport();
 
-                var importedClips = AssetDatabase.LoadAllAssetsAtPath(ModelPath).OfType<AnimationClip>()
+                var importedClips = AssetDatabase.LoadAllAssetsAtPath(modelPath).OfType<AnimationClip>()
                     .Where(clip => !clip.name.StartsWith("__preview__", StringComparison.Ordinal)).ToArray();
                 Require(importedClips.Length == 1, "Expected exactly one imported, non-preview clip.");
-                var model = AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath);
+                var model = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
                 Require(model != null, "The FBX model could not be loaded.");
                 report.imported = Validate(model, importedClips[0]);
 
                 report.stage = "create_assets";
-                Require(!AssetDatabase.IsValidFolder(GeneratedFolder), "Generated assets already exist; use a fresh run.");
-                AssetDatabase.CreateFolder("Assets", "Generated");
+                Require(!AssetDatabase.IsValidFolder(generatedFolder), "Generated assets already exist; use a fresh run.");
+                var parentFolder = generatedFolder.Substring(0, generatedFolder.LastIndexOf('/'));
+                Require(AssetDatabase.IsValidFolder(parentFolder), "The build's asset parent directory was not imported.");
+                AssetDatabase.CreateFolder(parentFolder, "Generated");
                 var clipAsset = Object.Instantiate(importedClips[0]);
                 clipAsset.name = "SampleMotion";
-                AssetDatabase.CreateAsset(clipAsset, ClipPath);
-                var controller = AnimatorController.CreateAnimatorControllerAtPathWithClip(ControllerPath, clipAsset);
+                AssetDatabase.CreateAsset(clipAsset, clipPath);
+                var controller = AnimatorController.CreateAnimatorControllerAtPathWithClip(controllerPath, clipAsset);
                 Require(controller != null, "AnimatorController creation failed.");
                 var shader = Shader.Find("Standard");
                 Require(shader != null, "The built-in Standard shader is unavailable.");
                 var material = new Material(shader) { name = "SampleMaterial", color = new Color(0.15f, 0.55f, 0.8f) };
-                AssetDatabase.CreateAsset(material, GeneratedFolder + "/SampleMaterial.mat");
-                var instance = Object.Instantiate(model);
+                AssetDatabase.CreateAsset(material, generatedFolder + "/SampleMaterial.mat");
+                var preview = EditorSceneManager.NewPreviewScene();
+                GameObject instance = null;
                 try
                 {
+                    instance = Object.Instantiate(model);
+                    SceneManager.MoveGameObjectToScene(instance, preview);
                     instance.name = "SampleRig";
                     var animator = instance.GetComponent<Animator>() ?? instance.AddComponent<Animator>();
                     animator.runtimeAnimatorController = controller;
@@ -142,39 +257,25 @@ namespace SolastaAssetAuthoring
                         renderer.sharedMaterials = Enumerable.Repeat(material, renderer.sharedMesh.subMeshCount).ToArray();
                     }
                     bool saved;
-                    var prefab = PrefabUtility.SaveAsPrefabAsset(instance, PrefabPath, out saved);
+                    var prefab = PrefabUtility.SaveAsPrefabAsset(instance, prefabPath, out saved);
                     Require(saved && prefab != null, "Prefab creation failed.");
                 }
                 finally
                 {
-                    Object.DestroyImmediate(instance);
+                    if (instance != null) { Object.DestroyImmediate(instance); }
+                    EditorSceneManager.ClosePreviewScene(preview);
                 }
-                AssetDatabase.SaveAssets();
+                SavingFolder = generatedFolder + "/";
+                try { AssetDatabase.SaveAssets(); }
+                finally { SavingFolder = null; }
 
-                report.stage = "build_bundle";
-                var explicitAssets = new[] { PrefabPath, ClipPath, ControllerPath };
-                var build = new AssetBundleBuild { assetBundleName = BundleName, assetNames = explicitAssets };
-                var manifest = BuildPipeline.BuildAssetBundles(output, new[] { build },
-                    BuildAssetBundleOptions.ChunkBasedCompression | BuildAssetBundleOptions.StrictMode,
-                    BuildTarget.StandaloneWindows64);
-                Require(manifest != null, "BuildAssetBundles failed.");
-                report.bundlePath = Path.Combine(output, BundleName);
-                Require(File.Exists(report.bundlePath), "The expected AssetBundle file was not produced.");
-                report.bundleSha256 = Sha256(report.bundlePath);
-
-                report.stage = "reload_bundle";
-                var bundle = AssetBundle.LoadFromFile(report.bundlePath);
-                Require(bundle != null, "AssetBundle.LoadFromFile failed.");
+                var explicitAssets = new[] { prefabPath, clipPath, controllerPath };
+                var bundle = BuildAndReload(output, BundleName, explicitAssets, generatedFolder, report);
                 try
                 {
-                    report.assetNames = bundle.GetAllAssetNames();
-                    foreach (var path in explicitAssets)
-                    {
-                        Require(report.assetNames.Contains(path.ToLowerInvariant()), "Missing bundle asset: " + path);
-                    }
-                    var prefab = bundle.LoadAsset<GameObject>(PrefabPath);
-                    var reloadedClip = bundle.LoadAsset<AnimationClip>(ClipPath);
-                    var reloadedController = bundle.LoadAsset<RuntimeAnimatorController>(ControllerPath);
+                    var prefab = bundle.LoadAsset<GameObject>(prefabPath);
+                    var reloadedClip = bundle.LoadAsset<AnimationClip>(clipPath);
+                    var reloadedController = bundle.LoadAsset<RuntimeAnimatorController>(controllerPath);
                     Require(prefab != null && reloadedClip != null && reloadedController != null,
                         "The bundle must reload a prefab, clip and runtime animator controller.");
                     var animator = prefab.GetComponent<Animator>();
@@ -196,10 +297,17 @@ namespace SolastaAssetAuthoring
                     bundle.Unload(true);
                 }
                 report.stage = "complete";
+                report.activeScenePathAfter = SceneManager.GetActiveScene().path;
+                report.activeSceneDirtyAfter = SceneManager.GetActiveScene().isDirty;
+                report.sceneCountAfter = SceneManager.sceneCount;
+                Require(report.activeScenePathBefore == report.activeScenePathAfter &&
+                        report.activeSceneDirtyBefore == report.activeSceneDirtyAfter &&
+                        report.sceneCountBefore == report.sceneCountAfter, "The build changed the open scene state.");
                 report.success = true;
                 report.completedUtc = DateTime.UtcNow.ToString("o");
-                File.WriteAllText(reportPath, JsonUtility.ToJson(report, true));
+                WriteJson(reportPath, report);
                 Debug.Log("Asset authoring validation succeeded: " + reportPath);
+                return true;
             }
             catch (Exception exception)
             {
@@ -208,20 +316,413 @@ namespace SolastaAssetAuthoring
                 // Write failures only after the marked output path has passed validation.
                 if (reportPath != null && !File.Exists(reportPath))
                 {
-                    File.WriteAllText(reportPath, JsonUtility.ToJson(report, true));
+                    WriteJson(reportPath, report);
                 }
                 Debug.LogException(exception);
-                EditorApplication.Exit(1);
+                return false;
             }
+        }
+
+        private static AssetBundle BuildAndReload(string output, string bundleName, string[] assets, string generatedFolder, Report report)
+        {
+            report.stage = "build_bundle";
+            AssetBundleManifest manifest;
+            SavingFolder = generatedFolder + "/";
+            try
+            {
+                manifest = BuildPipeline.BuildAssetBundles(output,
+                    new[] { new AssetBundleBuild { assetBundleName = bundleName, assetNames = assets } },
+                    BuildAssetBundleOptions.ChunkBasedCompression | BuildAssetBundleOptions.StrictMode, BuildTarget.StandaloneWindows64);
+            }
+            finally { SavingFolder = null; }
+            Require(manifest != null, "BuildAssetBundles failed.");
+            report.bundlePath = Path.Combine(output, bundleName);
+            Require(File.Exists(report.bundlePath), "The expected AssetBundle file was not produced.");
+            report.bundleSha256 = Sha256(report.bundlePath);
+            report.stage = "reload_bundle";
+            var bundle = AssetBundle.LoadFromFile(report.bundlePath);
+            Require(bundle != null, "AssetBundle.LoadFromFile failed.");
+            try
+            {
+                report.assetNames = bundle.GetAllAssetNames();
+                foreach (var asset in assets)
+                {
+                    Require(report.assetNames.Contains(asset.ToLowerInvariant()), "Missing bundle asset: " + asset);
+                }
+                return bundle;
+            }
+            catch { bundle.Unload(true); throw; }
+        }
+
+        private static bool BuildMaterials(string input, string destination, string jobId, string expectedHash,
+            bool identityContracts = false)
+        {
+            var report = new Report
+            {
+                unityVersion = Application.unityVersion, startedUtc = DateTime.UtcNow.ToString("o"),
+                transport = jobId == null ? "batch" : "gui_worker", jobId = jobId,
+                validationScope = identityContracts ? "material_identity_contracts" : "materials",
+                processId = System.Diagnostics.Process.GetCurrentProcess().Id, mainThread = Thread.CurrentThread.ManagedThreadId,
+                activeScenePathBefore = SceneManager.GetActiveScene().path, activeSceneDirtyBefore = SceneManager.GetActiveScene().isDirty,
+                sceneCountBefore = SceneManager.sceneCount
+            };
+            string reportPath = null;
+            try
+            {
+                var root = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+                var marker = Path.Combine(root, ".solasta-asset-authoring-project");
+                Require(File.Exists(marker) && File.ReadAllText(marker).Trim() == ProjectMarker, "The authoring project is unmarked.");
+                if (jobId != null) { RequireJob(root, jobId); }
+                var assetRoot = jobId == null ? "Assets/Input" : "Assets/AuthoringJobs/" + jobId + "/Input";
+                var generatedFolder = jobId == null ? "Assets/Generated" : "Assets/AuthoringJobs/" + jobId + "/Generated";
+                var recipePath = Path.GetFullPath(input);
+                var output = Path.GetFullPath(destination);
+                Require(SamePath(recipePath, Path.Combine(root, assetRoot, "recipe.json")), "The material recipe is outside its input directory.");
+                Require(SamePath(output, jobId == null ? Path.Combine(root, "BuildOutput") : Path.Combine(root, JobFolder, jobId, "Output")),
+                    "The material output is outside its isolated directory.");
+                RejectReparsePoints(recipePath); RejectReparsePoints(output);
+                Directory.CreateDirectory(output);
+                reportPath = Path.Combine(output, "unity-report.json");
+                Require(!File.Exists(reportPath), "This material job has already run.");
+                Require(Application.unityVersion == EditorVersion, "Unity " + EditorVersion + " is required.");
+                report.inputSha256 = Sha256(recipePath);
+                Require(expectedHash == null || report.inputSha256 == expectedHash, "The material recipe changed after submission.");
+                var recipe = JsonUtility.FromJson<MaterialRecipe>(File.ReadAllText(recipePath));
+                Require(recipe != null && recipe.schemaVersion == 1 && recipe.bundleName != null &&
+                        Regex.IsMatch(recipe.bundleName, "^[a-z0-9][a-z0-9_.-]{0,127}$"), "Invalid material recipe version or bundle name.");
+                Require(recipe.assets != null && recipe.assets.Length > 0 && recipe.materials != null && recipe.materials.Length > 0,
+                    "The material recipe must declare input assets and materials.");
+                Require(recipe.assets.Select(asset => asset.path).Distinct(StringComparer.OrdinalIgnoreCase).Count() == recipe.assets.Length,
+                    "The recipe contains duplicate input paths.");
+                foreach (var asset in recipe.assets)
+                {
+                    var path = MaterialInputPath(root, assetRoot, asset.path);
+                    Require(asset.sha256 != null && Regex.IsMatch(asset.sha256, "^[a-f0-9]{64}$") && Sha256(path) == asset.sha256,
+                        "The material input hash differs: " + asset.path);
+                }
+                report.inputAssets = recipe.assets;
+                report.stage = "import";
+                AssetDatabase.ImportAsset(assetRoot, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ImportRecursive);
+                Require(!AssetDatabase.IsValidFolder(generatedFolder), "Generated material assets already exist.");
+                var parent = generatedFolder.Substring(0, generatedFolder.LastIndexOf('/'));
+                Require(AssetDatabase.IsValidFolder(parent), "The material job parent was not imported.");
+                AssetDatabase.CreateFolder(parent, "Generated");
+                Require(recipe.materials.All(spec => spec.name != null && Regex.IsMatch(spec.name, "^[A-Za-z0-9_-]+$")) &&
+                        recipe.materials.Select(spec => spec.name).Distinct(StringComparer.OrdinalIgnoreCase).Count() == recipe.materials.Length,
+                    "Material names must be unique file-safe names.");
+                var paths = recipe.materials.Select(spec => generatedFolder + "/" + spec.name + ".mat").ToArray();
+                report.stage = "create_assets";
+                for (var index = 0; index < recipe.materials.Length; index++)
+                {
+                    var spec = recipe.materials[index];
+                    Require(recipe.assets.Any(asset => asset.path == spec.shader) && Path.GetExtension(spec.shader) == ".shader",
+                        "The material shader must be a declared .shader input.");
+                    var shader = AssetDatabase.LoadAssetAtPath<Shader>(assetRoot + "/" + spec.shader);
+                    Require(shader != null && shader.isSupported && !ShaderUtil.ShaderHasError(shader), "The imported shader failed compilation: " + spec.shader);
+                    var material = new Material(shader) { name = spec.name };
+                    try
+                    {
+                        foreach (var property in spec.properties ?? new MaterialProperty[0])
+                        {
+                            Require(!string.IsNullOrEmpty(property.name) && material.HasProperty(property.name), "Missing material property: " + property.name);
+                            var propertyIndex = Enumerable.Range(0, ShaderUtil.GetPropertyCount(shader))
+                                .Single(indexInShader => ShaderUtil.GetPropertyName(shader, indexInShader) == property.name);
+                            var propertyType = ShaderUtil.GetPropertyType(shader, propertyIndex);
+                            Require((property.kind == "float" && (propertyType == ShaderUtil.ShaderPropertyType.Float || propertyType == ShaderUtil.ShaderPropertyType.Range)) ||
+                                    (property.kind == "color" && propertyType == ShaderUtil.ShaderPropertyType.Color) ||
+                                    (property.kind == "texture" && propertyType == ShaderUtil.ShaderPropertyType.TexEnv), "The material property type differs from its recipe: " + property.name);
+                            if (property.kind == "float")
+                            {
+                                Require(!float.IsNaN(property.value) && !float.IsInfinity(property.value), "Non-finite material value.");
+                                material.SetFloat(property.name, property.value);
+                            }
+                            else if (property.kind == "color")
+                            {
+                                Require(property.rgba != null && property.rgba.Length == 4 && property.rgba.All(value => !float.IsNaN(value) && !float.IsInfinity(value)),
+                                    "A material color must have four finite components.");
+                                material.SetColor(property.name, new Color(property.rgba[0], property.rgba[1], property.rgba[2], property.rgba[3]));
+                            }
+                            else if (property.kind == "texture")
+                            {
+                                Require(recipe.assets.Any(asset => asset.path == property.texture), "The texture must be a declared input.");
+                                var texture = AssetDatabase.LoadAssetAtPath<Texture>(assetRoot + "/" + property.texture);
+                                Require(texture != null, "The texture did not import: " + property.texture);
+                                material.SetTexture(property.name, texture);
+                            }
+                            else { throw new InvalidOperationException("Unknown material property kind: " + property.kind); }
+                        }
+                        Require(spec.renderQueue >= -1 && spec.renderQueue <= 5000, "Invalid material render queue.");
+                        material.renderQueue = spec.renderQueue;
+                        ValidateMaterial(material, spec, assetRoot);
+                        AssetDatabase.CreateAsset(material, paths[index]);
+                    }
+                    finally
+                    {
+                        if (material != null && !EditorUtility.IsPersistent(material)) { Object.DestroyImmediate(material); }
+                    }
+                }
+                SavingFolder = generatedFolder + "/";
+                try { AssetDatabase.SaveAssets(); }
+                finally { SavingFolder = null; }
+                var referencedAssets = recipe.materials.Select(spec => assetRoot + "/" + spec.shader)
+                    .Concat(recipe.materials.SelectMany(spec => spec.properties ?? new MaterialProperty[0])
+                        .Where(property => property.kind == "texture").Select(property => assetRoot + "/" + property.texture));
+                var bundleAssets = paths.Concat(referencedAssets).Distinct(StringComparer.Ordinal).ToArray();
+                var bundle = BuildAndReload(output, recipe.bundleName, bundleAssets, generatedFolder, report);
+                try
+                {
+                    report.materials = recipe.materials.Select((spec, index) =>
+                    {
+                        var material = bundle.LoadAsset<Material>(paths[index]);
+                        Require(material != null && material.name == spec.name, "The bundled material name changed.");
+                        return ValidateMaterial(material, spec, assetRoot, bundle);
+                    }).ToArray();
+                    if (identityContracts)
+                    {
+                        report.identityContracts = ValidateMaterialIdentityContracts(bundle, recipe, paths, assetRoot);
+                    }
+                }
+                finally { bundle.Unload(true); }
+                Require(Sha256(recipePath) == report.inputSha256 && recipe.assets.All(asset =>
+                    Sha256(MaterialInputPath(root, assetRoot, asset.path)) == asset.sha256), "Material inputs changed during the build.");
+                report.activeScenePathAfter = SceneManager.GetActiveScene().path;
+                report.activeSceneDirtyAfter = SceneManager.GetActiveScene().isDirty;
+                report.sceneCountAfter = SceneManager.sceneCount;
+                Require(report.activeScenePathBefore == report.activeScenePathAfter && report.activeSceneDirtyBefore == report.activeSceneDirtyAfter &&
+                        report.sceneCountBefore == report.sceneCountAfter, "The material build changed the open scene state.");
+                report.stage = "complete"; report.success = true; report.completedUtc = DateTime.UtcNow.ToString("o");
+                WriteJson(reportPath, report);
+                return true;
+            }
+            catch (Exception exception)
+            {
+                report.error = exception.ToString(); report.completedUtc = DateTime.UtcNow.ToString("o");
+                if (reportPath != null && !File.Exists(reportPath)) { WriteJson(reportPath, report); }
+                Debug.LogException(exception); return false;
+            }
+        }
+
+        private static string MaterialInputPath(string root, string assetRoot, string relative)
+        {
+            Require(!string.IsNullOrEmpty(relative) && Regex.IsMatch(relative, "^[A-Za-z0-9_./-]+$") && !Path.IsPathRooted(relative) &&
+                    relative.Split('/').All(segment => segment != "" && segment != "." && segment != ".."), "Invalid material input path.");
+            Require(new[] { ".shader", ".cginc", ".hlsl", ".png", ".jpg", ".jpeg", ".tga" }.Contains(Path.GetExtension(relative)), "Unsupported material input extension.");
+            var path = Path.Combine(root, assetRoot, relative);
+            RejectReparsePoints(path);
+            Require(File.Exists(path), "The material input is missing: " + relative);
+            return path;
+        }
+
+        private static MaterialValidation ValidateMaterial(Material material, MaterialSpec spec, string assetRoot,
+            AssetBundle bundle = null)
+        {
+            Require(material.shader != null && material.shader.isSupported && spec.requiredPasses != null && spec.requiredPasses.Length > 0 &&
+                    spec.requiredPasses.All(pass => !string.IsNullOrEmpty(pass) && material.FindPass(pass) >= 0), "A required material shader pass is missing: " + spec.name);
+            var shaderPath = assetRoot + "/" + spec.shader;
+            var expectedShader = bundle != null ? bundle.LoadAsset<Shader>(shaderPath) : AssetDatabase.LoadAssetAtPath<Shader>(shaderPath);
+            Require(expectedShader != null && material.shader == expectedShader, "The material's shader reference changed: " + spec.shader);
+            foreach (var property in spec.properties ?? new MaterialProperty[0])
+            {
+                Require(material.HasProperty(property.name), "A bundled material property is missing: " + property.name);
+                if (property.kind == "float") { Require(Mathf.Abs(material.GetFloat(property.name) - property.value) < 0.00001f, "A float material value changed."); }
+                else if (property.kind == "color")
+                {
+                    var actual = material.GetColor(property.name);
+                    Require(Mathf.Abs(actual.r - property.rgba[0]) < 0.00001f && Mathf.Abs(actual.g - property.rgba[1]) < 0.00001f &&
+                            Mathf.Abs(actual.b - property.rgba[2]) < 0.00001f && Mathf.Abs(actual.a - property.rgba[3]) < 0.00001f, "A material color changed.");
+                }
+                else if (property.kind == "texture")
+                {
+                    var texturePath = assetRoot + "/" + property.texture;
+                    var expected = bundle != null ? bundle.LoadAsset<Texture>(texturePath) : AssetDatabase.LoadAssetAtPath<Texture>(texturePath);
+                    var actual = material.GetTexture(property.name);
+                    Require(expected != null && actual == expected, "A material texture reference changed: " + property.texture);
+                }
+            }
+            Require(spec.renderQueue == -1 || material.renderQueue == spec.renderQueue, "The material render queue changed.");
+            return new MaterialValidation { name = material.name, shader = material.shader.name, shaderSupported = material.shader.isSupported,
+                renderQueue = material.renderQueue, passes = Enumerable.Range(0, material.passCount).Select(material.GetPassName).ToArray() };
+        }
+
+        private static MaterialIdentityContract[] ValidateMaterialIdentityContracts(AssetBundle bundle,
+            MaterialRecipe recipe, string[] materialPaths, string assetRoot)
+        {
+            Require(recipe.materials.Length == 2, "The identity contract requires two owned materials.");
+            var expected = recipe.materials[0];
+            var alternative = recipe.materials[1];
+            var material = bundle.LoadAsset<Material>(materialPaths[0]);
+            var expectedShader = bundle.LoadAsset<Shader>(assetRoot + "/" + expected.shader);
+            var otherShader = bundle.LoadAsset<Shader>(assetRoot + "/" + alternative.shader);
+            var expectedProperty = (expected.properties ?? new MaterialProperty[0]).Single(property => property.kind == "texture");
+            var otherProperty = (alternative.properties ?? new MaterialProperty[0]).Single(property => property.kind == "texture");
+            var expectedTexture = bundle.LoadAsset<Texture>(assetRoot + "/" + expectedProperty.texture);
+            var otherTexture = bundle.LoadAsset<Texture>(assetRoot + "/" + otherProperty.texture);
+            Require(expectedShader && otherShader && expectedShader != otherShader && expectedShader.name == otherShader.name,
+                "The native bundle must retain distinct shaders with the same internal name.");
+            Require(expectedTexture && otherTexture && expectedTexture != otherTexture && expectedTexture.name == otherTexture.name &&
+                    expectedTexture.width == otherTexture.width && expectedTexture.height == otherTexture.height,
+                "The native bundle must retain distinct, equally sized textures with the same name.");
+            var contracts = new[] {
+                new MaterialIdentityContract { kind = "shader", expectedAsset = expected.shader, alternativeAsset = alternative.shader,
+                    expectedName = expectedShader.name, alternativeName = otherShader.name,
+                    expectedInstanceId = expectedShader.GetInstanceID(), alternativeInstanceId = otherShader.GetInstanceID() },
+                new MaterialIdentityContract { kind = "texture", expectedAsset = expectedProperty.texture, alternativeAsset = otherProperty.texture,
+                    expectedName = expectedTexture.name, alternativeName = otherTexture.name,
+                    expectedInstanceId = expectedTexture.GetInstanceID(), alternativeInstanceId = otherTexture.GetInstanceID() }
+            };
+            foreach (var contract in contracts)
+            {
+                var clone = new Material(material);
+                try
+                {
+                    if (contract.kind == "shader") { clone.shader = otherShader; }
+                    else { clone.SetTexture(expectedProperty.name, otherTexture); }
+                    try { ValidateMaterial(clone, expected, assetRoot, bundle); }
+                    catch (InvalidOperationException error)
+                    {
+                        contract.rejection = error.Message;
+                        contract.rejected = error.Message.Contains(contract.kind == "shader"
+                            ? "shader reference changed" : "texture reference changed");
+                    }
+                    Require(contract.rejected, "A same-name " + contract.kind + " reference substitution was accepted.");
+                }
+                finally { Object.DestroyImmediate(clone); }
+            }
+            return contracts;
+        }
+
+        [InitializeOnLoadMethod]
+        private static void InitializeWorker()
+        {
+            if (Application.isBatchMode) { return; }
+            var root = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            var marker = Path.Combine(root, ".solasta-asset-authoring-project");
+            if (Application.unityVersion != EditorVersion || !File.Exists(marker) || File.ReadAllText(marker).Trim() != ProjectMarker) { return; }
+            loadedSourceHash = Sha256(Path.Combine(root, "Assets/Editor/AssetBundleBuilder.cs"));
+            EditorApplication.update -= PollJobs;
+            EditorApplication.update += PollJobs;
+        }
+
+        private static void PollJobs()
+        {
+            if (workerBusy || EditorApplication.timeSinceStartup < nextPoll || EditorApplication.isCompiling ||
+                EditorApplication.isUpdating || EditorApplication.isPlayingOrWillChangePlaymode) { return; }
+            nextPoll = EditorApplication.timeSinceStartup + 1.0;
+            var root = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            try
+            {
+                RejectReparsePoints(root);
+                var source = Path.Combine(root, "Assets/Editor/AssetBundleBuilder.cs");
+                RejectReparsePoints(source);
+                if (Sha256(source) != loadedSourceHash)
+                {
+                    EditorApplication.update -= PollJobs;
+                    AssetDatabase.ImportAsset("Assets/Editor/AssetBundleBuilder.cs", ImportAssetOptions.ForceSynchronousImport);
+                    return;
+                }
+                var directory = Path.Combine(root, JobFolder);
+                RejectReparsePoints(directory);
+                Directory.CreateDirectory(directory);
+                using (var process = System.Diagnostics.Process.GetCurrentProcess())
+                {
+                    WriteJson(Path.Combine(directory, "worker.json"), new WorkerReceipt
+                    {
+                        processId = process.Id, processStartedUtc = process.StartTime.ToUniversalTime().ToString("o"),
+                        mainThread = Thread.CurrentThread.ManagedThreadId, projectPath = root,
+                        unityVersion = Application.unityVersion, updatedUtc = DateTime.UtcNow.ToString("o"),
+                        sourceSha256 = loadedSourceHash
+                    });
+                }
+                foreach (var jobDirectory in Directory.GetDirectories(directory).OrderBy(path => path, StringComparer.Ordinal))
+                {
+                    var jobId = Path.GetFileName(jobDirectory);
+                    if (!Regex.IsMatch(jobId, "^[a-f0-9]{32}$")) { continue; }
+                    var requestPath = Path.Combine(jobDirectory, "request.json");
+                    var claimedPath = Path.Combine(jobDirectory, "started.json");
+                    if (!File.Exists(requestPath)) { continue; }
+                    RequireJob(root, jobId);
+                    var reportPath = Path.Combine(jobDirectory, "Output/unity-report.json");
+                    if (File.Exists(claimedPath))
+                    {
+                        if (!File.Exists(reportPath)) { WriteJobFailure(reportPath, jobId, "The previous job was interrupted; submit a new job."); }
+                        continue;
+                    }
+                    using (var claim = new FileStream(claimedPath, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
+                    using (var writer = new StreamWriter(claim)) { writer.Write(DateTime.UtcNow.ToString("o")); }
+                    workerBusy = true;
+                    try
+                    {
+                        RejectReparsePoints(requestPath);
+                        Require(new FileInfo(requestPath).Length <= 4096, "The job request is too large.");
+                        var job = JsonUtility.FromJson<Job>(File.ReadAllText(requestPath));
+                        Require(job != null && job.schemaVersion == 1 && job.jobId == jobId &&
+                                job.inputSha256 != null && Regex.IsMatch(job.inputSha256, "^[a-f0-9]{64}$"), "The job request is invalid.");
+                        Require(job.kind == null || job.kind == "rig" || job.kind == "materials" ||
+                                job.kind == "material-identity-contracts", "Unknown authoring job kind.");
+                        if (job.kind == "materials" || job.kind == "material-identity-contracts")
+                        {
+                            BuildMaterials(Path.Combine(root, "Assets/AuthoringJobs", jobId, "Input/recipe.json"),
+                                Path.Combine(jobDirectory, "Output"), jobId, job.inputSha256,
+                                job.kind == "material-identity-contracts");
+                        }
+                        else
+                        {
+                            BuildValidated(Path.Combine(root, "Assets/AuthoringJobs", jobId, "Input/SampleRig.fbx"),
+                                Path.Combine(jobDirectory, "Output"), jobId, job.inputSha256);
+                        }
+                    }
+                    catch (Exception exception)
+                    {
+                        WriteJobFailure(reportPath, jobId, exception.ToString());
+                        Debug.LogException(exception);
+                    }
+                    finally { workerBusy = false; }
+                    break;
+                }
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+            }
+        }
+
+        private static void RequireJob(string root, string jobId)
+        {
+            Require(Regex.IsMatch(jobId, "^[a-f0-9]{32}$"), "Invalid job identifier.");
+            var directory = Path.Combine(root, JobFolder, jobId);
+            RejectReparsePoints(directory);
+            var marker = Path.Combine(directory, ".solasta-asset-authoring-job");
+            RejectReparsePoints(marker);
+            Require(File.Exists(marker) && File.ReadAllText(marker).Trim() == JobMarker, "The job directory is not owned by the launcher.");
+        }
+
+        private static void WriteJobFailure(string path, string jobId, string error)
+        {
+            RejectReparsePoints(path);
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            WriteJson(path, new Report { unityVersion = Application.unityVersion, transport = "gui_worker", jobId = jobId,
+                processId = System.Diagnostics.Process.GetCurrentProcess().Id, mainThread = Thread.CurrentThread.ManagedThreadId,
+                error = error, completedUtc = DateTime.UtcNow.ToString("o") });
+        }
+
+        private static void WriteJson(string path, object value)
+        {
+            var temporary = path + ".writing";
+            File.WriteAllText(temporary, JsonUtility.ToJson(value, true));
+            if (File.Exists(path)) { File.Replace(temporary, path, null); }
+            else { File.Move(temporary, path); }
         }
 
         private static Validation Validate(GameObject prefab, AnimationClip clip)
         {
             Require(clip != null && clip.length >= 0.1f && clip.length <= 10f,
                 "A short animation clip between 0.1 and 10 seconds is required.");
-            var instance = Object.Instantiate(prefab);
+            var preview = EditorSceneManager.NewPreviewScene();
+            GameObject instance = null;
             try
             {
+                instance = Object.Instantiate(prefab);
+                SceneManager.MoveGameObjectToScene(instance, preview);
                 Require(instance.GetComponentsInChildren<MonoBehaviour>(true).Length == 0,
                     "No custom runtime scripts are permitted in this authoring sample.");
                 var rootAnimator = instance.GetComponent<Animator>();
@@ -302,7 +803,8 @@ namespace SolastaAssetAuthoring
             }
             finally
             {
-                Object.DestroyImmediate(instance);
+                if (instance != null) { Object.DestroyImmediate(instance); }
+                EditorSceneManager.ClosePreviewScene(preview);
             }
         }
 
@@ -353,6 +855,15 @@ namespace SolastaAssetAuthoring
         private static void Require(bool condition, string message)
         {
             if (!condition) { throw new InvalidOperationException(message); }
+        }
+    }
+
+    internal sealed class AuthoringSaveFilter : UnityEditor.AssetModificationProcessor
+    {
+        private static string[] OnWillSaveAssets(string[] paths)
+        {
+            return AssetBundleBuilder.SavingFolder == null ? paths : paths.Where(path =>
+                path.StartsWith(AssetBundleBuilder.SavingFolder, StringComparison.Ordinal)).ToArray();
         }
     }
 }

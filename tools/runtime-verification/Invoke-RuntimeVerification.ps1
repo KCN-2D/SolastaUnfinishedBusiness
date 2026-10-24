@@ -267,9 +267,11 @@ try {
     if ($managerVersion -lt $minimumManagerVersion) {
         throw "Unity Mod Manager $minimumManagerVersion or newer is required; installed runtime is $managerVersion."
     }
-    Assert-NoGameProcess
-    if (Test-Path -LiteralPath $probeDirectory) {
-        throw "A verification mod already exists. Inspect it before proceeding: $probeDirectory"
+    if (-not $ValidateOnly) {
+        Assert-NoGameProcess
+        if (Test-Path -LiteralPath $probeDirectory) {
+            throw "A verification mod already exists. Inspect it before proceeding: $probeDirectory"
+        }
     }
     if (-not $StartupOnly) {
         if ($ProbeSource.Count -eq 0 -or $ProbeType.Count -eq 0) { throw 'At least one probe is required.' }

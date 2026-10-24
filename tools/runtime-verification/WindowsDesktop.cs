@@ -21,6 +21,27 @@ namespace UBVerification
         public uint nativeThreadId;
         public OwnedWindowSnapshot[] ownedWindows;
         public GuiThreadSnapshot guiThread;
+        public FocusPreparationReceipt focusPreparation;
+        public FocusActivationReceipt focusActivation;
+    }
+
+    public sealed class FocusPreparationReceipt
+    {
+        public long gameWindow, peerWindow;
+        public bool? completed;
+        public string error;
+        public DesktopSnapshot[] steps;
+        public GuiThreadSnapshot finalGuiThread;
+    }
+
+    public sealed class FocusActivationReceipt
+    {
+        public string stimulus = "same-thread-owned-non-input-peer-activation";
+        public long previousActiveWindow;
+        public int activationError;
+        public bool attempted, completed;
+        public string error;
+        public DesktopSnapshot before, after;
     }
 
     public sealed class BooleanQuery
@@ -90,6 +111,7 @@ namespace UBVerification
         private static extern IntPtr CreateDesktop(string name, IntPtr device, IntPtr mode, uint flags, uint access, IntPtr security);
         [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
         [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr window, int command);
+        [DllImport("user32.dll", SetLastError=true)] private static extern IntPtr SetActiveWindow(IntPtr window);
         [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr window);
         [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
         [DllImport("user32.dll", EntryPoint="CreateWindowExW", CharSet=CharSet.Unicode, SetLastError=true)]
@@ -135,8 +157,10 @@ namespace UBVerification
         }
         [StructLayout(LayoutKind.Sequential)]
         private struct ProcessInfo { public IntPtr process, thread; public uint processId, threadId; }
-        private static IntPtr minimizedWindow;
+        private static IntPtr focusGameWindow;
         private static IntPtr focusPeer;
+        private static FocusPreparationReceipt focusPreparation;
+        private static FocusActivationReceipt focusActivation;
 
         public static uint CurrentNativeThreadId() { return GetCurrentThreadId(); }
 
@@ -201,49 +225,131 @@ namespace UBVerification
 
         public static void PrepareCurrentWindowFocusLoss(int width, int height)
         {
+            focusPreparation = null;
+            focusActivation = null;
             var desktop = ReadCurrent(null, "focus-preparation");
-            if (!desktop.complete || !desktop.isolated)
-                throw new InvalidOperationException("Focus verification requires the owned non-input desktop.");
-            if (minimizedWindow != IntPtr.Zero || focusPeer != IntPtr.Zero)
+            RequireFocusDesktop(desktop);
+            if (focusGameWindow != IntPtr.Zero || focusPeer != IntPtr.Zero)
                 throw new InvalidOperationException("A focus verification window is already owned.");
             var window = FindCurrentRenderWindow(width, height);
             if (IsIconic(window)) throw new InvalidOperationException("The render window is already minimized.");
-            minimizedWindow = window;
-            focusPeer = RequireHandle(CreateWindowEx(0, "STATIC", "UB Verification Activation", 0x00CF0000,
-                0, 0, 160, 80, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero), "CreateWindowExW(focus peer)");
-            ShowWindow(focusPeer, 4);
-            var gui = ReadGuiThread();
-            if (!gui.querySucceeded) throw new Win32Exception(gui.queryError, "GetGUIThreadInfo(focus preparation)");
-            if (gui.activeWindow != window.ToInt64())
+            focusGameWindow = window;
+            var receipt = new FocusPreparationReceipt { gameWindow = window.ToInt64() };
+            var steps = new List<DesktopSnapshot>(10);
+            try
             {
-                // Let Windows select each next eligible window on this non-input desktop.
-                ShowWindow(window, 6);
-                ShowWindow(window, 4);
-                ShowWindow(focusPeer, 6);
-                ShowWindow(focusPeer, 4);
+                focusPeer = RequireHandle(CreateWindowEx(0, "STATIC", "UB Verification Activation", 0x00CF0000,
+                    0, 0, 160, 80, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero), "CreateWindowExW(focus peer)");
+                receipt.peerWindow = focusPeer.ToInt64();
+                var windows = new[] { focusPeer, window, window, focusPeer, focusPeer };
+                var commands = new[] { 4, 6, 4, 6, 4 };
+                var operations = new[] { "peer-show", "game-minimize", "game-show", "peer-minimize", "peer-reshow" };
+                // Let Windows select the render window when it is not already active.
+                // Every show call has a bounded before/after receipt.
+                for (var step = 0; step < 10; step++)
+                {
+                    if (step == 2 && steps[1].guiThread.activeWindow == window.ToInt64()) break;
+                    var operation = step / 2;
+                    var after = (step & 1) != 0;
+                    if (after) ShowWindow(windows[operation], commands[operation]);
+                    var sample = ReadCurrent(null, "focus-preparation/" + operations[operation] +
+                        (after ? "/after" : "/before"));
+                    sample.focusPreparation = null;
+                    steps.Add(sample);
+                    RequireFocusWindows(sample, receipt.gameWindow, receipt.peerWindow, false);
+                }
+                var gui = ReadGuiThread();
+                receipt.finalGuiThread = gui;
+                if (!gui.querySucceeded || gui.activeWindow != window.ToInt64())
+                    throw new InvalidOperationException("Windows did not activate the owned render window during focus preparation.");
+                receipt.completed = true;
             }
-            gui = ReadGuiThread();
-            if (!gui.querySucceeded || gui.activeWindow != window.ToInt64())
-                throw new InvalidOperationException("Windows did not activate the owned render window during focus preparation.");
+            catch (Exception error)
+            {
+                receipt.completed = false;
+                receipt.error = error.ToString();
+                throw;
+            }
+            finally
+            {
+                receipt.steps = steps.ToArray();
+                focusPreparation = receipt;
+            }
         }
 
-        public static bool MinimizeCurrentWindow(int width, int height)
+        private static void RequireFocusDesktop(DesktopSnapshot snapshot)
         {
-            var window = FindCurrentRenderWindow(width, height);
-            if (window != minimizedWindow || focusPeer == IntPtr.Zero)
-                throw new InvalidOperationException("The owned focus peer has not been prepared.");
-            if (IsIconic(window)) return false;
-            ShowWindow(window, 6); // SW_MINIMIZE lets Windows deactivate this window in favor of the peer.
-            if (!IsIconic(window)) throw new InvalidOperationException("The owned render window did not become minimized.");
-            return true;
+            if (!snapshot.complete || !snapshot.isolated || !snapshot.guiThread.querySucceeded ||
+                snapshot.runnerInputQuery == null || !snapshot.runnerInputQuery.succeeded ||
+                snapshot.runnerInputQuery.bytesNeeded != 4 || snapshot.runnerInputQuery.rawValue != 0 ||
+                !System.Text.RegularExpressions.Regex.IsMatch(snapshot.runnerDesktop ?? "", "^UBGameTest_[a-f0-9]{32}$"))
+                throw new InvalidOperationException("Focus verification requires the owned non-input desktop.");
+        }
+
+        private static void RequireFocusWindows(DesktopSnapshot snapshot, long game, long peer, bool visible)
+        {
+            RequireFocusDesktop(snapshot);
+            var observed = 0;
+            foreach (var owned in snapshot.ownedWindows)
+            {
+                if (owned.windowHandle != game && owned.windowHandle != peer) continue;
+                if (game == 0 || peer == 0 || game == peer || owned.processId != snapshot.processId ||
+                    owned.nativeThreadId != snapshot.nativeThreadId || !owned.desktopQuerySucceeded ||
+                    owned.desktop != snapshot.runnerDesktop || !owned.clientRectQuerySucceeded ||
+                    owned.inputQuery == null || !owned.inputQuery.succeeded || owned.inputQuery.bytesNeeded != 4 ||
+                    owned.inputQuery.rawValue != 0 || visible && (!owned.visible || owned.minimized))
+                    throw new InvalidOperationException("The focus windows must belong to the current game thread on its non-input desktop.");
+                observed++;
+            }
+            if (observed != 2)
+                throw new InvalidOperationException("The focus windows were not both observed on the current game thread.");
+        }
+
+        public static void DeactivateCurrentWindow(int width, int height)
+        {
+            focusActivation = null;
+            var receipt = new FocusActivationReceipt();
+            try
+            {
+                var before = ReadCurrent(null, "focus-activation/before");
+                before.focusActivation = null;
+                receipt.before = before;
+                RequireFocusDesktop(before);
+                var window = FindCurrentRenderWindow(width, height);
+                if (window != focusGameWindow || focusPeer == IntPtr.Zero || focusPreparation?.completed != true)
+                    throw new InvalidOperationException("The owned focus peer has not been prepared.");
+                RequireFocusWindows(before, window.ToInt64(), focusPeer.ToInt64(), true);
+                if (before.guiThread.activeWindow != window.ToInt64())
+                    throw new InvalidOperationException("The owned render window is not active before the focus-loss stimulus.");
+                // This affects only this thread's queue on the verified non-input desktop.
+                // Foreground activation, thread-input attachment and input injection are not used.
+                receipt.attempted = true;
+                var previous = SetActiveWindow(focusPeer);
+                receipt.activationError = previous == IntPtr.Zero ? Marshal.GetLastWin32Error() : 0;
+                receipt.previousActiveWindow = previous.ToInt64();
+                var after = ReadCurrent(null, "focus-activation/after");
+                after.focusActivation = null;
+                receipt.after = after;
+                RequireFocusWindows(after, window.ToInt64(), focusPeer.ToInt64(), true);
+                if (previous != window || after.guiThread.activeWindow != focusPeer.ToInt64() ||
+                    after.guiThread.focusWindow == window.ToInt64())
+                    throw new InvalidOperationException("Windows did not deactivate the owned render window in favor of its same-thread peer.");
+                receipt.completed = true;
+            }
+            catch (Exception error)
+            {
+                receipt.error = error.ToString();
+                throw;
+            }
+            finally { focusActivation = receipt; }
         }
 
         public static void ShowCurrentWindowWithoutActivation()
         {
-            if (minimizedWindow == IntPtr.Zero) throw new InvalidOperationException("No focus verification window is owned.");
-            RequireOwnWindow(minimizedWindow);
-            ShowWindow(minimizedWindow, 4);
-            if (IsIconic(minimizedWindow)) throw new InvalidOperationException("The owned render window remained minimized.");
+            if (focusGameWindow == IntPtr.Zero) throw new InvalidOperationException("No focus verification window is owned.");
+            RequireOwnWindow(focusGameWindow);
+            ShowWindow(focusGameWindow, 4);
+            if (IsIconic(focusGameWindow)) throw new InvalidOperationException("The owned render window remained minimized.");
         }
 
         public static bool CurrentWindowIsDeactivated(int width, int height)
@@ -252,16 +358,16 @@ namespace UBVerification
             RequireOwnWindow(focusPeer);
             var gui = ReadGuiThread();
             if (!gui.querySucceeded) throw new Win32Exception(gui.queryError, "GetGUIThreadInfo(focus loss)");
-            return window == minimizedWindow && !IsIconic(window) &&
+            return window == focusGameWindow && !IsIconic(window) &&
                 gui.activeWindow == focusPeer.ToInt64() && gui.focusWindow != window.ToInt64();
         }
 
         public static void RestoreCurrentWindow()
         {
-            if (minimizedWindow != IntPtr.Zero)
+            if (focusGameWindow != IntPtr.Zero)
             {
                 ShowCurrentWindowWithoutActivation();
-                minimizedWindow = IntPtr.Zero;
+                focusGameWindow = IntPtr.Zero;
             }
             if (focusPeer != IntPtr.Zero)
             {
@@ -371,6 +477,8 @@ namespace UBVerification
                 !String.Equals(snapshot.runnerDesktop, snapshot.inputDesktop, StringComparison.OrdinalIgnoreCase) &&
                 (String.IsNullOrEmpty(expectedDesktop) ||
                     String.Equals(snapshot.runnerDesktop, expectedDesktop, StringComparison.OrdinalIgnoreCase));
+            snapshot.focusPreparation = focusPreparation;
+            snapshot.focusActivation = focusActivation;
             return snapshot;
         }
 

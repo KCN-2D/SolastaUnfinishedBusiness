@@ -662,8 +662,8 @@ ModUi/&SpeechVoiceVoxHelp=Добавьте VOICEVOX с помощью кнопк
 ModUi/&SpeechVoiceVoxConnecting=Подключение к VOICEVOX…
 ModUi/&SpeechVoiceVoxConnected=VOICEVOX подключён: доступно стилей голоса — {0}
 ModUi/&SpeechVoiceVoxUnavailable=VOICEVOX недоступен. Завершите настройку или проверьте уже запущенный VOICEVOX, затем обновите список голосов.
-ModUi/&SpeechVoiceVoxInstall=Загрузить и настроить VOICEVOX
-ModUi/&SpeechVoiceVoxInstallHelp=Первая загрузка занимает около 1,9 ГБ. После настройки Solasta запускает и останавливает VOICEVOX по мере необходимости. Загрузку можно отменить и возобновить. Использование голосов регулируется условиями каждого диктора.
+ModUi/&SpeechVoiceVoxInstall=Скачать и настроить VOICEVOX Engine {0}
+ModUi/&SpeechVoiceVoxInstallHelp=Загружает последнюю стабильную версию движка для процессора Windows. Solasta запускает и останавливает его по мере необходимости. Загрузку можно отменить и продолжить. Используйте голоса в соответствии с условиями каждого диктора.
 ModUi/&SpeechVoiceVoxDownloadProgress=Загрузка VOICEVOX: {0}
 ModUi/&SpeechVoiceVoxVerifying=Проверка загрузки VOICEVOX
 ModUi/&SpeechVoiceVoxExtracting=Настройка VOICEVOX
@@ -708,3 +708,25 @@ ModUi/&EpicBoons2024RequiresTabletopHelp=Включите черты насто�
 ModUi/&EnableInventorMagicItemMaster2024=Включить <color=#D89555>Мастера магических предметов</color> на 18-м уровне <i><color=#F0DAA0>[предел настройки +1]</color></i>
 ModUi/&EnableArtilleristFortifiedPosition2024=Использовать версию 2024 года <color=#D89555>Укреплённой позиции</color> на 15-м уровне Артиллериста <i><color=#F0DAA0>[две пушки одним действием]</color></i>
 ModUi/&EnableArtilleristEldritchCannon2024=Использовать версию 2024 года <color=#D89555>Мистической пушки</color> на 3-м уровне Артиллериста <i><color=#F0DAA0>[выбор одного из трёх эффектов при каждой активации пушки]</color></i>
+ModUi/&SpeechVoiceVoxEngineVersion=Движок VOICEVOX: {0}
+ModUi/&SpeechVoiceVoxVersionUnknown=версия недоступна
+ModUi/&SpeechVoiceVoxCheckAutomatically=Автоматически проверять обновления приложения и движка
+ModUi/&SpeechVoiceVoxCheckUpdates=Проверить обновления VOICEVOX
+ModUi/&SpeechVoiceVoxReleases=Выпуски движка
+ModUi/&SpeechVoiceVoxUpdateNotChecked=Обновления движка ещё не проверялись.
+ModUi/&SpeechVoiceVoxUpdateChecking=Проверка обновлений движка…
+ModUi/&SpeechVoiceVoxUpdateFailed=Не удалось проверить обновления движка.
+ModUi/&SpeechVoiceVoxUpdateAvailable=Доступен движок {0}. Подключён: {1}.
+ModUi/&SpeechVoiceVoxCurrentVersion=Для движка {0} нет обновлений.
+ModUi/&SpeechVoiceVoxLatestVersion=Последний движок: {0}
+ModUi/&SpeechVoiceVoxUpdateManaged=Скачать и настроить движок {0}
+ModUi/&SpeechVoiceVoxAppVersion=Приложение VOICEVOX: {0}
+ModUi/&SpeechVoiceVoxAppUpdateChecking=Проверка обновлений приложения…
+ModUi/&SpeechVoiceVoxAppUpdateFailed=Не удалось проверить обновления приложения.
+ModUi/&SpeechVoiceVoxAppUpdateNotChecked=Обновления приложения ещё не проверялись.
+ModUi/&SpeechVoiceVoxAppUpdateAvailable=Доступно приложение {0}. Установлено: {1}.
+ModUi/&SpeechVoiceVoxAppCurrentVersion=Для приложения {0} нет обновлений.
+ModUi/&SpeechVoiceVoxAppLatestVersion=Последнее приложение: {0}
+ModUi/&SpeechVoiceVoxAppReleases=Выпуски приложения VOICEVOX
+ModUi/&SpeechVoiceVoxCheckAndInstall=Проверить и установить последнюю версию движка
+ModUi/&SpeechVoiceVoxCheckAndUpdate=Проверить и обновить управляемый движок

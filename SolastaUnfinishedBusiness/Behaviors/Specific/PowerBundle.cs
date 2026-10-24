@@ -508,8 +508,51 @@ internal static class PowerBundle
         EffectDescription original,
         [NotNull] BaseDefinition definition)
     {
-        return ModifyMagicEffect(original, definition,
-            TooltipPanelPatcher.EffectFormattingCharacter ?? Global.CurrentCharacter, null);
+        var character = TooltipPanelPatcher.EffectFormattingCharacter ?? Global.CurrentCharacter;
+        var result = ModifyMagicEffect(original, definition, character, null);
+
+        if (character == null || definition is not FeatureDefinitionPower power)
+        {
+            return result;
+        }
+
+        // Native power tooltips format the base dice without applying the form's level table.
+        // Resolve only the GUI copy; cached effects and runtime advancement remain unchanged.
+        EffectDescription display = null;
+
+        for (var i = 0; i < result.EffectForms.Count; i++)
+        {
+            var form = result.EffectForms[i];
+
+            if (form.FormType != EffectForm.EffectFormType.Damage ||
+                form.ApplyLevel is not (EffectForm.LevelApplianceType.MultiplyDice or
+                    EffectForm.LevelApplianceType.DiceNumberByLevelTable) ||
+                form.LevelType is not (LevelSourceType.ClassLevel or LevelSourceType.ClassLevelHalfUp or
+                    LevelSourceType.CharacterLevel))
+            {
+                continue;
+            }
+
+            var level = EffectHelpers.GetPowerEffectFormLevel(character, power, form.LevelType,
+                character.TryGetAttributeValue(AttributeDefinitions.CharacterLevel));
+            var additionalDice = form.ApplyLevel == EffectForm.LevelApplianceType.DiceNumberByLevelTable
+                ? DiceByRank.GetDiceOfRank(level, form.DiceByLevelTable, true)
+                : level;
+
+            if (additionalDice == 0 && (form.ApplyLevel != EffectForm.LevelApplianceType.MultiplyDice ||
+                                       form.LevelType != LevelSourceType.ClassLevelHalfUp))
+            {
+                continue;
+            }
+
+            display ??= EffectDescriptionBuilder.Create(result).Build();
+            var displayForm = display.EffectForms[i];
+
+            displayForm.DamageForm.diceNumber += additionalDice;
+            displayForm.applyLevel = EffectForm.LevelApplianceType.No;
+        }
+
+        return display ?? result;
     }
 
     internal static bool ValidatePrerequisites(

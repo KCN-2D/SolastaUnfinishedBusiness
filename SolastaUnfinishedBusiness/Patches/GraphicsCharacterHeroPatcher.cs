@@ -1,13 +1,41 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
+using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.CustomUI;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
 [UsedImplicitly]
 public static class GraphicsCharacterHeroPatcher
 {
+    [HarmonyPatch]
+    [UsedImplicitly]
+    public static class WieldedEquipmentChanged_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<MethodBase> TargetMethods()
+        {
+            yield return AccessTools.Method(typeof(GraphicsCharacterHero), nameof(GraphicsCharacterHero.ItemEquiped));
+            yield return AccessTools.Method(typeof(GraphicsCharacterHero), nameof(GraphicsCharacterHero.ItemUnequiped));
+        }
+
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions,
+            MethodBase __originalMethod)
+        {
+            var getter = AccessTools.PropertyGetter(typeof(ItemDefinition), nameof(ItemDefinition.IsWeapon));
+            var replacement = AccessTools.Method(typeof(CustomModels), nameof(CustomModels.RequiresWieldedEquipmentRefresh));
+
+            return instructions.ReplaceCalls(getter, 1, __originalMethod.DeclaringType?.Name + "." +
+                __originalMethod.Name, new CodeInstruction(OpCodes.Call, replacement));
+        }
+    }
+
     [HarmonyPatch(typeof(GraphicsCharacterHero), nameof(GraphicsCharacterHero.GetAttackAnimationData))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

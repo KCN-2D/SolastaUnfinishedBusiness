@@ -31,9 +31,6 @@ public static class CharacterInspectionScreenPatcher
                 __1,
                 itemSelected);
 
-            //PATCH: enable custom models renderer
-            CustomModels.SwitchRenderer(true);
-
             //PATCH: sets the inspection context for MC heroes
             Global.InspectedHero = __state ? null : heroCharacter;
             CharacterInspectionScreenEnhancement.ResetInspectionState();
@@ -97,9 +94,6 @@ public static class CharacterInspectionScreenPatcher
         public static bool Prefix(CharacterInspectionScreen __instance)
         {
             CharacterInspectionScreenEnhancement.ReleaseInspectionTabsScroll(__instance);
-
-            //PATCH: disable custom models renderer
-            CustomModels.SwitchRenderer(false);
 
             //PATCH: resets the inspection context for MC heroes
             Global.InspectedHero = null;

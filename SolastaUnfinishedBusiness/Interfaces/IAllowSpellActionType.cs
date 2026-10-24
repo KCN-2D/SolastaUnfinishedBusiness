@@ -133,7 +133,7 @@ internal static class SpellActionTypeContext
         return false;
     }
 
-    internal static void QualifySpells(
+    internal static bool QualifySpells(
         RulesetCharacter character,
         RulesetSpellRepertoire repertoire,
         ActionType actionType,
@@ -142,7 +142,7 @@ internal static class SpellActionTypeContext
     {
         if (character == null || repertoire == null)
         {
-            return;
+            return false;
         }
 
         var providers = character.GetSubFeaturesByType<IAllowSpellActionType>();
@@ -155,9 +155,10 @@ internal static class SpellActionTypeContext
         if (providers.Count == 0 && actionType != ActionType.None &&
             (Gui.Battle != null || actionType != ActionType.Main))
         {
-            return;
+            return false;
         }
 
+        var added = false;
         foreach (var spell in candidates.Where(spell => spell != null && IsCastingTimeAvailable(spell)))
         {
             if (!relevantSpells.Contains(spell) &&
@@ -165,8 +166,11 @@ internal static class SpellActionTypeContext
                     IsAllowedByProvider(provider, character, repertoire, spell, actionType))))
             {
                 relevantSpells.Add(spell);
+                added = true;
             }
         }
+
+        return added;
     }
 
     internal static bool TryGetAvailableSpellAction(

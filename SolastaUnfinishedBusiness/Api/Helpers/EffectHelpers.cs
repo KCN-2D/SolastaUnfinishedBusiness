@@ -21,6 +21,32 @@ internal static class EffectHelpers
     /**DC and magic attack bonus will be calculated based on the stats of character who summoned item, not from device itself*/
     public const int BasedOnItemSummoner = -2;
 
+    internal static int GetPowerEffectFormLevel(
+        RulesetCharacter character,
+        FeatureDefinitionPower power,
+        RuleDefinitions.LevelSourceType levelType,
+        int fallbackLevel,
+        RulesetEffect effect = null)
+    {
+        if (levelType == RuleDefinitions.LevelSourceType.EffectLevel)
+        {
+            return effect?.EffectLevel ?? fallbackLevel;
+        }
+
+        if (levelType is not (RuleDefinitions.LevelSourceType.ClassLevel or
+            RuleDefinitions.LevelSourceType.ClassLevelHalfUp))
+        {
+            return fallbackLevel;
+        }
+
+        var owner = character.GetClassFeatureStatsOwner();
+        var classLevel = owner.GetClassLevel(owner.FindClassHoldingFeature(power));
+
+        return levelType == RuleDefinitions.LevelSourceType.ClassLevelHalfUp
+            ? UnityEngine.Mathf.CeilToInt(0.5f * classLevel)
+            : classLevel;
+    }
+
     // use this to start a custom visual effect during combat
     internal static void StartVisualEffect(
         GameLocationCharacter attacker,

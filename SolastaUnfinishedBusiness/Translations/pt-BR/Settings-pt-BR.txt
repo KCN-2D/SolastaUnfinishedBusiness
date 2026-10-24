@@ -662,8 +662,8 @@ ModUi/&SpeechVoiceVoxHelp=Use o botão de download e configuração no UB para a
 ModUi/&SpeechVoiceVoxConnecting=Conectando ao VOICEVOX…
 ModUi/&SpeechVoiceVoxConnected=VOICEVOX conectado: {0} estilos de voz disponíveis
 ModUi/&SpeechVoiceVoxUnavailable=O VOICEVOX não está disponível. Conclua a configuração ou verifique o VOICEVOX se ele já estiver em execução e atualize a lista de vozes.
-ModUi/&SpeechVoiceVoxInstall=Baixar e configurar o VOICEVOX
-ModUi/&SpeechVoiceVoxInstallHelp=O primeiro download tem cerca de 1,9 GB. Após a configuração, o Solasta inicia e encerra o VOICEVOX conforme necessário. O download pode ser cancelado e retomado. O uso das vozes está sujeito aos termos de cada falante.
+ModUi/&SpeechVoiceVoxInstall=Baixar e configurar o VOICEVOX Engine {0}
+ModUi/&SpeechVoiceVoxInstallHelp=Baixa o mecanismo estável mais recente para CPU Windows. Solasta o inicia e encerra conforme necessário. O download pode ser cancelado e retomado. O uso das vozes está sujeito aos termos de cada falante.
 ModUi/&SpeechVoiceVoxDownloadProgress=Baixando o VOICEVOX: {0}
 ModUi/&SpeechVoiceVoxVerifying=Verificando o download do VOICEVOX
 ModUi/&SpeechVoiceVoxExtracting=Configurando o VOICEVOX
@@ -708,3 +708,25 @@ ModUi/&EpicBoons2024RequiresTabletopHelp=Ative os talentos de mesa de 2024 para 
 ModUi/&EnableInventorMagicItemMaster2024=Ativa <color=#D89555>Mestre dos Itens Mágicos</color> no nível 18 <i><color=#F0DAA0>[limite de sintonização +1]</color></i>
 ModUi/&EnableArtilleristFortifiedPosition2024=Usa a versão de 2024 de <color=#D89555>Posição Fortificada</color> no nível 15 de Artilheiro <i><color=#F0DAA0>[criar dois canhões com uma ação]</color></i>
 ModUi/&EnableArtilleristEldritchCannon2024=Usa a versão de 2024 de <color=#D89555>Canhão Eldritch</color> no nível 3 de Artilheiro <i><color=#F0DAA0>[escolher um dos três efeitos a cada ativação do canhão]</color></i>
+ModUi/&SpeechVoiceVoxEngineVersion=Motor VOICEVOX: {0}
+ModUi/&SpeechVoiceVoxVersionUnknown=versão indisponível
+ModUi/&SpeechVoiceVoxCheckAutomatically=Verificar atualizações do aplicativo e do motor automaticamente
+ModUi/&SpeechVoiceVoxCheckUpdates=Verificar atualizações do VOICEVOX
+ModUi/&SpeechVoiceVoxReleases=Versões do motor
+ModUi/&SpeechVoiceVoxUpdateNotChecked=As atualizações do motor ainda não foram verificadas.
+ModUi/&SpeechVoiceVoxUpdateChecking=Verificando atualizações do motor…
+ModUi/&SpeechVoiceVoxUpdateFailed=Não foi possível verificar as atualizações do motor.
+ModUi/&SpeechVoiceVoxUpdateAvailable=O motor {0} está disponível. Versão conectada: {1}.
+ModUi/&SpeechVoiceVoxCurrentVersion=Não há atualização disponível para o motor {0}.
+ModUi/&SpeechVoiceVoxLatestVersion=Motor mais recente: {0}
+ModUi/&SpeechVoiceVoxUpdateManaged=Baixar e configurar o motor {0}
+ModUi/&SpeechVoiceVoxAppVersion=Aplicativo VOICEVOX: {0}
+ModUi/&SpeechVoiceVoxAppUpdateChecking=Verificando atualizações do aplicativo…
+ModUi/&SpeechVoiceVoxAppUpdateFailed=Não foi possível verificar as atualizações do aplicativo.
+ModUi/&SpeechVoiceVoxAppUpdateNotChecked=As atualizações do aplicativo ainda não foram verificadas.
+ModUi/&SpeechVoiceVoxAppUpdateAvailable=O aplicativo {0} está disponível. Versão instalada: {1}.
+ModUi/&SpeechVoiceVoxAppCurrentVersion=Não há atualização disponível para o aplicativo {0}.
+ModUi/&SpeechVoiceVoxAppLatestVersion=Aplicativo mais recente: {0}
+ModUi/&SpeechVoiceVoxAppReleases=Versões do aplicativo VOICEVOX
+ModUi/&SpeechVoiceVoxCheckAndInstall=Verificar e instalar o mecanismo mais recente
+ModUi/&SpeechVoiceVoxCheckAndUpdate=Verificar e atualizar o mecanismo gerenciado

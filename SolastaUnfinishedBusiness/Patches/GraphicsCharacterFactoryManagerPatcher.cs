@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -811,6 +811,8 @@ public static class GraphicsCharacterFactoryManagerPatcher
             RulesetItem rulesetItem,
             string slotName)
         {
+            CustomModels.ApplyWieldedItemPresentation(graphicsCharacter, rulesetItem, slotName);
+
             //PATCH: Support for custom scaling of equipped items.
             //Used to scale reach weapons and hand crossbows
             var feature = rulesetItem.itemDefinition?.GetFirstSubFeatureOfType<CustomScale>()

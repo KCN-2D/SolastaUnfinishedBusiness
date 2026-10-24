@@ -13,6 +13,8 @@ $result=[ordered]@{
     processLifecycle=[ordered]@{status='NOT_RUN';reason='Process lifecycle checks have not run.'}
     nativeActionProof=[ordered]@{status='NOT_RUN';reason='Native action proof contracts have not run.'}
     caseValidation=[ordered]@{status='NOT_RUN';reason='Saved-game case validation contracts have not run.'}
+    compilationBoundary=[ordered]@{status='NOT_RUN';reason='Compilation preflight contracts have not run.'}
+    desktopFocusBoundary=[ordered]@{status='NOT_RUN';reason='Desktop focus safety contracts have not run.'}
 }
 
 function Read-ContractSource([string]$Path) {
@@ -29,6 +31,96 @@ function Read-ContractFunction([object]$Ast,[string]$Name) {
     },$true))
     if ($functions.Count -ne 1) { throw "The contract requires one function named $Name." }
     return $functions[0].Extent.Text
+}
+
+function Invoke-DesktopFocusBoundaryContract([string]$Source,[string]$Directory) {
+    if ('UBVerification.DesktopReader' -as [type]) {
+        throw 'Desktop focus contracts require a fresh PowerShell process to compile the selected source.'
+    }
+    [void][IO.Directory]::CreateDirectory($Directory)
+    $assembly=Join-Path $Directory 'WindowsDesktop.Contract.dll'
+    $types=@(Add-Type -Path $Source -OutputAssembly $assembly -PassThru)
+    $reader=@($types | Where-Object FullName -ceq 'UBVerification.DesktopReader')
+    if ($reader.Count -ne 1) { throw 'The selected desktop source did not compile its reader.' }
+    $private=[Reflection.BindingFlags]'NonPublic,Static'
+    $readInput=$reader[0].GetMethod('ReadInputState',$private)
+    $requireDesktop=$reader[0].GetMethod('RequireFocusDesktop',$private)
+    $peer=$reader[0].GetField('focusPeer',$private)
+    if (-not $readInput -or -not $requireDesktop -or -not $peer) {
+        throw 'The desktop focus safety boundaries were not found in the compiled source.'
+    }
+
+    $before=[UBVerification.DesktopReader]::ReadCurrent($null,'contract-host/before')
+    $foregroundBefore=[UBVerification.DesktopReader]::ReadForeground()
+    if (-not $before.complete -or -not $before.runnerInputQuery.succeeded -or
+        $before.runnerInputQuery.bytesNeeded -ne 4 -or $before.runnerInputQuery.rawValue -ne 1 -or
+        $before.runnerReceivesInput -ne $true -or $before.isolated -or
+        $before.runnerDesktop -cne $before.inputDesktop -or $foregroundBefore.windowHandle -eq 0) {
+        throw 'The desktop focus contract must run on the observed input desktop with a foreground window.'
+    }
+    $rejection=$null
+    try { [UBVerification.DesktopReader]::DeactivateCurrentWindow(1,1) }
+    catch { $rejection=$_.Exception.GetBaseException() }
+    $foregroundAfter=[UBVerification.DesktopReader]::ReadForeground()
+    $after=[UBVerification.DesktopReader]::ReadCurrent($null,'contract-host/after')
+    $receipt=$after.focusActivation
+    $checks=[Collections.Generic.List[object]]::new()
+    $checks.Add([ordered]@{name='actual input-desktop entry rejected before activation';passed=(
+        $null -ne $rejection -and $rejection -is [InvalidOperationException] -and
+        $rejection.Message -ceq 'Focus verification requires the owned non-input desktop.' -and
+        $null -ne $receipt -and -not $receipt.attempted -and -not $receipt.completed -and
+        $null -eq $receipt.after -and [bool]$receipt.error)})
+    $checks.Add([ordered]@{name='rejection retains actual host UOI acquisition';passed=(
+        $null -ne $receipt -and $null -ne $receipt.before -and $receipt.before.complete -and
+        -not $receipt.before.isolated -and $receipt.before.runnerInputQuery.succeeded -and
+        $receipt.before.runnerInputQuery.bytesNeeded -eq 4 -and $receipt.before.runnerInputQuery.rawValue -eq 1 -and
+        $receipt.before.runnerReceivesInput -eq $true -and $receipt.before.runnerDesktop -ceq $before.runnerDesktop)})
+    $checks.Add([ordered]@{name='host foreground PID thread and window unchanged';passed=(
+        $foregroundBefore.windowHandle -eq $foregroundAfter.windowHandle -and
+        $foregroundBefore.processId -eq $foregroundAfter.processId -and
+        $foregroundBefore.nativeThreadId -eq $foregroundAfter.nativeThreadId)})
+    $checks.Add([ordered]@{name='host remains on the observed input desktop without a created peer';passed=(
+        $after.complete -and -not $after.isolated -and $after.runnerReceivesInput -eq $true -and
+        $after.runnerInputQuery.succeeded -and $after.runnerInputQuery.bytesNeeded -eq 4 -and
+        $after.runnerInputQuery.rawValue -eq 1 -and $after.runnerDesktop -ceq $before.runnerDesktop -and
+        $after.inputDesktop -ceq $before.inputDesktop -and $peer.GetValue($null) -eq [IntPtr]::Zero)})
+
+    # An invalid handle exercises the real Win32 failure, without creating or switching a desktop.
+    $failedInput=$readInput.Invoke($null,[object[]]@([IntPtr]::Zero))
+    $checks.Add([ordered]@{name='actual failed UOI query retains unknown BOOL';passed=(
+        -not $failedInput.succeeded -and
+        $null -eq $failedInput.rawValue -and $null -eq $failedInput.value)})
+    $trials=@(foreach ($mode in @('declared-valid-control','actual-invalid-handle','failed-with-false-output','short-bool-output','missing-query','incomplete-snapshot')) {
+        $snapshot=[UBVerification.DesktopSnapshot]::new()
+        $snapshot.complete=$true; $snapshot.isolated=$true
+        $snapshot.runnerDesktop='UBGameTest_' + ('a' * 32)
+        $snapshot.guiThread=[UBVerification.GuiThreadSnapshot]::new()
+        $snapshot.guiThread.querySucceeded=$true
+        $snapshot.runnerInputQuery=[UBVerification.BooleanQuery]::new()
+        $snapshot.runnerInputQuery.succeeded=$true; $snapshot.runnerInputQuery.bytesNeeded=4
+        $snapshot.runnerInputQuery.rawValue=0; $snapshot.runnerInputQuery.value=$false
+        switch ($mode) {
+            'actual-invalid-handle' { $snapshot.runnerInputQuery=$failedInput }
+            'failed-with-false-output' { $snapshot.runnerInputQuery.succeeded=$false; $snapshot.runnerInputQuery.errorCode=6 }
+            'short-bool-output' { $snapshot.runnerInputQuery.bytesNeeded=0 }
+            'missing-query' { $snapshot.runnerInputQuery=$null }
+            'incomplete-snapshot' { $snapshot.complete=$false }
+        }
+        $accepted=$false; $failure=$null
+        try { [void]$requireDesktop.Invoke($null,[object[]]@($snapshot)); $accepted=$true }
+        catch { $failure=$_.Exception.GetBaseException().Message }
+        $expectedAcceptance=$mode -ceq 'declared-valid-control'
+        [ordered]@{mode=$mode;accepted=$accepted;failure=$failure;passed=(
+            $accepted -eq $expectedAcceptance -and ($expectedAcceptance -or
+                $failure -ceq 'Focus verification requires the owned non-input desktop.'))}
+    })
+    [ordered]@{
+        status=$(if (@($checks | Where-Object passed -eq $false).Count -or @($trials | Where-Object passed -eq $false).Count) {'FAIL'}else{'PASS'})
+        scope='Compiled actual desktop source: real input-desktop refusal, foreground readback and invalid-handle UOI failure. Declared snapshots separately exercise the guard; no desktop creation, activation, input or game launch.'
+        assembly=$assembly;checks=@($checks.ToArray());guardTrials=$trials
+        hostBefore=$before;hostAfter=$after;foregroundBefore=$foregroundBefore;foregroundAfter=$foregroundAfter
+        actualInvalidHandleQuery=$failedInput;rejection=$(if ($rejection) {$rejection.ToString()}else{$null})
+    }
 }
 
 function Invoke-CaseValidationContracts([string]$Definitions,[string]$Directory) {
@@ -449,6 +541,7 @@ function Invoke-NativeActionProofContract([string]$Statements,[string]$Mode) {
 try {
     $paths=@(
         'tools/runtime-verification/WindowsDesktop.ps1',
+        'tools/runtime-verification/WindowsDesktop.cs',
         'tools/runtime-verification/NativeDisplaySettings.ps1',
         'tools/runtime-verification/Invoke-RuntimeVerification.ps1',
         'tools/game-test/GameTest.Common.ps1',
@@ -467,6 +560,32 @@ try {
     $display=Read-ContractSource $archived['tools/runtime-verification/NativeDisplaySettings.ps1']
     $runtime=Read-ContractSource $archived['tools/runtime-verification/Invoke-RuntimeVerification.ps1']
     $common=Read-ContractSource $archived['tools/game-test/GameTest.Common.ps1']
+    $result.desktopFocusBoundary=Invoke-DesktopFocusBoundaryContract $archived['tools/runtime-verification/WindowsDesktop.cs'] (Join-Path $run 'DesktopFocusBoundary')
+    $preflight=@($runtime.FindAll({
+        param($node)
+        $node -is [Management.Automation.Language.IfStatementAst] -and
+        $node.Extent.Text.Contains('A verification mod already exists.') -and
+        @($node.Clauses[0].Item2.Statements | Where-Object { $_.Extent.Text -ceq 'Assert-NoGameProcess' }).Count -eq 1
+    },$true))
+    if ($preflight.Count -ne 1) { throw 'The compilation/execution preflight source is not unique.' }
+    $compileCases=@(foreach ($compileOnly in @($true,$false)) {
+        foreach ($state in @('stopped','running','existing-probe')) {
+            & {
+                param($source,$compileOnly,$state)
+                $ValidateOnly=$compileOnly; $probeDirectory='OwnedContractProbe'; $calls=@{game=0;mod=0}
+                function Assert-NoGameProcess { $calls.game++; if ($state -eq 'running') { throw 'Synthetic running game.' } }
+                function Test-Path { param($LiteralPath) $calls.mod++; return $state -eq 'existing-probe' }
+                $rejected=$false
+                try { & ([scriptblock]::Create($source)) } catch { $rejected=$true }
+                $expectedRejection=-not $compileOnly -and $state -ne 'stopped'
+                $matched=$rejected -eq $expectedRejection -and
+                    (($compileOnly -and $calls.game -eq 0 -and $calls.mod -eq 0) -or
+                     (-not $compileOnly -and $calls.game -eq 1))
+                [pscustomobject]@{compileOnly=$compileOnly;state=$state;rejected=$rejected;gameQueries=$calls.game;modQueries=$calls.mod;status=$(if($matched){'PASS'}else{'FAIL'})}
+            } $preflight[0].Extent.Text $compileOnly $state
+        }
+    })
+    $result.compilationBoundary=[ordered]@{status=$(if(@($compileCases | Where-Object status -ne 'PASS').Count){'FAIL'}else{'PASS'});scope='Actual compilation/execution preflight AST with synthetic running-process and existing-mod states.';cases=$compileCases}
     $caseDefinitions=@(
         Read-ContractFunction $common 'Assert-GtProperties'
         Read-ContractFunction $common 'Assert-GtInitialSetup'
@@ -550,13 +669,13 @@ try {
     }
     if ($result.processLifecycle.status -eq 'ERROR') {
         $result.status='ERROR'; $result.reason='A process lifecycle fixture could not complete.'
-    } elseif (@($result.processGuards | Where-Object status -ne 'PASS').Count -or $result.processLifecycle.status -eq 'FAIL' -or $result.nativeActionProof.status -eq 'FAIL' -or $result.caseValidation.status -eq 'FAIL') {
-        $result.status='FAIL'; $result.reason='A process guard, lifecycle, native action proof or case validation contract failed.'
+    } elseif (@($result.processGuards | Where-Object status -ne 'PASS').Count -or $result.processLifecycle.status -eq 'FAIL' -or $result.nativeActionProof.status -eq 'FAIL' -or $result.caseValidation.status -eq 'FAIL' -or $result.compilationBoundary.status -eq 'FAIL' -or $result.desktopFocusBoundary.status -ne 'PASS') {
+        $result.status='FAIL'; $result.reason='A process guard, lifecycle, native action proof, case validation or desktop focus safety contract failed.'
     } elseif ($SkipProcessLifecycle) {
         $result.processLifecycle=[ordered]@{status='SKIPPED';reason='Skipped by -SkipProcessLifecycle.'}
-        $result.status='PASS'; $result.reason="All 30 process guard contracts, $($proofCases.Count) native action proof contracts and $($result.caseValidation.cases.Count) case validation contracts passed. Process lifecycle checks were skipped."
+        $result.status='PASS'; $result.reason="All 30 process guard contracts, $($compileCases.Count) compilation boundary contracts, $($proofCases.Count) native action proof contracts, $($result.caseValidation.cases.Count) case validation contracts and desktop focus safety contracts passed. Process lifecycle checks were skipped."
     } else {
-        $result.status='PASS'; $result.reason="All 30 process guard contracts, $($cases.Count) owned process lifecycle cases, $($proofCases.Count) native action proof contracts and $($result.caseValidation.cases.Count) case validation contracts passed."
+        $result.status='PASS'; $result.reason="All 30 process guard contracts, $($compileCases.Count) compilation boundary contracts, $($cases.Count) owned process lifecycle cases, $($proofCases.Count) native action proof contracts, $($result.caseValidation.cases.Count) case validation contracts and desktop focus safety contracts passed."
     }
 } catch {
     $result.status='ERROR'; $result.reason=$_.Exception.Message

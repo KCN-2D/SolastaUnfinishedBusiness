@@ -30,6 +30,106 @@ internal static class BootContext
     private static Runtime.RuntimeLoadedHandler RuntimeLoadedHandler { get; set; }
     private static CancellationTokenSource UserCampaignAuditCancellation { get; set; }
     private static Coroutine DocumentationCoroutine { get; set; }
+    private static Coroutine StartupTransitionCoroutine { get; set; }
+    private static IEnumerator StartupTransitionRoutine { get; set; }
+    private static UserCampaignPoolManager StartupCampaignPool { get; set; }
+
+    internal static void CompleteStartup(FiniteStateMachine stateMachine, Type stateType, object[] parameters)
+    {
+        var pool = ServiceRepository.GetService<IUserCampaignPoolService>() as UserCampaignPoolManager;
+
+        if (!RuntimeInitialized || !CoroutineHost || Main.IsApplicationQuitting ||
+            stateType != typeof(RuntimeState_Outgame) || stateMachine.CurrentState is not RuntimeState_Booting ||
+            pool == null || pool.Enumerated || !DungeonMakerContext.CanPreloadCampaignFiles ||
+            !string.IsNullOrEmpty(RuntimeService?.AutoLoadLocationName) ||
+            ServiceRepository.GetService<ISessionService>()?.Session != null)
+        {
+            if (!Main.IsApplicationQuitting)
+            {
+                stateMachine.RequestStateChange(stateType, parameters);
+            }
+
+            return;
+        }
+
+        StartupCampaignPool = pool;
+        StartupTransitionRoutine = FinishStartup(stateMachine, stateType, parameters, pool);
+
+        try
+        {
+            StartupTransitionCoroutine = CoroutineHost.StartCoroutine(StartupTransitionRoutine);
+        }
+        catch (Exception error)
+        {
+            (StartupTransitionRoutine as IDisposable)?.Dispose();
+            StartupTransitionRoutine = null;
+            StartupTransitionCoroutine = null;
+            StartupCampaignPool = null;
+            DungeonMakerContext.CancelCampaignPreload(pool);
+            Main.Error($"Cannot defer startup campaign enumeration: {error}");
+
+            if (!Main.IsApplicationQuitting && stateMachine.CurrentState is RuntimeState_Booting)
+            {
+                stateMachine.RequestStateChange(stateType, parameters);
+            }
+        }
+    }
+
+    private static IEnumerator FinishStartup(
+        FiniteStateMachine stateMachine, Type stateType, object[] parameters, UserCampaignPoolManager pool)
+    {
+        IEnumerator preload = null;
+
+        try
+        {
+            // RuntimeLoaded callbacks finish before any campaign is parsed on the next frame.
+            yield return null;
+
+            while (!Main.IsApplicationQuitting && CoroutineHost &&
+                   stateMachine.CurrentState is RuntimeState_Booting)
+            {
+                bool next;
+
+                try
+                {
+                    preload ??= DungeonMakerContext.PreloadCampaignFiles(pool);
+                    next = preload.MoveNext();
+                }
+                catch (Exception error)
+                {
+                    Main.Error($"Campaign preload failed; continuing normal enumeration: {error}");
+                    break;
+                }
+
+                if (!next)
+                {
+                    break;
+                }
+
+                yield return preload.Current;
+            }
+
+            if (!Main.IsApplicationQuitting && CoroutineHost &&
+                stateMachine.CurrentState is RuntimeState_Booting)
+            {
+                stateMachine.RequestStateChange(stateType, parameters);
+            }
+        }
+        finally
+        {
+            try
+            {
+                (preload as IDisposable)?.Dispose();
+            }
+            finally
+            {
+                DungeonMakerContext.CancelCampaignPreload(pool);
+                StartupCampaignPool = null;
+                StartupTransitionRoutine = null;
+                StartupTransitionCoroutine = null;
+            }
+        }
+    }
 
     internal static void Startup(GameManager gameManager)
     {
@@ -129,12 +229,32 @@ internal static class BootContext
         var cancellation = UserCampaignAuditCancellation;
         var coroutineHost = CoroutineHost;
         var documentationCoroutine = DocumentationCoroutine;
+        var startupTransitionCoroutine = StartupTransitionCoroutine;
+        var startupTransitionRoutine = StartupTransitionRoutine;
+        var startupCampaignPool = StartupCampaignPool;
 
         UserCampaignAuditCancellation = null;
         DocumentationCoroutine = null;
+        StartupTransitionCoroutine = null;
+        StartupTransitionRoutine = null;
+        StartupCampaignPool = null;
         CoroutineHost = null;
         cancellation?.Cancel();
         cancellation?.Dispose();
+
+        try
+        {
+            if (coroutineHost && startupTransitionCoroutine != null)
+            {
+                coroutineHost.StopCoroutine(startupTransitionCoroutine);
+            }
+
+            (startupTransitionRoutine as IDisposable)?.Dispose();
+        }
+        finally
+        {
+            DungeonMakerContext.CancelCampaignPreload(startupCampaignPool);
+        }
 
         if (coroutineHost && documentationCoroutine != null)
         {

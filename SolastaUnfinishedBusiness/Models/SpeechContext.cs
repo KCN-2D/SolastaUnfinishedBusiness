@@ -1253,6 +1253,12 @@ internal static partial class SpeechContext
             return;
         }
         AbortSpeechHttpRequests(refreshOnly: true);
+        ConnectedVoiceVoxVersion = null;
+        InstalledVoiceVoxAppVersion = FindInstalledVoiceVoxAppVersion();
+        if (Main.Settings.CheckVoiceVoxUpdatesAutomatically)
+        {
+            _ = RefreshVoiceVoxUpdateAsync(false);
+        }
 
         // Started on Unity's thread: the continuation updates its voice catalog on the same context.
         try
@@ -1280,6 +1286,12 @@ internal static partial class SpeechContext
             VoiceVoxEngineAvailable = voices.Count > 0;
             UpdateAvailableVoices();
             CampaignVoiceDataInitialized = false;
+            // Optional version discovery does not decide whether the voice catalogue is usable.
+            var engineVersion = await ReadVoiceVoxEngineVersionAsync();
+            if (version == VoiceVoxRefreshVersion && !Unloading && Main.Settings.EnableVoiceVoxSpeech)
+            {
+                ConnectedVoiceVoxVersion = engineVersion;
+            }
         }
         catch (Exception)
         {
@@ -1312,7 +1324,7 @@ internal static partial class SpeechContext
                 continue;
             }
             var talkStyles = styles.OfType<JObject>().Where(x => x["type"] == null ||
-                x["type"].Value<string>() == "talk").ToArray();
+                x["type"].Value<string>() is "talk" or "streaming_talk").ToArray();
             var defaultStyle = talkStyles.FirstOrDefault(x => x["name"]?.Value<string>() is "ノーマル" or "ふつう")
                                ?? talkStyles.FirstOrDefault();
             foreach (var style in talkStyles)

@@ -7,6 +7,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Models;
+using UnityEngine;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -23,6 +24,17 @@ public static class RecipesByTooltypeLinePatcher
         {
             //PATCH: sort the recipes by crafted item title
             recipes.Sort(Sorting.CompareTitle);
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(RecipesByTooltypeLine __instance)
+        {
+            // Loading prepares the catalogue, while Refresh owns visibility for the
+            // current party. Keep unknown rows from activating before the first Refresh.
+            foreach (Transform row in __instance.recipesTable)
+            {
+                row.gameObject.SetActive(false);
+            }
         }
     }
 

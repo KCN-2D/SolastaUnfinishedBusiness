@@ -662,8 +662,8 @@ ModUi/&SpeechVoiceVoxHelp=Use the download and setup button in UB to add VOICEVO
 ModUi/&SpeechVoiceVoxConnecting=Connecting to VOICEVOX…
 ModUi/&SpeechVoiceVoxConnected=VOICEVOX connected: {0} voice styles available
 ModUi/&SpeechVoiceVoxUnavailable=VOICEVOX is unavailable. Complete setup or check VOICEVOX that is already running, then refresh the voice list.
-ModUi/&SpeechVoiceVoxInstall=Download and set up VOICEVOX
-ModUi/&SpeechVoiceVoxInstallHelp=The first download is about 1.9 GB. After setup, Solasta starts and stops VOICEVOX as needed. The download can be cancelled and resumed. Voice use is subject to each speaker's terms.
+ModUi/&SpeechVoiceVoxInstall=Download and set up VOICEVOX Engine {0}
+ModUi/&SpeechVoiceVoxInstallHelp=Downloads the latest stable Windows CPU engine. Solasta starts and stops it as needed. Downloads can be cancelled and resumed. Voice use is subject to each speaker’s terms.
 ModUi/&SpeechVoiceVoxDownloadProgress=Downloading VOICEVOX: {0}
 ModUi/&SpeechVoiceVoxVerifying=Checking the VOICEVOX download
 ModUi/&SpeechVoiceVoxExtracting=Setting up VOICEVOX
@@ -708,3 +708,25 @@ ModUi/&EpicBoons2024RequiresTabletopHelp=Enable 2024 tabletop feats to use this 
 ModUi/&EnableInventorMagicItemMaster2024=Enable <color=#D89555>Magic Item Master</color> at level 18 <i><color=#F0DAA0>[attunement limit +1]</color></i>
 ModUi/&EnableArtilleristFortifiedPosition2024=Use 2024 <color=#D89555>Fortified Position</color> at Artillerist level 15 <i><color=#F0DAA0>[create two cannons with one action]</color></i>
 ModUi/&EnableArtilleristEldritchCannon2024=Use 2024 <color=#D89555>Eldritch Cannon</color> at Artillerist level 3 <i><color=#F0DAA0>[choose one of three effects each time the cannon is activated]</color></i>
+ModUi/&SpeechVoiceVoxEngineVersion=VOICEVOX Engine: {0}
+ModUi/&SpeechVoiceVoxVersionUnknown=version unavailable
+ModUi/&SpeechVoiceVoxCheckAutomatically=Check application and engine updates automatically
+ModUi/&SpeechVoiceVoxCheckUpdates=Check VOICEVOX updates
+ModUi/&SpeechVoiceVoxReleases=Engine releases
+ModUi/&SpeechVoiceVoxUpdateNotChecked=Engine updates have not been checked.
+ModUi/&SpeechVoiceVoxUpdateChecking=Checking engine updates…
+ModUi/&SpeechVoiceVoxUpdateFailed=Could not check engine updates.
+ModUi/&SpeechVoiceVoxUpdateAvailable=Engine {0} is available. Connected: {1}.
+ModUi/&SpeechVoiceVoxCurrentVersion=No engine update is available for {0}.
+ModUi/&SpeechVoiceVoxLatestVersion=Latest engine: {0}
+ModUi/&SpeechVoiceVoxUpdateManaged=Download and set up engine {0}
+ModUi/&SpeechVoiceVoxAppVersion=VOICEVOX application: {0}
+ModUi/&SpeechVoiceVoxAppUpdateChecking=Checking application updates…
+ModUi/&SpeechVoiceVoxAppUpdateFailed=Could not check application updates.
+ModUi/&SpeechVoiceVoxAppUpdateNotChecked=Application updates have not been checked.
+ModUi/&SpeechVoiceVoxAppUpdateAvailable=Application {0} is available. Installed: {1}.
+ModUi/&SpeechVoiceVoxAppCurrentVersion=No application update is available for {0}.
+ModUi/&SpeechVoiceVoxAppLatestVersion=Latest application: {0}
+ModUi/&SpeechVoiceVoxAppReleases=VOICEVOX application releases
+ModUi/&SpeechVoiceVoxCheckAndInstall=Check and set up the latest engine
+ModUi/&SpeechVoiceVoxCheckAndUpdate=Check and update the managed engine

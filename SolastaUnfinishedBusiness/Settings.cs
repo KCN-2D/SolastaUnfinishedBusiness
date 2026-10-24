@@ -215,6 +215,7 @@ public class Settings : UnityModManager.ModSettings
     [MultiplayerLocal] public bool EnableSpeechOnNpcs { get; set; }
     [MultiplayerLocal] public bool EnableSpeechOnInteractions { get; set; }
     [MultiplayerLocal] public bool EnableVoiceVoxSpeech { get; set; }
+    [MultiplayerLocal] public bool CheckVoiceVoxUpdatesAutomatically { get; set; }
     [MultiplayerLocal] public bool ForceModSpeechOnNpcs { get; set; }
     [MultiplayerLocal] public int SpeechChoice { get; set; }
     [MultiplayerLocal] public SerializableDictionary<int, (string, float)> SpeechVoices { get; set; } = [];

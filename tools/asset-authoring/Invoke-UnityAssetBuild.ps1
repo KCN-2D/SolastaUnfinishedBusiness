@@ -1,8 +1,12 @@
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = 'Rig')]
 param(
     [Parameter(Mandatory = $true)] [string] $UnityPath,
-    [Parameter(Mandatory = $true)] [string] $FbxPath,
-    [string] $WorkspaceRoot
+    [Parameter(Mandatory = $true, ParameterSetName = 'Rig')] [string] $FbxPath,
+    [Parameter(Mandatory = $true, ParameterSetName = 'Materials')] [string] $MaterialRecipePath,
+    [string] $WorkspaceRoot,
+    [string] $GuiProjectPath,
+    [switch] $InstallGuiWorker,
+    [ValidateRange(5, 3600)] [int] $TimeoutSeconds = 300
 )
 
 Set-StrictMode -Version Latest
@@ -103,12 +107,25 @@ function Assert-UnityVersion([string] $Executable) {
     }
 }
 
+function Assert-RecipeFields($Value, [string[]] $Required, [string[]] $Optional = @()) {
+    if ($null -eq $Value -or $Value -isnot [pscustomobject]) { throw 'A material recipe object is required.' }
+    $names = @($Value.PSObject.Properties.Name)
+    if (@($names | Where-Object { $_ -notin ($Required + $Optional) }).Count -gt 0 -or
+        @($Required | Where-Object { $_ -notin $names }).Count -gt 0) { throw 'Unknown or missing material recipe field.' }
+}
+
+function Test-FiniteNumber($Value) {
+    return ($Value -is [int] -or $Value -is [long] -or $Value -is [double] -or $Value -is [decimal]) -and
+        ![double]::IsNaN([double]$Value) -and ![double]::IsInfinity([double]$Value)
+}
+
 $unityExe = (Resolve-Path -LiteralPath $UnityPath).ProviderPath
-$fbxFile = (Resolve-Path -LiteralPath $FbxPath).ProviderPath
+$materialJob = $PSCmdlet.ParameterSetName -eq 'Materials'
+$sourceFile = (Resolve-Path -LiteralPath $(if ($materialJob) { $MaterialRecipePath } else { $FbxPath })).ProviderPath
 if (!(Test-Path -LiteralPath $unityExe -PathType Leaf) -or [IO.Path]::GetFileName($unityExe) -ine 'Unity.exe') {
     throw '-UnityPath must identify an installed Unity.exe; this script does not install Unity.'
 }
-if (!(Test-Path -LiteralPath $fbxFile -PathType Leaf) -or [IO.Path]::GetExtension($fbxFile) -ine '.fbx') {
+if (!$materialJob -and (!(Test-Path -LiteralPath $sourceFile -PathType Leaf) -or [IO.Path]::GetExtension($sourceFile) -ine '.fbx')) {
     throw '-FbxPath must identify an existing FBX file.'
 }
 Assert-UnityVersion $unityExe
@@ -117,7 +134,68 @@ if ([string]::IsNullOrWhiteSpace($WorkspaceRoot)) {
 }
 $workspace = [IO.Path]::GetFullPath($WorkspaceRoot)
 Assert-WorkspacePath $workspace
-Assert-LocalPath $fbxFile
+Assert-LocalPath $sourceFile
+$inputName = if ($materialJob) { 'recipe.json' } else { 'SampleRig.fbx' }
+$bundleName = 'ub_authoring_sample'
+$materialInputs = @()
+if ($materialJob) {
+    if ([IO.Path]::GetExtension($sourceFile) -ine '.json') { throw '-MaterialRecipePath must identify a JSON recipe.' }
+    $recipe = [IO.File]::ReadAllText($sourceFile) | ConvertFrom-Json
+    Assert-RecipeFields $recipe @('schemaVersion', 'bundleName', 'assets', 'materials')
+    if ($recipe.schemaVersion -ne 1 -or $recipe.bundleName -cnotmatch '^[a-z0-9][a-z0-9_.-]{0,127}$' -or
+        !$recipe.assets -or !$recipe.materials) { throw 'Invalid material recipe version, bundle name or asset lists.' }
+    $bundleName = $recipe.bundleName
+    $seen = @{}
+    foreach ($asset in $recipe.assets) {
+        Assert-RecipeFields $asset @('path', 'sha256')
+        if ($asset.path -notmatch '^[A-Za-z0-9_./-]+$' -or $asset.path.StartsWith('/') -or
+            @($asset.path.Split('/') | Where-Object { $_ -in @('', '.', '..') }).Count -ne 0 -or
+            [IO.Path]::GetExtension($asset.path) -cnotin @('.shader', '.cginc', '.hlsl', '.png', '.jpg', '.jpeg', '.tga') -or
+            $asset.sha256 -cnotmatch '^[a-f0-9]{64}$' -or $seen.ContainsKey($asset.path)) { throw 'Invalid or duplicate material asset path/hash.' }
+        $seen[$asset.path] = $true
+        $assetSource = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetDirectoryName($sourceFile)) $asset.path))
+        Assert-LocalPath $assetSource
+        if ((Get-FileHash -LiteralPath $assetSource -Algorithm SHA256).Hash.ToLowerInvariant() -ne $asset.sha256) {
+            throw "The material source hash differs: $($asset.path)"
+        }
+        $materialInputs += [pscustomobject]@{ path = $asset.path; source = $assetSource; sha256 = $asset.sha256 }
+    }
+    foreach ($material in $recipe.materials) {
+        Assert-RecipeFields $material @('name', 'shader', 'requiredPasses') @('renderQueue', 'properties')
+        if ($material.PSObject.Properties['renderQueue'] -and (!(Test-FiniteNumber $material.renderQueue) -or
+            $material.renderQueue -ne [Math]::Truncate($material.renderQueue) -or $material.renderQueue -lt -1 -or $material.renderQueue -gt 5000)) {
+            throw 'The material render queue must be an integer from -1 through 5000.'
+        }
+        if ($material.PSObject.Properties['properties']) {
+            foreach ($property in $material.properties) {
+                if ($property.kind -eq 'float') {
+                    Assert-RecipeFields $property @('name', 'kind', 'value')
+                    if (!(Test-FiniteNumber $property.value)) { throw 'A material float must be a finite number.' }
+                }
+                elseif ($property.kind -eq 'color') {
+                    Assert-RecipeFields $property @('name', 'kind', 'rgba')
+                    if (@($property.rgba).Count -ne 4 -or @($property.rgba | Where-Object { !(Test-FiniteNumber $_) }).Count -ne 0) {
+                        throw 'A material color must have four finite numeric components.'
+                    }
+                }
+                elseif ($property.kind -eq 'texture') { Assert-RecipeFields $property @('name', 'kind', 'texture') }
+                else { throw 'Unknown material property kind.' }
+            }
+        }
+    }
+}
+
+function Copy-MaterialInputs([string] $InputDirectory) {
+    foreach ($asset in $materialInputs) {
+        $destination = Join-Path $InputDirectory $asset.path
+        Assert-LocalPath $destination
+        [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($destination)) | Out-Null
+        [IO.File]::Copy($asset.source, $destination, $false)
+        if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant() -ne $asset.sha256) {
+            throw 'A copied material asset differs from its source.'
+        }
+    }
+}
 $markerFile = Join-Path $workspace '.solasta-asset-authoring-workspace'
 $template = Join-Path $PSScriptRoot 'UnityAssetBuild'
 $templateFiles = @(
@@ -129,46 +207,140 @@ foreach ($relative in $templateFiles) {
     if (!(Test-Path -LiteralPath (Join-Path $template $relative) -PathType Leaf)) { throw "Missing template file: $relative" }
 }
 
-[IO.Directory]::CreateDirectory($workspace) | Out-Null
-[IO.File]::WriteAllText($markerFile, $workspaceMarker + [Environment]::NewLine)
-$runId = (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
-$runRoot = Join-Path $workspace $runId
-if (Test-Path -LiteralPath $runRoot) { throw 'The unique run directory already exists.' }
-$project = Join-Path $runRoot 'Project'
-[IO.Directory]::CreateDirectory($project) | Out-Null
-foreach ($relative in $templateFiles) {
-    $destination = Join-Path $project $relative
-    [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($destination)) | Out-Null
-    [IO.File]::Copy((Join-Path $template $relative), $destination, $false)
+if ($InstallGuiWorker -and [string]::IsNullOrWhiteSpace($GuiProjectPath)) {
+    throw '-InstallGuiWorker requires -GuiProjectPath.'
 }
-[IO.File]::WriteAllText((Join-Path $project '.solasta-asset-authoring-project'), $projectMarker)
-$inputDirectory = Join-Path $project 'Assets\Input'
-[IO.Directory]::CreateDirectory($inputDirectory) | Out-Null
-$copiedFbx = Join-Path $inputDirectory 'SampleRig.fbx'
-[IO.File]::Copy($fbxFile, $copiedFbx, $false)
-$inputHash = (Get-FileHash -LiteralPath $fbxFile -Algorithm SHA256).Hash.ToLowerInvariant()
-if ((Get-FileHash -LiteralPath $copiedFbx -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputHash) {
-    throw 'The copied FBX does not match its source.'
+
+if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
+    $project = (Resolve-Path -LiteralPath $GuiProjectPath).ProviderPath
+    Assert-LocalPath $project
+    if (!(Test-WithinPath $project $workspace) -or $project -eq $workspace) {
+        throw '-GuiProjectPath must identify a project inside the marked WorkspaceRoot.'
+    }
+    $projectMarkerPath = Join-Path $project '.solasta-asset-authoring-project'
+    if (!(Test-Path -LiteralPath $projectMarkerPath -PathType Leaf) -or
+        [IO.File]::ReadAllText($projectMarkerPath).Trim() -ne $projectMarker) { throw 'The GUI project is unmarked.' }
+    $versionFile = Join-Path $project 'ProjectSettings\ProjectVersion.txt'
+    if ([IO.File]::ReadAllText($versionFile) -notmatch ('(?m)^m_EditorVersion: ' + [regex]::Escape($requiredVersion) + '\s*$')) {
+        throw 'The GUI project uses a different Editor version.'
+    }
+    $source = Join-Path $template 'Assets\Editor\AssetBundleBuilder.cs'
+    $destination = Join-Path $project 'Assets\Editor\AssetBundleBuilder.cs'
+    Assert-LocalPath $destination
+    $sourceHash = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()
+    if (!(Test-Path -LiteralPath $destination -PathType Leaf) -or
+        (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sourceHash) {
+        if (!$InstallGuiWorker) { throw 'The GUI worker differs from the template. Use -InstallGuiWorker once, then refresh the project in the Editor.' }
+        $backup = Join-Path $project ('.asset-authoring-jobs\WorkerBackups\' + [guid]::NewGuid().ToString('N'))
+        Assert-LocalPath $backup
+        [IO.Directory]::CreateDirectory($backup) | Out-Null
+        if (Test-Path -LiteralPath $destination -PathType Leaf) {
+            [IO.File]::Copy($destination, (Join-Path $backup 'AssetBundleBuilder.cs'), $false)
+        }
+        [IO.File]::Copy($source, $destination, $true)
+        Write-Output 'GUI worker updated. If it is not loaded yet, select Assets > Refresh in the open Editor once.'
+    }
+    $readyPath = Join-Path $project '.asset-authoring-jobs\worker.json'
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    $ready = $null
+    while ([DateTime]::UtcNow -lt $deadline) {
+        if (Test-Path -LiteralPath $readyPath -PathType Leaf) {
+            try {
+                $candidate = [IO.File]::ReadAllText($readyPath) | ConvertFrom-Json
+                $process = Get-Process -Id $candidate.processId -ErrorAction Stop
+                if ($candidate.schemaVersion -eq 2 -and $candidate.unityVersion -eq $requiredVersion -and
+                    $candidate.sourceSha256 -eq $sourceHash -and $candidate.projectPath -eq $project -and
+                    [Math]::Abs(($process.StartTime.ToUniversalTime() - ([DateTime]$candidate.processStartedUtc).ToUniversalTime()).TotalSeconds) -lt 1 -and
+                    $process.Path -eq $unityExe -and
+                    ([DateTime]::UtcNow - ([DateTime]$candidate.updatedUtc).ToUniversalTime()).TotalSeconds -lt 10) {
+                    $ready = $candidate
+                    break
+                }
+            }
+            catch { $ready = $null }
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    if ($null -eq $ready) { throw "The GUI worker is not ready. In the marked project, select Assets > Refresh and inspect the Editor Console. No Editor was started or stopped. Project: $project" }
+    $jobId = [guid]::NewGuid().ToString('N')
+    $runRoot = Join-Path $project ('.asset-authoring-jobs\' + $jobId)
+    $inputDirectory = Join-Path $project ('Assets\AuthoringJobs\' + $jobId + '\Input')
+    Assert-LocalPath $runRoot
+    Assert-LocalPath $inputDirectory
+    if ((Test-Path -LiteralPath $runRoot) -or (Test-Path -LiteralPath $inputDirectory)) { throw 'The unique GUI job already exists.' }
+    [IO.Directory]::CreateDirectory($runRoot) | Out-Null
+    [IO.Directory]::CreateDirectory($inputDirectory) | Out-Null
+    [IO.File]::WriteAllText((Join-Path $runRoot '.solasta-asset-authoring-job'), 'SolastaUBAssetAuthoring:UnityJob:1')
+    $copiedInput = Join-Path $inputDirectory $inputName
+    [IO.File]::Copy($sourceFile, $copiedInput, $false)
+    Copy-MaterialInputs $inputDirectory
+    $inputHash = (Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ((Get-FileHash -LiteralPath $copiedInput -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputHash) { throw 'The copied FBX differs from the source.' }
+    $bundleOutput = Join-Path $runRoot 'Output'
+    $reportPath = Join-Path $bundleOutput 'unity-report.json'
+    $logPath = $reportPath
+    $startedUtc = [DateTime]::UtcNow
+    $request = @{ schemaVersion = 1; jobId = $jobId; inputSha256 = $inputHash; kind = $(if ($materialJob) { 'materials' } else { 'rig' }) } | ConvertTo-Json
+    $temporaryRequest = Join-Path $runRoot 'request.writing'
+    [IO.File]::WriteAllText($temporaryRequest, $request)
+    [IO.File]::Move($temporaryRequest, (Join-Path $runRoot 'request.json'))
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    while (!(Test-Path -LiteralPath $reportPath -PathType Leaf) -and [DateTime]::UtcNow -lt $deadline) {
+        $process = Get-Process -Id $ready.processId -ErrorAction SilentlyContinue
+        if ($null -eq $process -or
+            [Math]::Abs(($process.StartTime.ToUniversalTime() - ([DateTime]$ready.processStartedUtc).ToUniversalTime()).TotalSeconds) -ge 1) {
+            throw "The GUI worker process ended. Job retained: $runRoot"
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    if (!(Test-Path -LiteralPath $reportPath -PathType Leaf)) {
+        throw "The GUI job timed out. The Editor was left running; the job may still complete. Inspect $runRoot"
+    }
 }
-$bundleOutput = Join-Path $project 'BuildOutput'
-$reportPath = Join-Path $bundleOutput 'unity-report.json'
-$logPath = Join-Path $runRoot 'Editor.log'
-$startedUtc = [DateTime]::UtcNow
-$arguments = @(
-    '-batchmode', '-nographics', '-quit', '-noUpm',
-    '-projectPath', $project,
-    '-executeMethod', 'SolastaAssetAuthoring.AssetBundleBuilder.Build',
-    '-sampleFbx', $copiedFbx,
-    '-bundleOutput', $bundleOutput,
-    '-logFile', $logPath
-)
-# All paths are resolved Windows paths without quotes; none of these arguments ends in a backslash.
-# Start-Process needs explicit quoting for spaces and waits even for the GUI Editor executable.
-$argumentLine = ($arguments | ForEach-Object { '"' + $_ + '"' }) -join ' '
-# Calling an existing, licensed Editor is explicit. -noUpm disables package-manager activity.
-$editorProcess = Start-Process -FilePath $unityExe -ArgumentList $argumentLine -Wait -PassThru -WindowStyle Hidden
-$editorExitCode = $editorProcess.ExitCode
-if ($editorExitCode -ne 0) { throw "Unity exited with code $editorExitCode. Inspect $logPath" }
+else {
+
+    [IO.Directory]::CreateDirectory($workspace) | Out-Null
+    [IO.File]::WriteAllText($markerFile, $workspaceMarker + [Environment]::NewLine)
+    $runId = (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
+    $runRoot = Join-Path $workspace $runId
+    if (Test-Path -LiteralPath $runRoot) { throw 'The unique run directory already exists.' }
+    $project = Join-Path $runRoot 'Project'
+    [IO.Directory]::CreateDirectory($project) | Out-Null
+    foreach ($relative in $templateFiles) {
+        $destination = Join-Path $project $relative
+        [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($destination)) | Out-Null
+        [IO.File]::Copy((Join-Path $template $relative), $destination, $false)
+    }
+    [IO.File]::WriteAllText((Join-Path $project '.solasta-asset-authoring-project'), $projectMarker)
+    $inputDirectory = Join-Path $project 'Assets\Input'
+    [IO.Directory]::CreateDirectory($inputDirectory) | Out-Null
+    $copiedInput = Join-Path $inputDirectory $inputName
+    [IO.File]::Copy($sourceFile, $copiedInput, $false)
+    Copy-MaterialInputs $inputDirectory
+    $inputHash = (Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ((Get-FileHash -LiteralPath $copiedInput -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputHash) {
+        throw 'The copied FBX does not match its source.'
+    }
+    $bundleOutput = Join-Path $project 'BuildOutput'
+    $reportPath = Join-Path $bundleOutput 'unity-report.json'
+    $logPath = Join-Path $runRoot 'Editor.log'
+    $startedUtc = [DateTime]::UtcNow
+    $arguments = @(
+        '-batchmode', '-nographics', '-quit', '-noUpm',
+        '-projectPath', $project,
+        '-executeMethod', 'SolastaAssetAuthoring.AssetBundleBuilder.Build',
+        $(if ($materialJob) { '-materialRecipe' } else { '-sampleFbx' }), $copiedInput,
+        '-bundleOutput', $bundleOutput,
+        '-logFile', $logPath
+    )
+    # All paths are resolved Windows paths without quotes; none of these arguments ends in a backslash.
+    # Start-Process needs explicit quoting for spaces and waits even for the GUI Editor executable.
+    $argumentLine = ($arguments | ForEach-Object { '"' + $_ + '"' }) -join ' '
+    # Calling an existing, licensed Editor is explicit. -noUpm disables package-manager activity.
+    $editorProcess = Start-Process -FilePath $unityExe -ArgumentList $argumentLine -Wait -PassThru -WindowStyle Hidden
+    $editorExitCode = $editorProcess.ExitCode
+    if ($editorExitCode -ne 0) { throw "Unity exited with code $editorExitCode. Inspect $logPath" }
+}
 if (!(Test-Path -LiteralPath $reportPath -PathType Leaf)) { throw "Unity did not produce a success report. Inspect $logPath" }
 if ((Get-Item -LiteralPath $reportPath).LastWriteTimeUtc -lt $startedUtc) { throw 'The Unity report is stale.' }
 $report = [IO.File]::ReadAllText($reportPath) | ConvertFrom-Json
@@ -176,12 +348,29 @@ if (!$report.success -or $report.stage -ne 'complete' -or $report.unityVersion -
     throw "Unity validation did not complete successfully. Inspect $reportPath and $logPath"
 }
 if ($report.inputSha256 -ne $inputHash) { throw 'The report refers to a different input FBX.' }
-$expectedBundle = Join-Path $bundleOutput 'ub_authoring_sample'
+if (![string]::IsNullOrWhiteSpace($GuiProjectPath) -and
+    ($report.transport -ne 'gui_worker' -or $report.jobId -ne $jobId -or $report.processId -ne $ready.processId -or $report.mainThread -ne $ready.mainThread)) {
+    throw 'The report does not identify the selected GUI worker job and main thread.'
+}
+$expectedBundle = Join-Path $bundleOutput $bundleName
 if ($report.bundlePath -ne $expectedBundle -or !(Test-Path -LiteralPath $expectedBundle -PathType Leaf)) {
     throw 'The reported AssetBundle path is not the expected isolated output.'
 }
 if ((Get-FileHash -LiteralPath $expectedBundle -Algorithm SHA256).Hash.ToLowerInvariant() -ne $report.bundleSha256) {
     throw 'The AssetBundle does not match the success report.'
+}
+if ((Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputHash -or
+    (Get-FileHash -LiteralPath $copiedInput -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputHash) {
+    throw 'The source or copied FBX changed during the build.'
+}
+foreach ($asset in $materialInputs) {
+    if ((Get-FileHash -LiteralPath $asset.source -Algorithm SHA256).Hash.ToLowerInvariant() -ne $asset.sha256 -or
+        (Get-FileHash -LiteralPath (Join-Path $inputDirectory $asset.path) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $asset.sha256) {
+        throw 'A source or copied material asset changed during the build.'
+    }
+}
+if ($materialJob -and ($report.validationScope -ne 'materials' -or @($report.materials).Count -ne @($recipe.materials).Count)) {
+    throw 'The report does not contain the requested material validation.'
 }
 Write-Output "Unity AssetBundle and reload validation succeeded: $reportPath"
 Write-Output 'Game loading, animation events, avatar compatibility and multiplayer behavior remain unverified.'

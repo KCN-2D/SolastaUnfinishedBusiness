@@ -6,7 +6,9 @@ using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
 using static ConsoleStyleDuplet;
@@ -183,6 +185,40 @@ public static class GameConsolePatcher
             RestoreLiveFriendlyMonsterTooltipParameters(__state);
 
             return __exception;
+        }
+    }
+
+    [HarmonyPatch(typeof(GameRecordEntry), "BreakdownFragments")]
+    [UsedImplicitly]
+    public static class BreakdownFragments_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GameRecordEntry __instance, TextBreaker __0)
+        {
+            if (__instance is not GameConsoleEntry entry)
+            {
+                return;
+            }
+
+            var style = entry.ConsoleTableDefinition.GetStyle((int)ParameterType.AttackSpellPower);
+            var fragments = __0.Fragments;
+
+            for (var index = 0; index < fragments.Count; index++)
+            {
+                var fragment = fragments[index];
+
+                if (!ReferenceEquals(fragment.style, style) ||
+                    !TryFormatDefinitionTitle(fragment.contentValue, out var title))
+                {
+                    continue;
+                }
+
+                ResolveFragmentTooltip(ParameterType.AttackSpellPower, fragment.contentValue,
+                    ref fragment.tooltipContent, ref fragment.tooltipClass);
+                // Format before native text measurement without replacing serialized record keys.
+                fragment.contentValue = title;
+                fragments[index] = fragment;
+            }
         }
     }
 
@@ -517,30 +553,7 @@ public static class GameConsolePatcher
             return DefinitionTitleResolution.Unresolved;
         }
 
-        if (!DefinitionsByTitleCache.TryGetValue(title, out var definitions))
-        {
-            definitions =
-            [
-                .. FindDefinitionsByTitle<FeatureDefinitionPower>(title),
-                .. FindDefinitionsByTitle<FeatureDefinition>(title),
-                .. FindDefinitionsByTitle<FeatDefinition>(title),
-                .. FindDefinitionsByTitle<InvocationDefinition>(title),
-                .. FindDefinitionsByTitle<FightingStyleDefinition>(title),
-                .. FindDefinitionsByTitle<MetamagicOptionDefinition>(title),
-                .. FindDefinitionsByTitle<SpellDefinition>(title),
-                .. FindDefinitionsByTitle<ItemDefinition>(title),
-                .. FindDefinitionsByTitle<MonsterDefinition>(title),
-                .. FindDefinitionsByTitle<ConditionDefinition>(title)
-            ];
-            definitions = definitions.Distinct().ToArray();
-
-            if (DefinitionsByTitleCache.Count >= MaximumDefinitionTitleCacheEntries)
-            {
-                DefinitionsByTitleCache.Clear();
-            }
-
-            DefinitionsByTitleCache[title] = definitions;
-        }
+        var definitions = GetDefinitionsByTitle(title);
 
         if (definitions.Length == 1 &&
             TrySetDefinitionTooltip(definitions[0], ref tooltipContent, ref tooltipClass))
@@ -595,6 +608,64 @@ public static class GameConsolePatcher
             .Where(candidate => MatchesDefinitionTitle(candidate, title));
     }
 
+    private static BaseDefinition[] GetDefinitionsByTitle(string title)
+    {
+        if (DefinitionsByTitleCache.TryGetValue(title, out var definitions))
+        {
+            return definitions;
+        }
+
+        definitions =
+        [
+            .. FindDefinitionsByTitle<FeatureDefinitionPower>(title),
+            .. FindDefinitionsByTitle<FeatureDefinition>(title),
+            .. FindDefinitionsByTitle<FeatDefinition>(title),
+            .. FindDefinitionsByTitle<InvocationDefinition>(title),
+            .. FindDefinitionsByTitle<FightingStyleDefinition>(title),
+            .. FindDefinitionsByTitle<MetamagicOptionDefinition>(title),
+            .. FindDefinitionsByTitle<SpellDefinition>(title),
+            .. FindDefinitionsByTitle<ItemDefinition>(title),
+            .. FindDefinitionsByTitle<MonsterDefinition>(title),
+            .. FindDefinitionsByTitle<ConditionDefinition>(title)
+        ];
+        definitions = definitions.Distinct().ToArray();
+
+        if (DefinitionsByTitleCache.Count >= MaximumDefinitionTitleCacheEntries)
+        {
+            DefinitionsByTitleCache.Clear();
+        }
+
+        DefinitionsByTitleCache[title] = definitions;
+
+        return definitions;
+    }
+
+    private static bool TryFormatDefinitionTitle(string value, out string title)
+    {
+        title = null;
+
+        if (IsPresentationOnlyValue(value))
+        {
+            return false;
+        }
+
+        var titles = GetDefinitionsByTitle(value)
+            .Where(definition => string.Equals(definition.GuiPresentation.Title, value, StringComparison.Ordinal))
+            .Select(definition => definition.GetFirstSubFeatureOfType<FormattedDefinitionText>()?.FormatTitle(value) ?? value)
+            .Distinct(StringComparer.Ordinal)
+            .Take(2)
+            .ToArray();
+
+        if (titles.Length != 1 || string.Equals(titles[0], value, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        title = titles[0];
+
+        return true;
+    }
+
     private static bool TrySetDefinitionTooltip(
         BaseDefinition definition,
         ref string tooltipContent,
@@ -646,7 +717,8 @@ public static class GameConsolePatcher
             return true;
         }
 
-        return TranslatorContext.HasTranslation(titleKey) &&
+        return title.IndexOf("/&", StringComparison.Ordinal) < 0 &&
+               TranslatorContext.HasTranslation(titleKey) &&
                string.Equals(Gui.Localize(titleKey), title, StringComparison.Ordinal);
     }
 
@@ -655,6 +727,17 @@ public static class GameConsolePatcher
         out string description)
     {
         var descriptionKey = definition?.GuiPresentation?.Description;
+
+        var formattedText = definition?.GetFirstSubFeatureOfType<FormattedDefinitionText>();
+        var formattedDescription = formattedText?.FormatDescription(descriptionKey);
+
+        if (!string.Equals(formattedDescription, descriptionKey, StringComparison.Ordinal) &&
+            IsDisplayableTooltip(formattedDescription))
+        {
+            description = formattedDescription;
+
+            return true;
+        }
 
         if (CustomTooltipProvider.IsUnavailableContent(descriptionKey) ||
             !TranslatorContext.HasTranslation(descriptionKey))

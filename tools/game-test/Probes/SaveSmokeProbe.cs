@@ -45,7 +45,7 @@ public static class GameTestSaveSmokeProbe
     private static int3 targetPosition;
     private static IActionObservation actionObservation;
     private static IActionOperation actionOperation;
-    private static bool ownMinimized;
+    private static bool ownsFocusWindow;
 
     public interface IActionObservation : IDisposable
     {
@@ -174,6 +174,7 @@ public static class GameTestSaveSmokeProbe
         [DataMember] public int pixels;
         [DataMember] public int nonBlackPixels;
         [DataMember] public bool accepted;
+        [DataMember] public bool focused;
         [DataMember(EmitDefaultValue = false)] public string storedPng;
         [DataMember(EmitDefaultValue = false)] public string sha256;
         [DataMember(EmitDefaultValue = false)] public int bytes;
@@ -232,7 +233,7 @@ public static class GameTestSaveSmokeProbe
         deadline = 0;
         blockedSaves = 0;
         scenarioActor = null;
-        ownMinimized = false;
+        ownsFocusWindow = false;
         resultActorName = resultActualPosition = null;
         var stack = new Stack<IEnumerator>();
         stack.Push(RunCore());
@@ -422,26 +423,28 @@ public static class GameTestSaveSmokeProbe
         {
             if (testCase.operation.verifyFocusLoss)
             {
-                ownMinimized = true;
+                ownsFocusWindow = true;
                 UBVerification.DesktopReader.PrepareCurrentWindowFocusLoss(Screen.width, Screen.height);
                 yield return null;
                 if (!Application.isFocused)
                     throw new BlockedConditionException("The owned render window did not report focus before the focus-loss check.");
                 RecordOperation("focus-ready", "Windows activated the owned render window on the non-input desktop; Application.isFocused is true.");
-                var focusStartFrame = Time.frameCount;
-                if (!UBVerification.DesktopReader.MinimizeCurrentWindow(Screen.width, Screen.height))
-                    throw new BlockedConditionException("The owned game window was already minimized before the focus-loss check.");
-                RecordOperation("window-minimize", "SW_MINIMIZE lets Windows deactivate the owned render window in favor of its non-input desktop peer.");
+                var focusStartSequence = RuntimeVerificationHarness.CaptureFocusCallbackSequence();
+                UBVerification.DesktopReader.DeactivateCurrentWindow(Screen.width, Screen.height);
+                RecordOperation("queue-peer-activation", "Windows activated only the same-thread peer on the owned non-input desktop.");
                 var focusDeadline = Mathf.Min(deadline, Time.realtimeSinceStartup + 3f);
-                while ((Application.isFocused || !RuntimeVerificationHarness.ObservedFocusLossSince(focusStartFrame)) &&
+                while ((Application.isFocused || !RuntimeVerificationHarness.ObservedFocusLossAfter(focusStartSequence)) &&
                     Time.realtimeSinceStartup < focusDeadline) yield return null;
-                if (Application.isFocused || !RuntimeVerificationHarness.ObservedFocusLossSince(focusStartFrame))
+                if (Application.isFocused || !RuntimeVerificationHarness.ObservedFocusLossAfter(focusStartSequence))
                     throw new BlockedConditionException("The owned game window did not report a real focus-loss callback and Application.isFocused=false within three seconds.");
                 UBVerification.DesktopReader.ShowCurrentWindowWithoutActivation();
                 yield return null;
                 if (Application.isFocused || !UBVerification.DesktopReader.CurrentWindowIsDeactivated(Screen.width, Screen.height))
                     throw new BlockedConditionException("The visible render window did not remain deactivated after its non-activating display restore.");
                 RecordOperation("focus-loss", "The actual focus callback and main-thread Application.isFocused value are false before the existing native action.");
+                yield return Capture("GameTest-Unfocused.png");
+                if (Application.isFocused || !UBVerification.DesktopReader.CurrentWindowIsDeactivated(Screen.width, Screen.height))
+                    throw new BlockedConditionException("The render window regained focus during the unfocused framebuffer capture.");
             }
             if (actionOperation != null)
             {
@@ -832,7 +835,7 @@ public static class GameTestSaveSmokeProbe
             {
                 utc = DateTime.UtcNow.ToString("O"), target = name, attempt = ++attempt,
                 frame = Time.frameCount, elapsedSeconds = Time.realtimeSinceStartup - started,
-                width = Screen.width, height = Screen.height
+                width = Screen.width, height = Screen.height, focused = Application.isFocused
             };
             try
             {
@@ -910,9 +913,9 @@ public static class GameTestSaveSmokeProbe
 
     private static void RestoreOwnedWindow()
     {
-        if (!ownMinimized) return;
+        if (!ownsFocusWindow) return;
         UBVerification.DesktopReader.RestoreCurrentWindow();
-        ownMinimized = false;
+        ownsFocusWindow = false;
         RecordOperation("window-restore", "The owned game window uses SW_SHOWNOACTIVATE after the focus-loss check.");
     }
 

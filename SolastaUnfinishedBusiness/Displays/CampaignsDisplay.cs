@@ -614,6 +614,31 @@ internal static class CampaignsDisplay
                     ? Gui.Format("ModUi/&SpeechVoiceVoxConnected", SpeechContext.AvailableVoiceVoxVoiceCount.ToString())
                     : Gui.Localize("ModUi/&SpeechVoiceVoxUnavailable");
             UI.Label(status, labelStyle, UI.ExpandWidth(true));
+            UI.Label(SpeechContext.GetVoiceVoxVersionStatus(), labelStyle, UI.ExpandWidth(true));
+            UI.Label(SpeechContext.GetVoiceVoxUpdateStatus(), labelStyle, UI.ExpandWidth(true));
+            UI.Label(SpeechContext.GetVoiceVoxAppVersionStatus(), labelStyle, UI.ExpandWidth(true));
+            UI.Label(SpeechContext.GetVoiceVoxAppUpdateStatus(), labelStyle, UI.ExpandWidth(true));
+            toggle = Main.Settings.CheckVoiceVoxUpdatesAutomatically;
+            if (UI.Toggle(Gui.Localize("ModUi/&SpeechVoiceVoxCheckAutomatically"), ref toggle, UI.AutoWidth()))
+            {
+                Main.Settings.CheckVoiceVoxUpdatesAutomatically = toggle;
+                if (toggle)
+                {
+                    SpeechContext.CheckVoiceVoxUpdates();
+                }
+            }
+            var checkLabel = Gui.Localize("ModUi/&SpeechVoiceVoxCheckUpdates");
+            var releasesLabel = Gui.Localize("ModUi/&SpeechVoiceVoxReleases");
+            var appReleasesLabel = Gui.Localize("ModUi/&SpeechVoiceVoxAppReleases");
+            UI.HStack(null, 3, buttonStyle,
+                new NamedAction(checkLabel, () => UI.ActionButton(checkLabel,
+                    SpeechContext.CheckVoiceVoxUpdates, buttonStyle, UI.ExpandWidth(true))),
+                new NamedAction(releasesLabel, () => UI.ActionButton(releasesLabel,
+                    () => Application.OpenURL(SpeechContext.VoiceVoxReleasesUrl),
+                    buttonStyle, UI.ExpandWidth(true))),
+                new NamedAction(appReleasesLabel, () => UI.ActionButton(appReleasesLabel,
+                    () => Application.OpenURL(SpeechContext.VoiceVoxAppReleasesUrl),
+                    buttonStyle, UI.ExpandWidth(true))));
             UI.Label(SpeechContext.GetVoiceVoxSetupStatus(), labelStyle, UI.ExpandWidth(true));
             UI.Label(Gui.Localize("ModUi/&SpeechVoiceVoxInstallHelp"), labelStyle, UI.ExpandWidth(true));
             var setupLabel = SpeechContext.VoiceVoxSetupInProgress
