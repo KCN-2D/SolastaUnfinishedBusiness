@@ -10,7 +10,6 @@ import argparse
 import os
 import re
 import sys
-from deep_translator import GoogleTranslator
 
 CHARS_MAX = 4500
 SEPARATOR = "\x0D"
@@ -19,11 +18,12 @@ def parse_command_line():
     my_parser = argparse.ArgumentParser(description='Translates Solasta game terms')
     my_parser.add_argument('input_folder',
                         type=str,
-                        help='input folder')
+                        nargs='?',
+                        default='en',
+                        help='input folder (default: en)')
     my_parser.add_argument('-c', '--code',
                         type=str,
-                        required=True,
-                        help='language code')
+                        help='target language code (default: pt, es, fr, de, it)')
 
     return my_parser.parse_args()
 
@@ -69,6 +69,8 @@ def get_records(filename):
 
 
 def translate_text(text, code):
+    from deep_translator import GoogleTranslator
+
     text = text.replace("\\n", "{99}")
     if len(text) > 3 and len(text) <= CHARS_MAX:
         translated = GoogleTranslator(source="auto", target=code).translate(text) 
@@ -114,14 +116,10 @@ def translate_folder(root_folder_name, folder_name, code):
             translate_folder(root_folder_name, input_file, code)
 
 def main():
-    # args = parse_command_line()
-    # translate_folder(args.input_folder, args.input_folder, args.code)
-
-    translate_folder("en", "en", "pt")
-    translate_folder("en", "en", "es")
-    translate_folder("en", "en", "fr")
-    translate_folder("en", "en", "de")
-    translate_folder("en", "en", "it")
+    args = parse_command_line()
+    codes = [args.code] if args.code else ["pt", "es", "fr", "de", "it"]
+    for code in codes:
+        translate_folder(args.input_folder, args.input_folder, code)
 
 if __name__ == "__main__":
     main()

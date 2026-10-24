@@ -1,0 +1,12 @@
+# Track execution code; keep local inputs and output outside Git.
+/*
+!/.gitignore
+!/*.ps1
+!/*.mjs
+!/README.md
+!/Probes/
+/Probes/*
+!/Probes/*.cs
+
+# Local feature scenarios are not part of the shared runner.
+/Scenarios/

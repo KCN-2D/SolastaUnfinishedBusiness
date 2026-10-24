@@ -1,0 +1,10 @@
+# Track the package build entry point and its direct dependencies.
+/*
+!/.gitignore
+!/.gitattributes
+!/README.md
+!/BuildCustomLocalPackage.cmd
+!/internal/
+/internal/*
+!/internal/BuildCustomLocalPackage.ps1
+!/internal/CustomBuildRuntime.patch

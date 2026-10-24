@@ -15,10 +15,10 @@
 #   python translateLLM.py <input_path> [--force] [--target LANG]
 #
 #   Examples:
-#     # Translate all files in a language folder (from Scripts directory)
+#     # Translate all files in a language folder (from tools/localization)
 #     python translateLLM.py en
 #
-#     # Translate a single file (from Scripts directory)
+#     # Translate a single file (from tools/localization)
 #     python translateLLM.py en/Backgrounds-en.txt
 #
 #     # Force retranslation of all entries (including existing ones)
@@ -27,6 +27,8 @@
 #     # Translate to specific target language(s) only
 #     python translateLLM.py zh-CN --target en
 #     python translateLLM.py zh-CN --target en,de,fr
+
+from __future__ import annotations
 
 import os
 import sys
@@ -40,37 +42,33 @@ from queue import Queue
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
 from collections import defaultdict
-from dotenv import load_dotenv
-from openai import OpenAI
-from rich.console import Console
-from rich.progress import Progress, TaskID, BarColumn, TextColumn, TimeRemainingColumn, SpinnerColumn
-from rich.panel import Panel
 
-# Load environment variables from .env file
-load_dotenv(Path(__file__).parent / '.env')
+client = None
+console = None
 
-# Configuration from environment variables
-API_BASE_URL = os.getenv('API_BASE_URL', 'https://api.openai.com/v1')
-API_KEY = os.getenv('API_KEY')
-MODEL_ID = os.getenv('MODEL_ID', 'gpt-4')
-BATCH_SIZE = int(os.getenv('BATCH_SIZE', '10'))
-MAX_RETRIES = int(os.getenv('MAX_RETRIES', '3'))
-RETRY_DELAY = int(os.getenv('RETRY_DELAY', '2'))
-MAX_WORKERS = int(os.getenv('MAX_WORKERS', '3'))
 
-# Validate configuration
-if not API_KEY:
-    print("ERROR: API_KEY not found in .env file. Please copy .env.example to .env and configure it.")
-    sys.exit(1)
+def initialize_translation_api():
+    global client, console, MODEL_ID, BATCH_SIZE, MAX_RETRIES, RETRY_DELAY, MAX_WORKERS
+    global Progress, TaskID, BarColumn, TextColumn, TimeRemainingColumn, SpinnerColumn, Panel
+    from dotenv import load_dotenv
+    from openai import OpenAI
+    from rich.console import Console
+    from rich.progress import Progress, TaskID, BarColumn, TextColumn, TimeRemainingColumn, SpinnerColumn
+    from rich.panel import Panel
 
-# Initialize OpenAI client
-client = OpenAI(
-    api_key=API_KEY,
-    base_url=API_BASE_URL
-)
-
-# Console for rich output
-console = Console()
+    load_dotenv(Path(__file__).parent / '.env')
+    api_base_url = os.getenv('API_BASE_URL', 'https://api.openai.com/v1')
+    api_key = os.getenv('API_KEY')
+    MODEL_ID = os.getenv('MODEL_ID', 'gpt-4')
+    BATCH_SIZE = int(os.getenv('BATCH_SIZE', '10'))
+    MAX_RETRIES = int(os.getenv('MAX_RETRIES', '3'))
+    RETRY_DELAY = int(os.getenv('RETRY_DELAY', '2'))
+    MAX_WORKERS = int(os.getenv('MAX_WORKERS', '3'))
+    if not api_key:
+        print("ERROR: API_KEY not found in .env file. Please copy .env.example to .env and configure it.")
+        sys.exit(1)
+    client = OpenAI(api_key=api_key, base_url=api_base_url)
+    console = Console()
 
 # Language code mapping
 LANGUAGE_NAMES = {
@@ -596,10 +594,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Examples:
-  # Translate all files in a language folder (run from Scripts directory)
+  # Translate all files in a language folder (run from tools/localization)
   python translateLLM.py en
 
-  # Translate a single file (run from Scripts directory)
+  # Translate a single file (run from tools/localization)
   python translateLLM.py en/Backgrounds-en.txt
 
   # Force retranslation of all entries (including existing ones)
@@ -629,10 +627,10 @@ Examples:
     )
 
     args = parser.parse_args()
+    initialize_translation_api()
 
-    # Get the script directory and construct the base translations path
-    script_dir = Path(__file__).parent
-    translations_base = script_dir.parent / 'SolastaUnfinishedBusiness' / 'Translations'
+    repository_root = Path(__file__).resolve().parents[2]
+    translations_base = repository_root / 'SolastaUnfinishedBusiness' / 'Translations'
 
     # Parse input path
     input_relative = Path(args.input_path)

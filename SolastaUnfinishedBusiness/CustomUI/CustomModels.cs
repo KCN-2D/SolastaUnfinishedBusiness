@@ -21,7 +21,8 @@ public static class CustomModels
         Action<GraphicsCharacterMonster, Transform> configure = null,
         Func<GraphicsCharacterMonster, Transform> effectOrigin = null,
         Func<GraphicsCharacterMonster,
-            IReadOnlyDictionary<AnimationDefinitions.BoneType, (Transform Transform, Vector3 LocalPosition)>> bones = null)
+            IReadOnlyDictionary<AnimationDefinitions.BoneType, (Transform Transform, Vector3 LocalPosition)>> bones = null,
+        bool nativeAnimationAudioEnabled = true)
     {
         internal string Name { get; } = name;
         internal float Scale { get; } = scale;
@@ -29,7 +30,13 @@ public static class CustomModels
         internal Func<GraphicsCharacterMonster, Transform> EffectOrigin { get; } = effectOrigin;
         internal Func<GraphicsCharacterMonster,
             IReadOnlyDictionary<AnimationDefinitions.BoneType, (Transform Transform, Vector3 LocalPosition)>> Bones { get; } = bones;
+        internal bool NativeAnimationAudioEnabled { get; } = nativeAnimationAudioEnabled;
     }
+
+    internal static bool UsesNativeAnimationAudio(GraphicsCharacter graphics) =>
+        graphics is not GraphicsCharacterMonster monster ||
+        monster.RulesetCharacterMonster?.MonsterDefinition.GetFirstSubFeatureOfType<MonsterModel>()?
+            .NativeAnimationAudioEnabled != false;
 
     internal static void ApplyMonsterModel(GraphicsCharacterMonster graphics)
     {
@@ -230,7 +237,7 @@ public static class CustomModels
     {
         var blenderModels = Path.Combine(Main.ModFolder, "BlenderModels");
 
-        string[] expectedModels = ["EldritchCannon", "EldritchCannonBarrel", "EldritchCannonLegUpper",
+        string[] expectedModels = ["EldritchCannon", "EldritchCannonCradle", "EldritchCannonBarrel", "EldritchCannonLegUpper",
             "EldritchCannonLegLower", "EldritchCannonFoot", "Katana", "LightningLauncher", "LongMace", "Pike", "ThunderGauntlet"];
         var missingModel = false;
 

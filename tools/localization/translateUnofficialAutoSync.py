@@ -11,6 +11,7 @@ import os
 import io
 import codecs
 import sys
+import argparse
 
 addTermCount = 0
 changeTermCount = 0
@@ -135,9 +136,12 @@ def sync_translation(offcial_file_code, unofficial_file_code):
 def main():
     # run this script in root folder
     # sync cn language
+    parser = argparse.ArgumentParser(description='Synchronize unofficial Chinese translation from the official dump')
+    parser.add_argument('-log', '--log', action='store_true', help='redirect output to ../translateUnoffcialAutoSync.log')
+    args = parser.parse_args()
 
     # if arguements contains "log", redirect stdout to log file
-    if len(sys.argv) > 1 and "-log" in sys.argv:
+    if args.log:
         sys.stdout = open("..\\translateUnoffcialAutoSync.log", "w", encoding="utf-8")
         sys.stderr = sys.stdout
 

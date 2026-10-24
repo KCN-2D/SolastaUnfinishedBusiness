@@ -1,0 +1,103 @@
+diff --git a/SolastaUnfinishedBusiness/Models/UpdateContext.cs b/SolastaUnfinishedBusiness/Models/UpdateContext.cs
+--- a/SolastaUnfinishedBusiness/Models/UpdateContext.cs
++++ b/SolastaUnfinishedBusiness/Models/UpdateContext.cs
+@@ -26,6 +26,7 @@ internal static class UpdateContext
+     private static readonly string ModFolder = $"SolastaUnfinishedBusiness{Path.DirectorySeparatorChar}";
+     private static readonly ConcurrentQueue<Action> MainThreadActions = new();
+     private static InfoJson Info { get; set; }
++    private static bool IsCustomBuild { get; set; }
+     private static string BaseURL { get; set; }
+     private static string VersionURL { get; set; }
+     private static string InstalledVersion { get; set; }
+@@ -47,11 +48,13 @@ internal static class UpdateContext
+         EnsureDispatcher();
+ 
+         var infoPayload = File.ReadAllText(Path.Combine(Main.ModFolder, "Info.json"));
+-        Info = JsonConvert.DeserializeObject<InfoJson>(infoPayload);
++        var infoJson = JsonConvert.DeserializeObject<JObject>(infoPayload);
++        Info = infoJson?.ToObject<InfoJson>() ?? JsonConvert.DeserializeObject<InfoJson>(infoPayload);
+ 
+         BaseURL = Info.Repository + "/releases/download";
+         VersionURL = Info.VersionURL;
+-        InstalledVersion = Info.Version;
++        IsCustomBuild = infoJson?["CustomBuild"]?.Value<bool>() ?? false;
++        InstalledVersion = GetInstalledVersion(infoJson);
+         PreviousVersion = GetPreviousVersion();
+ 
+         LatestVersion = InstalledVersion;
+@@ -62,7 +65,35 @@ internal static class UpdateContext
+         // display mod message every 100 launches
+         Main.Settings.DisplayModMessage = (Main.Settings.DisplayModMessage + 1) % 100;
+ 
+-        StartVersionCheck(displayWelcomeMessage);
++        if (IsCustomBuild)
++        {
++            QueueStartupMessages(displayWelcomeMessage);
++        }
++        else
++        {
++            StartVersionCheck(displayWelcomeMessage);
++        }
++    }
++
++    private static string GetInstalledVersion(JObject infoJson)
++    {
++        var customBuildBaseVersion = infoJson?["CustomBuildBaseVersion"]?.Value<string>();
++
++        return IsCustomBuild && !string.IsNullOrWhiteSpace(customBuildBaseVersion)
++            ? customBuildBaseVersion
++            : GetVersionCore(Info.Version);
++    }
++
++    private static string GetVersionCore(string version)
++    {
++        if (string.IsNullOrWhiteSpace(version))
++        {
++            return version;
++        }
++
++        var separatorIndex = version.IndexOf('+');
++
++        return separatorIndex >= 0 ? version.Substring(0, separatorIndex) : version;
+     }
+ 
+     private static string GetPreviousVersion()
+@@ -179,6 +210,12 @@ internal static class UpdateContext
+ 
+     internal static void UpdateMod(bool toLatest = true)
+     {
++        if (IsCustomBuild)
++        {
++            DisplayCustomBuildUpdateDisabledMessage();
++            return;
++        }
++
+         if (InProgress) { return; }
+ 
+         if (!ShouldUpdate && toLatest)
+@@ -421,6 +458,12 @@ internal static class UpdateContext
+ 
+     internal static void DisplayRollbackMessage()
+     {
++        if (IsCustomBuild)
++        {
++            DisplayCustomBuildUpdateDisabledMessage();
++            return;
++        }
++
+         if (InProgress) { return; }
+ 
+         ShowMessage($"Would you like to rollback to {PreviousVersion}?",
+@@ -428,6 +471,12 @@ internal static class UpdateContext
+             "Message/&MessageCancelTitle");
+     }
+ 
++    private static void DisplayCustomBuildUpdateDisabledMessage()
++    {
++        ShowMessage("This is a custom build. Official update / rollback is disabled to avoid overwriting local changes.",
++            "Message/&MessageOkTitle");
++    }
++
+     private static void DisplayUpdateMessage()
+     {
+         ShowMessage($"Version {LatestVersion} is now available. Open Mod UI > Gameplay > General to update.",

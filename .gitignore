@@ -188,6 +188,7 @@ PublishScripts/
 *.nupkg
 # The packages folder can be ignored because of Package Restore
 **/[Pp]ackages/*
+!/tools/asset-authoring/UnityAssetBuild/Packages/manifest.json
 # except build/, which is used as an MSBuild target.
 !**/[Pp]ackages/build/
 # Uncomment if necessary however generally it will be regenerated when needed
@@ -308,11 +309,23 @@ __pycache__/
 # Linux direnv  files
 .envrc
 
-# Local-only development and verification scripts
-Scripts/RuntimeVerification
+# Local development data and private verification probes
+/tools/runtime-verification/*
+!/tools/runtime-verification/Invoke-RuntimeVerification.ps1
+!/tools/runtime-verification/RuntimeVerificationHarness.cs
+!/tools/runtime-verification/WindowsDesktop.ps1
+!/tools/runtime-verification/WindowsDesktop.cs
+!/tools/runtime-verification/NativeDisplaySettings.ps1
+!/tools/runtime-verification/README.md
+!/tools/runtime-verification/Probes/
+/tools/runtime-verification/Probes/*
+!/tools/runtime-verification/Probes/NativeSummonIconInventoryProbe.cs
+!/tools/runtime-verification/Probes/DisplayStateProbe.cs
+/tools/blender-models/
+/tools/asset-authoring/workspace/
 
 # Environment files with sensitive data
-Scripts/.env
+/tools/localization/.env
 
 # Cake - Uncomment if you are using it
 # tools/**
@@ -347,5 +360,4 @@ ASALocalRun/
 
 /SolastaUnfinishedBusiness/Assembly-CSharp.dll
 /.vscode/
-/CustomBuildLocal/
 /SolastaUnfinishedBusiness.7z

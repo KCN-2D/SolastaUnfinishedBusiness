@@ -8,7 +8,6 @@
 
 import os
 import codecs
-from deep_translator import GoogleTranslator
 import argparse
 
 CHARS_MAX = 4500
@@ -25,6 +24,8 @@ def unpack_record(record):
     return term, text if text != "" else "EMPTY"
 
 def translate_text(text, code):
+    from deep_translator import GoogleTranslator
+
     text = text.replace("\\n", "{99}")
     if len(text) > 3 and len(text) <= CHARS_MAX:
         translated = GoogleTranslator(source="auto", target=code).translate(text) 

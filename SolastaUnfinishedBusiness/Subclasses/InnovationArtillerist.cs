@@ -47,8 +47,9 @@ public sealed class InnovationArtillerist : AbstractSubclass
     private const string Protector = "Protector";
     private const string ArcaneFirearm = "ArcaneFirearm";
     private const string SecondCannon = $"Condition{Name}SecondCannon";
-    private const float CannonModelScale = 0.54f;
-    private const float CannonBodyLift = 0.08f;
+    private const float CannonSizeMultiplier = 0.95f;
+    private const float CannonModelScale = 0.54f * CannonSizeMultiplier;
+    private const float CannonBodyLift = 0.08f * CannonSizeMultiplier;
     private static FeatureDefinitionPower _eldritchCannonPool;
     private static FeatureDefinitionPower _explosiveCannonPool;
     private static FeatureDefinitionPower _fortifiedPositionPool;
@@ -1293,7 +1294,8 @@ public sealed class InnovationArtillerist : AbstractSubclass
 
         var power = FeatureDefinitionPowerSharedPoolBuilder
             .Create(name + level)
-            .SetGuiPresentation($"Power{Name}{powerName}", Category.Feature, hidden: true)
+            .SetGuiPresentation($"Power{Name}{powerName}", Category.Feature,
+                sharedPoolPower.GuiPresentation.SpriteReference, hidden: true)
             .SetSharedPool(ActivationTime.Action, sharedPoolPower)
             .SetEffectDescription(
                 EffectDescriptionBuilder
@@ -1366,7 +1368,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
             .AddFeatures(monsterAdditionalFeatures)
             .AddCustomSubFeatures(new CustomModels.MonsterModel(EldritchCannon, CannonModelScale, ConfigureCannonGraphics,
                 graphics => graphics.GetComponentInChildren<CannonPresentation>()?.EffectOrigin,
-                graphics => graphics.GetComponentInChildren<CannonPresentation>()?.Bones))
+                graphics => graphics.GetComponentInChildren<CannonPresentation>()?.Bones, nativeAnimationAudioEnabled: false))
             .AddToDB();
 
         monster.guiPresentation.description = Gui.NoLocalization;
@@ -1386,6 +1388,14 @@ public sealed class InnovationArtillerist : AbstractSubclass
     [DefaultExecutionOrder(1000)]
     private sealed class CannonPresentation : MonoBehaviour
     {
+        private sealed class CarriageMesh(MeshFilter filter)
+        {
+            internal Transform Part { get; } = filter.transform;
+            internal Vector3[] Vertices { get; } = filter.sharedMesh.vertices;
+            internal Matrix4x4 ProjectionMatrix { get; set; }
+            internal float LowestProjection { get; set; }
+        }
+
         private sealed class Leg(Vector3[] restPoints, Transform[] parts, Vector3 mount, int pair)
         {
             internal Vector3[] RestPoints { get; } = restPoints;
@@ -1396,31 +1406,56 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 .Select(index => Vector3.Distance(restPoints[index], restPoints[index + 1])).ToArray();
             internal Vector3[] Joints { get; } = new Vector3[4];
             internal Vector3 FootPosition { get; set; }
+            internal Vector3 FlightFoot { get; set; }
             internal Vector3 StepFrom { get; set; }
             internal Vector3 StepTo { get; set; }
             internal bool Swinging { get; set; }
         }
 
-        private const float LegWidth = 0.22f;
-        private const float StepDistance = 0.32f;
-        private const float StepLift = 0.045f;
+        private const float LegWidth = 0.22f * CannonSizeMultiplier;
+        private const float StepDistance = 0.32f * CannonSizeMultiplier;
+        private const float StepLift = 0.045f * CannonSizeMultiplier;
+        private const float BodyCompression = 0.035f * CannonSizeMultiplier;
+        private const uint FootstepEvent = 3528527799; // Native Play_SFX_Golem_FS_Soft.
+        private const float MaximumElevation = 30f;
+        private const float MaximumDepression = 10f;
+        private const float ProtectorElevation = 18f;
+        private const float ServoSmoothTime = 0.45f;
         private readonly List<Leg> _legs = [];
+        private readonly List<CarriageMesh> _carriageMeshes = [];
         private readonly HashSet<Material> _ownedMaterials = [];
         private readonly List<Texture2D> _ownedTextures = [];
         private readonly Dictionary<AnimationDefinitions.BoneType, (Transform Transform, Vector3 LocalPosition)> _bones = [];
         private GraphicsCharacterMonster _graphics;
+        private Transform _cradle;
         private Transform _barrel;
         private Transform _muzzle;
         private Vector3 _barrelOrigin;
         private Vector3 _aimVector;
+        private CharacterActionMagicEffect _aimAction;
         private bool _aimAlongDirection;
         private bool _aiming;
         private bool _shot;
+        private float _yaw;
+        private float _pitch;
+        private float _yawVelocity;
+        private float _pitchVelocity;
+        private float _servoUpdated;
         private float _recoilStarted = float.NegativeInfinity;
         private float _idleTime;
         private bool _moving;
         private bool _airborne;
         private bool _wasAirborne;
+        private GameLocationCharacter _character;
+        private bool _jumpPreparing;
+        private bool _jumpFlying;
+        private float _jumpStarted;
+        private float _flightStarted;
+        private float _landingStarted = float.NegativeInfinity;
+        private Vector3 _jumpOrigin;
+        private Vector3 _jumpTravel;
+        private float _bodyCompression;
+        private float _lastFootstep = float.NegativeInfinity;
         private Vector3 _previousPosition;
         private Quaternion _previousRotation;
         private Vector3 _supportNormal;
@@ -1435,8 +1470,6 @@ public sealed class InnovationArtillerist : AbstractSubclass
         private AnimatorCullingMode _originalCullingMode;
         private MeshRenderer[] _renderers;
         private Vector3[] _footVertices;
-        private Vector3[] _bodyVertices;
-        private Vector3[] _barrelVertices;
         private bool _floorProbed;
         private bool _hasFloor;
         private Vector3 _floorProbePosition;
@@ -1444,11 +1477,9 @@ public sealed class InnovationArtillerist : AbstractSubclass
         private Vector3 _floorNormal;
         private bool _floorProjectionCached;
         private Vector3 _projectionNormal;
-        private Vector3 _projectionBarrelPosition;
-        private Quaternion _projectionBarrelRotation;
-        private float _lowestCarriageProjection;
 
         internal int RecoilCount { get; private set; }
+        internal int FootstepCount { get; private set; }
         internal Transform Muzzle => _muzzle;
         internal Transform EffectOrigin => _aiming && _shot ? _muzzle : null;
         internal IReadOnlyDictionary<AnimationDefinitions.BoneType, (Transform Transform, Vector3 LocalPosition)> Bones => _bones;
@@ -1460,14 +1491,18 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 return;
             }
             _graphics = graphics;
+            _cradle = CreatePart("EldritchCannonCradle", "Cradle");
+            _cradle.localPosition = new Vector3(0, 0.525f, -0.035f);
             _barrel = CreatePart("EldritchCannonBarrel", "Barrel");
-            _barrelOrigin = new Vector3(0, 0.525f, -0.035f);
-            _barrel.localPosition = _barrelOrigin;
+            _barrel.SetParent(_cradle, false);
+            _barrelOrigin = _cradle.localPosition;
             _muzzle = new GameObject("Muzzle").transform;
             _muzzle.SetParent(_barrel, false);
             _muzzle.localPosition = new Vector3(0, 0, 0.55f);
             _bones.Add(AnimationDefinitions.BoneType.Prop1,
                 (_muzzle, _barrelOrigin + _muzzle.localPosition + Vector3.up * (CannonBodyLift / CannonModelScale)));
+            _servoUpdated = Time.time;
+            _carriageMeshes.AddRange(GetComponentsInChildren<MeshFilter>(true).Select(filter => new CarriageMesh(filter)));
 
             foreach (var side in new[] { "L", "R" })
             foreach (var number in new[] { 1, 4 })
@@ -1481,10 +1516,10 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 var outward = new Vector3(side == "L" ? -1f : 1f, 0f, number == 1 ? 1f : -1f).normalized;
                 var mount = outward * 0.24f + Vector3.up * 0.13f;
                 var hip = mount * CannonModelScale + Vector3.up * CannonBodyLift;
-                var ankle = outward * 0.34f + Vector3.up * 0.13f;
+                var ankle = (outward * 0.34f + Vector3.up * 0.13f) * CannonSizeMultiplier;
                 var middle = (hip + ankle) * 0.5f;
                 var kneeUp = Vector3.ProjectOnPlane(Vector3.up, ankle - hip).normalized;
-                var knee = middle + kneeUp * ((0.34f - middle.y) / kneeUp.y);
+                var knee = middle + kneeUp * ((0.34f * CannonSizeMultiplier - middle.y) / kneeUp.y);
                 // The carriage is authored at model scale; the articulated links and
                 // contacts use world metres. Equal links can fold close to the hip
                 // without moving a planted foot to satisfy a minimum reach radius.
@@ -1493,20 +1528,20 @@ public sealed class InnovationArtillerist : AbstractSubclass
                     hip,
                     knee,
                     ankle,
-                    outward * 0.40f + Vector3.up * 0.015f
+                    (outward * 0.40f + Vector3.up * 0.015f) * CannonSizeMultiplier
                 };
                 _legs.Add(new Leg(restPoints, parts, mount, (side == "L") == (number == 1) ? 0 : 1));
             }
 
             _footVertices = _legs[0].Parts[2].GetComponent<MeshFilter>().sharedMesh.vertices;
-            _bodyVertices = GetComponent<MeshFilter>().sharedMesh.vertices;
-            _barrelVertices = _barrel.GetComponent<MeshFilter>().sharedMesh.vertices;
             RefreshFloorPlane();
             ResetFootContacts(true);
             ConfigureMaterials();
             _renderers = GetComponentsInChildren<MeshRenderer>(true);
             _originalCullingMode = graphics.Animator.cullingMode;
             graphics.GraphicsCharacterEvent += OnAnimationEvent;
+            BindCharacter(graphics.IsBoundToGameCharacter ?
+                GameLocationCharacter.GetFromActor(graphics.RulesetCharacterMonster) : null);
         }
 
         private Transform CreatePart(string model, string name)
@@ -1531,7 +1566,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
                         return existing;
                     }
                     var material = new Material(source) { shader = native.shader, shaderKeywords = native.shaderKeywords };
-                    material.SetColor("_BaseColor", Color.white);
+                    material.SetColor("_BaseColor", source.HasProperty("_Color") ? source.GetColor("_Color") : Color.white);
                     material.SetFloat("_ColorReplace", 0f);
                     material.EnableKeyword("_COLORREPLACE_OFF");
                     material.SetFloat("_MetallicFactor", 1f);
@@ -1546,26 +1581,19 @@ public sealed class InnovationArtillerist : AbstractSubclass
                     {
                         material.DisableKeyword("_NORMALMAP");
                     }
-                    var metal = source.name.Contains("Iron") || source.name.Contains("Brass");
-                    var mask = new Texture2D(1, 1, TextureFormat.RGBA32, false, true)
-                    {
-                        name = source.name + " Metallic Smoothness"
-                    };
-                    mask.SetPixel(0, 0, new Color(metal ? 0.85f : 0f, 0f, 0f, metal ? 0.32f : 0.12f));
-                    mask.Apply();
-                    _ownedTextures.Add(mask);
                     if (material.HasProperty("_MetallicGlossMap"))
                     {
+                        var metal = source.name.Contains("Iron") || source.name.Contains("Brass");
+                        var smoothness = source.HasProperty("_Glossiness") ? source.GetFloat("_Glossiness") : 0f;
+                        var mask = new Texture2D(1, 1, TextureFormat.RGBA32, false, true)
+                        {
+                            name = source.name + " Metallic Smoothness"
+                        };
+                        mask.SetPixel(0, 0, new Color(metal ? 0.85f : 0f, 0f, 0f, Mathf.Clamp01(smoothness)));
+                        mask.Apply();
+                        _ownedTextures.Add(mask);
                         material.SetTexture("_MetallicGlossMap", mask);
                         material.EnableKeyword("_METALLICGLOSSMAP");
-                    }
-                    if (source.name.Contains("Brass"))
-                    {
-                        material.SetColor("_BaseColor", new Color(0.85f, 0.65f, 0.3f));
-                    }
-                    else if (source.name.Contains("RedCloth"))
-                    {
-                        material.SetColor("_BaseColor", new Color(0.65f, 0.16f, 0.12f));
                     }
                     copies.Add(source, material);
                     _ownedMaterials.Add(material);
@@ -1615,28 +1643,31 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 return Vector3.zero;
             }
             var normal = Quaternion.Inverse(rotation) * _floorNormal;
-            var barrelPosition = _barrel.localPosition;
-            var barrelRotation = _barrel.localRotation;
-            if (!_floorProjectionCached || !normal.Equals(_projectionNormal) ||
-                !barrelPosition.Equals(_projectionBarrelPosition) || !barrelRotation.Equals(_projectionBarrelRotation))
+            var changedNormal = !_floorProjectionCached || !normal.Equals(_projectionNormal);
+            var lowest = float.PositiveInfinity;
+            foreach (var mesh in _carriageMeshes)
             {
-                _floorProjectionCached = true;
-                _projectionNormal = normal;
-                _projectionBarrelPosition = barrelPosition;
-                _projectionBarrelRotation = barrelRotation;
-                var lowest = float.PositiveInfinity;
-                foreach (var vertex in _bodyVertices)
+                var matrix = Matrix4x4.identity;
+                for (var part = mesh.Part; part != transform; part = part.parent)
                 {
-                    lowest = Mathf.Min(lowest, Vector3.Dot(vertex * CannonModelScale, normal));
+                    matrix = Matrix4x4.TRS(part.localPosition, part.localRotation, part.localScale) * matrix;
                 }
-                foreach (var vertex in _barrelVertices)
+                if (changedNormal || !matrix.Equals(mesh.ProjectionMatrix))
                 {
-                    lowest = Mathf.Min(lowest, Vector3.Dot(
-                        (barrelPosition + barrelRotation * vertex) * CannonModelScale, normal));
+                    mesh.ProjectionMatrix = matrix;
+                    mesh.LowestProjection = float.PositiveInfinity;
+                    foreach (var vertex in mesh.Vertices)
+                    {
+                        mesh.LowestProjection = Mathf.Min(mesh.LowestProjection,
+                            Vector3.Dot(matrix.MultiplyPoint3x4(vertex) * CannonModelScale, normal));
+                    }
                 }
-                _lowestCarriageProjection = lowest + Vector3.Dot(Vector3.up * CannonBodyLift, normal);
+                lowest = Mathf.Min(lowest, mesh.LowestProjection);
             }
-            var clearance = Vector3.Dot(position - _floorPoint, _floorNormal) + _lowestCarriageProjection;
+            _floorProjectionCached = true;
+            _projectionNormal = normal;
+            var clearance = Vector3.Dot(position - _floorPoint, _floorNormal) + lowest +
+                            Vector3.Dot(Vector3.up * (CannonBodyLift - _bodyCompression), normal);
             return clearance >= 0.001f ? Vector3.zero :
                 Vector3.up * ((0.001f - clearance) / Vector3.Dot(Vector3.up, _floorNormal));
         }
@@ -1656,9 +1687,9 @@ public sealed class InnovationArtillerist : AbstractSubclass
             return lowest;
         }
 
-        private Vector3 FindFootContact(Leg leg, Vector3 neutral, Quaternion rotation)
+        private Vector3 FindFootContact(Leg leg, Vector3 neutral, Quaternion rotation, Vector3? rootPosition = null)
         {
-            var position = neutral - rotation * leg.RestPoints[3];
+            var position = rootPosition ?? neutral - rotation * leg.RestPoints[3];
             var up = rotation * Vector3.up;
             // Only the presentation queries terrain. The native actor still owns
             // walkability, placement, jumping and the orientation of a wall climb.
@@ -1726,13 +1757,13 @@ public sealed class InnovationArtillerist : AbstractSubclass
             return foot;
         }
 
-        private void ResetFootContacts(bool grounded)
+        private void ResetFootContacts(bool grounded, bool preserveFeet = false)
         {
             var root = _graphics.transform;
             foreach (var leg in _legs)
             {
-                var neutral = NeutralFoot(leg, root.position, root.rotation);
-                leg.FootPosition = grounded ? FindFootContact(leg, neutral, root.rotation) : neutral;
+                var neutral = preserveFeet ? leg.FootPosition : NeutralFoot(leg, root.position, root.rotation);
+                leg.FootPosition = grounded ? FindFootContact(leg, neutral, root.rotation, root.position) : neutral;
                 leg.Swinging = false;
             }
             _previousPosition = root.position;
@@ -1757,21 +1788,48 @@ public sealed class InnovationArtillerist : AbstractSubclass
         {
             var root = _graphics.transform;
             RefreshFloorPlane();
-            if (_airborne || _wasAirborne || HasDiscontinuousRoot())
+            if (_airborne)
             {
-                // Airborne feet follow the carriage. New surfaces and discontinuous
-                // native placement establish fresh anchors instead of stretching links.
-                ResetFootContacts(!_airborne);
-                _wasAirborne = _airborne;
+                var flightTravel = Vector3.ProjectOnPlane(_jumpTravel, Vector3.up);
+                if (flightTravel.sqrMagnitude < 0.0001f)
+                {
+                    flightTravel = _jumpTravel;
+                }
+                var progress = flightTravel.sqrMagnitude < 0.0001f ? 0f :
+                    Mathf.Clamp01(Vector3.Dot(root.position - _jumpOrigin, flightTravel) / flightTravel.sqrMagnitude);
+                var fold = Mathf.SmoothStep(0f, 1f, (Time.time - _flightStarted) / 0.12f) *
+                           Mathf.SmoothStep(0f, 1f, (1f - progress) / 0.35f);
+                if (_hasFloor && root.position.y < _previousPosition.y)
+                {
+                    fold *= Mathf.SmoothStep(0f, 1f, (root.position.y - _floorPoint.y) / 0.3f);
+                }
+                foreach (var leg in _legs)
+                {
+                    var outward = Vector3.ProjectOnPlane(leg.RestPoints[3], Vector3.up).normalized;
+                    var tucked = leg.RestPoints[3] +
+                                 (Vector3.up * 0.16f - outward * 0.10f) * CannonSizeMultiplier;
+                    var folded = Vector3.Lerp(leg.FlightFoot, tucked, fold);
+                    leg.FootPosition = root.position + root.rotation * folded;
+                    leg.Swinging = false;
+                }
+                _previousPosition = root.position;
+                _previousRotation = root.rotation;
+                _supportNormal = root.up;
+                _wasAirborne = true;
                 return;
             }
-
+            if (_wasAirborne || HasDiscontinuousRoot())
+            {
+                ResetFootContacts(true, _wasAirborne);
+                _wasAirborne = false;
+                return;
+            }
             var position = _previousPosition;
             var rotation = _previousRotation;
             var delta = root.position - position;
             var angle = Quaternion.Angle(rotation, root.rotation);
-            var travel = delta.magnitude + angle * Mathf.Deg2Rad * 0.4f;
-            var steps = Mathf.Clamp(Mathf.CeilToInt(travel / 0.03f), 1, 32);
+            var travel = delta.magnitude + angle * Mathf.Deg2Rad * (0.4f * CannonSizeMultiplier);
+            var steps = Mathf.Clamp(Mathf.CeilToInt(travel / (0.03f * CannonSizeMultiplier)), 1, 32);
             // A slow rendered frame can contain several footsteps. Integrate the
             // native root's path without changing its transform or discarding contacts.
             for (var step = 1; step <= steps; step++)
@@ -1871,6 +1929,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
                 }
                 if (_stepProgress >= 1f)
                 {
+                    PlayFootstep(_stepPair);
                     _nextPair = 1 - _stepPair;
                     _stepPair = -1;
                     _finishingStep = false;
@@ -1897,7 +1956,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
                     secondError = Mathf.Max(secondError, error);
                 }
             }
-            var threshold = travel > 0.0001f || _moving ? 0.055f : 0.005f;
+            var threshold = (travel > 0.0001f || _moving ? 0.055f : 0.005f) * CannonSizeMultiplier;
             var nextError = _nextPair == 0 ? firstError : secondError;
             var pair = nextError > threshold ? _nextPair : 1 - _nextPair;
             if ((pair == 0 ? firstError : secondError) <= threshold)
@@ -1913,8 +1972,9 @@ public sealed class InnovationArtillerist : AbstractSubclass
         {
             var up = rotation * Vector3.up;
             var linear = Vector3.ProjectOnPlane(delta, up).magnitude;
-            var angular = Quaternion.Angle(Quaternion.identity, turn) * Mathf.Deg2Rad * 0.4f;
-            var stride = Mathf.Lerp(StepDistance, 0.16f, angular / Mathf.Max(0.0001f, linear + angular));
+            var angular = Quaternion.Angle(Quaternion.identity, turn) * Mathf.Deg2Rad * (0.4f * CannonSizeMultiplier);
+            var stride = Mathf.Lerp(StepDistance, 0.16f * CannonSizeMultiplier,
+                angular / Mathf.Max(0.0001f, linear + angular));
             _stepPair = pair;
             _stepProgress = 0f;
             _stepNormal = up;
@@ -1934,7 +1994,8 @@ public sealed class InnovationArtillerist : AbstractSubclass
                     {
                         continue;
                     }
-                    reachable &= CanReachFoot(leg, leg.FootPosition, futurePosition, futureRotation, 0.02f);
+                    reachable &= CanReachFoot(leg, leg.FootPosition, futurePosition, futureRotation,
+                        0.02f * CannonSizeMultiplier);
                 }
                 if (reachable)
                 {
@@ -1962,7 +2023,8 @@ public sealed class InnovationArtillerist : AbstractSubclass
         private bool CanReachFoot(Leg leg, Vector3 foot, Vector3 position, Quaternion rotation, float margin)
         {
             var ankle = foot - rotation * (leg.RestPoints[3] - leg.RestPoints[2]);
-            var mount = position + rotation * leg.RestPoints[0] + VisualFloorOffset(position, rotation);
+            var mount = position + rotation * (leg.RestPoints[0] - Vector3.up * _bodyCompression) +
+                        VisualFloorOffset(position, rotation);
             return Vector3.Distance(ankle, mount) < leg.Lengths[0] + leg.Lengths[1] - margin;
         }
 
@@ -1971,7 +2033,10 @@ public sealed class InnovationArtillerist : AbstractSubclass
             var rotation = _graphics.transform.rotation;
             // A planted shoe also rotates during a change of support plane. Keep
             // its whole sole above the floor throughout that transition.
-            leg.FootPosition = ConstrainFootToSurfaces(leg, leg.FootPosition, _graphics.transform.position, rotation);
+            if (!_airborne)
+            {
+                leg.FootPosition = ConstrainFootToSurfaces(leg, leg.FootPosition, _graphics.transform.position, rotation);
+            }
             var foot = leg.FootPosition;
             var footDirection = rotation * (leg.RestPoints[3] - leg.RestPoints[2]).normalized;
             var root = transform.TransformPoint(leg.Mount);
@@ -2059,23 +2124,36 @@ public sealed class InnovationArtillerist : AbstractSubclass
             }
             // The native root owns travel and wall orientation. The machine owns
             // its rigid carriage, planted contacts, joint lengths and firing pose.
-            transform.position = _graphics.transform.position + _graphics.transform.up * CannonBodyLift +
+            transform.position = _graphics.transform.position + _graphics.transform.up * (CannonBodyLift - _bodyCompression) +
                 VisualFloorOffset(_graphics.transform.position, _graphics.transform.rotation);
             transform.rotation = _graphics.transform.rotation;
-            var previousBarrelRotation = _barrel.localRotation;
+            var previousYaw = _yaw;
+            var previousPitch = _pitch;
+            var previousYawVelocity = _yawVelocity;
+            var previousPitchVelocity = _pitchVelocity;
+            var servoElapsed = Mathf.Min(0.1f, Mathf.Max(0f, Time.time - _servoUpdated));
+            _servoUpdated = Time.time;
             var elapsed = Time.time - _recoilStarted;
             var recovery = elapsed is >= 0f and < 0.28f ? 1f - elapsed / 0.28f : 0f;
-            var recoil = recovery * recovery * 0.09f;
+            var recoil = recovery * recovery * 0.025f;
             // Correct clearance after aiming, then resolve an aimed-at target from
             // that corrected origin. Both passes share one rotation time budget.
             for (var pass = 0; pass < 2; pass++)
             {
-                var aim = BarrelAim();
-                // Protection must face upward before a short animation can launch.
-                _barrel.localRotation = _aiming && _aimAlongDirection && !_shot ? aim :
-                    Quaternion.RotateTowards(previousBarrelRotation, aim, Time.deltaTime * 180f);
-                _barrel.localPosition = _barrelOrigin - _barrel.localRotation * Vector3.forward * recoil;
-                transform.position = _graphics.transform.position + _graphics.transform.up * CannonBodyLift +
+                var (yaw, pitch) = BarrelAim();
+                if (servoElapsed > 0f)
+                {
+                    _yawVelocity = previousYawVelocity;
+                    _pitchVelocity = previousPitchVelocity;
+                    _yaw = Mathf.SmoothDampAngle(previousYaw, yaw, ref _yawVelocity, ServoSmoothTime, 180f, servoElapsed);
+                    _pitch = Mathf.Clamp(
+                        Mathf.SmoothDampAngle(previousPitch, pitch, ref _pitchVelocity, ServoSmoothTime, 90f, servoElapsed),
+                        -MaximumElevation, MaximumDepression);
+                }
+                _cradle.localRotation = Quaternion.Euler(0, _yaw, 0);
+                _barrel.localRotation = Quaternion.Euler(_pitch, 0, 0);
+                _barrel.localPosition = -(_barrel.localRotation * Vector3.forward) * recoil;
+                transform.position = _graphics.transform.position + _graphics.transform.up * (CannonBodyLift - _bodyCompression) +
                     VisualFloorOffset(_graphics.transform.position, _graphics.transform.rotation);
             }
             foreach (var leg in _legs)
@@ -2084,7 +2162,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
             }
         }
 
-        private Quaternion BarrelAim()
+        private (float Yaw, float Pitch) BarrelAim()
         {
             if (_aiming)
             {
@@ -2092,31 +2170,43 @@ public sealed class InnovationArtillerist : AbstractSubclass
                     _aimAlongDirection ? _aimVector : _aimVector - _barrel.position);
                 var pitch = -Mathf.Atan2(direction.y, new Vector2(direction.x, direction.z).magnitude) * Mathf.Rad2Deg;
                 var yaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
-                return Quaternion.Euler(pitch, yaw, 0);
+                return (yaw, Mathf.Clamp(pitch, -MaximumElevation, MaximumDepression));
             }
             var cycle = _idleTime % 13f;
             var idleYaw = ServoAdjustment(cycle, 2f, 0.5f) * 3f - ServoAdjustment(cycle, 8.5f, 0.35f) * 2f;
             var idlePitch = ServoAdjustment(cycle, 5.5f, 0.25f) * 1.5f;
-            return _moving ? Quaternion.identity : Quaternion.Euler(idlePitch, idleYaw, 0);
+            return _moving ? (0f, 0f) : (idleYaw, idlePitch);
         }
 
-        internal void AimAt(Vector3 target, bool shot) => BeginAim(target, shot, false);
+        internal void AimProtection(CharacterActionMagicEffect action)
+        {
+            var angle = ProtectorElevation * Mathf.Deg2Rad;
+            AimAlong(_graphics.transform.forward * Mathf.Cos(angle) + _graphics.transform.up * Mathf.Sin(angle), false, action);
+        }
 
-        internal void AimAlong(Vector3 direction, bool shot) => BeginAim(direction, shot, true);
+        internal void AimAt(Vector3 target, bool shot, CharacterActionMagicEffect action) => BeginAim(target, shot, false, action);
 
-        private void BeginAim(Vector3 target, bool shot, bool alongDirection)
+        internal void AimAlong(Vector3 direction, bool shot, CharacterActionMagicEffect action) => BeginAim(direction, shot, true, action);
+
+        private void BeginAim(Vector3 target, bool shot, bool alongDirection, CharacterActionMagicEffect action)
         {
             _aimVector = target;
+            _aimAction = action;
             _aimAlongDirection = alongDirection;
             _aiming = true;
             _shot = shot;
             RefreshPose();
         }
 
-        internal void FinishAim()
+        internal void FinishAim(CharacterActionMagicEffect action = null)
         {
+            if (action != null && action != _aimAction)
+            {
+                return;
+            }
             _aiming = false;
             _shot = false;
+            _aimAction = null;
         }
 
         private void OnAnimationEvent(Transform source, bool visible, AnimationEventParameters parameters,
@@ -2125,6 +2215,12 @@ public sealed class InnovationArtillerist : AbstractSubclass
             if (dynamicParameters.graphicsCharacter != _graphics)
             {
                 return;
+            }
+            if (parameters.CharacterEvent == GameLocationCharacterEventSystem.Event.JumpInAnimationEnd && _jumpPreparing)
+            {
+                _jumpPreparing = false;
+                _jumpFlying = true;
+                BeginFlight();
             }
             if (parameters.CharacterEvent == GameLocationCharacterEventSystem.Event.MagicEffectLaunchPoint && _shot)
             {
@@ -2144,15 +2240,32 @@ public sealed class InnovationArtillerist : AbstractSubclass
             {
                 return;
             }
+            if (_aimAction != null && (_aimAction.ExecutionFailed ||
+                                       _aimAction.ActionParams.RulesetEffect.Terminated))
+            {
+                FinishAim();
+            }
             // The visible rig uses rigid mesh parts, so its hidden source skin cannot
             // decide whether the animator is needed during a move or a visible shot.
-            var character = GameLocationCharacter.GetFromActor(_graphics.RulesetCharacterMonster);
+            var character = _graphics.IsBoundToGameCharacter ?
+                GameLocationCharacter.GetFromActor(_graphics.RulesetCharacterMonster) : null;
+            BindCharacter(character);
             _moving = character is
                 { MoveInProgress: true } or { MoveStepInProgress: true } or { MovingToDestination: true } or
                 { Jumping: true } or { Climbing: true } or { Falling: true } or { IsCharging: true } or
                 { IgnoreForPlacementDuringPushAnimation: true };
-            _airborne = character is { Jumping: true } or { Falling: true } or
+            var airborne = _jumpFlying || character is { Falling: true } or
                 { IgnoreForPlacementDuringPushAnimation: true };
+            if (airborne && !_airborne && !_jumpFlying)
+            {
+                _jumpTravel = Vector3.zero;
+                BeginFlight();
+            }
+            else if (!airborne && _airborne)
+            {
+                _landingStarted = Time.time;
+            }
+            _airborne = airborne;
             _idleTime = _moving || _aiming ? 0f : _idleTime + Time.deltaTime;
             var animate = _moving || _aiming;
             foreach (var renderer in _renderers)
@@ -2173,13 +2286,108 @@ public sealed class InnovationArtillerist : AbstractSubclass
             {
                 return;
             }
+            var landing = Time.time - _landingStarted;
+            _bodyCompression = _jumpPreparing ? BodyCompression * Mathf.SmoothStep(0f, 1f, (Time.time - _jumpStarted) / 0.18f) :
+                _airborne ? BodyCompression * Mathf.SmoothStep(1f, 0f, (Time.time - _flightStarted) / 0.12f) :
+                landing is >= 0f and < 0.35f ? BodyCompression *
+                    (landing < 0.1f ? Mathf.SmoothStep(0f, 1f, landing / 0.1f) :
+                        Mathf.SmoothStep(1f, 0f, (landing - 0.1f) / 0.25f)) : 0f;
             UpdateFootContacts();
             RefreshPose();
+        }
+
+        private void OnJumpStarted(int3 source, int3 destination, LocationDefinitions.Orientation orientation,
+            bool useMomentum, bool dragonJump, bool buletteLeap)
+        {
+            _jumpPreparing = true;
+            _jumpFlying = false;
+            _airborne = false;
+            _jumpStarted = Time.time;
+            _jumpOrigin = _graphics.transform.position;
+            var positioning = ServiceRepository.GetService<IGameLocationPositioningService>();
+            _jumpTravel = positioning.GetWorldPositionFromGridPosition(destination) -
+                          positioning.GetWorldPositionFromGridPosition(source);
+        }
+
+        private void OnJumpFinished(GameLocationCharacter character, int3 source, int3 destination, bool landingFailed)
+        {
+            _jumpPreparing = false;
+            _jumpFlying = false;
+            _airborne = false;
+            _landingStarted = Time.time;
+            PlayFootstep(0);
+        }
+
+        private void PlayFootstep(int pair)
+        {
+            if (!_graphics.IsBoundToGameCharacter || Time.time - _lastFootstep < 0.14f)
+            {
+                return;
+            }
+            var world = _graphics.GetComponentInParent<WorldLocationCharacter>();
+            if (!world || !world.AudioCharacter)
+            {
+                return;
+            }
+            var playing = world.AudioCharacter.SendAudioEvent(transform.position, FootstepEvent,
+                (int)(pair == 0 ? AudioCharacterNode.Type.LeftFoot : AudioCharacterNode.Type.RightFoot));
+            if (playing != 0)
+            {
+                _lastFootstep = Time.time;
+                FootstepCount++;
+            }
+        }
+
+        private void BeginFlight()
+        {
+            _airborne = true;
+            _flightStarted = Time.time;
+            var root = _graphics.transform;
+            foreach (var leg in _legs)
+            {
+                leg.FlightFoot = Quaternion.Inverse(root.rotation) *
+                                 (leg.Parts[2].TransformPoint(Vector3.up) - root.position);
+            }
+        }
+
+        private void UnbindCharacter()
+        {
+            _jumpPreparing = false;
+            _jumpFlying = false;
+            _airborne = false;
+            _wasAirborne = false;
+            _bodyCompression = 0f;
+            _landingStarted = float.NegativeInfinity;
+            if (_character == null)
+            {
+                return;
+            }
+            _character.JumpStarted -= OnJumpStarted;
+            _character.JumpFinished -= OnJumpFinished;
+            _character = null;
+        }
+
+        private void BindCharacter(GameLocationCharacter character)
+        {
+            if (_character == character)
+            {
+                return;
+            }
+            UnbindCharacter();
+            _character = character;
+            if (_character == null)
+            {
+                return;
+            }
+            _character.JumpStarted += OnJumpStarted;
+            _character.JumpFinished += OnJumpFinished;
         }
 
         [UsedImplicitly]
         private void OnDestroy()
         {
+            FinishAim();
+            UnbindCharacter();
             if (_graphics)
             {
                 _graphics.GraphicsCharacterEvent -= OnAnimationEvent;
@@ -2231,7 +2439,8 @@ public sealed class InnovationArtillerist : AbstractSubclass
         var power = FeatureDefinitionPowerSharedPoolBuilder
             .Create(name + level)
             .SetGuiPresentation(name, Category.Feature,
-                $"Feature/&PowerInnovationArtillerist{powerName}Description", hidden: true)
+                $"Feature/&PowerInnovationArtillerist{powerName}Description",
+                sharedPoolPower.GuiPresentation.SpriteReference, hidden: true)
             .SetSharedPool(ActivationTime.Action, sharedPoolPower)
             .SetEffectDescription(
                 EffectDescriptionBuilder
@@ -2301,7 +2510,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
                     var shot = power.Name is $"Power{Name}{Flamethrower}" or $"Power{Name}{ForceBallista}";
                     if (power.Name == $"Power{Name}{Protector}")
                     {
-                        presentation.AimAlong(world.GraphicsCharacter.transform.up, false);
+                        presentation.AimProtection(action);
                     }
                     else if (effect.TargetType == TargetType.Cone)
                     {
@@ -2317,7 +2526,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
                         ServiceRepository.GetService<IGameLocationTargetingService>().ComputeTargetingParameters(
                             impact, action.ActingCharacter, action.ActingCharacter.LocationPosition,
                             effect.ShapeType, effect.RangeType, ref origin, ref direction);
-                        presentation.AimAlong(direction, shot);
+                        presentation.AimAlong(direction, shot, action);
                     }
                     else
                     {
@@ -2325,7 +2534,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
                         {
                             point = targetWorld.DeterministicCenterTargetPosition;
                         }
-                        presentation.AimAt(point, shot);
+                        presentation.AimAt(point, shot, action);
                     }
                 }
             }
@@ -2338,7 +2547,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
             var factory = ServiceRepository.GetService<IWorldLocationEntityFactoryService>();
             if (factory != null && factory.TryFindWorldCharacter(action.ActingCharacter, out var world) && world.GraphicsCharacter)
             {
-                world.GraphicsCharacter.GetComponentInChildren<CannonPresentation>()?.FinishAim();
+                world.GraphicsCharacter.GetComponentInChildren<CannonPresentation>()?.FinishAim(action);
             }
 
             yield break;

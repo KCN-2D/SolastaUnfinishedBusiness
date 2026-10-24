@@ -1,0 +1,2 @@
+# Unified-diff context lines contain a single space by design.
+internal/CustomBuildRuntime.patch text eol=lf whitespace=-blank-at-eol
