@@ -555,7 +555,7 @@ public static class RulesetImplementationManagerPatcher
                 return DiceByRank.GetDiceOfRank(rank, table, allowEmptyEntries);
             }
 
-            var character = formsParams.sourceCharacter;
+            var character = formsParams.sourceCharacter.GetClassFeatureStatsOwner();
             var klass = character.FindClassHoldingFeature(featureDefinitionPower);
             var klassLevel = character.GetClassLevel(klass);
 

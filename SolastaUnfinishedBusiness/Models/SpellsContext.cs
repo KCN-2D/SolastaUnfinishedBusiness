@@ -691,7 +691,8 @@ internal static class SpellsContext
     private static void RefreshAuxiliarySpellLists(SpellDefinition spellDefinition)
     {
         var isConditional = SpellsAvailableWithSpellLists2024Only.Contains(spellDefinition);
-        var isAvailable = (!isConditional || Main.Settings.EnableSpellLists2024) &&
+        var isAvailable = spellDefinition.Implemented &&
+                          (!isConditional || Main.Settings.EnableSpellLists2024) &&
                           !IsSpellList2024RestrictedSpell(spellDefinition);
         var isActive = SpellLists.Values.Any(x => x.ContainsSpell(spellDefinition));
 
@@ -1239,6 +1240,8 @@ internal static class SpellsContext
             bool included,
             bool enabled)
         {
+            included &= spellDefinition.Implemented;
+
             if (!enabled)
             {
                 if (!SpellList2024States.TryGetValue(spellDefinition, out var state))
@@ -1331,6 +1334,8 @@ internal static class SpellsContext
             bool active,
             bool updateSettings)
         {
+            active &= spellDefinition.Implemented;
+
             var spellListName = SpellList.Name;
             var spellName = spellDefinition.Name;
             var membershipChanged = SpellList.ContainsSpell(spellDefinition) != active;

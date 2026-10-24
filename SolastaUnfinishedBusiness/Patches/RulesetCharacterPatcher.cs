@@ -2635,9 +2635,9 @@ public static class RulesetCharacterPatcher
             ref RulesetSpellRepertoire classSpellRepertoire)
         {
             //PATCH: MC: try getting proper class repertoire for the power
-            var powerOriginClass = usablePower.OriginClass;
+            var powerOriginClass = usablePower.OriginClass ??
+                                   __instance.FindClassHoldingFeature(usablePower.PowerDefinition);
 
-            //Only try to get repertoire for powers that have origin class
             if (!powerOriginClass)
             {
                 return;

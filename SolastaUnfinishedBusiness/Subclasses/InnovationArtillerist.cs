@@ -141,7 +141,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
                     .SetTargetingData(Side.All, RangeType.Self, 0, TargetType.Cone, 3)
                     .ExcludeCaster()
                     .SetSavingThrowData(
-                        false, AttributeDefinitions.Dexterity, false, EffectDifficultyClassComputation.FixedValue)
+                        false, AttributeDefinitions.Dexterity, false, EffectDifficultyClassComputation.SpellCastingFeature)
                     .SetParticleEffectParameters(BurningHands)
                     .SetEffectForms(
                         EffectFormBuilder
@@ -568,7 +568,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
                     .Create()
                     .SetTargetingData(Side.All, RangeType.Self, 0, TargetType.Sphere, 4)
                     .SetSavingThrowData(false, AttributeDefinitions.Dexterity, false,
-                        EffectDifficultyClassComputation.FixedValue)
+                        EffectDifficultyClassComputation.SpellCastingFeature)
                     .SetParticleEffectParameters(Fireball)
                     .SetEffectForms(
                         EffectFormBuilder
@@ -580,7 +580,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
             .AddToDB();
 
         powerDetonateSelf.AddCustomSubFeatures(
-            new ValidatorsValidatePowerUse(HasTinyCannon));
+            ClassHolder.Inventor, new ValidatorsValidatePowerUse(HasTinyCannon));
 
         var tinyDetonations = new[] { conditionFlamethrowerTiny, conditionForceBallistaTiny, conditionProtectorTiny }
             .Select(condition =>
@@ -590,7 +590,8 @@ public sealed class InnovationArtillerist : AbstractSubclass
                     .Create(powerDetonateSelf, powerDetonateSelf.Name + condition.Name.Replace($"Condition{Name}", ""))
                     .SetGuiPresentation(condition.GuiPresentation.Title, powerDetonateSelf.GuiPresentation.Description,
                         Fireball, true)
-                    .AddCustomSubFeatures(detonation, new ValidatorsValidatePowerUse(detonation.HasCannon))
+                    .AddCustomSubFeatures(ClassHolder.Inventor, detonation,
+                        new ValidatorsValidatePowerUse(detonation.HasCannon))
                     .AddToDB();
                 power.AddCustomSubFeatures(new CannonPowerStatistics(power));
                 return power;
@@ -599,7 +600,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
         var powerDetonateTiny = FeatureDefinitionPowerBuilder
             .Create(powerDetonateSelf, $"Power{Name}{EldritchCannon}DetonateTiny")
             .SetGuiPresentation(powerDetonateSelf.GuiPresentation)
-            .AddCustomSubFeatures(flexibleTinyDetonation,
+            .AddCustomSubFeatures(ClassHolder.Inventor, flexibleTinyDetonation,
                 new ValidatorsValidatePowerUse(flexibleTinyDetonation.HasCannon))
             .AddToDB();
         powerDetonateTiny.guiPresentation.hidden = true;
@@ -616,7 +617,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
                     .Create()
                     .SetTargetingData(Side.All, RangeType.Distance, 12, TargetType.Sphere, 4)
                     .SetSavingThrowData(false, AttributeDefinitions.Dexterity, false,
-                        EffectDifficultyClassComputation.FixedValue)
+                        EffectDifficultyClassComputation.SpellCastingFeature)
                     .SetEffectForms(
                         EffectFormBuilder
                             .Create()
@@ -628,6 +629,7 @@ public sealed class InnovationArtillerist : AbstractSubclass
             .AddToDB();
 
         powerDetonateCannon.AddCustomSubFeatures(
+            ClassHolder.Inventor,
             new PowerOrSpellFinishedByMeEldritchDetonationDismiss(),
             new CannonPowerStatistics(powerDetonateCannon));
 
@@ -2550,13 +2552,12 @@ public sealed class InnovationArtillerist : AbstractSubclass
             RulesetCharacter character,
             RulesetEffect rulesetEffect)
         {
-            effectDescription.fixedSavingThrowDifficultyClass = GetDC(character);
             var owner = character.GetClassFeatureStatsOwner();
-            if (power.Name == $"Power{Name}{Protector}" && owner != null && UsesFortifiedPosition2024(owner))
+            if (power.Name == $"Power{Name}{Protector}" && owner != null)
             {
                 var temporaryHitPoints = effectDescription.EffectForms
                     .First(form => form.FormType == EffectForm.EffectFormType.TemporaryHitPoints).TemporaryHitPointsForm;
-                temporaryHitPoints.diceNumber = 2;
+                temporaryHitPoints.diceNumber = UsesFortifiedPosition2024(owner) ? 2 : 1;
                 temporaryHitPoints.bonusHitPoints = Math.Max(1, AttributeDefinitions.ComputeAbilityScoreModifier(
                     owner.TryGetAttributeValue(AttributeDefinitions.Intelligence)));
             }
@@ -2566,11 +2567,6 @@ public sealed class InnovationArtillerist : AbstractSubclass
 
         public IEnumerator OnPowerOrSpellInitiatedByMe(CharacterActionMagicEffect action, BaseDefinition baseDefinition)
         {
-            if (action.ActionParams.activeEffect is RulesetEffectPower rulesetEffectPower)
-            {
-                rulesetEffectPower.usablePower.saveDC = GetDC(action.ActingCharacter.RulesetCharacter);
-            }
-
             var factory = ServiceRepository.GetService<IWorldLocationEntityFactoryService>();
             if (factory != null && factory.TryFindWorldCharacter(action.ActingCharacter, out var world) && world.GraphicsCharacter)
             {
@@ -2625,13 +2621,6 @@ public sealed class InnovationArtillerist : AbstractSubclass
             }
 
             yield break;
-        }
-
-        private static int GetDC(RulesetCharacter rulesetCharacter)
-        {
-            var repertoire = rulesetCharacter.GetClassFeatureStatsOwner()?.GetClassSpellRepertoire(InventorClass.Class);
-
-            return repertoire?.SaveDC ?? 15;
         }
     }
 
