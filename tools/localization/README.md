@@ -2,11 +2,11 @@
 
 Python 3.9以降を使用します。外部翻訳を使うスクリプトには、既存環境の `deep-translator`、または `openai`・`python-dotenv`・`rich` が必要です。
 
+パス表記は[ツール共通の規約](../README.md#パス表記)に従います。コマンドはリポジトリのルートから実行し、作業フォルダの変更が必要なスクリプトは後述の表と実行例に従います。
+
 ## LLMによる翻訳
 
-同じフォルダの `.env.example` を `.env` に複製し、API接続先、APIキー、モデルを設定します。入力パスは `SolastaUnfinishedBusiness/Translations/` を基準に指定します。
-
-リポジトリのルートから実行します。
+`tools/localization/.env.example` を同じフォルダの `.env` に複製し、API接続先、APIキー、モデルを設定します。入力パスは `SolastaUnfinishedBusiness/Translations/` を基準に指定します。
 
 ```powershell
 # 指定ファイルの未訳項目を日本語へ翻訳

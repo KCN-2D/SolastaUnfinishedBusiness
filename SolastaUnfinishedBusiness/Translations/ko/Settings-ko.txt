@@ -269,7 +269,7 @@ ModUi/&EnableRangerRelentlessHunter2024AsNoConcentration=<i>+ 대신 사냥꾼�
 ModUi/&EnableRangerRoving2024=레벨 6에서 <color=#D89555>이동</color> 가능 <i><color=#F0DAA0>[중갑옷을 착용하지 않을 때 10피트 이동 가능, 동일한 등반 속도]</color></i>
 ModUi/&EnableRangerSpellCastingAtLevel1=레벨 2 대신 레벨 1에서 <color=#D89555>주문 시전</color>을 활성화합니다.
 ModUi/&EnableRangerTireless2024=레벨 10에서 <color=#D89555>Hide in Plain Sight</color>를 대체하기 위해 <color=#D89555>Tireless</color>를 활성화하세요 <i><color=#F0DAA0>[임시 생명력 획득]</color></i>
-ModUi/&EnableRelearnSpells=다른 출처에서 이미 배운 주문이나 주문 선택 가능
+ModUi/&EnableRelearnSpells=다른 경로로 이미 배운 소마법이나 주문도 선택할 수 있습니다
 ModUi/&EnableRespecAction=긴 휴식 후 <color=#D89555>캐릭터 재훈련</color>을 추가합니다 (싱글플레이 전용)
 ModUi/&EnableRitualOnAllCasters2024=모든 시전자에 <color=#D89555>의식</color> 시전 활성화
 ModUi/&EnableOneSpellSlotPerTurn2024=한 턴에 주문 시전으로 주문 슬롯을 하나만 소비할 수 있는 2024년 규칙을 적용합니다. <i><color=#F0DAA0>[소마법과 주문 슬롯을 소비하지 않는 시전에는 영향을 주지 않습니다]</color></i>

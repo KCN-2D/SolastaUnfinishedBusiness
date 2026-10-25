@@ -54,6 +54,14 @@ internal static class SpellPreparationContext
         RulesetCharacter character,
         RulesetSpellRepertoire repertoire)
     {
+        return EnumerateAutoPreparedSpells(character, repertoire, true);
+    }
+
+    internal static IEnumerable<(SpellDefinition Spell, string DisplayTag)> EnumerateAutoPreparedSpells(
+        RulesetCharacter character,
+        RulesetSpellRepertoire repertoire,
+        bool includeFeatRepertoireSpells)
+    {
         if (character == null || repertoire == null)
         {
             yield break;
@@ -88,6 +96,11 @@ internal static class SpellPreparationContext
 
         // Feature-based preparation was resolved above. Only add spells from feat repertoires
         // here, avoiding a second traversal and re-evaluation of the same feature graph.
+        if (!includeFeatRepertoireSpells)
+        {
+            yield break;
+        }
+
         foreach (var entry in LevelUpHelper.EnumerateSlotCastableFeatRepertoireSpells(character, repertoire))
         {
             if (yielded.Add(entry.Spell))

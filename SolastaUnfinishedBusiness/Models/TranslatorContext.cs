@@ -628,19 +628,70 @@ internal static class TranslatorContext
         }
     }
 
-    internal static string LocalizeBuiltInCharacterName(string name, bool builtIn, string fallback)
+    internal static string LocalizeBuiltInCharacterName(
+        RulesetCharacterHero.Snapshot snapshot, bool surname, string fallback)
     {
-        if (!builtIn || string.IsNullOrEmpty(name) || LocalizationManager.Sources.Count == 0)
+        CharacterTemplateDefinition template = null;
+        if (!string.IsNullOrEmpty(snapshot.TemplateName))
+        {
+            DatabaseRepository.GetDatabase<CharacterTemplateDefinition>()
+                ?.TryGetElement(snapshot.TemplateName, out template);
+        }
+
+        return LocalizeBuiltInCharacterName(surname ? snapshot.SurName : snapshot.Name, snapshot.BuiltIn, fallback,
+            surname ? template?.SurName : template?.FirstName);
+    }
+
+    internal static string LocalizeBuiltInCharacterName(
+        string name, bool builtIn, string fallback, string templateName = null)
+    {
+        if (string.IsNullOrEmpty(name) || LocalizationManager.Sources.Count == 0)
+        {
+            return fallback ?? name;
+        }
+
+        var templateTerm = GetTemplateNameTerm(name, templateName);
+        if (!builtIn && templateTerm == null)
         {
             return fallback ?? name;
         }
 
         // Packaged characters can contain literal names instead of the localization terms used by templates.
         // Resolve from the saved identity: snapshot display fields can already contain a previous language.
-        var term = $"Race/&PreGenerated{name.Replace(" ", string.Empty)}Title";
+        var term = templateTerm ?? $"Race/&PreGenerated{name.Replace(" ", string.Empty)}Title";
 
         return HasTranslation(term) ? Gui.Localize(term) : fallback ?? name;
     }
+
+    private static string GetTemplateNameTerm(string name, string templateName)
+    {
+        if (string.IsNullOrEmpty(templateName))
+        {
+            return null;
+        }
+
+        const string prefix = "Race/&PreGenerated";
+        const string suffix = "Title";
+        var term = templateName.StartsWith("Race/&", StringComparison.Ordinal)
+            ? templateName
+            : $"{prefix}{templateName.Replace(" ", string.Empty)}{suffix}";
+        var canonicalName = term.StartsWith(prefix, StringComparison.Ordinal) &&
+                            term.EndsWith(suffix, StringComparison.Ordinal)
+            ? term.Substring(prefix.Length, term.Length - prefix.Length - suffix.Length)
+            : templateName;
+
+        // A respec keeps its template origin, but the player may rename either part independently.
+        // Recognize both the original literal and a name saved in another loaded language.
+        return string.Equals(name, templateName, StringComparison.Ordinal) ||
+               string.Equals(name, canonicalName, StringComparison.Ordinal) ||
+               LocalizationManager.Sources.Any(source => source.GetTermData(term)?.Languages?.Contains(name) == true)
+            ? term
+            : null;
+    }
+
+    internal static bool MatchesTemplateCharacterName(string name, string templateName) =>
+        string.Equals(name, templateName, StringComparison.Ordinal) ||
+        !string.IsNullOrEmpty(name) && GetTemplateNameTerm(name, templateName) != null;
 
     internal static bool HasTranslation(string term)
     {

@@ -269,7 +269,7 @@ ModUi/&EnableRangerRelentlessHunter2024AsNoConcentration=<i>+ Supprimez plutôt 
 ModUi/&EnableRangerRoving2024=Activez <color=#D89555>Roving</color> au niveau 6 <i><color=#F0DAA0>[obtenez un mouvement de 10 pieds lorsque vous n'utilisez pas d'armure lourde et la même vitesse de montée]</color></i>
 ModUi/&EnableRangerSpellCastingAtLevel1=Activer le <color=#D89555>lancement de sorts</color> au niveau 1 au lieu de 2
 ModUi/&EnableRangerTireless2024=Activez <color=#D89555>Infatigable</color> pour remplacer <color=#D89555>Camouflage naturel</color> au niveau 10 <i><color=#F0DAA0>[obtenir des points de vie temporaires]</color></i>
-ModUi/&EnableRelearnSpells=Activer la sélection de sorts ou de sorts déjà appris à partir d'autres sources
+ModUi/&EnableRelearnSpells=Permet de sélectionner des tours de magie ou des sorts déjà appris auprès d'autres sources
 ModUi/&EnableRespecAction=Ajoute <color=#D89555>Réinitialiser</color> après un repos long (mode solo uniquement)
 ModUi/&EnableRitualOnAllCasters2024=Activer le lancement de <color=#D89555>rituel</color> sur tous les lanceurs de sorts
 ModUi/&EnableOneSpellSlotPerTurn2024=Applique la règle de 2024 qui ne permet de dépenser qu'un seul emplacement de sort pour lancer un sort à chaque tour <i><color=#F0DAA0>[les sorts mineurs et les sorts lancés sans emplacement ne sont pas concernés]</color></i>

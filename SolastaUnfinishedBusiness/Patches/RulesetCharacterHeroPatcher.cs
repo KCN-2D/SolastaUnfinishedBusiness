@@ -51,7 +51,8 @@ public static class RulesetCharacterHeroPatcher
             var surname = __originalMethod.Name == "get_DisplaySurName";
             var name = surname ? __instance.SurName : __instance.Name;
             __result = TranslatorContext.LocalizeBuiltInCharacterName(name,
-                __instance.BuiltIn || ToolsContext.FunctorRespec.UsesOriginalBuiltInName(__instance, surname), __result);
+                __instance.BuiltIn || ToolsContext.FunctorRespec.UsesOriginalBuiltInName(__instance, surname), __result,
+                surname ? __instance.TemplateDefinition?.SurName : __instance.TemplateDefinition?.FirstName);
         }
     }
 

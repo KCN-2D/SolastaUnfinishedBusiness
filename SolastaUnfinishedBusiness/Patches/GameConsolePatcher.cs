@@ -82,6 +82,15 @@ public static class GameConsolePatcher
     [UsedImplicitly]
     public static class AddCharacterEntry_Patch
     {
+        private static string GetDisplayName(RulesetActor character) =>
+            character is RulesetCharacterHero hero ? hero.DisplayName : character.Name;
+
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            instructions.ReplaceCalls(AccessTools.PropertyGetter(typeof(RulesetEntity), nameof(RulesetEntity.Name)),
+                1, "GameConsole.AddCharacterEntry.Name",
+                new CodeInstruction(OpCodes.Call, new Func<RulesetActor, string>(GetDisplayName).Method));
+
         [UsedImplicitly]
         public static void Postfix(
             RulesetActor character,

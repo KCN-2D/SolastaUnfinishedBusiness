@@ -1,22 +1,22 @@
 # 実ゲーム回帰テスト
 
-リポジトリのルートで PowerShell を開いて実行します。.NET SDK 9 以降、Git、Windows 標準の `tar` と `robocopy`、導入済みの Solasta と UMM 0.33.2 以降を使います。
+固定ケースによる回帰、検証版の配置、結果の判定、配置前の状態への復元を扱います。[正式ビルドの前提](../CustomBuildLocal/README.md)に加え、導入済みのSolastaとUMM 0.33.2以降が必要です。リポジトリのルートでPowerShellを開き、以下の`$game`を実際のインストール先へ変更して実行します。パス表記は[ツール共通の規約](../README.md#パス表記)に従います。
 
 ## 診断とビルド
 
 ```powershell
-$game = 'E:\Games\steamapps\common\Slasta_COTM'
+$game = 'D:\Games\Solasta'
 & .\tools\game-test\Test-GameTestEnvironment.ps1 -GameExePath "$game\Solasta.exe"
 $build = & .\tools\game-test\New-GameTestBuild.ps1 -GameExePath "$game\Solasta.exe"
 ```
 
 `TargetCommit` は実在するコミットへ解決し、現在の `HEAD` と一致することを要求します。ビルド対象はそのコミットに作業ツリーの変更を重ねた内容です。別コミットを確認する場合は、そのコミットのチェックアウトで実行します。
 
-ビルドは `tools/CustomBuildLocal/BuildCustomLocalPackage.cmd` を呼びます。プロジェクトの `OutputPath` は `Release Workflow` でも `$(SolastaInstallDir)/Mods` ですが、正式 wrapper が一時ワークスペースの `staging/SolastaUnfinishedBusiness` へ上書きします。その成果物を検証ごとの `Stage/SolastaUnfinishedBusiness` へ複製し、全ファイルのハッシュを記録します。
+ビルドは[正式ビルド](../CustomBuildLocal/README.md)を呼び、成果物を検証ごとの証跡フォルダにある `Stage/SolastaUnfinishedBusiness/` へ複製して、全ファイルのハッシュを記録します。`Stage/` など実行ごとの入出力パスは、その証跡フォルダが基準です。
 
 `Build.json` にブランチ、対象コミット、ステージ済み差分、作業ツリー差分、変更ファイル、ゲーム・UMM DLL、wrapper、runtime patch、成果物の識別情報を保存します。`tools/` は製品ソースの識別から除き、ビルド入力とテストツールをそれぞれのハッシュで記録します。ビルド中のソース変更、実行時のソース・ゲーム DLL・ステージングの不一致は中断理由になります。
 
-テスト基盤を変更した場合は、`& .\tools\game-test\Test-GameTestContracts.ps1`で停止ガードと終了処理を検証します。実装の原本を保存して対象処理を抽出し、プロセス取得失敗・復元拒否と、所有するPowerShell子プロセスの終了・待機を確認します。ゲームや設定は変更せず、結果は`artifacts/`へ保存します。`-SkipProcessLifecycle`は停止ガードだけを確認します。
+テスト基盤を変更した場合は、`& .\tools\game-test\Test-GameTestContracts.ps1`で停止ガードと終了処理を検証します。実装の原本を保存して対象処理を抽出し、プロセス取得失敗・復元拒否と、所有するPowerShell子プロセスの終了・待機を確認します。ゲームや設定は変更せず、結果は`tools/game-test/artifacts/`へ保存します。`-SkipProcessLifecycle`は停止ガードだけを確認します。
 
 ## ケースを固定する
 
@@ -44,7 +44,7 @@ JSON の主要項目は次のとおりです。
 
 `actorSource` を省略したケースは `party` として扱います。`guest` はロード済みのゲスト一覧を使います。
 
-共通の `save-smoke` はセーブ読込と通常移動を担当します。個別機能の観測、期待値、作成時の既定値は、Git管理しない `Scenarios/` のローカル入口が所有します。ローカル入口は `-ScenarioAdapter`、`-ScenarioSource`、`-ScenarioType`、`-ScenarioValidator`、`-ScenarioObservation` をCLI引数で明示します。ケースのadapter名と観測有無がこの指定と一致することを要求し、JSONからソースや型、メソッドを選ぶ機能は設けません。
+共通の `save-smoke` はセーブ読込と通常移動を担当します。個別機能の観測、期待値、作成時の既定値は、Git管理しない `tools/game-test/Scenarios/` のローカル入口が所有します。ローカル入口は `-ScenarioAdapter`、`-ScenarioSource`、`-ScenarioType`、`-ScenarioValidator`、`-ScenarioObservation` をCLI引数で明示します。ケースのadapter名と観測有無がこの指定と一致することを要求し、JSONからソースや型、メソッドを選ぶ機能は設けません。
 
 セーブを使わないローカル入口は `-ScenarioSaveScenario $false` を明示し、操作と期待値を固定したvalidatorで検証します。省略時はセーブを使う既存動作を維持します。
 
@@ -72,11 +72,7 @@ $run = & .\tools\game-test\Invoke-GameTest.ps1 `
 
 表示寸法を調べる場合は`-ObserveDisplay`を追加します。既定は無効です。メインスレッドでScreen、Camera、Canvas、FSRの実寸と設定値を読み、`Runtime-Display.jsonl`へ保存します。
 
-通常の回帰テストは、マウス・キーボードを使わず固定ケースのネイティブアクションを実行します。実行ごとに非入力のWindowsデスクトップを作り、その中でGPU描画するゲームウィンドウを起動します。ホストのデスクトップは切り替えません。`-batchmode` 単独ではゲームの前面化を防げないため使用せず、`-nographics` も指定しません。
-
-一時harnessがメインスレッドでPID、native thread、所有HWND、デスクトップ、入力状態を記録します。`UOI_IO`はAPI取得成功、必要バイト数、生BOOL、nullable値を分け、必要な取得失敗は`BLOCKED`にします。runnerは起動情報と照合し、親の入力デスクトップが実行前後で変わっていないことも確認します。GPU、アクション中のフレーム進行、Screenとclient寸法が一致する一意のゲームウィンドウを必須判定にします。
-
-前面アプリのPIDを起動前と実行中500ミリ秒ごとに読み取り、ゲームが前面になった場合と、PIDを取得できない場合は `BLOCKED` として終了します。変化時と1秒ごとの履歴を保存します。ゲームのメインスレッドでもフォーカス状態、フレーム、時間倍率を記録します。
+通常の回帰テストは、マウス・キーボードを使わず、非入力のWindowsデスクトップでGPU描画と固定ケースのネイティブアクションを実行します。ホストのデスクトップは切り替えません。デスクトップ・前面アプリ・GPU・フレームの照合は[実行基盤の観測仕様](../runtime-verification/README.md#実行デスクトップと観測)に従い、必須情報の取得失敗やゲームの前面化は `BLOCKED` とします。
 
 Unityの実フォーカス喪失は、OS入力の非占有と別に検証します。`verifyFocusLoss=false`のセーブ回帰は、実フォーカス喪失を検証しません。ケース作成時に`-VerifyFocusLoss`を指定すると、同じ非入力デスクトップ・同じゲームスレッド内に一時ウィンドウを作り、`SetActiveWindow`でそのウィンドウをアクティブにします。実行前後にPID・スレッド・デスクトップ・`UOI_IO`とactive/focus HWNDを照合します。最大3秒で実際のフォーカス喪失通知と`Application.isFocused=false`を確認し、ゲームウィンドウを非アクティブのまま再表示してからアクションへ進みます。描画寸法と非フォーカス中の進行も確認し、条件を満たさなければ`BLOCKED`です。
 
@@ -100,7 +96,7 @@ $run = & .\tools\game-test\Invoke-GameTest.ps1 `
 
 ゲームを表示して起動し、ロード後に runtime 証跡へ `GameTest-Ready.json` と `GameTest-Ready.png` を出力して待機します。VMゲスト内で利用できる操作手段で画面取得と入力を確認し、その記録を実行証跡へ保存します。操作を終えたら、同じ runtime 証跡に `continue.json` を作ります。
 
-自動ケースは手動待機なしで進みます。画面操作を確認するケースでは、`-ManualGate -ManualGateTimeoutSeconds 600 -TimeoutSeconds 900` のように待機時間を指定できます。手動待機は1秒からケースの上限まで指定でき、ケース全体の上限には起動・ロード・操作の時間も含まれます。複数の画面操作は同じ待機中にまとめ、確認後に1回だけ続行します。
+自動ケースは手動待機なしで進みます。手動待機は1秒からケースの上限まで指定でき、ケース全体の上限には起動・ロード・操作の時間も含まれます。複数の画面操作は同じ待機中にまとめ、確認後に1回だけ続行します。
 
 ```powershell
 '{"continue":true}' | Set-Content -LiteralPath '<runtime証跡>\continue.json' -Encoding UTF8
@@ -131,7 +127,7 @@ await gameUi.click({ x: 420, y: 260 });
 
 ## 結果と復元
 
-証跡の保存先は `tools/game-test/artifacts/` です。`-EvidenceRoot` で指定できるのも、この配下に限ります。
+証跡の保存先は `tools/game-test/artifacts/` です。`-EvidenceRoot` で指定できるのも、この配下に限ります。以下のファイル名・パスは、個々の実行証跡フォルダを基準にしています。
 
 | ファイル | 内容 |
 | --- | --- |
@@ -193,8 +189,10 @@ PowerShell 自体の強制終了などで復元が残った場合は、ゲーム
     -RunDirectory '<実行証跡>' -AuthorizedGameDirectory $game
 ```
 
-復元は再実行できます。ゲーム側の `Mods/.UBGameTestTransaction.json` が残っている間、新しい配置を拒否します。検証元のビルドと結果は、ゲームへ復元した版とそれぞれのハッシュで区別できます。
+復元は再実行できます。インストール先の `Mods/.UBGameTestTransaction.json` が残っている間、新しい配置を拒否します。検証元のビルドと結果は、ゲームへ復元した版とそれぞれのハッシュで区別できます。
 
-移動した証跡の元の JSON は変更しません。`artifacts/Migration.json` の `mappings` に `originalRoot` と `currentRoot` を記録すると、復元時の旧 `RunDirectory`、所有マーカー、ケースとビルドの入力パスを現在の配置へ解決します。移行先は `artifacts/` 配下に限定し、更新時刻は UTC ticks で照合します。
+移動した証跡の元のJSONは変更しません。`tools/game-test/artifacts/Migration.json` の `mappings` に `originalRoot` と `currentRoot` を記録すると、復元時の旧 `RunDirectory`、所有マーカー、ケースとビルドの入力パスを現在の配置へ解決します。移行先は `tools/game-test/artifacts/` 配下に限定し、更新時刻はUTC ticksで照合します。
 
-実行スクリプト、共通実装、共通プローブとREADMEはGitで管理します。`Scenarios/` の個別コード、`Cases/` のセーブ・固定設定、`artifacts/` のログ・画像・レポート、一時ファイルは追跡しません。実行に必要な `tools/runtime-verification/` の入口・harness・デスクトップ処理・固定画像一覧プローブも追跡対象です。
+## Gitの追跡範囲
+
+`tools/game-test/`の実行スクリプト、共通実装、共通プローブとREADMEを追跡します。`tools/game-test/Scenarios/` の個別コード、`tools/game-test/Cases/` のセーブ・固定設定、`tools/game-test/artifacts/` のログ・画像・レポート、一時ファイルは追跡しません。依存する実行基盤の追跡範囲は[Runtime verification](../runtime-verification/README.md#gitの追跡範囲)に従います。

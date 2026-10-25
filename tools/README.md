@@ -1,20 +1,32 @@
 # 開発・検証ツール
 
-リポジトリのルートから実行します。
+用途に合う入口を選び、リンク先の手順をリポジトリのルートから実行します。
 
 | 場所 | 用途 |
 | --- | --- |
-| [CustomBuildLocal](CustomBuildLocal/README.md) | 正式ビルドとパッケージ生成 |
-| [asset-authoring](asset-authoring/README.md) | Blenderによるモデル・骨格アニメーションの生成、書き出し、再読み込み検証、プレビュー |
-| [blender-models](blender-models/) | モデルごとの生成処理と検証手順 |
-| [game-test](game-test/README.md) | 環境診断、隔離ビルド、明示配置、実ゲーム検証、証跡保存、復元 |
-| [runtime-verification](runtime-verification/README.md) | ゲーム内プローブのコンパイル・実行と後始末を担う検証基盤 |
-| [localization](localization/) | 翻訳ファイルの整備と検査 |
+| [tools/CustomBuildLocal/](CustomBuildLocal/README.md) | 正式ビルドとパッケージ生成 |
+| [tools/asset-authoring/](asset-authoring/README.md) | Blenderによるモデル・骨格アニメーションの生成、書き出し、再読み込み検証、プレビュー |
+| [tools/blender-models/](blender-models/) | モデルごとの生成処理と検証手順。ローカル専用 |
+| [tools/game-test/](game-test/README.md) | 固定ケースの作成、検証用ビルド、明示配置、実ゲーム回帰、結果の判定、配置前の状態への復元 |
+| [tools/runtime-verification/](runtime-verification/README.md) | 個別プローブと通常起動の確認、共通harness・デスクトップ・後始末の仕様、成果物の同期 |
+| [tools/localization/](localization/) | 翻訳ファイルの整備と検査 |
 
-モデルを変更する場合は、生成・再読み込み検証・プレビュー確認の後に、`tools\CustomBuildLocal\BuildCustomLocalPackage.cmd`でビルドします。実ゲームの確認には`game-test`のケースを使います。
+モデル変更は資産制作の手順から正式ビルド、実ゲーム回帰へ進みます。各工程の合格範囲は[資産制作](asset-authoring/README.md)と[実ゲーム回帰の結果と復元](game-test/README.md#結果と復元)に従います。
 
-`PASS`は実行した工程・ケースの範囲に属します。`game-test`の非占有native runnerは、OS入力の非占有、通常アクション、描画、復元を確認します。Unityの実フォーカス喪失、通常UI入力、可聴音はそれぞれ別に検証します。`asset-authoring`のBlender工程内検証、Unity資産のビルド・再読込、ゲーム内での資産統合も分けて記録します。
+## パス表記
 
-`CustomBuildLocal`のビルド本体、`game-test`の実行スクリプトとプローブ、依存する`runtime-verification`の共通基盤はGitの追跡対象です。ビルド成果物、ケースごとのセーブ・個人設定、ログ、レポート、一時ファイルは除外します。`blender-models`と検証基盤の個別プローブはローカル専用です。
+本文の相対パスは、特記がなければリポジトリのルートを基準に `/` で表記します。Markdownリンクは文書の場所を基準にします。インストール済みゲームや実行証跡フォルダを基準にする場合は、そのことを明記します。
 
-ビルド成果物は`CustomBuildLocal/Output`、3D制作の作業データは`asset-authoring/workspace`、実ゲーム検証の結果は`game-test/artifacts`に保存します。
+Windowsで実行するコマンドと絶対パスは `\` を使います。URLや識別子の表記は変えません。
+
+## 生成物と追跡範囲
+
+各ツールの入口・共通実装・READMEをGitで管理し、個別の追跡対象は各READMEで定めます。ビルド成果物、ケースごとのセーブ・個人設定、ログ、レポート、一時ファイルは追跡しません。`tools/blender-models/`と検証基盤の個別プローブはローカル専用です。
+
+| 生成物 | 保存先 |
+| --- | --- |
+| 正式ビルド | [ビルド出力の一覧](CustomBuildLocal/README.md) |
+| 3D制作の作業データ | `tools/asset-authoring/workspace/` |
+| 実ゲーム検証のビルド・入力の複製・ログ・画像 | `tools/game-test/artifacts/` |
+
+証跡の保持・復元と不要な生成物の整理は、各ツールの終了処理に従います。

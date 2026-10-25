@@ -24,7 +24,7 @@ public static class CharacterFilteringGroupPatcher
 
         private static string GetDisplayName(RulesetCharacterHero.Snapshot snapshot)
         {
-            return TranslatorContext.LocalizeBuiltInCharacterName(snapshot.Name, snapshot.BuiltIn, snapshot.DisplayName);
+            return TranslatorContext.LocalizeBuiltInCharacterName(snapshot, false, snapshot.DisplayName);
         }
 
         [NotNull]

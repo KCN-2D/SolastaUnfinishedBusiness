@@ -1966,6 +1966,18 @@ public static class CharacterBuildingManagerPatcher
     public static class AutoAcquireSpells_Patch
     {
         [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            return instructions.ReplaceCalls(
+                typeof(CharacterBuildingManager).GetMethod(nameof(CharacterBuildingManager.EnumerateKnownAndAcquiredSpells)),
+                1, "CharacterBuildingManager.AutoAcquireSpells.KnownSpells",
+                new CodeInstruction(OpCodes.Ldarg_2),
+                new CodeInstruction(OpCodes.Call,
+                    new Func<ICharacterBuildingService, CharacterHeroBuildingData, string, string,
+                        List<SpellDefinition>>(LevelUpHelper.EnumerateKnownAndAcquiredSpellsForSelection).Method));
+        }
+
+        [UsedImplicitly]
         public static bool Prefix(CharacterHeroBuildingData heroBuildingData, string spellTag)
         {
             return UnacquireCantripsOrSpells_Patch.Prefix(heroBuildingData, spellTag);
@@ -1982,7 +1994,7 @@ public static class CharacterBuildingManagerPatcher
             [NotNull] CharacterHeroBuildingData heroBuildingData,
             List<SpellDefinition> __result)
         {
-            //PATCH: ensures the level up process only presents / offers spells from current class
+            // Keep the default multiclass list filter; independent learning resolves its actual origin at the caller.
             LevelUpHelper.EnumerateKnownAndAcquiredSpells(heroBuildingData, __result);
         }
     }

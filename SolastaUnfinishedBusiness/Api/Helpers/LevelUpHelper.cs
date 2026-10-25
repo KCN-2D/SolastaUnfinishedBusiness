@@ -1228,25 +1228,102 @@ internal static class LevelUpHelper
         List<SpellDefinition> __result)
     {
         var hero = heroBuildingData.HeroCharacter;
-        var isMulticlass = IsMulticlass(hero);
 
-        if (!isMulticlass)
-        {
-            return;
-        }
-
-        if (Main.Settings.EnableRelearnSpells)
-        {
-            var otherClassesKnownSpells = GetOtherClassesKnownSpells(hero);
-
-            __result.RemoveAll(x => otherClassesKnownSpells.ContainsKey(x));
-        }
-        else
+        if (IsMulticlass(hero) && !Main.Settings.EnableRelearnSpells)
         {
             var allowedSpells = GetAllowedSpells(hero);
 
             __result.RemoveAll(x => !allowedSpells.Contains(x));
         }
+    }
+
+    internal static List<SpellDefinition> GetKnownSpellsForSelection(
+        ICharacterBuildingService characterBuildingService,
+        CharacterHeroBuildingData heroBuildingData,
+        FeatureDefinitionCastSpell spellFeature,
+        List<SpellDefinition> knownSpells,
+        bool independentSelection = false)
+    {
+        if (!spellFeature)
+        {
+            return knownSpells;
+        }
+
+        // A spell can belong to several casting origins. Relearning only ignores the
+        // other origins; an existing or pending choice for this origin still owns it.
+        independentSelection |= Main.Settings.EnableRelearnSpells;
+        HashSet<SpellDefinition> selectionSpells = independentSelection ? [] : [..knownSpells];
+        var hero = heroBuildingData.HeroCharacter;
+
+        foreach (var repertoire in hero.SpellRepertoires
+                     .Where(repertoire => !independentSelection || repertoire.SpellCastingFeature == spellFeature))
+        {
+            // Feat preparation is also projected into class repertoires for slot casting.
+            // That projection does not transfer ownership to the class learning pool.
+            var featSpells = independentSelection
+                ? EnumerateSlotCastableFeatRepertoireSpells(hero, repertoire).Select(entry => entry.Spell).ToHashSet()
+                : [];
+            selectionSpells.UnionWith(repertoire.AutoPreparedSpells.Where(spell => !featSpells.Contains(spell)));
+            selectionSpells.UnionWith(SpellPreparationContext
+                .EnumerateAutoPreparedSpells(hero, repertoire, includeFeatRepertoireSpells: false)
+                .Select(entry => entry.Spell));
+
+            if (!independentSelection)
+            {
+                continue;
+            }
+
+            selectionSpells.UnionWith(repertoire.KnownCantrips);
+            selectionSpells.UnionWith(repertoire.KnownSpells);
+            selectionSpells.UnionWith(repertoire.EnumerateAvailableExtraSpells());
+
+            if (spellFeature.SpellKnowledge == SpellKnowledge.Spellbook)
+            {
+                selectionSpells.UnionWith(repertoire.EnumerateAvailableScribedSpells());
+            }
+        }
+
+        if (independentSelection)
+        {
+            foreach (var entry in heroBuildingData.BonusCantrips
+                         .Concat(heroBuildingData.AcquiredCantrips)
+                         .Concat(heroBuildingData.AcquiredSpells))
+            {
+                if (!string.IsNullOrEmpty(entry.Key) && entry.Value.Count > 0 &&
+                    characterBuildingService.GetSpellFeature(heroBuildingData, entry.Key) == spellFeature)
+                {
+                    selectionSpells.UnionWith(entry.Value);
+                }
+            }
+        }
+
+        return [..selectionSpells];
+    }
+
+    internal static List<SpellDefinition> GetLearnedSpellsForSelection(
+        CharacterHeroBuildingData heroBuildingData,
+        FeatureDefinitionCastSpell spellFeature)
+    {
+        // Preparation grants remain available when a separately learned copy is replaced.
+        // Only the repertoire's learned choices can consume a spell replacement.
+        return heroBuildingData.HeroCharacter.SpellRepertoires
+            .Where(repertoire => repertoire.SpellCastingFeature == spellFeature)
+            .SelectMany(repertoire => repertoire.KnownCantrips.Concat(repertoire.KnownSpells))
+            .Distinct().ToList();
+    }
+
+    internal static List<SpellDefinition> EnumerateKnownAndAcquiredSpellsForSelection(
+        ICharacterBuildingService characterBuildingService,
+        CharacterHeroBuildingData heroBuildingData,
+        string excludedTag,
+        string spellTag)
+    {
+        var spellFeature = characterBuildingService.GetSpellFeature(heroBuildingData, spellTag);
+        var selectionPolicy = FeatHelpers.GetSpellSelectionTag(heroBuildingData, spellTag, spellFeature);
+
+        return GetKnownSpellsForSelection(characterBuildingService, heroBuildingData, spellFeature,
+            characterBuildingService.EnumerateKnownAndAcquiredSpells(heroBuildingData, excludedTag),
+            selectionPolicy?.DedicatedSelectionList == true);
     }
 
     [NotNull]

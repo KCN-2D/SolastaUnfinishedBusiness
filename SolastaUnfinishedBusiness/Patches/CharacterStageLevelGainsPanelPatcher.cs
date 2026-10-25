@@ -12,6 +12,19 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterStageLevelGainPanelPatcher
 {
+    [HarmonyPatch(typeof(CharacterStageLevelGainsPanel), nameof(CharacterStageLevelGainsPanel.Refresh))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class Refresh_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            instructions.ReplaceCalls(AccessTools.PropertyGetter(typeof(RulesetEntity), nameof(RulesetEntity.Name)),
+                1, "CharacterStageLevelGainsPanel.Refresh.Name",
+                new CodeInstruction(OpCodes.Callvirt,
+                    AccessTools.PropertyGetter(typeof(RulesetCharacterHero), nameof(RulesetCharacterHero.DisplayName))));
+    }
+
     [HarmonyPatch(typeof(CharacterStageLevelGainsPanel), nameof(CharacterStageLevelGainsPanel.EnterStage))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

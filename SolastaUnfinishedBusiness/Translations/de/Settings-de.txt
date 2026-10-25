@@ -269,7 +269,7 @@ ModUi/&EnableRangerRelentlessHunter2024AsNoConcentration=<i>+ Entfernen Sie stat
 ModUi/&EnableRangerRoving2024=Aktivieren Sie <color=#D89555>Umherziehen</color> auf Stufe 6 <i><color=#F0DAA0>[erhalten Sie 10 Fuß Bewegung, wenn Sie keine schwere Rüstung verwenden, und dieselbe Klettergeschwindigkeit]</color></i>
 ModUi/&EnableRangerSpellCastingAtLevel1=Aktiviere <color=#D89555>Zauberwirken</color> auf Stufe 1 statt 2.
 ModUi/&EnableRangerTireless2024=Aktiviere <color=#D89555>Unermüdlich</color>, um <color=#D89555>Tarnung</color> auf Level 10 zu ersetzen <i><color=#F0DAA0>[temporäre Trefferpunkte erhalten]</color></i>
-ModUi/&EnableRelearnSpells=Aktivieren Sie die Auswahl von Zaubersprüchen oder Zaubersprüchen, die Sie bereits aus anderen Quellen gelernt haben.
+ModUi/&EnableRelearnSpells=Ermöglicht die Auswahl von Zaubertricks oder Zaubern, die bereits aus anderen Quellen bekannt sind
 ModUi/&EnableRespecAction=Fügt <color=#D89555>Neuverteilung</color> nach einer langen Rast hinzu (nur im Einzelspielermodus)
 ModUi/&EnableRitualOnAllCasters2024=Aktivieren Sie das Wirken von <color=#D89555>Ritualen</color> für alle Zauberer.
 ModUi/&EnableOneSpellSlotPerTurn2024=Wendet die 2024-Regel an, nach der pro Zug nur ein Zauberplatz zum Wirken eines Zaubers verbraucht werden kann <i><color=#F0DAA0>[Zaubertricks und Zauber ohne Zauberplatz sind nicht betroffen]</color></i>

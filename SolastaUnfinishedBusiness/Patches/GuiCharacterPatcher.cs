@@ -35,7 +35,7 @@ public static class GuiCharacterPatcher
             }
             else if (__instance.Snapshot is { } snapshot)
             {
-                __result = TranslatorContext.LocalizeBuiltInCharacterName(snapshot.Name, snapshot.BuiltIn, __result);
+                __result = TranslatorContext.LocalizeBuiltInCharacterName(snapshot, false, __result);
             }
         }
     }
@@ -50,7 +50,7 @@ public static class GuiCharacterPatcher
         {
             if (__instance.Snapshot is { } snapshot)
             {
-                __result = TranslatorContext.LocalizeBuiltInCharacterName(snapshot.SurName, snapshot.BuiltIn, __result);
+                __result = TranslatorContext.LocalizeBuiltInCharacterName(snapshot, true, __result);
             }
         }
     }
@@ -68,10 +68,10 @@ public static class GuiCharacterPatcher
             {
                 __result = displayName;
             }
-            else if (__instance.Snapshot is { BuiltIn: true } snapshot)
+            else if (__instance.Snapshot is { } snapshot)
             {
                 var name = __instance.Name;
-                var surName = TranslatorContext.LocalizeBuiltInCharacterName(snapshot.SurName, true, snapshot.DisplaySurName);
+                var surName = TranslatorContext.LocalizeBuiltInCharacterName(snapshot, true, snapshot.DisplaySurName);
 
                 __result = string.IsNullOrEmpty(surName) ? name : $"{name} {surName}";
             }

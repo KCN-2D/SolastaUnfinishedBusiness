@@ -427,10 +427,8 @@ internal static class ToolsContext
             }
 
             var hero = panel.currentHero;
-            session.DisplayedIdentityName = TranslatorContext.LocalizeBuiltInCharacterName(hero.Name,
-                UsesOriginalBuiltInName(hero, false), hero.Name);
-            session.DisplayedIdentitySurName = TranslatorContext.LocalizeBuiltInCharacterName(hero.SurName,
-                UsesOriginalBuiltInName(hero, true), hero.SurName);
+            session.DisplayedIdentityName = hero.DisplayName;
+            session.DisplayedIdentitySurName = hero.DisplaySurName;
             panel.firstNameInputField.SetTextWithoutNotify(session.DisplayedIdentityName);
             panel.lastNameInputField.SetTextWithoutNotify(session.DisplayedIdentitySurName);
         }
@@ -630,6 +628,20 @@ internal static class ToolsContext
             newHero.sex = oldHero.sex;
             newHero.SurName = oldHero.SurName;
             newHero.Name = oldHero.Name;
+            newHero.TemplateDefinition = oldHero.TemplateDefinition;
+            if (newHero.TemplateDefinition == null && oldHero.BuiltIn)
+            {
+                // Some packaged premade files have no template reference. Retain their native origin
+                // only when both name parts identify one template unambiguously.
+                var templates = DatabaseRepository.GetDatabase<CharacterTemplateDefinition>()
+                    .Where(template => template.IsPremade && !template.EditorOnly &&
+                                       TranslatorContext.MatchesTemplateCharacterName(oldHero.Name, template.FirstName) &&
+                                       TranslatorContext.MatchesTemplateCharacterName(oldHero.SurName, template.SurName))
+                    .Take(2)
+                    .ToArray();
+                newHero.TemplateDefinition = templates.Length == 1 ? templates[0] : null;
+            }
+
             newHero.raceDefinition = oldHero.RaceDefinition;
             newHero.subRaceDefinition = oldHero.SubRaceDefinition;
         }

@@ -1482,13 +1482,13 @@ internal static class MulticlassGameUi
         if (selectionPolicy != null)
         {
             allSpells.RemoveAll(spell => !selectionPolicy.CanSelectSpell(localHeroCharacter, spell));
-            if (selectionPolicy.DedicatedSelectionList)
-            {
-                // Learning a separate casting origin may choose a spell already known
-                // through a class or another origin; only this repertoire owns its choices.
-                knownSpells = selectionRepertoire?.KnownSpells ?? [];
-            }
         }
+
+        knownSpells = unlearn
+            ? LevelUpHelper.GetLearnedSpellsForSelection(heroBuildingData, spellFeature)
+            : LevelUpHelper.GetKnownSpellsForSelection(
+                characterBuildingService, heroBuildingData, spellFeature, knownSpells,
+                selectionPolicy?.DedicatedSelectionList == true);
 
         var service = ServiceRepository.GetService<IGamingPlatformService>();
 
@@ -1509,6 +1509,18 @@ internal static class MulticlassGameUi
 
         NormalizeSpellSourceTags(tagBySpell);
         NormalizeSpellSourceTags(group.extraSpellsMap);
+
+        if (unlearn)
+        {
+            // The box represents the learned copy during replacement. Remove only its
+            // display grants; the repertoire keeps its independent preparation sources.
+            foreach (var spell in knownSpells)
+            {
+                group.autoPreparedSpells.Remove(spell);
+                tagBySpell.Remove(spell);
+                group.extraSpellsMap.Remove(spell);
+            }
+        }
 
         group.CommonBind(null, unlearn ? SpellBox.BindMode.Unlearn : SpellBox.BindMode.Learning, spellBoxChanged,
             allSpells, null, null, group.autoPreparedSpells, unlearnedSpells, tagBySpell,
