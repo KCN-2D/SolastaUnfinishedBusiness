@@ -21,6 +21,46 @@ internal static class MotionContext
     private const double StepHigh = 0.4 - Epsilon;
     private const double StepLow = 0.1 - Epsilon;
 
+    internal static int ComputeJumpDistance(int3 delta)
+    {
+        return Math.Max(Math.Abs(delta.y), Math.Max(Math.Abs(delta.x), Math.Abs(delta.z)));
+    }
+
+    internal static RulesetCharacter.JumpRuleType GetJumpRule(RulesetCharacter character, int3 delta)
+    {
+        if (Main.Settings.ModifyJumpRulesForArmorAndEncumberance &&
+            (character.IsWearingHeavyArmor() || character.IsWearingMediumArmor()))
+        {
+            return RulesetCharacter.JumpRuleType.Roll;
+        }
+
+        // Free-jump routes can exceed the native range. Crossing that boundary must
+        // retain its rule, regardless of the direction or the length of the route.
+        return ComputeJumpDistance(delta) >= character.MaxJumpRange
+            ? character.MaxJumpType
+            : RulesetCharacter.JumpRuleType.AutomaticSuccess;
+    }
+
+    internal static int ApplyJumpEncumbrance(RulesetCharacter character, int range)
+    {
+        if (!Main.Settings.ModifyJumpRulesForArmorAndEncumberance)
+        {
+            return range;
+        }
+
+        try
+        {
+            character.ComputeEncumbranceThresholds(out _, out _, out float maxEncumbrance);
+            var carriedWeight = character.CharacterInventory.ComputeCarriedWeight();
+            return 1 + (int)Math.Floor(range * (1 - carriedWeight / maxEncumbrance));
+        }
+        catch
+        {
+            // Some actors have no inventory or encumbrance thresholds during refresh.
+            return range;
+        }
+    }
+
     internal sealed class TeleportMovementCost : IValidatePowerUseWithFailure, IValidateMagicEffectBeforeSpend
     {
         private readonly ConditionalWeakTable<RulesetEffect, TeleportUse> _uses = new();

@@ -1,8 +1,10 @@
 using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
+using UnityEngine;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -50,11 +52,10 @@ public static class CharacterPlateDetailedPatcher
         }
     }
 
-    //PATCH: Add classes progression to hero tooltip (MULTICLASS)
-    [HarmonyPatch(typeof(CharacterPlateDetailed), nameof(CharacterPlateDetailed.OnPortraitShowed))]
+    [HarmonyPatch(typeof(CharacterPlateDetailed), nameof(CharacterPlateDetailed.RefreshClassInfo))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
-    public static class OnPortraitShowed_Patch
+    public static class RefreshClassInfo_Patch
     {
         [UsedImplicitly]
         public static void Postfix(CharacterPlateDetailed __instance)
@@ -87,7 +88,10 @@ public static class CharacterPlateDetailedPatcher
 
             __instance.classLabel.Text = MulticlassGameUi.GetAllClassesLabel(guiCharacter, separator) ??
                                          __instance.classLabel.Text;
-            __instance.classLabel.TMP_Text.fontSize = MulticlassGameUi.GetFontSize(classesCount);
+            // Class/subclass names share a fixed area above the ability scores.
+            // Fit the complete localized text there rather than sizing by class count.
+            UiTextHelpers.FitReadableTitle(__instance.classLabel.TMP_Text, 0.55f, 8f,
+                Mathf.Max(2, classesCount));
         }
     }
 }

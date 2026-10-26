@@ -1,0 +1,49 @@
+# Original Grip19 prop. Original material albedo; physical surface normal bake.
+
+newmtl CrossbowWalnut
+Kd 1 1 1
+Ka 1 1 1
+Ks .5 .5 .5
+Ke 0 0 0
+Ns 240.000000
+Ni 1.5
+d 1
+illum 2
+map_Kd CrossbowWalnut.png
+map_Bump CrossbowWalnutNormal.png
+
+newmtl CrossbowIron
+Kd 1 1 1
+Ka 1 1 1
+Ks .5 .5 .5
+Ke 0 0 0
+Ns 430.000000
+Ni 1.5
+d 1
+illum 2
+map_Kd CrossbowIron.png
+map_Bump CrossbowIronNormal.png
+
+newmtl CrossbowLeather
+Kd 1 1 1
+Ka 1 1 1
+Ks .5 .5 .5
+Ke 0 0 0
+Ns 130.000000
+Ni 1.5
+d 1
+illum 2
+map_Kd CrossbowLeather.png
+map_Bump CrossbowLeatherNormal.png
+
+newmtl CrossbowHorn
+Kd 1 1 1
+Ka 1 1 1
+Ks .5 .5 .5
+Ke 0 0 0
+Ns 320.000000
+Ni 1.5
+d 1
+illum 2
+map_Kd CrossbowHorn.png
+map_Bump CrossbowHornNormal.png

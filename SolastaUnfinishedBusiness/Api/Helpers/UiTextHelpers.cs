@@ -39,6 +39,25 @@ internal static class UiTextHelpers
     private const int MaxSpellLevel = 9;
     private static Dictionary<string, string> _spellSortTitles;
 
+    internal static void ConfigureCharacterSelectionScroll(ScrollRect scroll)
+    {
+        if (!scroll)
+        {
+            return;
+        }
+
+        var viewport = scroll.viewport ? scroll.viewport : scroll.transform as RectTransform;
+        if (!viewport)
+        {
+            return;
+        }
+
+        // ScrollRect sensitivity uses local UI units, so the visible axis gives a
+        // consistent wheel step across horizontal cards and vertical descriptions.
+        var length = scroll.horizontal && !scroll.vertical ? viewport.rect.width : viewport.rect.height;
+        scroll.scrollSensitivity = Mathf.Clamp(length * 0.10f, 36f, 96f);
+    }
+
     internal static void SortSpellDefinitions(List<SpellDefinition> spells, IComparer<SpellDefinition> comparer)
     {
         // Keep each native comparer and release translations at the end of this sort.
@@ -999,7 +1018,7 @@ internal static class UiTextHelpers
             (Vector2)text.rectTransform.parent.InverseTransformVector(movement);
         text.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
             Mathf.Max(state.OriginalRectHeight, Mathf.Ceil(height + 4f)));
-        FitCharacterCaption(text, lines, state);
+        FitCharacterCaption(text, lines);
     }
 
     internal static void FitCharacterStageToggleCaption(GuiLabel label)
@@ -1095,25 +1114,17 @@ internal static class UiTextHelpers
             var visibleLines = singleLine.x + 4f <= available.x && singleLine.y + 4f <= available.y
                 ? 1
                 : lines <= 2 && wrapped.x + 4f <= available.x && wrapped.y + 4f <= available.y ? 2 : 3;
-            FitCharacterCaption(text, visibleLines, state);
+            FitCharacterCaption(text, visibleLines);
         }
     }
 
-    private static void FitCharacterCaption(TMP_Text text, int maxVisibleLines, TextFitState state)
+    private static void FitCharacterCaption(TMP_Text text, int maxVisibleLines)
     {
         // Midline uses glyph extents rather than font ascenders. Preserve horizontal alignment.
         const int horizontalAlignmentMask = 0xff;
         text.alignment = (TextAlignmentOptions)(((int)text.alignment & horizontalAlignmentMask) |
                                                ((int)TextAlignmentOptions.MidlineLeft & ~horizontalAlignmentMask));
         FitReadableTitle(text, 0.7f, 12f, maxVisibleLines);
-        // TMP silently hides later rows at maxVisibleLines without marking text as truncated.
-        text.maxVisibleLines = int.MaxValue;
-        text.ForceMeshUpdate(true);
-        if (TryGetTextContentSize(text, out var available))
-        {
-            state.RememberFitSignature($"{nameof(FitReadableTitle)}:{maxVisibleLines}", text, available, 0.7f, 12f,
-                ShouldUseCjkCompactLineSpacing(text));
-        }
     }
 
     internal static Vector2 GetReadableTitleMinimumSize(TMP_Text text, float minFontScale, float absoluteMin,
@@ -1173,7 +1184,7 @@ internal static class UiTextHelpers
             return;
         }
 
-        var singleLine = MeasureTitleGlyphs(text, maximum, false, 0f, state, out _);
+        var singleLine = MeasureTitleGlyphs(text, maximum, false, 0f, state, out var unwrappedLines);
         var wrap = singleLine.x + 4f > available.x || singleLine.y + 4f > available.y;
         var fontSize = maximum;
         if (wrap)
@@ -1197,7 +1208,10 @@ internal static class UiTextHelpers
             fontSize = low;
         }
 
-        ApplyCardTextFit(text, wrap ? maxVisibleLines : 1, wrap, fontSize, state);
+        ApplyCardTextFit(text, wrap ? maxVisibleLines : Math.Max(1, unwrappedLines), wrap, fontSize, state);
+        // The line limit guides fitting. TMP otherwise silently hides explicit
+        // newlines or fallback rows without reporting truncated text.
+        text.maxVisibleLines = int.MaxValue;
         text.overflowMode = TextOverflowModes.Overflow;
         text.ForceMeshUpdate(true);
         state.RememberFitSignature(fitKind, text, available, minFontScale, absoluteMin, compactSpacing);

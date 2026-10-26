@@ -25,6 +25,16 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterActionPanelPatcher
 {
+    [HarmonyPatch(typeof(CharacterActionPanel), nameof(CharacterActionPanel.CursorCaptionAborted))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class CursorCaptionAborted_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CharacterActionPanel __instance) =>
+            FreeJumpContext.CancelExplorationSelection(__instance);
+    }
+
     private static bool HasShapeChangeForm(RulesetEffectSpell rulesetEffectSpell)
     {
         return rulesetEffectSpell.SpellDefinition.EffectDescription.EffectForms.Any(x =>

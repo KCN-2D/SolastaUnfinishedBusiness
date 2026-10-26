@@ -64,6 +64,7 @@ Setting/&TooltipWidthTitle=Larghezza del suggerimento
 Setting/&UnlockAdditionalLoreFriendlyNamesTitle=Sblocca nomi aggiuntivi adatti alla tradizione
 Setting/&UnlockAllNpcFacesTitle=Sblocca i volti dei PNG
 Setting/&UnlockBeardlessDwarvesTitle=Sblocca i nani senza barba
+Setting/&EnableAllRaceBodyShapesTitle=Regolazione della corporatura per tutte le razze
 Setting/&UnlockEyeStylesTitle=Sblocca stili occhi
 Setting/&UnlockGlowingColorsForAllMarksAndTattoosTitle=Sblocca i segni luminosi e i colori dei tatuaggi
 Setting/&UnlockGlowingEyeColorsTitle=Sblocca i colori degli occhi luminosi

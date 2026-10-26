@@ -204,8 +204,8 @@ namespace UBVerification
                 throw new InvalidOperationException("The game has no unique owned render window: matching=" + count +
                     "; expected=" + width + "x" + height + "; visibleSizes=" + sizes);
             RequireOwnWindow(window);
-            uint owner;
-            if (GetWindowThreadProcessId(window, out owner) != GetCurrentThreadId())
+            uint windowProcessId;
+            if (GetWindowThreadProcessId(window, out windowProcessId) != GetCurrentThreadId())
                 throw new InvalidOperationException("The render window is not owned by the current game thread.");
             return window;
         }
@@ -316,7 +316,7 @@ namespace UBVerification
                 receipt.before = before;
                 RequireFocusDesktop(before);
                 var window = FindCurrentRenderWindow(width, height);
-                if (window != focusGameWindow || focusPeer == IntPtr.Zero || focusPreparation?.completed != true)
+                if (window != focusGameWindow || focusPeer == IntPtr.Zero || focusPreparation == null || focusPreparation.completed != true)
                     throw new InvalidOperationException("The owned focus peer has not been prepared.");
                 RequireFocusWindows(before, window.ToInt64(), focusPeer.ToInt64(), true);
                 if (before.guiThread.activeWindow != window.ToInt64())

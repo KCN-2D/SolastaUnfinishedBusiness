@@ -237,6 +237,7 @@ public class Settings : UnityModManager.ModSettings
     [MultiplayerLocal] [Tag(Type = TagType.QoL)] public bool EnableStatsOnHeroTooltip { get; set; }
     [MultiplayerLocal] public bool EnableAdditionalBackstoryDisplay { get; set; }
     [MultiplayerLocal] public bool EnableExtendedProficienciesPanelDisplay { get; set; }
+    [MultiplayerLocal] public bool EnablePermanentDefensesPanelDisplay { get; set; }
     [MultiplayerLocal] public bool HideMonsterHitPoints { get; set; }
     [MultiplayerLocal] public bool RemoveBugVisualModels { get; set; }
     [MultiplayerLocal] [Tag(Type = TagType.QoL)] public bool ShowButtonWithControlledMonsterInfo { get; set; }

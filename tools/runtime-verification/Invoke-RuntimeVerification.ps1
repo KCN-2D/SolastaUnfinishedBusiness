@@ -8,6 +8,7 @@ param(
     [string] $GameExePath,
     [string] $EvidenceRoot,
     [string] $PlayerLogPath,
+    [string] $NativePreferencesInputDirectory,
     [switch] $DedicatedPlayerLog,
     [switch] $ShowGameWindow,
     [switch] $RunInBackground,
@@ -23,6 +24,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'NativeDisplaySettings.ps1')
+. (Join-Path $PSScriptRoot 'EvidencePaths.ps1')
 if ($RunInBackground -and $StartupOnly) { throw 'RunInBackground requires the temporary probe harness and cannot be combined with StartupOnly.' }
 if ($RequireOtherAppForeground -and $StartupOnly) { throw 'RequireOtherAppForeground requires the temporary probe harness and cannot be combined with StartupOnly.' }
 if ($RequireOtherAppForeground -and $ShowGameWindow) { throw 'RequireOtherAppForeground cannot be combined with ShowGameWindow.' }
@@ -90,6 +92,129 @@ function Write-Json([string] $Path, [object] $Value) {
     [IO.File]::WriteAllText($Path, ($Value | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
 }
 
+function Get-VerificationModLoadPlan([object[]] $ModInfos, [string] $VerificationId = 'UBRuntimeVerification') {
+    # Match UMM's case-sensitive dependency IDs and version suffix parser.
+    function DependencyId([string] $Value) {
+        $match = [regex]::Match($Value, '(.*)-(\d+\.\d+\.\d+).*')
+        if ($match.Success) { return $match.Groups[1].Value }
+        return $Value
+    }
+    function Dependencies($Info) {
+        foreach ($name in @('Requirements', 'LoadAfter')) {
+            if ($Info.PSObject.Properties[$name]) {
+                foreach ($value in @($Info.$name)) {
+                    if (!$value) { continue }
+                    if ($name -eq 'Requirements') { DependencyId ([string]$value) }
+                    else { [string]$value }
+                }
+            }
+        }
+    }
+    $infos = $ModInfos | ConvertTo-Json -Depth 30 | ConvertFrom-Json
+    $byId = [Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
+    foreach ($info in $infos) {
+        if (!$info.Id -or $byId.ContainsKey([string]$info.Id)) { throw 'Installed mod IDs must be present and unique.' }
+        $byId.Add([string]$info.Id, $info)
+    }
+    if (!$byId.ContainsKey('SolastaUnfinishedBusiness') -or !$byId.ContainsKey($VerificationId)) {
+        throw 'The native isolation load plan requires UB and its temporary verification mod.'
+    }
+    if (@(Dependencies $byId[$VerificationId]).Count -ne 0) {
+        throw 'The native isolation mod must load without dependencies or LoadAfter edges.'
+    }
+    $ub = $byId['SolastaUnfinishedBusiness']
+    $requirements = @()
+    if ($ub.PSObject.Properties['Requirements']) { $requirements = @($ub.Requirements) }
+    $existing = @($requirements | Where-Object { (DependencyId ([string]$_)) -ceq $VerificationId })
+    foreach ($requirement in $existing) {
+        $match = [regex]::Match([string]$requirement, '(.*)-(\d+\.\d+\.\d+).*')
+        if ($match.Success -and [version]$match.Groups[2].Value -gt [version]$byId[$VerificationId].Version) {
+            throw 'The temporary isolation mod does not meet an existing UB version requirement.'
+        }
+    }
+    if ($existing.Count -eq 0) { $requirements += $VerificationId }
+    if ($ub.PSObject.Properties['Requirements']) { $ub.Requirements = $requirements }
+    else { $ub | Add-Member -NotePropertyName Requirements -NotePropertyValue $requirements }
+    $colors = [Collections.Generic.Dictionary[string,int]]::new([StringComparer]::Ordinal)
+    $visit = {
+        param([string]$Id)
+        if ($colors.ContainsKey($Id)) {
+            if ($colors[$Id] -eq 1) { throw "Cyclic UMM dependency or LoadAfter edge: $Id" }
+            return
+        }
+        $colors[$Id] = 1
+        foreach ($dependency in @(Dependencies $byId[$Id])) {
+            if ($byId.ContainsKey($dependency)) { & $visit $dependency }
+        }
+        $colors[$Id] = 2
+    }
+    foreach ($id in $byId.Keys) { & $visit $id }
+    return $ub
+}
+
+function New-VerificationNativeUserData([string] $SourceDirectory, [string] $Destination,
+    [string] $PreferencesDirectory, [string] $Owner) {
+    if (Test-Path -LiteralPath $Destination) { throw 'The isolated native data directory already exists.' }
+    [void][IO.Directory]::CreateDirectory($Destination)
+    [IO.File]::WriteAllText((Join-Path $Destination '.ub-runtime-userdata'), $Owner)
+    $inputs = @()
+    foreach ($name in @('UserPreferences.xml', 'PlatformPreferences.xml')) {
+        $source = Join-Path $PreferencesDirectory $name
+        if (Test-Path -LiteralPath $source -PathType Leaf) {
+            $inputs += @{ source = $source; relative = $name }
+        }
+    }
+    # These are read inputs for loading custom locations and cross-campaign lore.
+    # Saves and character output directories start empty and remain process-owned.
+    foreach ($name in @('UserContent', 'TempSessionData')) {
+        $source = Join-Path $SourceDirectory $name
+        if (!(Test-Path -LiteralPath $source -PathType Container)) { continue }
+        foreach ($item in @(Get-Item -LiteralPath $source) + @(Get-ChildItem -LiteralPath $source -Recurse -Force)) {
+            if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Native data staging does not follow reparse points.' }
+            if (!$item.PSIsContainer) {
+                $relative = $item.FullName.Substring((Get-FullPath $SourceDirectory).Length).TrimStart('\', '/')
+                $inputs += @{ source = $item.FullName; relative = $relative }
+            }
+        }
+    }
+    $receipt = @()
+    foreach ($inputFile in $inputs) {
+        $target = Join-Path $Destination $inputFile.relative
+        if (!(Test-IsWithin $target $Destination)) { throw 'Native input escapes the isolated directory.' }
+        [void][IO.Directory]::CreateDirectory((Split-Path -Parent $target))
+        $hash = (Get-FileHash -LiteralPath $inputFile.source -Algorithm SHA256).Hash
+        [IO.File]::Copy($inputFile.source, $target, $false)
+        if ((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ne $hash -or
+            (Get-FileHash -LiteralPath $inputFile.source -Algorithm SHA256).Hash -ne $hash) {
+            throw 'A native input changed while being copied into isolation.'
+        }
+        $receipt += @{ source = $inputFile.source; relative = $inputFile.relative; sha256 = $hash }
+    }
+    return $receipt
+}
+
+function Get-VerificationNativeUserFiles([string] $Directory) {
+    $paths = [Collections.Generic.SortedSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($name in @('UserPreferences.xml', 'PlatformPreferences.xml')) { [void]$paths.Add((Join-Path $Directory $name)) }
+    foreach ($name in @('Saves', 'Characters')) {
+        $folder = Join-Path $Directory $name
+        if (Test-Path -LiteralPath $folder -PathType Container) {
+            foreach ($file in Get-ChildItem -LiteralPath $folder -File -Recurse -Force) { [void]$paths.Add($file.FullName) }
+        }
+    }
+    foreach ($path in $paths) {
+        $exists = Test-Path -LiteralPath $path -PathType Leaf
+        $entry = [ordered]@{ path = $path; exists = $exists; size = $null; lastWriteUtcTicks = $null; sha256 = $null }
+        if ($exists) {
+            $file = Get-Item -LiteralPath $path
+            $entry.size = $file.Length
+            $entry.lastWriteUtcTicks = $file.LastWriteTimeUtc.Ticks
+            $entry.sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+        }
+        $entry
+    }
+}
+
 function Remove-OwnedDirectory([string] $Path, [string] $Parent) {
     $resolved = Get-FullPath $Path
     if (-not (Test-IsWithin $resolved $Parent) -or $resolved -eq (Get-FullPath $Parent)) {
@@ -131,7 +256,8 @@ $allowedEvidenceRoot = Join-Path $repoRoot 'tools\game-test\artifacts'
 if (-not (Test-IsWithin $EvidenceRoot $allowedEvidenceRoot)) {
     throw "EvidenceRoot must be within $allowedEvidenceRoot."
 }
-$runDirectory = Join-Path $EvidenceRoot ((Get-Date -Format 'yyyyMMdd-HHmmss-fff') + '-' + $RunName)
+$evidencePathPlan = Get-VerificationEvidencePath -Root $EvidenceRoot -Name $RunName -ArtifactRoot $allowedEvidenceRoot -Layout Runtime
+$runDirectory = $evidencePathPlan.directory
 if ($DedicatedPlayerLog) {
     if ($PlayerLogPath) { throw 'DedicatedPlayerLog and PlayerLogPath cannot be combined.' }
     # Unity writes only this new run log; the existing user Player.log is never read or copied.
@@ -142,6 +268,7 @@ if (-not $PlayerLogPath) {
 }
 $PlayerLogPath = Get-FullPath $PlayerLogPath
 New-Item -ItemType Directory -Path $runDirectory | Out-Null
+Write-Json (Join-Path $runDirectory 'Directory.json') $evidencePathPlan
 Write-Host "Verification evidence: $runDirectory"
 $workDirectory = Join-Path $runDirectory 'Build'
 $modsDirectory = Join-Path $gameDirectory 'Mods'
@@ -152,6 +279,14 @@ $outputDirectory = Join-Path $repoRoot 'tools\CustomBuildLocal\Output\SolastaUnf
 $settingsPath = Join-Path $installedUbDirectory 'Settings.xml'
 $paramsPath = Join-Path $managedDirectory 'UnityModManager\Params.xml'
 $nativePreferencesDirectory = Join-Path $env:USERPROFILE 'AppData\LocalLow\Tactical Adventures\Solasta'
+$nativeUserDataOwner = [guid]::NewGuid().ToString('N')
+$nativeUserDataRoot = Join-Path $allowedEvidenceRoot '.native'
+$nativeUserDataDirectory = Join-Path $nativeUserDataRoot $nativeUserDataOwner
+$nativeUserFilesBefore = $null
+if ($NativePreferencesInputDirectory) {
+    if ($StartupOnly) { throw 'Isolated preference inputs require the temporary probe harness, not StartupOnly.' }
+    $NativePreferencesInputDirectory = (Resolve-Path -LiteralPath $NativePreferencesInputDirectory).ProviderPath
+} else { $NativePreferencesInputDirectory = $nativePreferencesDirectory }
 $backupDirectory = Join-Path $runDirectory 'SettingsBackup'
 $settingsBackups = @()
 $nativeDisplayBackup = $null
@@ -168,6 +303,7 @@ $originalLogContent = ''
 $result = [ordered]@{
     status = 'incomplete'; reason = 'Verification has not completed.'; runName = $RunName
     evidenceDirectory = $runDirectory; startedUtc = [datetime]::UtcNow.ToString('O')
+    evidencePathPlan = $evidencePathPlan
     validationOnly = [bool] $ValidateOnly; startupOnly = [bool] $StartupOnly; compilationSucceeded = $false
     dedicatedPlayerLog = [bool] $DedicatedPlayerLog
     showGameWindow = [bool] $ShowGameWindow; runInBackground = [bool] $RunInBackground
@@ -301,7 +437,7 @@ try {
             @{ path = $source; sha256 = $sourceHash; archivePath = $archivePath }
         })
         $sources = $archivedSources
-        $result['runnerSources']=@('RuntimeVerificationHarness.cs','WindowsDesktop.cs','WindowsDesktop.ps1','Invoke-RuntimeVerification.ps1','NativeDisplaySettings.ps1' | ForEach-Object {
+        $result['runnerSources']=@('RuntimeVerificationHarness.cs','WindowsDesktop.cs','WindowsDesktop.ps1','Invoke-RuntimeVerification.ps1','NativeDisplaySettings.ps1','EvidencePaths.ps1' | ForEach-Object {
             $source=Join-Path $PSScriptRoot $_
             $sourceHash=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
             $archivePath=Join-Path $sourceArchiveDirectory ('runtime-' + $_)
@@ -352,6 +488,10 @@ try {
     internal static class RuntimeVerificationConfiguration
     {
         internal const string EvidenceDirectory = $($runDirectory | ConvertTo-Json -Compress);
+        internal const string NativeUserDataDirectory = $($nativeUserDataDirectory | ConvertTo-Json -Compress);
+        internal const string NativeUserDataRoot = $($nativeUserDataRoot | ConvertTo-Json -Compress);
+        internal const string NativeUserDataOwner = $($nativeUserDataOwner | ConvertTo-Json -Compress);
+        internal const string NativeOriginalGameDirectory = $($nativePreferencesDirectory | ConvertTo-Json -Compress);
         internal const int TimeoutSeconds = $TimeoutSeconds;
         internal static readonly bool RunInBackground = $($RunInBackground.ToString().ToLowerInvariant());
         internal static readonly bool RequireOtherAppForeground = $($RequireOtherAppForeground.ToString().ToLowerInvariant());
@@ -413,6 +553,14 @@ try {
     }
     else {
         Assert-NoGameProcess
+        if (-not $StartupOnly) {
+            $nativeUserFilesBefore = @(Get-VerificationNativeUserFiles $nativePreferencesDirectory)
+            Write-Json (Join-Path $runDirectory 'Native-OriginalFiles-Before.json') $nativeUserFilesBefore
+            $nativeInputs = @(New-VerificationNativeUserData $nativePreferencesDirectory $nativeUserDataDirectory $NativePreferencesInputDirectory $nativeUserDataOwner)
+            [IO.File]::WriteAllText((Join-Path $nativeUserDataDirectory '.ub-runtime-evidence'), $runDirectory)
+            Write-Json (Join-Path $runDirectory 'Native-UserDataInputs.json') $nativeInputs
+            Write-Json (Join-Path $runDirectory 'Native-UserDataLocation.json') @{ path = $nativeUserDataDirectory; owner = $nativeUserDataOwner; evidenceDirectory = $runDirectory }
+        }
         New-Item -ItemType Directory -Path $backupDirectory | Out-Null
         $nativeDisplayBackup=Get-NativeDisplaySettingsSnapshot
         Assert-NativeDisplaySettingsSnapshot $nativeDisplayBackup
@@ -420,8 +568,8 @@ try {
         foreach ($entry in @(
             @{ Path = $settingsPath; Name = 'UB-Settings.xml' },
             @{ Path = $paramsPath; Name = 'UMM-Params.xml' },
-            @{ Path = (Join-Path $nativePreferencesDirectory 'UserPreferences.xml'); Name = 'Native-UserPreferences.xml' },
-            @{ Path = (Join-Path $nativePreferencesDirectory 'PlatformPreferences.xml'); Name = 'Native-PlatformPreferences.xml' }
+            @{ Path = (Join-Path $installedUbDirectory 'Info.json'); Name = 'UB-Info.json' },
+            @{ Path = (Join-Path $nativePreferencesDirectory 'CrashCheckFile.txt'); Name = 'Native-CrashCheckFile.txt' }
         )) {
             $exists = Test-Path -LiteralPath $entry.Path
             $backup = @{ Path = $entry.Path; Exists = $exists; Bytes = $null; LastWriteTimeUtc = $null }
@@ -458,8 +606,15 @@ try {
             Write-Json (Join-Path $probeDirectory 'Info.json') @{
                 Id = $probeId; DisplayName = 'Temporary UB Runtime Verification'; Version = '1.0.0'
                 ManagerVersion = $sourceInfo.ManagerVersion; AssemblyName = "$probeId.dll"
-                EntryMethod = 'RuntimeVerificationHarness.Load'; Requirements = @('SolastaUnfinishedBusiness')
+                EntryMethod = 'RuntimeVerificationHarness.Load'; Requirements = @()
             }
+            $modInfos = @(Get-ChildItem -LiteralPath $modsDirectory -Directory | ForEach-Object {
+                $infoPath = Join-Path $_.FullName 'Info.json'
+                if (Test-Path -LiteralPath $infoPath -PathType Leaf) { [IO.File]::ReadAllText($infoPath) | ConvertFrom-Json }
+            })
+            $loadPlan = Get-VerificationModLoadPlan $modInfos $probeId
+            Write-Json (Join-Path $installedUbDirectory 'Info.json') $loadPlan
+            $result['nativeIsolationLoadOrder'] = @{ before = $probeId; after = 'SolastaUnfinishedBusiness'; cyclesChecked = $true }
         }
         Assert-NoGameProcess
         $launchParameters = @{
@@ -469,15 +624,20 @@ try {
         if ($DedicatedPlayerLog) {
             $launchParameters.ArgumentList = @('-logFile', ('"{0}"' -f $PlayerLogPath))
         }
-        if ($RequireOtherAppForeground) {
-            try {
-                $backgroundArguments=@()
-                if ($DedicatedPlayerLog) { $backgroundArguments+=@('-logFile',$PlayerLogPath) }
-                $backgroundLease=Start-VerificationBackgroundProcess -FilePath $GameExePath -WorkingDirectory $gameDirectory -ArgumentList $backgroundArguments -DesktopName $expectedDesktopName
-                $process=$backgroundLease.Process
-                $result.foreground.primaryThreadId=$backgroundLease.PrimaryThreadId
-            } catch { $foregroundUnavailable=$true; throw }
-        } else { $process = Start-Process @launchParameters }
+        $previousNativeOwner = [Environment]::GetEnvironmentVariable('UB_RUNTIME_VERIFICATION_OWNER', 'Process')
+        try {
+            if (-not $StartupOnly) { [Environment]::SetEnvironmentVariable('UB_RUNTIME_VERIFICATION_OWNER', $nativeUserDataOwner, 'Process') }
+            if ($RequireOtherAppForeground) {
+                try {
+                    $backgroundArguments=@()
+                    if ($DedicatedPlayerLog) { $backgroundArguments+=@('-logFile',$PlayerLogPath) }
+                    $backgroundLease=Start-VerificationBackgroundProcess -FilePath $GameExePath -WorkingDirectory $gameDirectory -ArgumentList $backgroundArguments -DesktopName $expectedDesktopName
+                    $process=$backgroundLease.Process
+                    $result.foreground.primaryThreadId=$backgroundLease.PrimaryThreadId
+                } catch { $foregroundUnavailable=$true; throw }
+            } else { $process = Start-Process @launchParameters }
+        }
+        finally { [Environment]::SetEnvironmentVariable('UB_RUNTIME_VERIFICATION_OWNER', $previousNativeOwner, 'Process') }
         $processStartTime = $process.StartTime
         $result.processId = $process.Id
         $result['processStartedUtc']=$processStartTime.ToUniversalTime().ToString('O')
@@ -747,6 +907,30 @@ finally {
         } catch { $result.status='incomplete'; $result.reason+=' Background proof unavailable: ' + $_.Exception.Message }
     }
     if ($gameStopped) {
+        if ($null -ne $nativeUserFilesBefore) {
+            try {
+                $nativeUserFilesAfter = @(Get-VerificationNativeUserFiles $nativePreferencesDirectory)
+                Write-Json (Join-Path $runDirectory 'Native-OriginalFiles-After.json') $nativeUserFilesAfter
+                if (($nativeUserFilesBefore | ConvertTo-Json -Depth 8 -Compress) -cne
+                    ($nativeUserFilesAfter | ConvertTo-Json -Depth 8 -Compress)) {
+                    throw 'Original native preferences, saves or characters changed. No automatic overwrite was attempted.'
+                }
+                $result['originalNativeFilesUnchanged'] = $true
+                if ($null -ne $process) {
+                    $isolation = Read-SharedText (Join-Path $runDirectory 'Native-UserData.json') | ConvertFrom-Json
+                    if (!$isolation.isolated -or $isolation.processId -ne $result.processId -or
+                        $isolation.originalDirectory -ne $nativePreferencesDirectory -or
+                        $isolation.isolatedDirectory -ne $nativeUserDataDirectory) {
+                        throw 'The game did not prove process-lifetime native user data isolation.'
+                    }
+                    $result['nativeUserDataIsolation'] = $isolation
+                }
+            }
+            catch {
+                $result.status = 'failed'
+                $result.reason += ' Native user data protection failed: ' + $_.Exception.Message
+            }
+        }
         $settingsCleanupErrors=@()
         foreach ($backup in $settingsBackups) {
             try {

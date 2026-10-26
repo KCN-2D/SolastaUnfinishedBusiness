@@ -13,7 +13,11 @@ if ($transaction.gameDirectory -ne $authorized) { throw 'AuthorizedGameDirectory
 if ((Test-GtWithin $authorized $script:GameTestRepo) -or -not (Test-GtWithin $run $script:GameTestArtifactRoot)) { throw 'Recovery requires an installed game and an artifact directory under tools/game-test/artifacts.' }
 Assert-GtGameStopped
 Assert-GtTree $run
-if ($transaction.state -eq 'restored') { Write-Host 'Transaction is already restored.'; return }
+if ($transaction.state -eq 'restored') {
+    [void](Clear-GtRestoredBackup $run)
+    Write-Host 'Transaction is already restored.'
+    return
+}
 $markerPath=Join-Path $authorized 'Mods\.UBGameTestTransaction.json'
 if (Test-Path -LiteralPath $markerPath) {
     $marker=Read-GtObject $markerPath
@@ -106,5 +110,6 @@ $transaction.state='restored'
 $transaction | Add-Member -NotePropertyName restoredUtc -NotePropertyValue ([datetime]::UtcNow.ToString('O')) -Force
 Write-GtJson $manifestPath $transaction
 if (Test-Path -LiteralPath $markerPath) { Remove-Item -LiteralPath $markerPath -Force }
+[void](Clear-GtRestoredBackup $run)
 Write-Host 'Installed files and settings restored with verified hashes and timestamps.'
 } finally { $operationLock.ReleaseMutex(); $operationLock.Dispose() }

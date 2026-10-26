@@ -10,6 +10,26 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class InvocationItemPatcher
 {
+    [HarmonyPatch(typeof(InvocationItem), nameof(InvocationItem.ComputeTraining))]
+    [UsedImplicitly]
+    public static class ComputeTraining_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(InvocationItem __instance, ref bool __0, ref bool __1, ref bool __2)
+        {
+            if (!PermanentDefensesSubPanel.IsDefenseRow(__instance))
+            {
+                return true;
+            }
+
+            // Defensive rows use native static presentation without an invocation definition.
+            __0 = false;
+            __1 = false;
+            __2 = false;
+            return false;
+        }
+    }
+
     [HarmonyPatch(typeof(InvocationItem), nameof(InvocationItem.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

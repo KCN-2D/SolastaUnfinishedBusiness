@@ -132,29 +132,44 @@ internal static class CampaignsContext
     ];
     private static readonly Vector3[] SpellSelectionWorldCorners = new Vector3[4];
     private static SpellSelectionLinePager ActiveSpellSelectionLinePager { get; set; }
+    private static SpellSelectionPanelLayoutState ActiveNativeSpellSelectionLayout { get; set; }
     private static SpellSelectionLineRefreshScope ActiveSpellSelectionLineRefresh { get; set; }
     private static ItemPresentation EmpressGarbOriginalItemPresentation { get; set; }
 
     internal static bool ShouldSuppressSpellSelectionBackgroundWheel()
     {
-        return ActiveSpellSelectionLinePager && ActiveSpellSelectionLinePager.ShouldSuppressBackgroundWheel();
+        return ActiveSpellSelectionLinePager && ActiveSpellSelectionLinePager.ShouldSuppressBackgroundWheel() ||
+               ActiveNativeSpellSelectionLayout && ActiveNativeSpellSelectionLayout.CapturesNativeWheel();
     }
 
     internal static bool ShouldSuppressSpellSelectionBackgroundScroll(Component source)
     {
         return ActiveSpellSelectionLinePager &&
                ActiveSpellSelectionLinePager.ShouldSuppressBackgroundWheel() &&
-               !ActiveSpellSelectionLinePager.IsForegroundControl(source);
+               !ActiveSpellSelectionLinePager.IsForegroundControl(source) ||
+               ActiveNativeSpellSelectionLayout && ActiveNativeSpellSelectionLayout.CapturesNativeWheel() &&
+               !ActiveNativeSpellSelectionLayout.IsNativeForegroundControl(source);
     }
 
     internal static bool TryRouteSpellSelectionWheel(float delta)
     {
-        return ActiveSpellSelectionLinePager && ActiveSpellSelectionLinePager.RouteWheel(delta);
+        return ActiveSpellSelectionLinePager && ActiveSpellSelectionLinePager.RouteWheel(delta) ||
+               ActiveNativeSpellSelectionLayout && ActiveNativeSpellSelectionLayout.RouteNativeWheel(delta);
     }
 
     private static bool TryRouteSpellSelectionWheelAt(float delta, Vector2 position)
     {
         return ActiveSpellSelectionLinePager && ActiveSpellSelectionLinePager.RouteWheelAt(delta, position);
+    }
+
+    private static Vector2 GetSpellSelectionPointerPosition()
+    {
+        // Both layouts share the same device/cursor contract, including gamepad focus.
+        if (Gui.GamepadActive && Gui.InputService != null)
+        {
+            return Gui.InputService.InputPointerPosition;
+        }
+        return Mouse.current != null ? Mouse.current.position.ReadValue() : (Vector2)UnityEngine.Input.mousePosition;
     }
 
     internal static void CancelPendingSpellSelectionBind(SpellSelectionPanel panel)
@@ -178,6 +193,21 @@ internal static class CampaignsContext
             panel.Unbind();
         }
     }
+
+    internal static int GetNativeSpellSelectionMaximum(RulesetCharacter caster,
+        RulesetSpellRepertoire repertoire, bool cantripOnly)
+    {
+        if (cantripOnly) return 0;
+        var maximum = Math.Max(repertoire.MaxSpellLevelOfSpellCastingLevel, repertoire.GetMaxExtraSpellLevel());
+        SharedSpellsContext.FactorMysticArcanum(caster, repertoire, ref maximum);
+        return maximum;
+    }
+
+    internal static void CaptureNativeSpellSelectionLayout(SpellSelectionPanel panel) =>
+        (panel.GetComponent<SpellSelectionPanelLayoutState>() ?? panel.gameObject.AddComponent<SpellSelectionPanelLayoutState>()).CaptureNative(panel);
+
+    internal static void ConfigureNativeSpellSelectionLayout(SpellSelectionPanel panel) =>
+        panel.GetComponent<SpellSelectionPanelLayoutState>()?.ConfigureNative();
 
     internal static void ToggleVttCamera()
     {
@@ -592,7 +622,6 @@ internal static class CampaignsContext
         SpellSelectionPanel panel,
         RectTransform holder)
     {
-        Canvas.ForceUpdateCanvases();
         SetAllSpellSelectionLineTablesVisible(holder, true);
         LayoutRebuilder.ForceRebuildLayoutImmediate(holder);
         LayoutRebuilder.ForceRebuildLayoutImmediate(panel.RectTransform);
@@ -960,7 +989,6 @@ internal static class CampaignsContext
         var panelWidth = Mathf.Max(1f, width + 2f * SpellSelectionBodyPadding);
         var panelHeight = Mathf.Max(1f, height + 2f * SpellSelectionBodyPadding);
 
-        Canvas.ForceUpdateCanvases();
         LayoutRebuilder.ForceRebuildLayoutImmediate(holder);
         panel.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, panelWidth);
         panel.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, panelHeight);
@@ -1252,9 +1280,53 @@ internal static class CampaignsContext
         private Rect _hudCanvasBounds;
         private int _hudCanvasChildren;
         private readonly Dictionary<LayoutGroup, bool> _layouts = new();
+        private bool _native;
+        private bool _nativeReady;
+        private bool _nativeDirty;
+        private string _nativeLanguage;
+        private SpellRepertoireLine[] _nativeLines = [];
 
         internal bool HasPendingBind => _pendingPanel;
         internal bool IsApplied => _panel;
+        internal bool IsNativeApplied => _native;
+
+        internal void CaptureNative(SpellSelectionPanel panel)
+        {
+            Restore();
+            _panel = panel;
+            _native = true;
+            _nativeReady = false;
+            _size = panel.RectTransform.sizeDelta;
+            _position = panel.RectTransform.anchoredPosition;
+            var canvas = panel.GetComponentsInParent<Canvas>(true).FirstOrDefault();
+            _canvasRect = canvas ? (canvas.rootCanvas ? canvas.rootCanvas : canvas).transform as RectTransform : null;
+            SpellSelectionPanelLayouts.Add(this);
+            ActiveNativeSpellSelectionLayout = this;
+            enabled = true;
+        }
+
+        internal void ConfigureNative()
+        {
+            if (!_native || !_panel) return;
+            _nativeLines = _panel.spellRepertoireLines.ToArray();
+            _nativeLanguage = I2.Loc.LocalizationManager.CurrentLanguageCode;
+            _nativeReady = true;
+            _nativeDirty = false;
+            FloatingPanelBounds.ConfigureOverflowViewport(_panel, _panel.spellRepertoireLinesTable,
+                () => GetSpellSelectionSafeCanvasBounds(_panel, _canvasRect));
+        }
+
+        internal void InvalidateNative() => _nativeDirty = true;
+
+        internal bool CapturesNativeWheel() => _native && _nativeReady && _panel &&
+            !FloatingPanelBounds.ShouldSuppressBackgroundWheel(null) && FloatingPanelBounds.CapturesOverflowWheel(_panel, GetSpellSelectionPointerPosition());
+
+        internal bool RouteNativeWheel(float delta) => _native && _nativeReady && _panel &&
+            !FloatingPanelBounds.ShouldSuppressBackgroundWheel(null) &&
+            FloatingPanelBounds.RouteOverflowWheel(_panel, delta, GetSpellSelectionPointerPosition());
+
+        internal bool IsNativeForegroundControl(Component source) =>
+            _panel && FloatingPanelBounds.IsOverflowForegroundControl(_panel, source);
 
         internal void DeferBind(SpellSelectionPanel panel,
             SpellsByLevelBox.SpellCastEngagedHandler callback, ActionDefinitions.ActionType actionType,
@@ -1516,6 +1588,29 @@ internal static class CampaignsContext
 
         private void LateUpdate()
         {
+            if (_native)
+            {
+                if (!_panel || !_canvasRect || !_nativeReady || !_panel.gameObject.activeInHierarchy || _panel.Hiding) return;
+                var language = I2.Loc.LocalizationManager.CurrentLanguageCode;
+                if (_nativeLanguage != language)
+                {
+                    _nativeLanguage = language;
+                    foreach (var line in _nativeLines.Where(line => line && line.showHeader && line.spellRepertoire != null))
+                    {
+                        line.headerLabel.Text = SpellSelectionContext.TryGetOption(line.spellRepertoire, out var option)
+                            ? option.SourceTitle : line.spellRepertoire.FormatShortHeader();
+                        UiTextHelpers.FitSideLabel(line.headerLabel);
+                    }
+                    _nativeDirty = true;
+                }
+                if (HudBoundsChanged(_canvasRect)) _nativeDirty = true;
+                if (_nativeDirty)
+                {
+                    _nativeDirty = false;
+                    FloatingPanelBounds.InvalidateOverflowViewport(_panel);
+                }
+                return;
+            }
             if (_panel)
             {
                 foreach (var layout in _layouts.Keys)
@@ -1567,6 +1662,16 @@ internal static class CampaignsContext
                 return;
             }
 
+            if (_native)
+            {
+                FloatingPanelBounds.RestoreOverflowViewport(_panel);
+                _native = false;
+                _nativeReady = false;
+                _nativeDirty = false;
+                _nativeLines = [];
+            }
+            if (ActiveNativeSpellSelectionLayout == this) ActiveNativeSpellSelectionLayout = null;
+
             if (_backdrop)
             {
                 _backdrop.gameObject.SetActive(false);
@@ -1591,6 +1696,7 @@ internal static class CampaignsContext
 
         private void OnDestroy()
         {
+            if (ActiveNativeSpellSelectionLayout == this) ActiveNativeSpellSelectionLayout = null;
             SpellSelectionPanelLayouts.Remove(this);
             _hudBlocks.Clear();
         }
@@ -1945,7 +2051,6 @@ internal static class CampaignsContext
             var firstIndex = Array.FindIndex(_lineTables, row => firstSection && firstSection.IsChildOf(row));
             _firstVisibleRow = Mathf.Max(0, firstIndex);
             SetAllSpellSelectionLineTablesVisible(_holder, true);
-            Canvas.ForceUpdateCanvases();
             LayoutRebuilder.ForceRebuildLayoutImmediate(_holder);
             _rowHeights = _lineTables.Select(GetSpellSelectionLineTableHeight).ToArray();
             _contentWidth = _lineTables.Max(GetSpellSelectionLineTableWidth);
@@ -2363,17 +2468,7 @@ internal static class CampaignsContext
                 RectTransformUtility.RectangleContainsScreenPoint(control, position, _pointerCamera));
         }
 
-        private static Vector2 GetPointerPosition()
-        {
-            // Keep native gamepad cursor/focus semantics. Mouse input uses the same existing
-            // Input System device as our keyboard paging, with the native legacy fallback.
-            if (Gui.GamepadActive && Gui.InputService != null)
-            {
-                return Gui.InputService.InputPointerPosition;
-            }
-
-            return Mouse.current != null ? Mouse.current.position.ReadValue() : (Vector2)UnityEngine.Input.mousePosition;
-        }
+        private static Vector2 GetPointerPosition() => GetSpellSelectionPointerPosition();
 
         private int GetMaxFirstVisibleRow()
         {
@@ -2670,7 +2765,8 @@ internal static class CampaignsContext
             line.GetComponent<SpellSelectionLineLayoutState>()?.HideColumnHeading();
         }
 
-        Canvas.ForceUpdateCanvases();
+        // The picker owns these changes. Rebuild its subtree rather than flushing
+        // every canvas again after the initial HUD/screen measurement.
         LayoutRebuilder.ForceRebuildLayoutImmediate(holder);
         foreach (var source in columns.GroupBy(line => GetSpellSelectionSourceKey(line.spellRepertoire)))
         {
@@ -2962,8 +3058,20 @@ internal static class CampaignsContext
 
     internal static IDisposable BeginMultilineSpellSelectionLineRefresh(SpellRepertoireLine line)
     {
-        var state = line.GetComponent<SpellSelectionLineLayoutState>();
         var panel = line.GetComponentInParent<SpellSelectionPanel>();
+        if (Main.Settings.DisableMultilineSpellOffering && panel &&
+            panel.GetComponent<SpellSelectionPanelLayoutState>() is { IsNativeApplied: true } nativeLayout &&
+            line.spellRepertoire != null)
+        {
+            // Native Refresh reuses the stored range. Re-evaluate extra/Arcanum levels
+            // before it rebinds so a newly granted level cannot remain outside that range.
+            line.minSpellLevel = 0;
+            line.maxSpellLevel = GetNativeSpellSelectionMaximum(line.caster?.RulesetCharacter,
+                line.spellRepertoire, line.cantripOnly);
+            nativeLayout.InvalidateNative();
+            return null;
+        }
+        var state = line.GetComponent<SpellSelectionLineLayoutState>();
         return !Main.Settings.DisableMultilineSpellOffering && state && state.IsApplied && panel &&
                panel.spellRepertoireLines.Contains(line)
             ? new SpellSelectionLineRefreshScope(line, state, panel)
@@ -2972,6 +3080,11 @@ internal static class CampaignsContext
 
     internal static void RebindMultilineSpellSelectionLine(SpellRepertoireLine line)
     {
+        if (Main.Settings.DisableMultilineSpellOffering)
+        {
+            line.GetComponentInParent<SpellSelectionPanel>()?.GetComponent<SpellSelectionPanelLayoutState>()?.InvalidateNative();
+            return;
+        }
         var refresh = ActiveSpellSelectionLineRefresh;
         if (refresh != null && refresh.Line == line && !Main.Settings.DisableMultilineSpellOffering)
         {

@@ -70,6 +70,26 @@ public static class SpellRepertoireLinePatcher
     public static class FindAndSortRelevantSpells_Patch
     {
         [UsedImplicitly]
+        public static bool Prefix(List<SpellDefinition> spellDefinitions, SpellRepertoireLine __instance,
+            out bool __state)
+        {
+            foreach (var spell in spellDefinitions)
+            {
+                if (spell.SpellLevel >= __instance.minSpellLevel && spell.SpellLevel <= __instance.maxSpellLevel)
+                {
+                    __state = true;
+                    return true;
+                }
+            }
+
+            // Native Bind prepares every level before applying this line's display range.
+            // Empty off-range results also avoid allocating level boxes that stay hidden.
+            __instance.relevantSpells.Clear();
+            __state = false;
+            return false;
+        }
+
+        [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
             instructions.ReplaceCalls(
                 typeof(List<SpellDefinition>).GetMethod(nameof(List<SpellDefinition>.Sort),
@@ -79,8 +99,14 @@ public static class SpellRepertoireLinePatcher
                     new Action<List<SpellDefinition>, IComparer<SpellDefinition>>(UiTextHelpers.SortSpellDefinitions).Method));
 
         [UsedImplicitly]
-        public static void Postfix([NotNull] List<SpellDefinition> spellDefinitions, SpellRepertoireLine __instance)
+        public static void Postfix([NotNull] List<SpellDefinition> spellDefinitions, SpellRepertoireLine __instance,
+            bool __state)
         {
+            if (!__state)
+            {
+                return;
+            }
+
             var added = SpellActionTypeContext.QualifySpells(
                 __instance.caster?.RulesetCharacter,
                 __instance.spellRepertoire,

@@ -12,7 +12,7 @@ Action/&CastQuickenedDescription=Lancez le sort d'action principale en utilisant
 Action/&BonusActionFreeJumpDescription=Dépense une action bonus pour effectuer un saut renforcé avec votre Force et votre Athlétisme.
 Action/&BonusActionFreeJumpTitle=Saut
 Action/&ExplorationFreeJumpToggleDescription=Active/désactive le mode de déplacement par saut.
-Action/&ExplorationFreeJumpToggleTitle=Activer le saut
+Action/&ExplorationFreeJumpToggleTitle=Saut
 Action/&FreeJumpCheckFormat=Ce saut dépense {0} cases de vitesse de déplacement et demande un test d'Athlétisme DD {1}.
 Action/&FreeJumpMoveCostFormat=Ce saut dépense {0} cases de vitesse de déplacement.
 Action/&FreeJumpAutomaticFailureFormat=<color=#C04040E0>Ce saut dépense {0} cases de vitesse de déplacement et l'atterrissage échouera.</color>
@@ -20,6 +20,7 @@ Action/&FreeJumpSuccessChance=La chance de réussite est de {0}%.
 Action/&FreeJumpSuccessChanceWithAffinity=Avec {0}, la chance de réussite est de {1}%.
 Action/&FreeJumpAdvantage=avantage
 Action/&FreeJumpDisadvantage=désavantage
+Action/&FreeJumpChooseDestinationDescription=Choisissez une case d'atterrissage à portée de saut.
 Action/&CunningStrikeToggleDescription=Activer/désactiver Frappe rusée
 Action/&CunningStrikeToggleTitle=Frappe rusée
 Action/&DragonHideToggleDescription=Vos frappes à mains nues infligent des dégâts tranchants et utilisent au moins un dé de dégâts de taille minimale d4.

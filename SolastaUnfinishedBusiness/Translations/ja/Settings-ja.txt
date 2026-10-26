@@ -164,7 +164,8 @@ ModUi/&EnableDungeonMakerModdedContent=Dungeon Maker Proを有効にします\n<
 ModUi/&EnableElevationCameraToStayAtPosition=<i>+戦闘中に高度カメラを解除してもカメラの位置を維持し、移動可能な範囲を3倍に広げます</i>
 ModUi/&EnableEpicPointsAndArray=能力値の35ポイント購入と強化された固定値セットを有効にします<i><color=#F0DAA0>（17,15,13,12,10,8）</color></i><b><i><color=#C04040E0>（再起動が必要）</color></i></b>
 ModUi/&ForcePointBuyAbilityScores=キャラクター作成時とリスペック時の能力値決定をポイント購入に固定します
-ModUi/&EnableExtendedProficienciesPanelDisplay=習熟パネルの拡張表示を有効にします<i><color=#F0DAA0>（{0}）</color></i>\n<b><i><color=#C04040E0>（キャラクター確認時の処理性能が低下します）</color></i></b>
+ModUi/&EnableExtendedProficienciesPanelDisplay=習熟パネルの拡張表示を有効にします<i><color=#F0DAA0>（{0}）</color></i>
+ModUi/&EnablePermanentDefensesPanelDisplay=種族・クラス・特技・装備による抵抗と完全耐性を表示します
 ModUi/&EnableFeatsAtEvenLevels=レベル2、10、18で<color=#D89555>特技</color>選択を有効にします
 ModUi/&EnableFeatsAtEvenLevelsMiddle=レベル6と14で<color=#D89555>特技</color>選択を有効にします
 ModUi/&EnableFighterIndomitableSaving2024=<color=#D89555>不屈</color>を2024年版の効果に変更します<i><color=#F0DAA0>（セーヴィング・スローの再ロールにファイター・レベルに等しいボーナスを追加）</color></i>

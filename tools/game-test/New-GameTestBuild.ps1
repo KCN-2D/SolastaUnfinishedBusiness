@@ -2,7 +2,8 @@
 param(
     [Parameter(Mandatory=$true)][string]$GameExePath,
     [string]$TargetCommit='HEAD',
-    [string]$EvidenceRoot
+    [string]$EvidenceRoot,
+    [switch]$KeepPackageArchive
 )
 . (Join-Path $PSScriptRoot 'GameTest.Common.ps1')
 if (-not $EvidenceRoot) { $EvidenceRoot = $script:GameTestArtifactRoot }
@@ -11,8 +12,18 @@ $result = [ordered]@{ schemaVersion=1; status='ERROR'; reason='Build has not com
 try {
     $result.environment = Get-GtEnvironment $GameExePath $TargetCommit
     # The formal wrapper overrides SolastaInstallDir with its disposable reference snapshot.
-    & (Join-Path $script:GameTestBuildRoot 'BuildCustomLocalPackage.cmd') *> (Join-Path $directory 'Build.log')
-    if ($LASTEXITCODE -ne 0) { throw "Package build failed with exit code $LASTEXITCODE." }
+    $wrapper = Join-Path $script:GameTestBuildRoot 'BuildCustomLocalPackage.cmd'
+    Assert-GtFile $wrapper
+    $previousErrorPreference = $ErrorActionPreference
+    try {
+        # Windows PowerShell treats native stderr (including Git warnings) as errors.
+        # Keep all diagnostics in the log and use the wrapper's exit code for failure.
+        $ErrorActionPreference = 'Continue'
+        & $wrapper *> (Join-Path $directory 'Build.log')
+        $buildExitCode = $LASTEXITCODE
+    }
+    finally { $ErrorActionPreference = $previousErrorPreference }
+    if ($buildExitCode -ne 0) { throw "Package build failed with exit code $buildExitCode. See Build.log." }
     $after = Get-GtSourceIdentity $TargetCommit
     if ($after.digest -ne $result.environment.source.digest) { throw 'Source or index changed during the build. Build again after edits finish.' }
     foreach ($buildInput in $result.environment.buildInputs) { if ((Get-GtHash $buildInput.path) -ne $buildInput.sha256) { throw 'The build wrapper or runtime patch changed during the build.' } }
@@ -23,8 +34,12 @@ try {
     foreach ($entry in $result.manifest) { Copy-GtFile (Join-Path $output $entry.path) (Join-Path $stage $entry.path) }
     Assert-GtManifest $stage $result.manifest
     $zip = Join-Path $script:GameTestBuildRoot 'SolastaUnfinishedBusiness.zip'
-    Copy-GtFile $zip (Join-Path $directory 'SolastaUnfinishedBusiness.zip')
     $result['zipSha256'] = Get-GtHash $zip
+    $result['packageArchive'] = $null
+    if ($KeepPackageArchive) {
+        Copy-GtFile $zip (Join-Path $directory 'SolastaUnfinishedBusiness.zip')
+        $result.packageArchive = 'SolastaUnfinishedBusiness.zip'
+    }
     $result['builtUbSha256'] = Get-GtHash (Join-Path $stage 'SolastaUnfinishedBusiness.dll')
     $result['packageInfo'] = Read-GtObject (Join-Path $stage 'Info.json')
     $result.status = 'PASS'; $result.reason = 'Formal package build and staging hash verification succeeded.'

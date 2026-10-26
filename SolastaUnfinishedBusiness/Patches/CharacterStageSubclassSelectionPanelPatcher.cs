@@ -17,9 +17,6 @@ public static class CharacterStageSubclassSelectionPanelPatcher
     private const float FeaturesViewportGap = 6f;
     private const string FeaturesViewportName = "SelectedSubclassFeaturesViewport";
     private const float MinFeaturesViewportHeight = 1f;
-    private const float FeaturesScrollSensitivityMin = 36f;
-    private const float FeaturesScrollSensitivityViewportRatio = 0.10f;
-    private const float FeaturesScrollSensitivityMax = 96f;
 
     private static void RefreshSubclassFeaturesLayout(CharacterStageSubclassSelectionPanel panel)
     {
@@ -100,10 +97,7 @@ public static class CharacterStageSubclassSelectionPanelPatcher
         scrollRect.movementType = ScrollRect.MovementType.Clamped;
         scrollRect.horizontalScrollbar = null;
         scrollRect.verticalScrollbar = null;
-        scrollRect.scrollSensitivity = Mathf.Clamp(
-            viewportHeight * FeaturesScrollSensitivityViewportRatio,
-            FeaturesScrollSensitivityMin,
-            FeaturesScrollSensitivityMax);
+        UiTextHelpers.ConfigureCharacterSelectionScroll(scrollRect);
         scrollRect.verticalNormalizedPosition = 1f;
     }
 

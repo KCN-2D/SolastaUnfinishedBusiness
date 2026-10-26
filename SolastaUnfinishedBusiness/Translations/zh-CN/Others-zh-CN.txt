@@ -12,7 +12,7 @@ Action/&CastQuickenedDescription=通过应用快速法术超魔法，使用附�
 Action/&BonusActionFreeJumpDescription=消耗一个附赠动作，基于力量和运动进行强化跳跃。
 Action/&BonusActionFreeJumpTitle=跳跃
 Action/&ExplorationFreeJumpToggleDescription=启用/禁用跳跃移动模式。
-Action/&ExplorationFreeJumpToggleTitle=切换跳跃
+Action/&ExplorationFreeJumpToggleTitle=跳跃
 Action/&FreeJumpCheckFormat=这次跳跃会消耗 {0} 格移动速度，并进行运动 DC {1}检定。
 Action/&FreeJumpMoveCostFormat=这次跳跃会消耗 {0} 格移动速度。
 Action/&FreeJumpAutomaticFailureFormat=<color=#C04040E0>这次跳跃会消耗 {0} 格移动速度，且着陆会失败。</color>
@@ -20,6 +20,7 @@ Action/&FreeJumpSuccessChance=成功率为 {0}%。
 Action/&FreeJumpSuccessChanceWithAffinity={0}时成功率为 {1}%。
 Action/&FreeJumpAdvantage=优势
 Action/&FreeJumpDisadvantage=劣势
+Action/&FreeJumpChooseDestinationDescription=选择跳跃范围内的着陆方格。
 Action/&CunningStrikeToggleDescription=激活/停用狡诈打击
 Action/&CunningStrikeToggleTitle=狡诈打击
 Action/&DragonHideToggleDescription=你的徒手打击造成挥砍伤害，伤害骰的数量至少为1个，骰型至少为d4。

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -74,6 +74,7 @@ public static class GraphicsCharacterPatcher
 
             if (__originalMethod.Name is nameof(GraphicsCharacter.RebindAnimator) or "ResetAnimatorState")
             {
+                RacesContext.ReleaseBodyShape(__instance);
                 CombatAnimationContext.ForgetActionAnimation(__instance);
             }
         }
@@ -96,6 +97,13 @@ public static class GraphicsCharacterPatcher
             if (__originalMethod.Name == nameof(GraphicsCharacter.RebindAnimator))
             {
                 SimulacrumBehavior.ApplyInventoryAppearanceClassAnimation(__instance);
+                CombatAnimationContext.RefreshEquipmentPresentation(__instance);
+            }
+
+            if (__originalMethod.Name is nameof(GraphicsCharacter.RebindAnimator) or "ResetAnimatorState" or
+                nameof(GraphicsCharacter.SetupAfterEquipment))
+            {
+                RacesContext.RefreshBodyShape(__instance);
             }
         }
     }
@@ -107,6 +115,8 @@ public static class GraphicsCharacterPatcher
         [UsedImplicitly]
         public static void Prefix(GraphicsCharacter __instance)
         {
+            CombatAnimationContext.ReleaseEquipmentPresentation(__instance);
+            RacesContext.ReleaseBodyShape(__instance);
             CivilianAnimationContext.ForgetCivilianReaction(__instance);
             CombatAnimationContext.ForgetActionAnimation(__instance);
         }
@@ -120,6 +130,7 @@ public static class GraphicsCharacterPatcher
         public static void Postfix(GraphicsCharacter __instance)
         {
             SimulacrumBehavior.ApplyInventoryAppearanceClassAnimation(__instance);
+            CombatAnimationContext.RefreshEquipmentPresentation(__instance);
             CivilianAnimationContext.RequestCivilianRefresh();
         }
     }
@@ -237,6 +248,7 @@ public static class GraphicsCharacterPatcher
         public static void Postfix(GraphicsCharacter __instance)
         {
             CustomModels.RefreshWieldedItemPresentations(__instance);
+            CombatAnimationContext.RefreshEquipmentPresentation(__instance);
         }
     }
 

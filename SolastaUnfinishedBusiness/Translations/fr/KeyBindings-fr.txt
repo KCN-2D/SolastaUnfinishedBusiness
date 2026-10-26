@@ -64,6 +64,7 @@ Setting/&TooltipWidthTitle=Largeur de l'info-bulle
 Setting/&UnlockAdditionalLoreFriendlyNamesTitle=Débloquez des noms supplémentaires respectueux de l'histoire
 Setting/&UnlockAllNpcFacesTitle=Débloquez les visages des PNJ
 Setting/&UnlockBeardlessDwarvesTitle=Débloquez les nains imberbes
+Setting/&EnableAllRaceBodyShapesTitle=Réglage de la corpulence pour toutes les races
 Setting/&UnlockEyeStylesTitle=Débloquer les styles d'yeux
 Setting/&UnlockGlowingColorsForAllMarksAndTattoosTitle=Débloquez des couleurs de tatouages et de marques lumineuses
 Setting/&UnlockGlowingEyeColorsTitle=Débloquez des couleurs d'yeux éclatantes

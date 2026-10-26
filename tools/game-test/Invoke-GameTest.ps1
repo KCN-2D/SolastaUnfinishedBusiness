@@ -45,6 +45,9 @@ $transactionCreated=$false; $runtimeFailure=$null; $oldCaseEnvironment=[Environm
 try {
     $operationLock=Enter-GtLock
     Add-GtEvent 'validation-started' 'Validating the existing case and staged build.'
+    if ($case.adapter -eq 'startup' -and @($case.initialState.nativePreferences).Count -gt 0) {
+        throw 'Fixed native preferences require a probe harness with isolated user data. Startup-only cases cannot stage real user preferences.'
+    }
     if ($ObserveDisplay -and $case.adapter -eq 'startup') { throw 'ObserveDisplay requires a temporary probe harness.' }
     if (-not $VisualAcceptance -and $case.adapter -eq 'startup') { throw 'The startup adapter has no background harness. Use -VisualAcceptance for startup-only acceptance.' }
     if (-not $VisualAcceptance -and $adapter.saveScenario -and $case.operation.manualGate) { throw 'Manual gate cases require -VisualAcceptance. Native regression does not use mouse or keyboard input.' }
@@ -84,7 +87,7 @@ try {
     Write-GtJson (Join-Path $run 'Environment.json') $environment
     $fixedProbeSources=@($adapter.sources); $fixedProbeType=$adapter.probeType
     $toolSources=@(Get-ChildItem -LiteralPath $PSScriptRoot -File -Filter '*.ps1')
-    $toolSources+=@('Invoke-RuntimeVerification.ps1','RuntimeVerificationHarness.cs','WindowsDesktop.ps1','WindowsDesktop.cs','NativeDisplaySettings.ps1','Probes\DisplayStateProbe.cs' | ForEach-Object { Get-Item -LiteralPath (Join-Path $script:GameTestRepo ('tools\runtime-verification\' + $_)) })
+    $toolSources+=@('Invoke-RuntimeVerification.ps1','RuntimeVerificationHarness.cs','WindowsDesktop.ps1','WindowsDesktop.cs','NativeDisplaySettings.ps1','EvidencePaths.ps1','Probes\DisplayStateProbe.cs' | ForEach-Object { Get-Item -LiteralPath (Join-Path $script:GameTestRepo ('tools\runtime-verification\' + $_)) })
     foreach ($source in $fixedProbeSources) { $toolSources+=Get-Item -LiteralPath $source }
     if ($adapter.caseValidator) { $toolSources+=Get-Item -LiteralPath $adapter.caseValidator }
     $result['toolSources']=@($toolSources | ForEach-Object { [ordered]@{path=$_.FullName;sha256=Get-GtHash $_.FullName} })
@@ -163,8 +166,7 @@ try {
         if (Test-Path -LiteralPath (Join-Path $installed 'Settings')) {
             foreach ($file in Get-ChildItem -LiteralPath (Join-Path $installed 'Settings') -Recurse -File -Force) { [void]$paths.Add($file.FullName) }
         }
-        $native=Join-Path $env:USERPROFILE 'AppData\LocalLow\Tactical Adventures\Solasta'
-        foreach ($path in @((Join-Path $game 'Solasta_Data\Managed\UnityModManager\Params.xml'),(Join-Path $native 'UserPreferences.xml'),(Join-Path $native 'PlatformPreferences.xml'))) { [void]$paths.Add($path) }
+        [void]$paths.Add((Join-Path $game 'Solasta_Data\Managed\UnityModManager\Params.xml'))
         $profiles=Join-Path $installed 'Settings'
         $profileNames=@()
         if (Test-Path -LiteralPath $profiles -PathType Container) { $profileNames=@(Get-GtManifest $profiles | ForEach-Object { $_.path }) }
@@ -200,12 +202,12 @@ try {
             Copy-GtFile (Join-Path $stage $entry.path) (Join-Path $installed $entry.path) -ExpectedSha256 $entry.sha256 -SkipIfIdentical
         }
         Copy-GtFile $case.initialState.settingsFile (Join-Path $installed 'Settings.xml')
-        foreach ($preference in @($case.initialState.nativePreferences)) { Copy-GtFile $preference.path (Join-Path $native ($preference.kind + '.xml')) }
         $transaction.state='deployed'; Write-GtJson (Join-Path $run 'Transaction.json') $transaction
         Add-GtEvent 'deployed' ('Staged package explicitly deployed to ' + $installed)
         [Environment]::SetEnvironmentVariable('UB_GAME_TEST_CASE_PATH',(Join-Path $run 'Case.json'),'Process')
         $runtimeRoot=Join-Path $run 'Runtime'
         $parameters=@{ RunName=$case.id; GameExePath=$environment.gameExe; EvidenceRoot=$runtimeRoot; SkipBuild=$true; ShowGameWindow=[bool]$VisualAcceptance; RunInBackground=(-not $VisualAcceptance); RequireOtherAppForeground=(-not $VisualAcceptance); RequireNativeActionProof=($adapter.saveScenario -and -not $VisualAcceptance); DedicatedPlayerLog=$true; TimeoutSeconds=[int]$case.timeoutSeconds; ExpectedUbSha256=(@($build.manifest | Where-Object { $_.path -eq 'SolastaUnfinishedBusiness.dll' })[0].sha256) }
+        if (@($case.initialState.nativePreferences).Count -gt 0) { $parameters.NativePreferencesInputDirectory = Join-Path $run 'Input' }
         if ($case.adapter -eq 'startup') { $parameters.StartupOnly=$true }
         else {
             $parameters.ProbeSource=$fixedProbeSources
@@ -240,7 +242,17 @@ try {
         if ($adapter.saveScenario -and $result.status -eq 'PASS' -and $result.images.Count -lt 2) { throw 'The save-smoke result is missing before/after image evidence.' }
         Assert-GtManifest $formalOutput @($build.manifest)
         if ((Get-GtSourceIdentity $build.environment.source.state.targetCommit).digest -ne $build.environment.source.digest) { $result.status='ERROR'; $result.reason+=' Source or index changed during the run.' }
-        foreach ($tool in $result.toolSources) { if ((Get-GtHash $tool.path) -ne $tool.sha256) { $result.status='ERROR'; $result.reason+=' Test tools changed during the run.'; break } }
+        $changedTools=@(foreach ($tool in $result.toolSources) {
+            $observedHash=Get-GtHash $tool.path
+            if ($observedHash -ne $tool.sha256) {
+                [ordered]@{path=$tool.path;expectedSha256=$tool.sha256;observedSha256=$observedHash}
+            }
+        })
+        if ($changedTools.Count) {
+            $result['toolSourceChanges']=$changedTools
+            $result.status='ERROR'
+            $result.reason+=' Test tools changed during the run: ' + (($changedTools | ForEach-Object path) -join ', ')
+        }
         Add-GtEvent 'observed' ($result.status + ': ' + $result.reason)
     }
 }
@@ -271,6 +283,32 @@ finally {
     $result['completedUtc']=[datetime]::UtcNow.ToString('O')
     Write-GtJson (Join-Path $run 'Result.json') $result
     if ($null -ne $operationLock) { $operationLock.ReleaseMutex(); $operationLock.Dispose() }
+}
+if (-not $ValidateOnly -and $result.runtimeResult -and (Test-Path -LiteralPath $result.runtimeResult)) {
+    $result['nativeVerificationStatus']=$result.status
+    try {
+        $reviewPath=Join-Path $PSScriptRoot 'Review-PresentationEvidence.ps1'
+        $reviewSource=@($result.toolSources | Where-Object { $_.path -eq $reviewPath })
+        if ($reviewSource.Count -ne 1 -or (Get-GtHash $reviewPath) -ne $reviewSource[0].sha256) {
+            throw 'Presentation review source differs from the recorded test tools.'
+        }
+        $review=& $reviewPath `
+            -EvidencePath (Split-Path -Parent $result.runtimeResult) `
+            -OutputDirectory (Join-Path $run 'PresentationReview')
+        if ((Get-GtHash $reviewPath) -ne $reviewSource[0].sha256) {
+            throw 'Presentation review source changed during review.'
+        }
+        $result['presentationReview']=$review
+        if ($review.status -eq 'FAIL' -and $result.status -eq 'PASS') {
+            $result.status='FAIL'
+            $result.reason='Presentation evidence contains a failed check. See PresentationReview.'
+        }
+    }
+    catch {
+        $result['presentationReview']=[ordered]@{status='ERROR';reason=$_.Exception.Message}
+        if ($result.status -eq 'PASS') { $result.status='ERROR'; $result.reason='Presentation review failed: ' + $_.Exception.Message }
+    }
+    Write-GtJson (Join-Path $run 'Result.json') $result
 }
 Write-Host "$($result.status): $($result.reason)"
 Write-Host "Evidence: $run"

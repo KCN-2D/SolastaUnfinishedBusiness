@@ -140,6 +140,10 @@ public static class SettingsContext
         [UsedImplicitly]
         bool UnlockBeardlessDwarves { get; set; }
 
+        [SettingTypeToggle("EnableAllRaceBodyShapes", SortOrder = 1074, DisplayFooter = false)]
+        [UsedImplicitly]
+        bool EnableAllRaceBodyShapes { get; set; }
+
         [SettingTypeDropList("EmpressGarbAppearance",
             SortOrder = 1081, DisplayFooter = false,
             Items =
@@ -170,6 +174,7 @@ public static class SettingsContext
 
         private bool _unlockAllNpcFaces = UserPreferences.GetValue<bool>("Settings/Gui/UnlockAllNpcFaces");
         private bool _unlockBeardlessDwarves = UserPreferences.GetValue<bool>("Settings/Gui/UnlockBeardlessDwarves");
+        private bool _enableAllRaceBodyShapes = UserPreferences.GetValue<bool>("Settings/Gui/EnableAllRaceBodyShapes");
         private bool _unlockEyeStyles = UserPreferences.GetValue<bool>("Settings/Gui/UnlockEyeStyles");
 
         private bool _unlockGlowingColorsForAllMarksAndTattoos =
@@ -227,6 +232,17 @@ public static class SettingsContext
             {
                 _unlockBeardlessDwarves = value;
                 UserPreferences.SetValue("Settings/Gui/UnlockBeardlessDwarves", _unlockBeardlessDwarves);
+            }
+        }
+
+        public bool EnableAllRaceBodyShapes
+        {
+            get => _enableAllRaceBodyShapes;
+            set
+            {
+                _enableAllRaceBodyShapes = value;
+                RacesContext.SwitchBodyShapeSetting();
+                UserPreferences.SetValue("Settings/Gui/EnableAllRaceBodyShapes", _enableAllRaceBodyShapes);
             }
         }
 

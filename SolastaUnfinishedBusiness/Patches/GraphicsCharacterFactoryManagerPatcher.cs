@@ -19,6 +19,21 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GraphicsCharacterFactoryManagerPatcher
 {
+    [HarmonyPatch(typeof(GraphicsCharacterFactoryManager),
+        nameof(GraphicsCharacterFactoryManager.RefreshMorphotypeParameters))]
+    [UsedImplicitly]
+    public static class RefreshMorphotypeParameters_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(
+            [HarmonyArgument(0)] GraphicsCharacter graphicsCharacter,
+            [HarmonyArgument(1)] MorphotypeElementDefinition.ElementCategory category)
+        {
+            return category != MorphotypeElementDefinition.ElementCategory.Musculature ||
+                   RacesContext.ApplyBodyShape(graphicsCharacter);
+        }
+    }
+
     [HarmonyPatch(typeof(GraphicsCharacterFactoryManager), "CullingGroupEventChanged")]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -815,64 +830,22 @@ public static class GraphicsCharacterFactoryManagerPatcher
 
             //PATCH: Support for custom scaling of equipped items.
             //Used to scale reach weapons and hand crossbows
-            var feature = rulesetItem.itemDefinition?.GetFirstSubFeatureOfType<CustomScale>()
-                          ?? rulesetItem.itemDefinition?.WeaponDescription?.WeaponTypeDefinition
-                              .GetFirstSubFeatureOfType<CustomScale>();
+            var feature = CustomModels.GetWieldedItemFeature<CustomScale>(rulesetItem.ItemDefinition);
 
-            if (feature == null)
+            if (feature == null ||
+                !graphicsCharacter.WieldedInstantiatedItems.TryGetValue(slotName, out var itemObject) ||
+                !itemObject)
             {
                 return;
             }
 
-            var flag = rulesetItem.ItemDefinition.IsArmor &&
-                       rulesetItem.ItemDefinition.ArmorDescription.ArmorType == "ShieldType";
-
-            AnimationDefinitions.BoneType boneType;
-
-            if (rulesetItem.ItemDefinition.IsWeapon)
-            {
-                boneType = slotName != EquipmentDefinitions.SlotTypeOffHand
-                    ? rulesetItem.ItemDefinition.WeaponDescription.WeaponTypeDefinition.IsAttachedToBone
-                    : AnimationDefinitions.BoneType.Prop2;
-            }
-            else if (flag)
-            {
-                boneType = AnimationDefinitions.BoneType.Shield;
-            }
-            else if (slotName == EquipmentDefinitions.SlotTypeMainHand)
-            {
-                boneType = AnimationDefinitions.BoneType.Prop1;
-            }
-            else if (slotName == EquipmentDefinitions.SlotTypeOffHand)
-            {
-                boneType = AnimationDefinitions.BoneType.Prop2;
-            }
-            else
-            {
-                return;
-            }
-
-
-            var boneTransform = graphicsCharacter.GetBoneTransform(boneType);
-
-            if (!boneTransform)
-            {
-                return;
-            }
-
-            var transform = boneTransform.Find(rulesetItem.Name);
-
-            if (!transform)
-            {
-                return;
-            }
-
-            var scale = transform.localScale;
+            var itemTransform = itemObject.transform;
+            var scale = itemTransform.localScale;
 
             scale.x *= feature.X;
             scale.y *= feature.Y;
             scale.z *= feature.Z;
-            transform.localScale = scale;
+            itemTransform.localScale = scale;
         }
     }
 

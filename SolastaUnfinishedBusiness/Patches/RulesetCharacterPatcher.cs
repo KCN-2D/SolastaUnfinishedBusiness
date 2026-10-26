@@ -2608,19 +2608,7 @@ public static class RulesetCharacterPatcher
         [UsedImplicitly]
         public static void Postfix(RulesetCharacter __instance)
         {
-            try
-            {
-                if (Main.Settings.ModifyJumpRulesForArmorAndEncumberance)
-                {
-                    //adjust for encumbrance
-                    __instance.ComputeEncumbranceThresholds(out _, out _, out float maxEncumbrance);
-                    var carriedWeight = __instance.CharacterInventory.ComputeCarriedWeight();
-                    __instance.maxJumpRange = 1 + (int)Math.Floor(__instance.maxJumpRange * (1 - carriedWeight / maxEncumbrance));
-
-                }
-            }
-            catch //error happens inside computeencumrancethreshholds, we can't override maxjumprange using encumberance
-            { }
+            __instance.maxJumpRange = MotionContext.ApplyJumpEncumbrance(__instance, __instance.maxJumpRange);
         }
     }
 

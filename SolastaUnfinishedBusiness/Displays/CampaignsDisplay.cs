@@ -246,6 +246,14 @@ internal static class CampaignsDisplay
         if (UI.Toggle(Gui.Format("ModUi/&EnableExtendedProficienciesPanelDisplay", pools), ref toggle, UI.AutoWidth()))
         {
             Main.Settings.EnableExtendedProficienciesPanelDisplay = toggle;
+            CharacterInspectionScreenEnhancement.RefreshProficiencyPanels();
+        }
+
+        toggle = Main.Settings.EnablePermanentDefensesPanelDisplay;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnablePermanentDefensesPanelDisplay"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnablePermanentDefensesPanelDisplay = toggle;
+            CharacterInspectionScreenEnhancement.RefreshProficiencyPanels();
         }
 
         UI.Label();

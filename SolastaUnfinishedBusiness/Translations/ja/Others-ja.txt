@@ -12,7 +12,7 @@ Action/&CastQuickenedDescription=呪文修正〈呪文高速化〉を適用し�
 Action/&BonusActionFreeJumpDescription=ボーナス・アクションを消費し、筋力と〈運動〉を使って強力な跳躍を行います。
 Action/&BonusActionFreeJumpTitle=跳躍
 Action/&ExplorationFreeJumpToggleDescription=跳躍移動モードを有効化/無効化します。
-Action/&ExplorationFreeJumpToggleTitle=跳躍切替
+Action/&ExplorationFreeJumpToggleTitle=跳躍
 Action/&FreeJumpCheckFormat=この跳躍は移動を{0}マス分消費し、難易度{1}の〈運動〉判定が必要です。
 Action/&FreeJumpMoveCostFormat=この跳躍は移動を{0}マス分消費します。
 Action/&FreeJumpAutomaticFailureFormat=<color=#C04040E0>この跳躍は移動を{0}マス分消費し、着地に失敗します。</color>
@@ -20,6 +20,7 @@ Action/&FreeJumpSuccessChance=成功率は{0}%です。
 Action/&FreeJumpSuccessChanceWithAffinity={0}で成功率は{1}%です。
 Action/&FreeJumpAdvantage=有利
 Action/&FreeJumpDisadvantage=不利
+Action/&FreeJumpChooseDestinationDescription=跳躍できる着地マスを選択します。
 Action/&CunningStrikeToggleDescription=巧妙な一撃を有効化/無効化します
 Action/&CunningStrikeToggleTitle=巧妙な一撃
 Action/&DragonHideToggleDescription=素手打撃は斬撃ダメージを与え、ダメージ・ダイスは最低1d4になります。

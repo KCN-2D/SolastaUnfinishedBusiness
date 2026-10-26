@@ -10,11 +10,69 @@ using UnityEngine;
 // Optional shared support compiled into a temporary probe, never into UB.
 public static class PresentationCapture
 {
+    public static void FrameSubjects(Camera camera,IEnumerable<Renderer> subjects,float margin=1.1f)
+    {
+        if(!camera||!camera.orthographic||margin<1f)throw new ArgumentException("Orthographic framing requires a camera and margin >= 1.");
+        var renderers=subjects.Where(renderer=>renderer&&renderer.enabled&&renderer.gameObject.activeInHierarchy&&!renderer.forceRenderingOff).ToArray();
+        if(renderers.Length==0)throw new InvalidOperationException("No visible subjects to frame.");
+        var bounds=renderers[0].bounds;foreach(var renderer in renderers.Skip(1))bounds.Encapsulate(renderer.bounds);
+        camera.transform.position+=bounds.center-camera.transform.position-Vector3.Project(bounds.center-camera.transform.position,camera.transform.forward);
+        var minimum=new Vector2(float.PositiveInfinity,float.PositiveInfinity);var maximum=new Vector2(float.NegativeInfinity,float.NegativeInfinity);
+        for(var x=-1;x<=1;x+=2)for(var y=-1;y<=1;y+=2)for(var z=-1;z<=1;z+=2)
+        {
+            var local=camera.transform.InverseTransformPoint(bounds.center+Vector3.Scale(bounds.extents,new Vector3(x,y,z)));
+            minimum=Vector2.Min(minimum,new Vector2(local.x,local.y));maximum=Vector2.Max(maximum,new Vector2(local.x,local.y));
+        }
+        var size=maximum-minimum;camera.orthographicSize=Mathf.Max(size.y*.5f,size.x*.5f/camera.aspect)*margin;
+    }
+
+    [Serializable] public sealed class ReviewDocument
+    {
+        public int schemaVersion=1;
+        public string title;
+        public List<ReviewFrame> frames=new List<ReviewFrame>();
+        public List<ReviewCheck> checks=new List<ReviewCheck>();
+        public List<ReviewSource> sources=new List<ReviewSource>();
+    }
+    [Serializable] public sealed class ReviewFrame
+    {
+        public string id,path,label,group,phase;
+    }
+    [Serializable] public sealed class ReviewCheck
+    {
+        public string id,title,status,expected,actual;
+        public string[] evidence=new string[0];
+    }
+    [Serializable] public sealed class ReviewSource
+    {
+        public string path,sha256,role;
+    }
+    public static void WriteReviewEvidence(string name,ReviewDocument document)
+    {
+        if(string.IsNullOrEmpty(name)||name!=Path.GetFileName(name)||name.Any(c=>!char.IsLetterOrDigit(c)&&c!='-'&&c!='_'))
+            throw new ArgumentException("Invalid review document name.","name");
+        if(document==null||document.schemaVersion!=1||string.IsNullOrWhiteSpace(document.title))
+            throw new ArgumentException("Invalid review document.","document");
+        var ids=new HashSet<string>();
+        foreach(var frame in document.frames)
+            if(frame==null||string.IsNullOrWhiteSpace(frame.id)||string.IsNullOrWhiteSpace(frame.path)||!ids.Add(frame.id))
+                throw new InvalidDataException("Invalid or duplicate review frame.");
+        var checks=new HashSet<string>();
+        foreach(var check in document.checks)
+            if(check==null||string.IsNullOrWhiteSpace(check.id)||string.IsNullOrWhiteSpace(check.title)||!checks.Add(check.id)||
+                !new[]{"PASS","FAIL","REVIEW","NOT_RECORDED"}.Contains(check.status)||
+                check.evidence==null||check.evidence.Any(id=>!ids.Contains(id)))
+                throw new InvalidDataException("Invalid review check.");
+        var path=Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory,"PresentationEvidence-"+name+".json");
+        using(var stream=File.Create(path))new DataContractJsonSerializer(typeof(ReviewDocument)).WriteObject(stream,document);
+    }
+
     [Serializable]
     public sealed class Receipt
     {
         public string scope = "game-camera-capture", name, utc, sha256, error;
         public int requestFrame, capturedFrame, settleFrames, width, height, variedPixels;
+        public int warmupFrames, warmedFrames, warmupStartFrame, warmupEndFrame, observationFrame;
         public bool accepted;
         public float[] cameraPosition, cameraRotation;
         public float nearClip, farClip, fieldOfView, orthographicSize;
@@ -55,21 +113,24 @@ public static class PresentationCapture
     }
 
     public static IEnumerator Capture(Camera camera, Renderer[] subjects, string name,
-        int width, int height, Action<Receipt> completed = null, int settleFrames = 2)
+        int width, int height, Action<Receipt> completed = null, int settleFrames = 2,
+        int warmupFrames = 0, Action onCaptured = null)
     {
         RuntimeVerificationHarness.AssertMainThread();
         if (!camera || subjects == null || subjects.Length == 0 || subjects.Any(subject => !subject))
             throw new ArgumentException("A camera and existing subject renderers are required.");
-        if (width < 32 || height < 32 || width > 4096 || height > 4096 || settleFrames < 1 || settleFrames > 30)
+        if (width < 32 || height < 32 || width > 4096 || height > 4096 || settleFrames < 1 || settleFrames > 30 ||
+            warmupFrames < 0 || warmupFrames > 30)
             throw new ArgumentOutOfRangeException("Capture dimensions or settling frames are out of range.");
         if (string.IsNullOrEmpty(name) || name.Length > 64 ||
             name.Any(character => !(char.IsLetterOrDigit(character) || character == '-' || character == '_')))
             throw new ArgumentException("Capture name must contain at most 64 letters, digits, underscores or hyphens.");
 
         var receipt = new Receipt { name = name, requestFrame = Time.frameCount,
-            settleFrames = settleFrames, width = width, height = height };
+            settleFrames = settleFrames, warmupFrames = warmupFrames, width = width, height = height };
         for (var frame = 0; frame < settleFrames; frame++) yield return null;
         yield return new WaitForEndOfFrame();
+        if (warmupFrames > 0) yield return WarmCamera(camera, name, width, height, receipt);
         RuntimeVerificationHarness.AssertMainThread();
         receipt.capturedFrame = Time.frameCount;
         receipt.utc = DateTime.UtcNow.ToString("O");
@@ -115,6 +176,11 @@ public static class PresentationCapture
                                                 subject.includedLayer && subject.inFrustum))
                 throw new InvalidOperationException("No requested subject can be drawn by the capture camera.");
             camera.Render();
+            if (onCaptured != null)
+            {
+                onCaptured();
+                receipt.observationFrame = Time.frameCount;
+            }
             RenderTexture.active = target;
             image = new Texture2D(width, height, TextureFormat.RGBA32, false);
             image.ReadPixels(new Rect(0, 0, width, height), 0, 0);
@@ -147,6 +213,44 @@ public static class PresentationCapture
         }
         completed?.Invoke(receipt);
         if (failure != null) throw new InvalidOperationException("Presentation capture failed: " + name, failure);
+    }
+
+    private static IEnumerator WarmCamera(Camera camera, string name, int width, int height, Receipt receipt)
+    {
+        var previousTarget = camera.targetTexture;
+        var previousEnabled = camera.enabled;
+        var target = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
+        var completed = false;
+        try
+        {
+            if (!camera.gameObject.activeInHierarchy || !target.Create())
+                throw new InvalidOperationException("Capture warmup requires an active camera and a RenderTexture.");
+            camera.targetTexture = target;
+            camera.enabled = true;
+            receipt.warmupStartFrame = Time.frameCount;
+            // A disabled manual camera does not keep off-screen skins visible during
+            // the ordinary player loop. Let this owned camera render naturally.
+            for (var frame = 0; frame < receipt.warmupFrames; frame++)
+            {
+                yield return null;
+                yield return new WaitForEndOfFrame();
+                receipt.warmedFrames++;
+            }
+            receipt.warmupEndFrame = Time.frameCount;
+            completed = true;
+        }
+        finally
+        {
+            if (camera) { camera.targetTexture = previousTarget; camera.enabled = previousEnabled; }
+            target.Release();
+            UnityEngine.Object.Destroy(target);
+            if (!completed)
+            {
+                receipt.error = "Capture camera warmup did not complete.";
+                using (var stream = File.Create(Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory, name + ".capture.json")))
+                    new DataContractJsonSerializer(typeof(Receipt)).WriteObject(stream, receipt);
+            }
+        }
     }
 
     public static SphereSurfaceContact MeasureSphereSurface(SkinnedMeshRenderer[] renderers,

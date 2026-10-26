@@ -64,6 +64,7 @@ Setting/&TooltipWidthTitle=Tooltip-Breite
 Setting/&UnlockAdditionalLoreFriendlyNamesTitle=Schalte weitere lorefreundliche Namen frei
 Setting/&UnlockAllNpcFacesTitle=Schalte NPC-Gesichter frei
 Setting/&UnlockBeardlessDwarvesTitle=Schalte bartlose Zwerge frei
+Setting/&EnableAllRaceBodyShapesTitle=Körperbau-Regler für alle Völker
 Setting/&UnlockEyeStylesTitle=Augenstile freischalten
 Setting/&UnlockGlowingColorsForAllMarksAndTattoosTitle=Schalte leuchtende Markierungen und Tattoofarben frei
 Setting/&UnlockGlowingEyeColorsTitle=Schalte leuchtende Augenfarben frei

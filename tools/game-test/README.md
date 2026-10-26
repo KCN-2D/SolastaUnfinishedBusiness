@@ -14,9 +14,11 @@ $build = & .\tools\game-test\New-GameTestBuild.ps1 -GameExePath "$game\Solasta.e
 
 ビルドは[正式ビルド](../CustomBuildLocal/README.md)を呼び、成果物を検証ごとの証跡フォルダにある `Stage/SolastaUnfinishedBusiness/` へ複製して、全ファイルのハッシュを記録します。`Stage/` など実行ごとの入出力パスは、その証跡フォルダが基準です。
 
+配布ZIPのハッシュは `Build.json` に記録し、証跡への重複コピーは省きます。ZIPも証跡へ残す場合は `New-GameTestBuild.ps1` に `-KeepPackageArchive` を追加します。
+
 `Build.json` にブランチ、対象コミット、ステージ済み差分、作業ツリー差分、変更ファイル、ゲーム・UMM DLL、wrapper、runtime patch、成果物の識別情報を保存します。`tools/` は製品ソースの識別から除き、ビルド入力とテストツールをそれぞれのハッシュで記録します。ビルド中のソース変更、実行時のソース・ゲーム DLL・ステージングの不一致は中断理由になります。
 
-テスト基盤を変更した場合は、`& .\tools\game-test\Test-GameTestContracts.ps1`で停止ガードと終了処理を検証します。実装の原本を保存して対象処理を抽出し、プロセス取得失敗・復元拒否と、所有するPowerShell子プロセスの終了・待機を確認します。ゲームや設定は変更せず、結果は`tools/game-test/artifacts/`へ保存します。`-SkipProcessLifecycle`は停止ガードだけを確認します。
+テスト基盤を変更した場合は、`& .\tools\game-test\Test-GameTestContracts.ps1`で停止ガード、終了処理、証跡整理の安全性を検証します。保存した実装の原本を使い、プロセス取得失敗・復元拒否、所有するPowerShell子プロセスの終了・待機、ダミーファイルでの整理対象と保持条件を確認します。ゲームや設定は変更せず、結果は`tools/game-test/artifacts/`へ保存します。`-SkipProcessLifecycle`は子プロセスの終了・待機の検証を省略します。
 
 ## ケースを固定する
 
@@ -76,7 +78,7 @@ $run = & .\tools\game-test\Invoke-GameTest.ps1 `
 
 Unityの実フォーカス喪失は、OS入力の非占有と別に検証します。`verifyFocusLoss=false`のセーブ回帰は、実フォーカス喪失を検証しません。ケース作成時に`-VerifyFocusLoss`を指定すると、同じ非入力デスクトップ・同じゲームスレッド内に一時ウィンドウを作り、`SetActiveWindow`でそのウィンドウをアクティブにします。実行前後にPID・スレッド・デスクトップ・`UOI_IO`とactive/focus HWNDを照合します。最大3秒で実際のフォーカス喪失通知と`Application.isFocused=false`を確認し、ゲームウィンドウを非アクティブのまま再表示してからアクションへ進みます。描画寸法と非フォーカス中の進行も確認し、条件を満たさなければ`BLOCKED`です。
 
-配置前に変更対象ファイル、UB 設定プロファイル、UMM 設定、ネイティブ設定を退避します。ゲームが終了している間だけ、明示したゲームディレクトリへステージングを配置します。起動、一時 UMM mod、ログ収集、ゲーム終了は `tools/runtime-verification/Invoke-RuntimeVerification.ps1` に委ねます。
+配置前に変更対象ファイル、UB 設定プロファイル、UMM 設定を退避します。ゲームが終了している間だけ、明示したゲームディレクトリへステージングを配置します。ネイティブ設定はケースから[検証用の保存先](../runtime-verification/README.md#検証用ユーザーデータの隔離)へ複製し、元の `UserPreferences.xml` と `PlatformPreferences.xml` は保持します。起動、一時 UMM mod、ログ収集、ゲーム終了は `tools/runtime-verification/Invoke-RuntimeVerification.ps1` に委ねます。
 
 固定プローブがネイティブの移動アクションを1回実行し、開始位置、到着位置、行動終了・中断状態を判定します。Unity のアクセスと画像取得は既存 harness のメインスレッド上で行います。
 
@@ -146,7 +148,8 @@ await gameUi.click({ x: 420, y: 260 });
 | `Runtime/*/Runtime-Display.jsonl` | `-ObserveDisplay`で取得した表示寸法、FSR、Canvas、Camera |
 | `Runtime/*/Runtime-Execution.jsonl`, `GameTest-Loading.jsonl` | メインスレッドのbatchmode、GPU、フォーカス、時間倍率、フレーム進行、ロード状態 |
 | `Runtime/*/GameTest-Captures.jsonl` | 画像の採否、画素数、SHA-256 |
-| `Transaction.json`, `Backup/`, `Restore.log` | 配置前の状態と復元記録 |
+| `Transaction.json`, `Restore.log` | 配置前の状態と復元記録 |
+| `Backup/`, `BackupRelease.json` | 復元用の退避と、復元確認後の解放記録 |
 
 `Result.json`の`acceptanceScope`は、実行した検証の範囲を示します。
 
@@ -180,6 +183,8 @@ scopeは判定結果や必須条件を変更しません。判定対象を次の
 
 終了・例外・タイムアウト後は、導入済みmodと設定を元のバイト列、更新時刻、属性へ戻します。Unityの表示用レジストリ値も型と値を退避・復元します。UMMの既存DLLキャッシュと付随するPDBは保持し、この実行で作られたものは配置元のハッシュと照合して撤去します。セーブ原本もハッシュ、更新時刻、属性を照合します。復元時にゲームが起動している場合は処理を止め、証跡と配置トランザクションを残します。
 
+復元を確認すると `Backup/` を自動解放し、`BackupRelease.json` に件数・容量・完了状態を保存します。結果、ログ、画像、入力の複製は保持します。
+
 同じ製品ビルドのケースは保存済みの `$build` を再利用します。配置・復元では期待SHA-256と既存ファイルが一致するときだけコピーを省き、バックアップと最終照合は全対象に実施します。`Operations.json` の工程時刻で、事前検証・バックアップ・起動から検証完了・復元の所要時間を確認できます。
 
 PowerShell 自体の強制終了などで復元が残った場合は、ゲームを終了して次を実行します。
@@ -192,6 +197,28 @@ PowerShell 自体の強制終了などで復元が残った場合は、ゲーム
 復元は再実行できます。インストール先の `Mods/.UBGameTestTransaction.json` が残っている間、新しい配置を拒否します。検証元のビルドと結果は、ゲームへ復元した版とそれぞれのハッシュで区別できます。
 
 移動した証跡の元のJSONは変更しません。`tools/game-test/artifacts/Migration.json` の `mappings` に `originalRoot` と `currentRoot` を記録すると、復元時の旧 `RunDirectory`、所有マーカー、ケースとビルドの入力パスを現在の配置へ解決します。移行先は `tools/game-test/artifacts/` 配下に限定し、更新時刻はUTC ticksで照合します。
+
+## 表示証跡のレビュー
+
+`Invoke-GameTest`は復元後、`PresentationEvidence*.json`に記録された画像・判定・期待値・実測値・出典を`PresentationReview/Review.html`と`Summary.json`へ集約します。判定基準は各検証adapterが所有し、manifestの`FAIL`を実行結果へ反映します。native検証の結果は`Result.json`の`nativeVerificationStatus`に保持します。
+
+既存証跡には `& .\tools\game-test\Review-PresentationEvidence.ps1 -EvidencePath '<Runtime>' -OutputDirectory '<review>'` を使います。manifestファイルも直接指定できます。`-ReferenceImagePath '<画像>'`で参照画像を並べ、判定と画像を照合します。
+
+## 証跡の容量管理
+
+修正の確認・比較に必要なログ、画像、入力は保持します。不要になった復元済みバックアップは `Clear-GameTestArtifacts.ps1` で整理します。既定は削除を行わないプレビューで、対象と容量を保存先の `Storage-Cleanup-*.json` に記録します。内容を確認してから `-Apply` を付けます。
+
+```powershell
+$evidence = '.\tools\game-test\artifacts'
+& .\tools\game-test\Clear-GameTestArtifacts.ps1 -ArtifactRoot $evidence
+& .\tools\game-test\Clear-GameTestArtifacts.ps1 -ArtifactRoot $evidence -Apply
+```
+
+`-PruneSuperseded` を追加すると、保存先の直下にある古い実行フォルダと検証ビルドも対象にします。ケースごとと検証ビルドで、それぞれ完了日時が新しい2件を保持します。保持件数は `-KeepLatestPerCase` で変更できます。検証ごとに保存先を分けた場合は、実行フォルダが並ぶ場所を `-ArtifactRoot` に指定します。
+
+検証用の設定・出力を保存した `artifacts/.native/` は、対応する実行証跡と一緒に保持します。古い実行を整理するときだけ、`Native-UserDataLocation.json` と両所有マーカーが一致する直下の所有フォルダも対象にします。不一致やreparse pointがある場合は両方を保持します。作業用保存先を `-PreserveDirectory` に指定した場合も、対応する実行証跡を保持します。
+
+比較用などの証跡は `-PreserveDirectory` に配列で指定します。指定したフォルダとその配下はバックアップも含めて保持します。`tools/game-test/Cases/`・`tools/game-test/Scenarios/` から名前を参照される実行フォルダ、復元未完了の実行、未解決の配置マーカーがあるゲームの証跡、未知のバックアップファイルも保持します。対象は `tools/game-test/artifacts/` 配下に限り、reparse pointを含むツリーの整理は拒否します。
 
 ## Gitの追跡範囲
 

@@ -12,7 +12,7 @@ Action/&CastQuickenedDescription=빠른 주문 메타매직을 적용하여 보�
 Action/&BonusActionFreeJumpDescription=보너스 액션을 소비해 힘과 운동을 사용한 강력한 도약을 합니다.
 Action/&BonusActionFreeJumpTitle=도약
 Action/&ExplorationFreeJumpToggleDescription=도약 이동 모드를 켜거나 끕니다.
-Action/&ExplorationFreeJumpToggleTitle=도약 전환
+Action/&ExplorationFreeJumpToggleTitle=도약
 Action/&FreeJumpCheckFormat=이 도약은 이동 속도 {0}칸을 소비하며 운동 DC {1} 판정을 합니다.
 Action/&FreeJumpMoveCostFormat=이 도약은 이동 속도 {0}칸을 소비합니다.
 Action/&FreeJumpAutomaticFailureFormat=<color=#C04040E0>이 도약은 이동 속도 {0}칸을 소비하며 착지에 실패합니다.</color>
@@ -20,6 +20,7 @@ Action/&FreeJumpSuccessChance=성공률은 {0}%입니다.
 Action/&FreeJumpSuccessChanceWithAffinity={0}일 때 성공률은 {1}%입니다.
 Action/&FreeJumpAdvantage=이점
 Action/&FreeJumpDisadvantage=불리점
+Action/&FreeJumpChooseDestinationDescription=도약 범위 안에서 착지할 칸을 선택합니다.
 Action/&CunningStrikeToggleDescription=커닝 스트라이크 활성화/비활성화
 Action/&CunningStrikeToggleTitle=교활한 일격
 Action/&DragonHideToggleDescription=비무장 타격이 참격 피해를 주며, 피해 주사위는 최소 1d4가 됩니다.

@@ -1,7 +1,12 @@
 using System;
 using System.IO;
+using System.Collections.Generic;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Json;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Text.RegularExpressions;
 using UnityEditor;
@@ -86,6 +91,69 @@ namespace SolastaAssetAuthoring
             public string unityVersion;
             public string sourceSha256;
             public string updatedUtc;
+            public string desktop, inputDesktop, ownerId;
+            public bool desktopQuerySucceeded, desktopReceivesInput;
+            public uint nativeMainThread;
+        }
+
+        [Serializable]
+        private sealed class ShutdownRequest
+        {
+            public int processId;
+            public string processStartedUtc, ownerId;
+        }
+
+        [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+        [DllImport("user32.dll")] private static extern IntPtr GetThreadDesktop(uint threadId);
+        [DllImport("user32.dll", SetLastError = true)] private static extern IntPtr OpenInputDesktop(uint flags, bool inherit, uint access);
+        [DllImport("user32.dll")] private static extern bool CloseDesktop(IntPtr desktop);
+        [DllImport("user32.dll", EntryPoint = "GetUserObjectInformationW", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool DesktopName(IntPtr desktop, int information, StringBuilder value, uint size, out uint needed);
+        [DllImport("user32.dll", EntryPoint = "GetUserObjectInformationW", SetLastError = true)]
+        private static extern bool DesktopInput(IntPtr desktop, int information, out int value, uint size, out uint needed);
+
+        private static string ReadDesktopName(IntPtr desktop)
+        {
+            if (desktop == IntPtr.Zero) { throw new InvalidOperationException("A desktop handle is unavailable."); }
+            var name = new StringBuilder(1024);
+            uint needed;
+            Require(DesktopName(desktop, 2, name, (uint)(name.Capacity * 2), out needed), "The desktop name cannot be read.");
+            return name.ToString();
+        }
+
+        private static void RecordWorkerDesktop(WorkerReceipt receipt)
+        {
+            receipt.nativeMainThread = GetCurrentThreadId();
+            var desktop = GetThreadDesktop(receipt.nativeMainThread);
+            receipt.desktop = ReadDesktopName(desktop);
+            int receivesInput;
+            uint needed;
+            Require(DesktopInput(desktop, 6, out receivesInput, 4, out needed) && needed == 4, "The desktop input state cannot be read.");
+            receipt.desktopReceivesInput = receivesInput != 0;
+            var input = OpenInputDesktop(0, false, 1);
+            try { receipt.inputDesktop = ReadDesktopName(input); }
+            finally { if (input != IntPtr.Zero) { Require(CloseDesktop(input), "The input desktop handle cannot be released."); } }
+            receipt.desktopQuerySucceeded = true;
+            receipt.ownerId = GetArgument("-ubAuthoringOwner", false);
+        }
+
+        private static bool ShutdownOwnedWorker(string directory, WorkerReceipt receipt)
+        {
+            var path = Path.Combine(directory, "shutdown-request.json");
+            if (string.IsNullOrEmpty(receipt.ownerId) || !File.Exists(path)) { return false; }
+            RejectReparsePoints(path);
+            Require(new FileInfo(path).Length <= 4096, "The worker shutdown request is too large.");
+            var request = JsonUtility.FromJson<ShutdownRequest>(File.ReadAllText(path));
+            DateTime requestedStart;
+            DateTime currentStart;
+            if (request == null || request.ownerId != receipt.ownerId || request.processId != receipt.processId ||
+                !DateTime.TryParse(request.processStartedUtc, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out requestedStart) ||
+                !DateTime.TryParse(receipt.processStartedUtc, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out currentStart) ||
+                requestedStart.ToUniversalTime() != currentStart.ToUniversalTime() || !receipt.desktopQuerySucceeded || receipt.desktopReceivesInput ||
+                receipt.desktop == receipt.inputDesktop) { return false; }
+            File.Delete(path);
+            EditorApplication.Exit(0);
+            return true;
         }
 
         [Serializable]
@@ -122,6 +190,7 @@ namespace SolastaAssetAuthoring
             public string validationScope = "rig";
             public InputAsset[] inputAssets;
             public MaterialValidation[] materials;
+            public MeshValidation[] meshes;
             public MaterialIdentityContract[] identityContracts;
             public string transport;
             public string jobId;
@@ -139,8 +208,9 @@ namespace SolastaAssetAuthoring
         public static void Build()
         {
             var materialJob = Environment.GetCommandLineArgs().Contains("-materialRecipe");
-            var success = materialJob
-                ? BuildMaterials(GetArgument("-materialRecipe"), GetArgument("-bundleOutput"), null, null)
+            var meshJob = Environment.GetCommandLineArgs().Contains("-meshRecipe");
+            var success = meshJob ? BuildMeshTemplates(GetArgument("-meshRecipe"), GetArgument("-bundleOutput"), null, null)
+                : materialJob ? BuildMaterials(GetArgument("-materialRecipe"), GetArgument("-bundleOutput"), null, null)
                 : BuildValidated(GetArgument("-sampleFbx"), GetArgument("-bundleOutput"), null, null);
             if (!success)
             {
@@ -352,6 +422,258 @@ namespace SolastaAssetAuthoring
                 return bundle;
             }
             catch { bundle.Unload(true); throw; }
+        }
+
+        [DataContract] private sealed class MeshRecipe
+        {
+            [DataMember(IsRequired = true)] public int schemaVersion;
+            [DataMember(IsRequired = true)] public string bundleName;
+            [DataMember(IsRequired = true)] public MeshSpec[] meshes;
+        }
+        [DataContract] private sealed class MeshBounds
+        {
+            [DataMember(IsRequired = true)] public float[] center;
+            [DataMember(IsRequired = true)] public float[] size;
+        }
+        [DataContract] private sealed class MeshUv
+        {
+            [DataMember(IsRequired = true)] public int channel;
+            [DataMember(IsRequired = true)] public int dimension;
+            [DataMember(IsRequired = true)] public float[] values;
+        }
+        [DataContract] private sealed class MeshSubmesh
+        {
+            [DataMember(IsRequired = true)] public string topology;
+            [DataMember(IsRequired = true)] public int[] indices;
+        }
+        [DataContract] private sealed class MeshSpec
+        {
+            [DataMember(IsRequired = true)] public string name;
+            [DataMember(IsRequired = true)] public float[] vertices;
+            [DataMember(IsRequired = true)] public float[] normals;
+            [DataMember(IsRequired = true)] public float[] tangents;
+            [DataMember] public float[] colors;
+            [DataMember(IsRequired = true)] public MeshUv[] uvChannels;
+            [DataMember(IsRequired = true)] public MeshSubmesh[] subMeshes;
+            [DataMember(IsRequired = true)] public MeshBounds bounds;
+            [DataMember(IsRequired = true)] public string indexFormat;
+        }
+        [Serializable] private sealed class MeshChannelValidation
+        {
+            public string attribute, expectedSha256, reloadedSha256;
+            public int dimension, elements;
+            public bool exact;
+        }
+        [Serializable] private sealed class MeshValidation
+        {
+            public string name, indexFormat;
+            public int vertexCount, subMeshCount;
+            public bool exact, boundsExact;
+            public MeshChannelValidation[] channels;
+            public string[] indexSha256;
+        }
+
+        private static bool BuildMeshTemplates(string input, string destination, string jobId, string expectedHash)
+        {
+            var report = new Report
+            {
+                unityVersion = Application.unityVersion, startedUtc = DateTime.UtcNow.ToString("o"),
+                transport = jobId == null ? "batch" : "gui_worker", jobId = jobId, validationScope = "mesh_templates",
+                processId = System.Diagnostics.Process.GetCurrentProcess().Id, mainThread = Thread.CurrentThread.ManagedThreadId,
+                activeScenePathBefore = SceneManager.GetActiveScene().path, activeSceneDirtyBefore = SceneManager.GetActiveScene().isDirty,
+                sceneCountBefore = SceneManager.sceneCount
+            };
+            string reportPath = null;
+            try
+            {
+                var root = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+                RejectReparsePoints(root);
+                var marker = Path.Combine(root, ".solasta-asset-authoring-project");
+                Require(File.Exists(marker) && File.ReadAllText(marker).Trim() == ProjectMarker, "The mesh authoring project is unmarked.");
+                if (jobId != null) { RequireJob(root, jobId); }
+                var assetRoot = jobId == null ? "Assets/Input" : "Assets/AuthoringJobs/" + jobId + "/Input";
+                var generated = jobId == null ? "Assets/Generated" : "Assets/AuthoringJobs/" + jobId + "/Generated";
+                var recipePath = Path.GetFullPath(input);
+                var output = Path.GetFullPath(destination);
+                Require(SamePath(recipePath, Path.Combine(root, assetRoot, "mesh-recipe.json")), "The mesh recipe is outside its owned input directory.");
+                Require(SamePath(output, jobId == null ? Path.Combine(root, "BuildOutput") : Path.Combine(root, JobFolder, jobId, "Output")), "The mesh output is outside its isolated directory.");
+                RejectReparsePoints(recipePath); RejectReparsePoints(output);
+                Require(File.Exists(recipePath) && new FileInfo(recipePath).Length <= 67108864, "The mesh recipe must be at most 64 MiB.");
+                Directory.CreateDirectory(output); reportPath = Path.Combine(output, "unity-report.json");
+                Require(!File.Exists(reportPath), "This mesh job has already run.");
+                Require(Application.unityVersion == EditorVersion, "Unity " + EditorVersion + " is required.");
+                var bytes = File.ReadAllBytes(recipePath);
+                report.inputSha256 = HashBytes(bytes);
+                Require(expectedHash == null || expectedHash == report.inputSha256, "The mesh recipe changed after submission.");
+                MeshRecipe recipe;
+                using (var stream = new MemoryStream(bytes)) { recipe = (MeshRecipe)new DataContractJsonSerializer(typeof(MeshRecipe)).ReadObject(stream); }
+                Require(recipe != null && recipe.schemaVersion == 1 && recipe.bundleName != null && Regex.IsMatch(recipe.bundleName, "^[a-z0-9][a-z0-9_.-]{0,127}$"), "Invalid mesh recipe version or bundle name.");
+                Require(recipe.meshes != null && recipe.meshes.Length > 0 && recipe.meshes.Length <= 128, "Invalid mesh list.");
+                Require(recipe.meshes.All(mesh => mesh != null && mesh.name != null && Regex.IsMatch(mesh.name, "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$")) &&
+                        recipe.meshes.Select(mesh => mesh.name).Distinct(StringComparer.OrdinalIgnoreCase).Count() == recipe.meshes.Length, "Invalid or duplicate mesh name.");
+                foreach (var spec in recipe.meshes) { ValidateMeshSpec(spec); }
+                Require(Sha256(recipePath) == report.inputSha256, "The mesh input changed during validation.");
+                report.stage = "create_assets";
+                AssetDatabase.ImportAsset(assetRoot, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ImportRecursive);
+                Require(!AssetDatabase.IsValidFolder(generated), "Generated mesh assets already exist.");
+                var parent = generated.Substring(0, generated.LastIndexOf('/'));
+                Require(AssetDatabase.IsValidFolder(parent), "The mesh job parent was not imported.");
+                AssetDatabase.CreateFolder(parent, "Generated");
+                var paths = recipe.meshes.Select(mesh => generated + "/" + mesh.name + ".asset").ToArray();
+                for (var index = 0; index < recipe.meshes.Length; index++)
+                {
+                    var mesh = CreateTemplateMesh(recipe.meshes[index]);
+                    try { ValidateTemplateMesh(mesh, recipe.meshes[index]); AssetDatabase.CreateAsset(mesh, paths[index]); }
+                    finally { if (mesh != null && !EditorUtility.IsPersistent(mesh)) { Object.DestroyImmediate(mesh); } }
+                }
+                SavingFolder = generated + "/";
+                try { AssetDatabase.SaveAssets(); }
+                finally { SavingFolder = null; }
+                var bundle = BuildAndReload(output, recipe.bundleName, paths, generated, report);
+                try
+                {
+                    Require(bundle.LoadAllAssets().Length == recipe.meshes.Length && bundle.LoadAllAssets().All(asset => asset is Mesh), "The mesh bundle contains unexpected assets.");
+                    report.meshes = recipe.meshes.Select((spec, index) => ValidateTemplateMesh(bundle.LoadAsset<Mesh>(paths[index]), spec)).ToArray();
+                }
+                finally { bundle.Unload(true); }
+                Require(Sha256(recipePath) == report.inputSha256, "The mesh input changed during the build.");
+                report.activeScenePathAfter = SceneManager.GetActiveScene().path;
+                report.activeSceneDirtyAfter = SceneManager.GetActiveScene().isDirty;
+                report.sceneCountAfter = SceneManager.sceneCount;
+                Require(report.activeScenePathBefore == report.activeScenePathAfter && report.activeSceneDirtyBefore == report.activeSceneDirtyAfter &&
+                        report.sceneCountBefore == report.sceneCountAfter, "The mesh build changed the open scene state.");
+                report.stage = "complete"; report.success = true; report.completedUtc = DateTime.UtcNow.ToString("o");
+                WriteJson(reportPath, report); return true;
+            }
+            catch (Exception exception)
+            {
+                report.error = exception.ToString(); report.completedUtc = DateTime.UtcNow.ToString("o");
+                if (reportPath != null && !File.Exists(reportPath)) { WriteJson(reportPath, report); }
+                Debug.LogException(exception); return false;
+            }
+        }
+
+        private static bool Finite(float value) { return !float.IsNaN(value) && !float.IsInfinity(value); }
+        private static void MeshNumbers(float[] values, int count, string channel)
+        {
+            Require(values != null && values.Length == count && values.All(Finite), "Invalid mesh " + channel + " numeric data/length.");
+        }
+        private static Vector3 MeshVector3(float[] values) { return new Vector3(values[0], values[1], values[2]); }
+        private static Vector3[] MeshVectors3(float[] values)
+        {
+            return Enumerable.Range(0, values.Length / 3).Select(i => new Vector3(values[i * 3], values[i * 3 + 1], values[i * 3 + 2])).ToArray();
+        }
+        private static Vector4[] MeshVectors4(float[] values)
+        {
+            return Enumerable.Range(0, values.Length / 4).Select(i => new Vector4(values[i * 4], values[i * 4 + 1], values[i * 4 + 2], values[i * 4 + 3])).ToArray();
+        }
+        private static void ValidateMeshSpec(MeshSpec spec)
+        {
+            Require(spec.vertices != null && spec.vertices.Length >= 9 && spec.vertices.Length <= 3000000 && spec.vertices.Length % 3 == 0, "Invalid mesh vertex count.");
+            var count = spec.vertices.Length / 3;
+            MeshNumbers(spec.vertices, count * 3, "vertices");
+            Require(spec.normals != null && (spec.normals.Length == 0 || spec.normals.Length == count * 3), "Invalid normal count.");
+            Require(spec.tangents != null && (spec.tangents.Length == 0 || spec.tangents.Length == count * 4), "Invalid tangent count.");
+            MeshNumbers(spec.normals, spec.normals.Length, "normals"); MeshNumbers(spec.tangents, spec.tangents.Length, "tangents");
+            Require(spec.colors == null || spec.colors.Length == 0 || spec.colors.Length == count * 4, "Invalid color count.");
+            if (spec.colors != null) { MeshNumbers(spec.colors, spec.colors.Length, "colors"); }
+            Require(spec.indexFormat == "UInt16" || spec.indexFormat == "UInt32", "Invalid mesh index format.");
+            Require(spec.indexFormat != "UInt16" || count <= 65535, "The mesh exceeds UInt16 vertex capacity.");
+            Require(spec.bounds != null, "Missing mesh bounds."); MeshNumbers(spec.bounds.center, 3, "bounds center"); MeshNumbers(spec.bounds.size, 3, "bounds size");
+            Require(spec.bounds.size.All(value => value >= 0), "Negative mesh bounds size.");
+            var bounds = new Bounds(MeshVector3(spec.bounds.center), MeshVector3(spec.bounds.size));
+            Require(new[] { bounds.min.x, bounds.min.y, bounds.min.z, bounds.max.x, bounds.max.y, bounds.max.z }.All(Finite), "Mesh bounds overflow.");
+            for (var axis = 0; axis < 3; axis++)
+            {
+                var center = (double)spec.bounds.center[axis]; var size = (double)spec.bounds.size[axis];
+                // Two float32 rounding steps in center/size are permitted for enclosure;
+                // the declared bounds themselves must still roundtrip bit-for-bit.
+                var margin = (Math.Abs(center) + Math.Abs(size)) * 2.384185791015625e-7 + 2.802596928649634e-45;
+                for (var vertex = 0; vertex < count; vertex++) { Require(Math.Abs(spec.vertices[vertex * 3 + axis] - center) <= size / 2 + margin, "Mesh bounds do not enclose the vertices within float32 rounding."); }
+            }
+            Require(spec.uvChannels != null && spec.uvChannels.Length <= 8 && spec.uvChannels.All(uv => uv != null && uv.channel >= 0 && uv.channel <= 7 && uv.dimension >= 2 && uv.dimension <= 4) &&
+                    spec.uvChannels.Select(uv => uv.channel).Distinct().Count() == spec.uvChannels.Length, "Invalid or duplicate UV channel/dimension.");
+            foreach (var uv in spec.uvChannels) { MeshNumbers(uv.values, count * uv.dimension, "UV"); }
+            Require(spec.subMeshes != null && spec.subMeshes.Length > 0 && spec.subMeshes.Length <= 256, "Invalid submesh count.");
+            foreach (var submesh in spec.subMeshes)
+            {
+                Require(submesh != null && submesh.topology == "Triangles" && submesh.indices != null && submesh.indices.Length >= 3 && submesh.indices.Length <= 6000000 && submesh.indices.Length % 3 == 0 &&
+                        submesh.indices.All(index => index >= 0 && index < count), "Invalid mesh topology or index range.");
+            }
+        }
+        private static Mesh CreateTemplateMesh(MeshSpec spec)
+        {
+            var mesh = new Mesh { name = spec.name, indexFormat = spec.indexFormat == "UInt16" ? UnityEngine.Rendering.IndexFormat.UInt16 : UnityEngine.Rendering.IndexFormat.UInt32 };
+            try
+            {
+                mesh.vertices = MeshVectors3(spec.vertices);
+                if (spec.normals.Length > 0) { mesh.normals = MeshVectors3(spec.normals); }
+                if (spec.tangents.Length > 0) { mesh.tangents = MeshVectors4(spec.tangents); }
+                if (spec.colors != null && spec.colors.Length > 0) { mesh.colors = Enumerable.Range(0, spec.colors.Length / 4).Select(i => new Color(spec.colors[i * 4], spec.colors[i * 4 + 1], spec.colors[i * 4 + 2], spec.colors[i * 4 + 3])).ToArray(); }
+                foreach (var uv in spec.uvChannels)
+                {
+                    if (uv.dimension == 2) { mesh.SetUVs(uv.channel, Enumerable.Range(0, uv.values.Length / 2).Select(i => new Vector2(uv.values[i * 2], uv.values[i * 2 + 1])).ToList()); }
+                    else if (uv.dimension == 3) { mesh.SetUVs(uv.channel, MeshVectors3(uv.values).ToList()); }
+                    else { mesh.SetUVs(uv.channel, MeshVectors4(uv.values).ToList()); }
+                }
+                mesh.subMeshCount = spec.subMeshes.Length;
+                for (var i = 0; i < spec.subMeshes.Length; i++) { mesh.SetIndices(spec.subMeshes[i].indices, MeshTopology.Triangles, i, false); }
+                mesh.bounds = new Bounds(MeshVector3(spec.bounds.center), MeshVector3(spec.bounds.size));
+                return mesh;
+            }
+            catch { Object.DestroyImmediate(mesh); throw; }
+        }
+        private static string HashBytes(byte[] bytes)
+        {
+            using (var sha = SHA256.Create()) { return BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant(); }
+        }
+        private static string MeshFloatHash(float[] values)
+        {
+            using (var stream = new MemoryStream())
+            using (var writer = new BinaryWriter(stream)) { foreach (var value in values) { writer.Write(value); } writer.Flush(); return HashBytes(stream.ToArray()); }
+        }
+        private static string MeshIndexHash(int[] values)
+        {
+            using (var stream = new MemoryStream())
+            using (var writer = new BinaryWriter(stream)) { foreach (var value in values) { writer.Write(value); } writer.Flush(); return HashBytes(stream.ToArray()); }
+        }
+        private static MeshValidation ValidateTemplateMesh(Mesh mesh, MeshSpec spec)
+        {
+            Require(mesh != null && mesh.isReadable && mesh.name == spec.name && mesh.vertexCount == spec.vertices.Length / 3 && mesh.subMeshCount == spec.subMeshes.Length && mesh.indexFormat.ToString() == spec.indexFormat, "The mesh identity/format changed.");
+            Require(mesh.blendShapeCount == 0 && mesh.bindposes.Length == 0 && mesh.boneWeights.Length == 0, "Unexpected skinning data in a static template.");
+            var report = new MeshValidation { name = mesh.name, indexFormat = mesh.indexFormat.ToString(), vertexCount = mesh.vertexCount, subMeshCount = mesh.subMeshCount };
+            var channels = new List<MeshChannelValidation>();
+            Action<UnityEngine.Rendering.VertexAttribute, int, float[], float[]> channel = (attribute, dimension, expected, actual) =>
+            {
+                var exists = mesh.HasVertexAttribute(attribute);
+                var actualDimension = exists ? mesh.GetVertexAttributeDimension(attribute) : 0;
+                var expectedDimension = expected.Length == 0 ? 0 : dimension;
+                var value = new MeshChannelValidation { attribute = attribute.ToString(), dimension = actualDimension, elements = actual.Length,
+                    expectedSha256 = MeshFloatHash(expected), reloadedSha256 = MeshFloatHash(actual) };
+                value.exact = actual.Length == expected.Length && actualDimension == expectedDimension && value.expectedSha256 == value.reloadedSha256 &&
+                    (!exists || mesh.GetVertexAttributeFormat(attribute) == UnityEngine.Rendering.VertexAttributeFormat.Float32);
+                channels.Add(value); Require(value.exact, "The mesh channel bits/dimension changed: " + attribute);
+            };
+            channel(UnityEngine.Rendering.VertexAttribute.Position, 3, spec.vertices, mesh.vertices.SelectMany(v => new[] { v.x, v.y, v.z }).ToArray());
+            channel(UnityEngine.Rendering.VertexAttribute.Normal, 3, spec.normals, mesh.normals.SelectMany(v => new[] { v.x, v.y, v.z }).ToArray());
+            channel(UnityEngine.Rendering.VertexAttribute.Tangent, 4, spec.tangents, mesh.tangents.SelectMany(v => new[] { v.x, v.y, v.z, v.w }).ToArray());
+            channel(UnityEngine.Rendering.VertexAttribute.Color, 4, spec.colors ?? new float[0], mesh.colors.SelectMany(v => new[] { v.r, v.g, v.b, v.a }).ToArray());
+            for (var index = 0; index < 8; index++)
+            {
+                var uv = spec.uvChannels.SingleOrDefault(value => value.channel == index); var values = new List<Vector4>(); mesh.GetUVs(index, values);
+                var dimension = uv == null ? 0 : uv.dimension;
+                var flat = values.SelectMany(v => new[] { v.x, v.y, v.z, v.w }.Take(dimension)).ToArray();
+                channel((UnityEngine.Rendering.VertexAttribute)((int)UnityEngine.Rendering.VertexAttribute.TexCoord0 + index), dimension, uv == null ? new float[0] : uv.values, flat);
+            }
+            report.channels = channels.ToArray(); report.indexSha256 = new string[spec.subMeshes.Length];
+            for (var index = 0; index < spec.subMeshes.Length; index++)
+            {
+                var actual = mesh.GetIndices(index); report.indexSha256[index] = MeshIndexHash(actual);
+                Require(mesh.GetTopology(index) == MeshTopology.Triangles && mesh.GetBaseVertex(index) == 0 && actual.SequenceEqual(spec.subMeshes[index].indices), "The mesh submesh indices/topology changed.");
+            }
+            var box = mesh.bounds;
+            report.boundsExact = MeshFloatHash(new[] { box.center.x, box.center.y, box.center.z, box.size.x, box.size.y, box.size.z }) == MeshFloatHash(spec.bounds.center.Concat(spec.bounds.size).ToArray());
+            Require(report.boundsExact, "The mesh bounds bits changed."); report.exact = true; return report;
         }
 
         private static bool BuildMaterials(string input, string destination, string jobId, string expectedHash,
@@ -625,13 +947,16 @@ namespace SolastaAssetAuthoring
                 Directory.CreateDirectory(directory);
                 using (var process = System.Diagnostics.Process.GetCurrentProcess())
                 {
-                    WriteJson(Path.Combine(directory, "worker.json"), new WorkerReceipt
+                    var receipt = new WorkerReceipt
                     {
                         processId = process.Id, processStartedUtc = process.StartTime.ToUniversalTime().ToString("o"),
                         mainThread = Thread.CurrentThread.ManagedThreadId, projectPath = root,
                         unityVersion = Application.unityVersion, updatedUtc = DateTime.UtcNow.ToString("o"),
                         sourceSha256 = loadedSourceHash
-                    });
+                    };
+                    RecordWorkerDesktop(receipt);
+                    WriteJson(Path.Combine(directory, "worker.json"), receipt);
+                    if (ShutdownOwnedWorker(directory, receipt)) { return; }
                 }
                 foreach (var jobDirectory in Directory.GetDirectories(directory).OrderBy(path => path, StringComparer.Ordinal))
                 {
@@ -658,8 +983,13 @@ namespace SolastaAssetAuthoring
                         Require(job != null && job.schemaVersion == 1 && job.jobId == jobId &&
                                 job.inputSha256 != null && Regex.IsMatch(job.inputSha256, "^[a-f0-9]{64}$"), "The job request is invalid.");
                         Require(job.kind == null || job.kind == "rig" || job.kind == "materials" ||
-                                job.kind == "material-identity-contracts", "Unknown authoring job kind.");
-                        if (job.kind == "materials" || job.kind == "material-identity-contracts")
+                                job.kind == "material-identity-contracts" || job.kind == "mesh-templates", "Unknown authoring job kind.");
+                        if (job.kind == "mesh-templates")
+                        {
+                            BuildMeshTemplates(Path.Combine(root, "Assets/AuthoringJobs", jobId, "Input/mesh-recipe.json"),
+                                Path.Combine(jobDirectory, "Output"), jobId, job.inputSha256);
+                        }
+                        else if (job.kind == "materials" || job.kind == "material-identity-contracts")
                         {
                             BuildMaterials(Path.Combine(root, "Assets/AuthoringJobs", jobId, "Input/recipe.json"),
                                 Path.Combine(jobDirectory, "Output"), jobId, job.inputSha256,
@@ -815,14 +1145,15 @@ namespace SolastaAssetAuthoring
             finally { Object.DestroyImmediate(mesh); }
         }
 
-        private static string GetArgument(string name)
+        private static string GetArgument(string name, bool required = true)
         {
             var arguments = Environment.GetCommandLineArgs();
             for (var index = 0; index < arguments.Length - 1; index++)
             {
                 if (arguments[index] == name) { return arguments[index + 1]; }
             }
-            throw new ArgumentException("Missing command-line argument " + name);
+            if (required) { throw new ArgumentException("Missing command-line argument " + name); }
+            return string.Empty;
         }
 
         private static bool SamePath(string left, string right)

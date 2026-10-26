@@ -12,6 +12,29 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterStageIdentityDefinitionPanelPatcher
 {
+    [HarmonyPatch(typeof(CharacterStageIdentityDefinitionPanel), "AfterMorphotypeChanged")]
+    [UsedImplicitly]
+    public static class AfterMorphotypeChanged_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(
+            CharacterStageIdentityDefinitionPanel __instance,
+            MorphotypeElementDefinition.ElementCategory elementCategory)
+        {
+            if (elementCategory != MorphotypeElementDefinition.ElementCategory.Musculature)
+            {
+                return true;
+            }
+
+            var viewport = __instance.CommonData.CharacterViewportCustomization;
+
+            viewport.ActivateCamera(1, CharacterViewport.Target.Center);
+            viewport.ReturnsToInitialPosition = false;
+
+            return false;
+        }
+    }
+
     [HarmonyPatch(typeof(CharacterStageIdentityDefinitionPanel), nameof(CharacterStageIdentityDefinitionPanel.Refresh))]
     [UsedImplicitly]
     public static class Refresh_Patch

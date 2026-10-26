@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
@@ -20,6 +21,18 @@ internal static class CharacterInspectionScreenEnhancement
 {
     private const string DragonbornDraconicChoiceFeatureSetName = "FeatureSetDragonbornDraconicChoice";
 
+    private static readonly ConditionalWeakTable<ProficienciesPanel, ProficiencyBindRefresh> ProficiencyBindRefreshes =
+        new();
+
+    private sealed class ProficiencyBindRefresh
+    {
+        internal RulesetCharacterHero Hero;
+        internal ProficiencyBaseItem.OnItemClickedHandler Callback;
+        internal int Frame;
+        internal bool ExtendedProficiencies;
+        internal bool PermanentDefenses;
+    }
+
     private static Transform ClassSelector { get; set; }
 
     private static int SelectedClassIndex { get; set; }
@@ -29,7 +42,65 @@ internal static class CharacterInspectionScreenEnhancement
         return IsInspectionProficiencyPanel(panel) ? 0 : catalogCount;
     }
 
-    private static bool IsInspectionProficiencyPanel(ProficienciesSubPanel panel)
+    internal static void InvalidateProficiencyBindRefresh(ProficienciesPanel panel)
+    {
+        ProficiencyBindRefreshes.Remove(panel);
+    }
+
+    internal static void CompleteProficiencyBindRefresh(ProficienciesPanel panel)
+    {
+        if (panel.InspectedCharacter == null || panel.subPanels.Length == 0 ||
+            !IsInspectionProficiencyPanel(panel.subPanels[0]))
+        {
+            return;
+        }
+
+        var state = ProficiencyBindRefreshes.GetValue(panel, _ => new ProficiencyBindRefresh());
+        state.Hero = panel.InspectedCharacter;
+        state.Callback = panel.onItemClicked;
+        state.Frame = Time.frameCount;
+        state.ExtendedProficiencies = Main.Settings.EnableExtendedProficienciesPanelDisplay;
+        state.PermanentDefenses = Main.Settings.EnablePermanentDefensesPanelDisplay;
+    }
+
+    internal static void RefreshProficienciesOnShow(GuiPanel guiPanel)
+    {
+        var panel = (ProficienciesPanel)guiPanel;
+        var wasBound = ProficiencyBindRefreshes.TryGetValue(panel, out var state);
+        ProficiencyBindRefreshes.Remove(panel);
+
+        // Native Bind has already refreshed every section before SetState. Consume
+        // that work only for its immediate Show; all later and explicit refreshes run.
+        if (wasBound && state.Frame == Time.frameCount && ReferenceEquals(state.Hero, panel.InspectedCharacter) &&
+            ReferenceEquals(state.Callback, panel.onItemClicked) &&
+            state.ExtendedProficiencies == Main.Settings.EnableExtendedProficienciesPanelDisplay &&
+            state.PermanentDefenses == Main.Settings.EnablePermanentDefensesPanelDisplay)
+        {
+            return;
+        }
+
+        panel.RefreshNow();
+    }
+
+    internal static void RefreshProficiencyPanels()
+    {
+        foreach (var panel in Resources.FindObjectsOfTypeAll<ProficienciesPanel>())
+        {
+            var screen = panel.GetComponentInParent<CharacterInspectionScreen>();
+            if (!screen || !screen.Visible || panel.InspectedCharacter == null)
+            {
+                continue;
+            }
+
+            CustomInvocationSubPanel.AddCustomSubPanels(panel, panel.InspectedCharacter);
+            PermanentDefensesSubPanel.AddSubPanel(panel);
+            panel.RefreshNow();
+            panel.SetState(false);
+            panel.FilterToggles();
+        }
+    }
+
+    internal static bool IsInspectionProficiencyPanel(ProficienciesSubPanel panel)
     {
         // RuntimeLoaded fills hidden panels too. A selection ancestor takes precedence
         // even when an inspection screen is nested inside it.

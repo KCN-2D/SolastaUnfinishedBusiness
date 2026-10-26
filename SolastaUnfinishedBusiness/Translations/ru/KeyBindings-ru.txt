@@ -64,6 +64,7 @@ Setting/&TooltipWidthTitle=Ширина всплывающей подсказк�
 Setting/&UnlockAdditionalLoreFriendlyNamesTitle=Разблокировать дополнительные имена, подходящие по истории
 Setting/&UnlockAllNpcFacesTitle=Разблокировать лица НИП
 Setting/&UnlockBeardlessDwarvesTitle=Разблокировать безбородых Дварфов
+Setting/&EnableAllRaceBodyShapesTitle=Настройка телосложения для всех рас
 Setting/&UnlockEyeStylesTitle=Разблокировать стили глаз
 Setting/&UnlockGlowingColorsForAllMarksAndTattoosTitle=Разблокировать светящиеся цвета для отметин и татуировок
 Setting/&UnlockGlowingEyeColorsTitle=Разблокировать светящиеся цвета глаз

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using TA;
 using static ActionDefinitions;
@@ -29,6 +30,8 @@ internal static class FreeJumpContext
     private static readonly Dictionary<ulong, int3> ForcedAiFreeJumpTargets = [];
     private static readonly Dictionary<ulong, PendingAiFreeJumpCompletion> PendingAiFreeJumpCompletions = [];
     private static readonly HashSet<CursorLocationBattleFriendlyTurn> CursorDestinationComputations = [];
+    private static readonly Dictionary<CursorLocationExplorationCharacter, ExplorationJumpPreview>
+        ExplorationPreviews = [];
     private static object ScopeOwnershipToken = new();
     private static readonly FieldInfo ChainEvaluatedField =
         AccessTools.Field(typeof(CharacterActionChainParams), "<Evaluated>k__BackingField");
@@ -119,6 +122,51 @@ internal static class FreeJumpContext
         internal int MaxVerticalCells { get; } = maxVerticalCells;
         internal int AthleticsBonus { get; } = athleticsBonus;
         internal bool HasJumpSpell { get; } = hasJumpSpell;
+    }
+
+    private sealed class ExplorationJumpPreview : IDisposable
+    {
+        private readonly CursorLocationExplorationCharacter _cursor;
+        private readonly IGameLocationPositioningService _positioning;
+
+        internal ExplorationJumpPreview(CursorLocationExplorationCharacter cursor, GameLocationCharacter character,
+            IGameLocationPositioningService positioning)
+        {
+            _cursor = cursor;
+            Character = character;
+            _positioning = positioning;
+            Chain = new CharacterActionChainParams(character);
+            _positioning.TopologyChanged += TopologyChanged;
+        }
+
+        internal GameLocationCharacter Character { get; }
+        internal CharacterActionChainParams Chain { get; }
+        internal List<int3> Destinations { get; } = [];
+        internal int3 StartPosition { get; set; }
+        internal int PlaneHeight { get; set; }
+        internal FreeJumpProfile Profile { get; set; }
+        internal bool GridDirty { get; set; } = true;
+        internal bool HasHover { get; set; }
+        internal int3 PreviousHover { get; set; }
+        internal bool PreviousValidity { get; set; }
+        internal bool CaptionVisible { get; set; }
+
+        private void TopologyChanged(List<GameSector> sectors, List<TopologyForm.Type> forms)
+        {
+            GridDirty = true;
+            HasHover = false;
+
+            if (_cursor && _cursor.Active)
+            {
+                _cursor.RefreshHover();
+            }
+        }
+
+        public void Dispose()
+        {
+            _positioning.TopologyChanged -= TopologyChanged;
+            Chain.Clear();
+        }
     }
 
     private readonly struct PendingAiFreeJumpCompletion(int3 startPosition, int3 targetPosition)
@@ -339,6 +387,10 @@ internal static class FreeJumpContext
         ForcedAiFreeJumpTargets.Clear();
         PendingAiFreeJumpCompletions.Clear();
         CursorDestinationComputations.Clear();
+        foreach (var cursor in new List<CursorLocationExplorationCharacter>(ExplorationPreviews.Keys))
+        {
+            ClearExplorationPreview(cursor);
+        }
     }
 
     internal static ActionStatus GetActionStatus(GameLocationCharacter character, ActionScope scope,
@@ -648,6 +700,332 @@ internal static class FreeJumpContext
             string.Empty,
             false,
             true);
+    }
+
+    internal static bool TryRefreshExplorationMovementHelper(CursorLocationExplorationCharacter cursor)
+    {
+        if (!TryGetExplorationJumpCharacter(cursor, out var character))
+        {
+            ClearExplorationPreview(cursor);
+            return false;
+        }
+
+        if (!HasExplorationWorldHover(cursor) && !ShouldSuspendExplorationFeedback(cursor))
+        {
+            ClearExplorationPreview(cursor);
+            return false;
+        }
+
+        var preview = GetExplorationPreview(cursor, character);
+
+        if (preview == null)
+        {
+            return false;
+        }
+
+        if (ShouldSuspendExplorationFeedback(cursor))
+        {
+            SuspendExplorationFeedback(cursor, preview);
+            return true;
+        }
+
+        RefreshExplorationDestinations(cursor, preview);
+        cursor.movementHelper.HoveredPosition = cursor.HoveredPosition;
+        cursor.movementHelper.RefreshHover(true);
+        cursor.movementHelperDisplayed = true;
+        return true;
+    }
+
+    internal static bool OwnsExplorationChainHelper(CursorLocationExplorationCharacter cursor)
+    {
+        // The exploration cursor normally clears this helper for a grounded character.
+        // Our hover postfix supplies its one-step jump path after native picking completes.
+        return TryGetExplorationJumpCharacter(cursor, out _) &&
+               (HasExplorationWorldHover(cursor) || ShouldSuspendExplorationFeedback(cursor));
+    }
+
+    internal static bool CanUseExplorationPlanarSelection(CursorLocationExplorationCharacter cursor)
+    {
+        return TryGetExplorationJumpCharacter(cursor, out _);
+    }
+
+    internal static void RefreshExplorationSelection(CursorLocationExplorationCharacter cursor)
+    {
+        if (!TryGetExplorationJumpCharacter(cursor, out var character))
+        {
+            ClearExplorationPreview(cursor);
+            return;
+        }
+
+        if (!HasExplorationWorldHover(cursor) && !ShouldSuspendExplorationFeedback(cursor))
+        {
+            ClearExplorationPreview(cursor);
+            return;
+        }
+
+        var preview = GetExplorationPreview(cursor, character);
+
+        if (preview == null)
+        {
+            return;
+        }
+
+        if (ShouldSuspendExplorationFeedback(cursor))
+        {
+            SuspendExplorationFeedback(cursor, preview);
+            return;
+        }
+
+        RefreshExplorationDestinations(cursor, preview);
+        var destination = cursor.HoveredLocation;
+        var valid = TryValidateCandidate(character, preview.StartPosition, destination, preview.Profile, false, out _);
+        ApplyExplorationDestination(cursor, character, destination, valid);
+
+        // Occupants may move without changing the floor topology. Keep the hovered cell
+        // authoritative even when the rest of this plane's landing grid is reusable.
+        var listed = preview.Destinations.Contains(destination);
+        if (valid != listed)
+        {
+            if (valid)
+            {
+                preview.Destinations.Add(destination);
+            }
+            else
+            {
+                preview.Destinations.Remove(destination);
+            }
+
+            cursor.movementHelper.RefreshValidDestinations(preview.Destinations);
+        }
+
+        if (!preview.HasHover || preview.PreviousHover != destination || preview.PreviousValidity != valid)
+        {
+            cursor.chainHelper.Clear(true);
+            if (valid && TrySeedFreeJumpEvaluation(preview.Chain, preview.StartPosition,
+                    BuildFreeJumpPathStep(preview.StartPosition, destination), true))
+            {
+                cursor.chainHelper.RefreshHoverBattle(preview.Chain, character, destination, null, true, false);
+            }
+            else
+            {
+                cursor.chainHelper.RefreshHoverExploration(character, destination, false);
+            }
+
+            cursor.chainHelperDisplayed = true;
+            preview.PreviousHover = destination;
+            preview.PreviousValidity = valid;
+            preview.HasHover = true;
+        }
+
+        var caption = Gui.Localize("Action/&FreeJumpChooseDestinationDescription");
+        if (valid && TryComputeFreeJumpPreview(character, preview.StartPosition, destination, true,
+                preview.Profile, out var check))
+        {
+            caption = FormatFreeJumpPreview(check);
+        }
+
+        CursorLocation.CaptionLineChanged?.Invoke("Action/&BonusActionFreeJumpTitle", caption,
+            string.Empty, string.Empty, string.Empty, string.Empty, false, true);
+        preview.CaptionVisible = true;
+    }
+
+    internal static bool TryPrepareExplorationClick(CursorLocationExplorationCharacter cursor, out bool valid)
+    {
+        valid = false;
+        if (!TryGetExplorationJumpCharacter(cursor, out _))
+        {
+            return false;
+        }
+
+        if (ShouldSuspendExplorationFeedback(cursor))
+        {
+            return true;
+        }
+
+        if (!HasExplorationWorldHover(cursor))
+        {
+            return false;
+        }
+
+        // Revalidate against the current position and occupancy rather than accepting
+        // native formation placement's nearby replacement for the chosen landing cell.
+        RefreshExplorationSelection(cursor);
+        valid = cursor.movePositions.Count == 1;
+        return true;
+    }
+
+    internal static void CancelExplorationSelection(CharacterActionPanel panel)
+    {
+        if (panel?.ActionScope != ActionScope.Exploration ||
+            ServiceRepository.GetService<ICursorService>()?.CurrentCursor is not CursorLocationExplorationCharacter
+                { Active: true } cursor)
+        {
+            return;
+        }
+
+        var character = panel.GuiCharacter?.GameLocationCharacter;
+        if (character == null || cursor.SelectionService?.SelectedCharacters is not { Count: > 0 } selected ||
+            selected[0] != character || !IsExplorationFreeJumpEnabled(character))
+        {
+            return;
+        }
+
+        DisableExplorationFreeJump(character);
+        ClearExplorationPreview(cursor);
+    }
+
+    internal static void ClearExplorationPreview(CursorLocationExplorationCharacter cursor)
+    {
+        if (ReferenceEquals(cursor, null) || !ExplorationPreviews.TryGetValue(cursor, out var preview))
+        {
+            return;
+        }
+
+        ExplorationPreviews.Remove(cursor);
+        preview.Dispose();
+
+        if (cursor)
+        {
+            cursor.movementHelper?.Clear();
+            cursor.chainHelper?.Deactivate();
+            cursor.chainHelper?.Clear(true);
+            cursor.groundEchoHelper?.gameObject.SetActive(false);
+            cursor.movementHelperDisplayed = false;
+            cursor.chainHelperDisplayed = false;
+        }
+
+        if (preview.CaptionVisible)
+        {
+            CursorLocation.CaptionLineDismissed?.Invoke();
+        }
+    }
+
+    private static bool TryGetExplorationJumpCharacter(CursorLocationExplorationCharacter cursor,
+        out GameLocationCharacter character)
+    {
+        character = null;
+        if (cursor is not { Active: true } ||
+            ServiceRepository.GetService<ICursorService>()?.CurrentCursor != cursor ||
+            cursor.SelectionService?.SelectedCharacters is not { Count: > 0 } selected)
+        {
+            return false;
+        }
+
+        character = selected[0];
+        return CanUseExplorationFreeJump(character);
+    }
+
+    private static bool HasExplorationWorldHover(CursorLocationExplorationCharacter cursor)
+    {
+        return !cursor.HoveredGUI && !cursor.OutOfScreen && cursor.HoveredWorldGadget == null &&
+               cursor.SelectionService.HoveredCharacters.Count == 0;
+    }
+
+    private static bool ShouldSuspendExplorationFeedback(CursorLocationExplorationCharacter cursor)
+    {
+        return cursor.HoveredGUI || cursor.OutOfScreen;
+    }
+
+    private static void SuspendExplorationFeedback(CursorLocationExplorationCharacter cursor,
+        ExplorationJumpPreview preview)
+    {
+        // Keep the selection and its caption while the pointer reaches its controls.
+        // World feedback is rebuilt when the pointer returns to a landing cell.
+        if (cursor.movementHelperDisplayed)
+        {
+            cursor.movementHelper.Clear();
+            cursor.movementHelperDisplayed = false;
+        }
+
+        if (cursor.chainHelperDisplayed)
+        {
+            cursor.chainHelper.Clear(true);
+            cursor.chainHelperDisplayed = false;
+        }
+
+        cursor.groundEchoHelper.gameObject.SetActive(false);
+        cursor.movePositions.Clear();
+        preview.GridDirty = true;
+        preview.HasHover = false;
+    }
+
+    private static ExplorationJumpPreview GetExplorationPreview(CursorLocationExplorationCharacter cursor,
+        GameLocationCharacter character)
+    {
+        if (!ExplorationPreviews.TryGetValue(cursor, out var preview) || preview.Character != character)
+        {
+            ClearExplorationPreview(cursor);
+            var positioning = ServiceRepository.GetService<IGameLocationPositioningService>();
+            if (positioning == null)
+            {
+                return null;
+            }
+
+            preview = new ExplorationJumpPreview(cursor, character, positioning);
+            ExplorationPreviews[cursor] = preview;
+            cursor.chainHelper.Activate(character.RulesetCharacter);
+        }
+
+        return preview;
+    }
+
+    private static void RefreshExplorationDestinations(CursorLocationExplorationCharacter cursor,
+        ExplorationJumpPreview preview)
+    {
+        if (!TryComputeProfile(preview.Character, out var profile))
+        {
+            return;
+        }
+
+        var start = preview.Character.LocationPosition;
+        var height = cursor.HoveredLocation.y;
+        var changed = preview.StartPosition != start || preview.PlaneHeight != height ||
+                      preview.Profile.MaxHorizontalCells != profile.MaxHorizontalCells ||
+                      preview.Profile.MaxVerticalCells != profile.MaxVerticalCells;
+        preview.Profile = profile;
+        if (!changed && !preview.GridDirty)
+        {
+            return;
+        }
+
+        preview.StartPosition = start;
+        preview.PlaneHeight = height;
+        preview.HasHover = false;
+        preview.GridDirty = false;
+        preview.Destinations.Clear();
+        for (var x = -profile.MaxHorizontalCells; x <= profile.MaxHorizontalCells; x++)
+        {
+            for (var z = -profile.MaxHorizontalCells; z <= profile.MaxHorizontalCells; z++)
+            {
+                var destination = new int3(start.x + x, height, start.z + z);
+                if (TryValidateCandidate(preview.Character, start, destination, profile, false, out _))
+                {
+                    preview.Destinations.Add(destination);
+                }
+            }
+        }
+
+        cursor.movementHelper.RefreshValidDestinations(preview.Destinations);
+    }
+
+    private static void ApplyExplorationDestination(CursorLocationExplorationCharacter cursor,
+        GameLocationCharacter character, int3 destination, bool valid)
+    {
+        cursor.filteredCharacters.Clear();
+        cursor.filteredCharacters.Add(character);
+        cursor.movePositions.Clear();
+        cursor.targetGadget = null;
+        cursor.targetCharacter = null;
+        cursor.targetAwaken = false;
+        cursor.targetLoot = false;
+        if (valid)
+        {
+            cursor.movePositions.Add(destination);
+            cursor.groundEchoHelper.ConfigureDestination(destination, cursor.targetOrientation, character, 0);
+        }
+
+        cursor.groundEchoHelper.gameObject.SetActive(valid);
+        cursor.SetMousePointerBitmap(valid ? CursorDefinitions.CursorType.Destination : CursorDefinitions.CursorType.Invalid);
     }
 
     internal static IDisposable BeginExplorationPathfinding(GameLocationCharacter character)
@@ -1556,7 +1934,6 @@ internal static class FreeJumpContext
         }
 
         rulesetCharacter.DisableToggle(actionId);
-        rulesetCharacter.RefreshAttackModes();
         rulesetCharacter.CharacterRefreshed?.Invoke(rulesetCharacter);
     }
 
@@ -2354,14 +2731,13 @@ internal static class FreeJumpContext
         var usesArmorPenaltyRules = Main.Settings.ModifyJumpRulesForArmorAndEncumberance;
         var needsAthleticsCheck = CharacterActionMoveStepJump.NeedsAthleticsCheck(character, start, destination);
         var isWearingHeavy = rulesetCharacter?.IsWearingHeavyArmor() == true && usesArmorPenaltyRules;
-        var isWearingMedium = rulesetCharacter?.IsWearingMediumArmor() == true && usesArmorPenaltyRules;
 
-        if (!needsAthleticsCheck && !isWearingHeavy && !isWearingMedium)
+        if (!needsAthleticsCheck)
         {
             return false;
         }
 
-        var distance = Math.Max(1, (int)int3.Distance(start, destination));
+        var distance = ComputeFreeJumpMovementCost(destination - start);
 
         checkDc = usesArmorPenaltyRules ? distance * FeetPerCell : 15;
         affinity = isWearingHeavy
@@ -2793,10 +3169,28 @@ internal static class FreeJumpContext
             AttributeDefinitions.Strength, null, SkillDefinitions.Athletics);
         var athleticsTraining = Clamp(athleticsBonus - strengthModifier, 0, 12);
         var hasJumpSpell = rulesetCharacter.HasConditionOfType(ConditionJump);
-        var vanillaMaxJump = Clamp(Math.Max(1, rulesetCharacter.maxJumpRange), 1, AbsoluteMaxHorizontalCells);
+        var additionalJumpCells = 0;
+        var enhancedJump = false;
+        foreach (var movementModifier in rulesetCharacter.GetMovementModifiers())
+        {
+            if (movementModifier is IMovementAffinityProvider affinity)
+            {
+                additionalJumpCells += affinity.AdditionalJumpCells;
+                enhancedJump |= affinity.EnhancedJump;
+            }
+        }
+
+        // Native maxJumpRange already includes bonuses and its own cap. Read the native
+        // base before that cap so every movement-affinity bonus is applied exactly once.
+        var movement = GameConfiguration.Movement;
+        var nativeBase = movement.GetJumpDistanceAndType(
+            strength, rulesetCharacter.IsProficient(SkillDefinitions.Athletics)).Item1;
         var computedHorizontal = Math.Min(strength / FeetPerCell + athleticsTraining / 4,
             PreferredMaxHorizontalCells);
-        var maxHorizontal = Clamp(Math.Max(vanillaMaxJump, computedHorizontal), 1, AbsoluteMaxHorizontalCells);
+        var rawHorizontal = Math.Max(Math.Max(nativeBase, computedHorizontal) + additionalJumpCells,
+            enhancedJump ? movement.MaxJumpDistance : 1);
+        var maxHorizontal = Clamp(MotionContext.ApplyJumpEncumbrance(rulesetCharacter,
+            Clamp(rawHorizontal, 1, AbsoluteMaxHorizontalCells)), 1, AbsoluteMaxHorizontalCells);
         var verticalFeet = 3 + Math.Max(0, strengthModifier) + athleticsTraining / 2;
         var maxVertical = Clamp(
             CeilDiv(verticalFeet, FeetPerCell) + (hasJumpSpell ? JumpSpellVerticalBonusCells : 0),
@@ -2825,7 +3219,7 @@ internal static class FreeJumpContext
     private static int ComputeFreeJumpMovementCost(int3 delta)
     {
         return Clamp(
-            Math.Max(1, Math.Max(Math.Abs(delta.y), Math.Max(Math.Abs(delta.x), Math.Abs(delta.z)))),
+            MotionContext.ComputeJumpDistance(delta),
             1,
             byte.MaxValue);
     }

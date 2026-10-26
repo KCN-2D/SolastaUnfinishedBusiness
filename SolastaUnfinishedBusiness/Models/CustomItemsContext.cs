@@ -37,6 +37,7 @@ internal static class CustomItemsContext
     internal static void Load()
     {
         LoadArcaneFocusOrbModel();
+        LoadNativeShieldGripModels();
         _helmOfAwareness ??= BuildHelmOfAwareness();
         _glovesOfThievery ??= BuildGlovesOfThievery();
 
@@ -47,6 +48,8 @@ internal static class CustomItemsContext
         SwitchMagicStaffFoci();
         SwitchAllMagicThrownReturn();
     }
+
+    private static void LoadNativeShieldGripModels() => CustomModels.GetWieldedGrips("NativeShieldGrips");
 
     private static void LoadArcaneFocusOrbModel()
     {

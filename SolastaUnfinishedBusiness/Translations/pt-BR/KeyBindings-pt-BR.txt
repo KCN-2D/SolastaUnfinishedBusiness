@@ -64,6 +64,7 @@ Setting/&TooltipWidthTitle=Largura da dica de ferramenta
 Setting/&UnlockAdditionalLoreFriendlyNamesTitle=Desbloqueie nomes adicionais amigáveis à tradição
 Setting/&UnlockAllNpcFacesTitle=Desbloqueie rostos de NPC
 Setting/&UnlockBeardlessDwarvesTitle=Desbloqueie anões sem barba
+Setting/&EnableAllRaceBodyShapesTitle=Ajuste de compleição para todas as raças
 Setting/&UnlockEyeStylesTitle=Desbloquear estilos de olhos
 Setting/&UnlockGlowingColorsForAllMarksAndTattoosTitle=Desbloqueie marcas brilhantes e cores de tatuagens
 Setting/&UnlockGlowingEyeColorsTitle=Desbloqueie cores de olhos brilhantes

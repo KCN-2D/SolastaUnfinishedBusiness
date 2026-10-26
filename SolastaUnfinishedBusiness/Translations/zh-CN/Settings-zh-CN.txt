@@ -175,7 +175,8 @@ ModUi/&EnableDungeonMakerModdedContent=启用 地城编辑器 Pro\n<i><color=#F0
 ModUi/&EnableElevationCameraToStayAtPosition=<i>+ 战斗中启用仰角相机，禁用后可保持在原位，且范围增加三倍</i>
 ModUi/&EnableEpicPointsAndArray=启用史诗 35 点购点与属性序列 <i><color=#F0DAA0>[17,15,13,12,10,8]</color></i> <b><i><color=#C04040E0>[需要重启]</color></i></b>
 ModUi/&ForcePointBuyAbilityScores=在角色创建和 RESPEC 时强制使用购点法决定属性值
-ModUi/&EnableExtendedProficienciesPanelDisplay=启用扩展熟练面板显示<i><color=#F0DAA0>[{0}]</color></i>\n<b><i><color=#C04040E0>[角色检查时性能受到影响]</color></i></b>
+ModUi/&EnableExtendedProficienciesPanelDisplay=启用扩展熟练面板显示<i><color=#F0DAA0>[{0}]</color></i>
+ModUi/&EnablePermanentDefensesPanelDisplay=显示种族、职业、专长和已装备物品提供的抗性与免疫
 ModUi/&EnableFeatsAtEvenLevels=在 2、10 和 18 级启用<color=#D89555>专长</color>选择
 ModUi/&EnableFeatsAtEvenLevelsMiddle=在 6 级和 14 级时启用<color=#D89555>专长</color>选择
 ModUi/&EnableFighterIndomitableSaving2024=启用 5e 2024 版本<color=#D89555>不屈</color><i><color=#F0DAA0>[为豁免检定添加战士等级]</color></i>

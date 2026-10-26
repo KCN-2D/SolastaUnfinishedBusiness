@@ -4,6 +4,7 @@ $script:GameTestRepo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $script:GameTestBuildRoot = Join-Path $script:GameTestRepo 'tools\CustomBuildLocal'
 $script:GameTestArtifactRoot = Join-Path $PSScriptRoot 'artifacts'
 . (Join-Path $script:GameTestRepo 'tools\runtime-verification\WindowsDesktop.ps1')
+. (Join-Path $script:GameTestRepo 'tools\runtime-verification\EvidencePaths.ps1')
 $script:GtValidatedDirectories = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 
 function Get-GtPath([string] $Path) {
@@ -64,14 +65,56 @@ function Write-GtJson([string] $Path, [object] $Value) {
 
 function Get-GtHash([string] $Path) { Assert-GtFile $Path; return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash }
 
+function Clear-GtRestoredBackup([string] $RunDirectory, [switch] $Preview) {
+    $run = Get-GtPath $RunDirectory
+    if ($run -eq (Get-GtPath $script:GameTestArtifactRoot) -or -not (Test-GtWithin $run $script:GameTestArtifactRoot)) {
+        throw 'Backup cleanup requires an owned run under tools/game-test/artifacts.'
+    }
+    $transaction = Read-GtObject (Join-Path $run 'Transaction.json')
+    if ($transaction.schemaVersion -ne 1 -or $transaction.state -ne 'restored') {
+        throw 'Unrestored transactions must retain their backups.'
+    }
+    $markerPath = Join-Path $transaction.gameDirectory 'Mods\.UBGameTestTransaction.json'
+    if (Test-Path -LiteralPath $markerPath) {
+        throw 'An unresolved recovery transaction for this game must retain its backups.'
+    }
+    $backup = Join-Path $run 'Backup'
+    $receiptPath = Join-Path $run 'BackupRelease.json'
+    if (-not (Test-Path -LiteralPath $backup)) {
+        if (Test-Path -LiteralPath $receiptPath) { return Read-GtObject $receiptPath }
+        return [pscustomobject]@{ files=0; bytes=0; released=$true }
+    }
+    Assert-GtTree $backup
+    $expected = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($entry in $transaction.files) {
+        if (-not $entry.existed) { continue }
+        if ($entry.backup -notmatch '^Backup/\d{6}\.bin$') { throw 'Unexpected backup entry in restored transaction.' }
+        [void]$expected.Add((Get-GtPath (Join-Path $run $entry.backup)))
+    }
+    $files = @(Get-ChildItem -LiteralPath $backup -File -Recurse -Force)
+    if (@($files | Where-Object { -not $expected.Contains($_.FullName) }).Count) {
+        throw 'Unrecognized files in a restored backup were retained.'
+    }
+    $receipt = [ordered]@{ schemaVersion=1; released=$false; files=$files.Count; bytes=[long]($files | Measure-Object Length -Sum | ForEach-Object { $_.Sum }); utc=[datetime]::UtcNow.ToString('O') }
+    if ($Preview) { return [pscustomobject]$receipt }
+    Write-GtJson $receiptPath $receipt
+    # The fixed child path was checked for traversal and reparse points before removal.
+    Remove-Item -LiteralPath $backup -Recurse -Force
+    $receipt.released=$true
+    Write-GtJson $receiptPath $receipt
+    return [pscustomobject]$receipt
+}
+
 function New-GtDirectory([string] $Root, [string] $Name) {
     $rootPath = Get-GtPath $Root
     if (-not (Test-GtWithin $rootPath $script:GameTestArtifactRoot)) {
         throw 'EvidenceRoot must be tools/game-test/artifacts or one of its subdirectories.'
     }
+    $plan = Get-VerificationEvidencePath -Root $rootPath -Name $Name -ArtifactRoot $script:GameTestArtifactRoot -Layout GameTest
+    $path = $plan.directory
     Assert-GtPlainPath $rootPath
-    $path = Join-Path $rootPath ((Get-Date -Format 'yyyyMMdd-HHmmss-fff') + '-' + $Name + '-' + [guid]::NewGuid().ToString('N').Substring(0,8))
     New-Item -ItemType Directory -Path $path | Out-Null
+    Write-GtJson (Join-Path $path 'Directory.json') $plan
     return $path
 }
 
@@ -137,7 +180,11 @@ function Get-GtSourceIdentity([string] $TargetCommit = 'HEAD') {
     $overlay = @(Invoke-GtGit (@('diff','HEAD','--name-only','--diff-filter=ACDMRTUXB') + $sourcePaths))
     $overlay += @(Invoke-GtGit @('ls-files','--others','--exclude-standard'))
     $overlay += @('SolastaUnfinishedBusiness/Assembly-CSharp.dll','lib/Assembly-CSharp_public.dll')
-    foreach ($relative in ($overlay | Where-Object { $_ -notmatch '^tools/' } | Sort-Object -Unique)) {
+    $overlayPaths=[Collections.Generic.SortedSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($relative in $overlay) {
+        if ($relative -notmatch '^tools/') { [void]$overlayPaths.Add($relative) }
+    }
+    foreach ($relative in $overlayPaths) {
         $path = Join-Path $script:GameTestRepo $relative
         if (Test-Path -LiteralPath $path -PathType Leaf) {
             $files += [ordered]@{ path = $relative; sha256 = Get-GtHash $path }
@@ -150,7 +197,12 @@ function Get-GtSourceIdentity([string] $TargetCommit = 'HEAD') {
         status = @(Invoke-GtGit (@('status','--porcelain=v1') + $sourcePaths))
         index = @(Invoke-GtGit (@('diff','--cached','--raw','--full-index') + $sourcePaths)); overlayFiles = $files
     }
-    $bytes = [Text.Encoding]::UTF8.GetBytes(($state | ConvertTo-Json -Depth 10 -Compress))
+    $jsonArguments=@{Depth=10;Compress=$true}
+    if ((Get-Command ConvertTo-Json).Parameters.ContainsKey('EscapeHandling')) {
+        # Match Windows PowerShell's JSON escaping on PowerShell 7 as well.
+        $jsonArguments.EscapeHandling='EscapeHtml'
+    }
+    $bytes = [Text.Encoding]::UTF8.GetBytes(($state | ConvertTo-Json @jsonArguments))
     $algorithm = [Security.Cryptography.SHA256]::Create()
     try { $digest = [BitConverter]::ToString($algorithm.ComputeHash($bytes)).Replace('-','') } finally { $algorithm.Dispose() }
     return [ordered]@{ digest = $digest; state = $state }
@@ -159,17 +211,26 @@ function Get-GtSourceIdentity([string] $TargetCommit = 'HEAD') {
 function Get-GtManifest([string] $Directory) {
     Assert-GtTree $Directory
     $root = Get-GtPath $Directory
-    return @(Get-ChildItem -LiteralPath $root -Recurse -File -Force | Sort-Object FullName | ForEach-Object {
-        [ordered]@{ path = $_.FullName.Substring($root.Length + 1).Replace('\','/'); size = $_.Length; sha256 = Get-GtHash $_.FullName }
+    [string[]]$paths = @(Get-ChildItem -LiteralPath $root -Recurse -File -Force | ForEach-Object FullName)
+    [Array]::Sort($paths, [StringComparer]::Ordinal)
+    return @($paths | ForEach-Object {
+        [ordered]@{ path = $_.Substring($root.Length + 1).Replace('\','/'); size = (Get-Item -LiteralPath $_).Length; sha256 = Get-GtHash $_ }
     })
 }
 
 function Assert-GtManifest([string] $Directory, [object[]] $Manifest) {
     $actual = @(Get-GtManifest $Directory)
     if ($actual.Count -ne $Manifest.Count) { throw "Manifest file count differs: $Directory" }
-    for ($index=0; $index -lt $actual.Count; $index++) {
-        if ($actual[$index].path -ne $Manifest[$index].path -or $actual[$index].sha256 -ne $Manifest[$index].sha256) {
-            throw "Manifest mismatch: $($actual[$index].path)"
+    $expectedByPath = [Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
+    foreach ($entry in $Manifest) {
+        if ($expectedByPath.ContainsKey($entry.path)) { throw "Duplicate manifest path: $($entry.path)" }
+        $expectedByPath.Add($entry.path, $entry)
+    }
+    foreach ($entry in $actual) {
+        if (-not $expectedByPath.ContainsKey($entry.path) -or
+            $entry.sha256 -ne $expectedByPath[$entry.path].sha256 -or
+            $entry.size -ne $expectedByPath[$entry.path].size) {
+            throw "Manifest mismatch: $($entry.path)"
         }
     }
 }

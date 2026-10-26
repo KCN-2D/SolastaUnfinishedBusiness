@@ -47,27 +47,12 @@ public class CustomInvocationSubPanel : MonoBehaviour
 
     internal static List<string> CustomInvocationsProficiencies(RulesetCharacterHero hero, InvocationSubPanel panel)
     {
-        if (panel.TryGetComponent<CustomInvocationSubPanel>(out var custom))
-        {
-            var customInvocations = DatabaseRepository.GetDatabase<InvocationDefinition>()
-                .OfType<InvocationDefinitionCustom>()
-                .Where(i => i.PoolType == custom.Type)
-                .Select(i => i.Name);
+        var custom = panel.GetComponent<CustomInvocationSubPanel>();
 
-            return hero.invocationProficiencies
-                .Intersect(customInvocations)
-                .ToList();
-        }
-        else
-        {
-            var customInvocations = DatabaseRepository.GetDatabase<InvocationDefinition>()
-                .OfType<InvocationDefinitionCustom>()
-                .Select(i => i.Name);
-
-            return hero.invocationProficiencies
-                .Except(customInvocations)
-                .ToList();
-        }
+        return GetAcquiredInvocations(hero)
+            .Where(invocation => IsInvocationFromPanel(invocation, custom))
+            .Select(invocation => invocation.Name)
+            .ToList();
     }
 
     internal static List<string> OnlyStandardInvocationProficiencies(RulesetCharacterHero hero)
@@ -85,12 +70,9 @@ public class CustomInvocationSubPanel : MonoBehaviour
             return [];
         }
 
-        var customInvocations = DatabaseRepository.GetDatabase<InvocationDefinition>()
-            .OfType<InvocationDefinitionCustom>()
-            .Select(i => i.Name);
-
-        return hero.invocationProficiencies
-            .Except(customInvocations)
+        return GetAcquiredInvocations(hero)
+            .Where(invocation => invocation is not InvocationDefinitionCustom)
+            .Select(invocation => invocation.Name)
             .ToList();
     }
 
@@ -101,33 +83,15 @@ public class CustomInvocationSubPanel : MonoBehaviour
 
     internal static void PrepareRelevantInvocations(InvocationSubPanel panel, RulesetCharacterHero hero)
     {
-        var all = DatabaseRepository.GetDatabase<InvocationDefinition>()
-            .Where(x => !x.GuiPresentation.Hidden)
-            .Except(InvocationsContext.DisabledInvocations);
-
-        IEnumerable<InvocationDefinition> invocations;
-
         var custom = panel.GetComponent<CustomInvocationSubPanel>();
-
-        if (custom)
-        {
-            invocations = all.OfType<InvocationDefinitionCustom>()
-                .Where(x => x.PoolType == custom.Type);
-        }
-        else
-        {
-            invocations = all.Where(x => x is not InvocationDefinitionCustom);
-        }
-
-        // Selection panels need the full candidate catalog. Inspection needs only the
-        // acquired invocations; native SetState still applies its normal visibility rules.
-        if (hero != null && panel.GetComponentInParent<CharacterStageProficiencySelectionPanel>() == null &&
-            !LevelUpHelper.IsLevelingUp(hero) &&
-            ServiceRepository.GetService<ICharacterBuildingService>()?.CurrentLocalHeroCharacter == null)
-        {
-            var acquired = new HashSet<string>(hero.InvocationProficiencies);
-            invocations = invocations.Where(invocation => acquired.Contains(invocation.Name));
-        }
+        var inspection = IsPassiveInspection(panel, hero);
+        IEnumerable<InvocationDefinition> source = inspection
+            ? GetAcquiredInvocations(hero)
+            : DatabaseRepository.GetDatabase<InvocationDefinition>();
+        var invocations = source.Where(invocation => !invocation.GuiPresentation.Hidden &&
+                !InvocationsContext.DisabledInvocations.Contains(invocation) &&
+                IsInvocationFromPanel(invocation, custom) &&
+                (!inspection || !custom || Main.Settings.EnableExtendedProficienciesPanelDisplay));
 
         var table = panel.Table;
         var relevantInvocations = panel.relevantInvocations;
@@ -147,7 +111,40 @@ public class CustomInvocationSubPanel : MonoBehaviour
         }
     }
 
-    public static void AddCustomSubPanels(ProficienciesPanel panel)
+    private static bool IsPassiveInspection(ProficienciesSubPanel panel, RulesetCharacterHero hero)
+    {
+        return hero != null && CharacterInspectionScreenEnhancement.IsInspectionProficiencyPanel(panel) &&
+               !LevelUpHelper.IsLevelingUp(hero) &&
+               ServiceRepository.GetService<ICharacterBuildingService>()?.CurrentLocalHeroCharacter == null;
+    }
+
+    private static IEnumerable<InvocationDefinition> GetAcquiredInvocations(RulesetCharacterHero hero)
+    {
+        if (hero == null)
+        {
+            yield break;
+        }
+
+        var database = DatabaseRepository.GetDatabase<InvocationDefinition>();
+        HashSet<string> acquired = [];
+
+        foreach (var name in hero.InvocationProficiencies)
+        {
+            if (acquired.Add(name) && database.TryGetElement(name, out var invocation))
+            {
+                yield return invocation;
+            }
+        }
+    }
+
+    private static bool IsInvocationFromPanel(InvocationDefinition invocation, CustomInvocationSubPanel custom)
+    {
+        return custom
+            ? invocation is InvocationDefinitionCustom definition && definition.PoolType == custom.Type
+            : invocation is not InvocationDefinitionCustom;
+    }
+
+    public static void AddCustomSubPanels(ProficienciesPanel panel, RulesetCharacterHero hero = null)
     {
         if (!panel.toggleGroup || !Main.Settings.EnableExtendedProficienciesPanelDisplay)
         {
@@ -156,18 +153,48 @@ public class CustomInvocationSubPanel : MonoBehaviour
 
         var invocationsSubPanel = panel.subPanels[(int)ProficienciesPanel.ProficiencyType.Invocation];
 
+        var inspection = CharacterInspectionScreenEnhancement.IsInspectionProficiencyPanel(invocationsSubPanel);
+        if (inspection && hero == null)
+        {
+            return;
+        }
+
+        var pools = InvocationPoolTypeCustom.Pools.All.Where(pool => !pool.Hidden);
+        if (inspection && IsPassiveInspection(invocationsSubPanel, hero))
+        {
+            var acquiredPools = GetAcquiredInvocations(hero)
+                .Where(invocation => !invocation.GuiPresentation.Hidden &&
+                                     !InvocationsContext.DisabledInvocations.Contains(invocation))
+                .OfType<InvocationDefinitionCustom>().Select(invocation => invocation.PoolType).ToHashSet();
+            pools = pools.Where(acquiredPools.Contains);
+        }
+
         var invocationTransform = invocationsSubPanel.transform;
         var root = invocationTransform.parent;
         var siblingIndex = invocationTransform.GetSiblingIndex() + 1;
 
         var index = panel.subPanels.Length;
-        var poolTypes = InvocationPoolTypeCustom.Pools.All.Where(p => !p.Hidden).ToArray();
+        var existing = panel.subPanels.OfType<InvocationSubPanel>()
+            .Select(subPanel => subPanel.GetComponent<CustomInvocationSubPanel>())
+            .Where(custom => custom).Select(custom => custom.Type).ToHashSet();
+        var poolTypes = pools.Where(pool => !existing.Contains(pool)).ToArray();
+        if (poolTypes.Length == 0)
+        {
+            return;
+        }
 
         Array.Resize(ref panel.subPanels, index + poolTypes.Length);
 
         foreach (var pool in poolTypes)
         {
             var extra = Instantiate(invocationsSubPanel, root);
+
+            // A setting can create these sections after the source panel was bound.
+            // Cloned rows do not share the source's native pool ownership.
+            for (var child = extra.Table.childCount - 1; child >= 0; child--)
+            {
+                DestroyImmediate(extra.Table.GetChild(child).gameObject);
+            }
 
             extra.gameObject.AddComponent<CustomInvocationSubPanel>().Setup(pool);
             extra.transform.SetSiblingIndex(siblingIndex);

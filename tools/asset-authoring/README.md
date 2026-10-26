@@ -136,16 +136,30 @@ $result = Get-Content .\tools\asset-authoring\workspace\Output\last-success.json
 
 作業先は`tools/asset-authoring/workspace/UnityWorkspace/<日時>-<識別子>/Project/`です。実行フォルダ直下の`Editor.log`と、`Project/BuildOutput/unity-report.json`でビルド・再読み込み結果を確認します。
 
-Hubで認証したEditorを継続して使う場合は、この作業用Projectを開き、同じ入口に`-GuiProjectPath`を指定します。初回は`-InstallGuiWorker`でEditor拡張を配置し、Editorの`Assets > Refresh`を選びます。
+認証済みEditorを使う場合は、作業用Projectに`-GuiProjectPath`を指定します。`-StartBackgroundEditor`を付けると、Unity CLIから非入力デスクトップへEditorを起動し、ジョブ終了後にEditorとデスクトップを解放します。PowerShell 7とUnity CLIが必要です。
 
 ```powershell
-.\tools\asset-authoring\Invoke-UnityAssetBuild.ps1 `
+pwsh -NoProfile -File .\tools\asset-authoring\Invoke-UnityAssetBuild.ps1 `
     -UnityPath 'C:\Tools\Unity\2019.4.37f1\Editor\Unity.exe' `
     -FbxPath (Join-Path $result.output 'rig\UBSampleRig.fbx') `
-    -GuiProjectPath '<作業用Projectのパス>' -InstallGuiWorker
+    -GuiProjectPath '<作業用Projectのパス>' -InstallGuiWorker -StartBackgroundEditor
 ```
 
-以後は`-InstallGuiWorker`を省略して繰り返します。workerの更新時は再び指定すると、読み込み済みのworkerが更新を取り込みます。指定したUnity Projectを基準に、FBXと生成アセットは`Assets/AuthoringJobs/<識別子>/`、ジョブ・結果・AssetBundleは`.asset-authoring-jobs/<識別子>/`へ保存します。Editorのメインスレッドでインポート、ビルド、再読み込みを行い、開いているシーンは変更しません。生成したアセットだけを保存し、Editorは終了しません。タイムアウトしたジョブは保持するため、再実行前にその結果を確認します。
+Unity CLIは既定で`%LOCALAPPDATA%\Unity\bin\unity.exe`を使います。別の配置先は`-UnityCliPath`で指定します。既に開いているEditorを使う場合は`-StartBackgroundEditor`を外します。初回とworker更新時は`-InstallGuiWorker`で拡張を配置し、既存Editorでは`Assets > Refresh`で読み込みます。
+
+workerの結果にはコンパイル済みコードの識別子を記録し、呼び出し側で依頼時の期待値と照合します。識別子の欠落・不一致は失敗とし、独自workerにも同じ照合を設けます。
+
+指定したUnity Projectを基準に、FBXと生成アセットは`Assets/AuthoringJobs/<識別子>/`、ジョブ・結果・AssetBundleは`.asset-authoring-jobs/<識別子>/`へ保存します。Editorのメインスレッドでインポート、ビルド、再読み込みを行い、開いているシーンは変更しません。非占有起動のPID・開始時刻・デスクトップ・入力状態・正常終了は`.asset-authoring-jobs/BackgroundSessions/<識別子>/session.json`へ記録します。既存Editorを使った場合は終了せず、起動したEditorだけを終了します。失敗したジョブも保持します。
+
+非占有起動の契約テストでは、既存workerの継続、2回の制作・再読み込み、入力不正時の後始末を検証します。
+
+```powershell
+pwsh -NoProfile -File .\tools\asset-authoring\tests\Test-UnityAssetBuildContracts.ps1 `
+    -UnityPath 'C:\Tools\Unity\2019.4.37f1\Editor\Unity.exe' `
+    -GuiProjectPath '<作業用Projectのパス>' `
+    -FbxPath (Join-Path $result.output 'rig\UBSampleRig.fbx') `
+    -BackgroundEditorOnly -InstallGuiWorker
+```
 
 GUI経路の契約テストは、現在のworkerを読み込んだProjectを指定して実行します。
 
@@ -155,6 +169,8 @@ GUI経路の契約テストは、現在のworkerを読み込んだProjectを指�
     -FbxPath (Join-Path $result.output 'rig\UBSampleRig.fbx') `
     -GuiProjectPath '<作業用Projectのパス>'
 ```
+
+`-CliTimeoutOnly`は起動CLIのタイムアウト後の終了処理、`-CallerStopOnly`は起動待ちの中断・呼び出し元終了後の停止を検証します。どちらもEditorを起動せず、非入力デスクトップ上でテスト用CLIを使います。`-FbxPath`は不要です。
 
 材質・シェーダーを同梱する場合は、`-FbxPath`の代わりに`-MaterialRecipePath`を指定します。
 
@@ -171,6 +187,19 @@ GUI経路の契約テストは、現在のworkerを読み込んだProjectを指�
 契約テストにも`-MaterialRecipePath`を渡すと、材質の再読み込み、描画パス不足、プロパティ型の不一致、入力ハッシュ不一致を確認します。同名のShaderや同名・同寸法のTextureについても、宣言した資産パスに対応するbundle内参照と照合します。
 
 材質だけを再検証する場合は、契約テストに`-MaterialsOnly -MaterialRecipePath '<材質レシピ.json>'`を指定し、`-FbxPath`を省略します。workerを更新する場合は`-InstallGuiWorker`を追加します。
+
+頂点チャンネルを保ったMesh AssetBundleを作成するには、`-MeshRecipePath`を指定します。
+
+```powershell
+pwsh -NoProfile -File .\tools\asset-authoring\Invoke-UnityAssetBuild.ps1 `
+    -UnityPath 'C:\Tools\Unity\2019.4.37f1\Editor\Unity.exe' `
+    -MeshRecipePath '<メッシュレシピ.json>' -GuiProjectPath '<作業用Projectのパス>' `
+    -InstallGuiWorker -StartBackgroundEditor
+```
+
+レシピは`schemaVersion=1`、`bundleName`、`meshes`を持ちます。各meshは一意な`name`、`vertices`、`normals`、`tangents`、`uvChannels`、`subMeshes`、`bounds`、`indexFormat`を指定します。`colors`は任意のRGBA配列です。頂点・法線は3成分、接線・色は4成分の平坦な数値配列で、使わない法線・接線は空配列にします。UVは`channel`（0〜7）、`dimension`（2・3・4）、`values`を指定します。submeshは`topology=Triangles`と`indices`、boundsは3成分ずつの`center`と`size`、indexFormatは`UInt16`または`UInt32`です。
+
+非有限値、不正な配列長・indices・bounds、重複名・UVを拒否します。再読み込み後は全チャンネルのfloat32ビット列、UV次元、indices、submesh、bounds、名称を照合します。契約テストに`-MeshesOnly -MeshRecipePath '<メッシュレシピ.json>'`を渡すと、1回のビルドと不正入力の拒否を確認します。
 
 ## ゲーム内検証
 

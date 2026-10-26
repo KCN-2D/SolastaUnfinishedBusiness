@@ -12,7 +12,7 @@ Action/&CastQuickenedDescription=Наложите заклинание осно�
 Action/&BonusActionFreeJumpDescription=Потратьте бонусное действие, чтобы выполнить усиленный прыжок, используя Силу и Атлетику.
 Action/&BonusActionFreeJumpTitle=Прыжок
 Action/&ExplorationFreeJumpToggleDescription=Включает/выключает режим перемещения прыжком.
-Action/&ExplorationFreeJumpToggleTitle=Переключить прыжок
+Action/&ExplorationFreeJumpToggleTitle=Прыжок
 Action/&FreeJumpCheckFormat=Этот прыжок расходует {0} клеток скорости передвижения и требует проверку Атлетики со Сл {1}.
 Action/&FreeJumpMoveCostFormat=Этот прыжок расходует {0} клеток скорости передвижения.
 Action/&FreeJumpAutomaticFailureFormat=<color=#C04040E0>Этот прыжок расходует {0} клеток скорости передвижения, и приземление провалится.</color>
@@ -20,6 +20,7 @@ Action/&FreeJumpSuccessChance=Шанс успеха: {0}%.
 Action/&FreeJumpSuccessChanceWithAffinity=С {0} шанс успеха: {1}%.
 Action/&FreeJumpAdvantage=преимуществом
 Action/&FreeJumpDisadvantage=помехой
+Action/&FreeJumpChooseDestinationDescription=Выберите клетку приземления в пределах дальности прыжка.
 Action/&CunningStrikeToggleDescription=Активировать/деактивировать Хитрый удар
 Action/&CunningStrikeToggleTitle=Хитрый удар
 Action/&DragonHideToggleDescription=Ваши безоружные удары наносят рубящий урон и используют как минимум одну кость урона размером не меньше к4.

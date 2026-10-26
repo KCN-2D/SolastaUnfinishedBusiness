@@ -209,6 +209,8 @@ public static class CharacterStageClassSelectionPanelPatcher
         public static void Postfix(CharacterStageClassSelectionPanel __instance)
         {
             RefreshClassContentLayout(__instance);
+            UiTextHelpers.ConfigureCharacterSelectionScroll(__instance.classesTableSW);
+            UiTextHelpers.ConfigureCharacterSelectionScroll(__instance.classFeaturesScrollrect);
         }
     }
 }

@@ -175,7 +175,8 @@ ModUi/&EnableDungeonMakerModdedContent=Aktivieren Sie Dungeon Maker Pro\n<i><col
 ModUi/&EnableElevationCameraToStayAtPosition=<i>+ Aktivieren Sie die Höhenkamera während des Gefechts, damit sie nach der Deaktivierung an ihrer Position bleibt und ihre Reichweite verdreifacht</i>
 ModUi/&EnableEpicPointsAndArray=Aktiviere ein episches 35-Punkte-Kaufsystem und -Array <i><color=#F0DAA0>[17,15,13,12,10,8]</color></i> <b><i><color=#C04040E0>[Neustart erforderlich]</color></i></b>
 ModUi/&ForcePointBuyAbilityScores=Attributswerte bei Charaktererstellung und RESPEC auf Punktekauf erzwingen
-ModUi/&EnableExtendedProficienciesPanelDisplay=Anzeige des erweiterten Kompetenzfelds aktivieren <i><color=#F0DAA0>[{0}]</color></i>\n<b><i><color=#C04040E0>[Leistungseinbußen bei der Charakterüberprüfung]</color></i></b>
+ModUi/&EnableExtendedProficienciesPanelDisplay=Anzeige des erweiterten Kompetenzfelds aktivieren <i><color=#F0DAA0>[{0}]</color></i>
+ModUi/&EnablePermanentDefensesPanelDisplay=Resistenzen und Immunitäten durch Volk, Klasse, Talente und angelegte Ausrüstung anzeigen
 ModUi/&EnableFeatsAtEvenLevels=Aktiviere die Auswahl von <color=#D89555>Fähigkeiten</color> auf den Stufen 2, 10 und 18
 ModUi/&EnableFeatsAtEvenLevelsMiddle=Aktiviere die Auswahl von <color=#D89555>Fähigkeiten</color> auf den Stufen 6 und 14.
 ModUi/&EnableFighterIndomitableSaving2024=Tauschen Sie <color=#D89555>Unbezwingbarer Widerstand</color> gegen die Version 5e 2024 aus <i><color=#F0DAA0>[fügen Sie die Klassenstufe als Bonus zum erneuten Wurf des Rettungswurfs hinzu]</color></i>

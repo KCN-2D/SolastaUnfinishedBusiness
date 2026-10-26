@@ -22,8 +22,15 @@ public class CharacterActionExplorationFreeJumpToggle(CharacterActionParams acti
             rulesetCharacter.EnableToggle(ActionId);
         }
 
-        rulesetCharacter.RefreshAttackModes();
         rulesetCharacter.CharacterRefreshed?.Invoke(rulesetCharacter);
+
+        if (ServiceRepository.GetService<ICursorService>()?.CurrentCursor is CursorLocationExplorationCharacter
+            { Active: true } cursor)
+        {
+            // The toggle changes movement feedback, not the character's attack modes.
+            // Refresh it immediately for keyboard activation with a stationary pointer too.
+            cursor.RefreshHover();
+        }
 
         yield break;
     }

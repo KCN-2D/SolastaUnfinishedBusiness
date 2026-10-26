@@ -22,6 +22,21 @@ public static class InvocationSubPanelPatcher
     public static class RuntimeLoaded_Patch
     {
         [UsedImplicitly]
+        public static bool Prefix(InvocationSubPanel __instance)
+        {
+            if (!PermanentDefensesSubPanel.IsDefensesPanel(__instance) &&
+                !CharacterInspectionScreenEnhancement.IsInspectionProficiencyPanel(__instance))
+            {
+                return true;
+            }
+
+            // An inspection has no candidates to choose until its hero is bound.
+            // Selection panels retain the native complete catalog and row preparation.
+            __instance.relevantInvocations.Clear();
+            return false;
+        }
+
+        [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             var count = typeof(List<InvocationDefinition>).GetProperty(nameof(List<InvocationDefinition>.Count))?.GetMethod;
@@ -41,14 +56,21 @@ public static class InvocationSubPanelPatcher
     public static class Bind_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(InvocationSubPanel __instance, RulesetCharacterHero __0)
+        public static bool Prefix(InvocationSubPanel __instance, RulesetCharacterHero __0,
+            ProficiencyBaseItem.OnItemClickedHandler __1)
         {
+            if (PermanentDefensesSubPanel.TryBind(__instance, __0, __1))
+            {
+                return false;
+            }
+
             //PATCH: support for custom invocations and separate sub-panels for them
             //filters only invocations that fit this sub-panel
             CustomInvocationSubPanel.PrepareRelevantInvocations(__instance, __0);
 
             // //PATCH: sorts the invocations panel by Title
             InvocationsContext.SortInvocations(__instance);
+            return true;
         }
     }
 
@@ -57,6 +79,18 @@ public static class InvocationSubPanelPatcher
     [UsedImplicitly]
     public static class SetState_Patch
     {
+        [UsedImplicitly]
+        public static bool Prefix(InvocationSubPanel __instance, bool active)
+        {
+            if (!PermanentDefensesSubPanel.IsDefensesPanel(__instance))
+            {
+                return true;
+            }
+
+            __instance.Selected = active;
+            return false;
+        }
+
         [NotNull]
         [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler([NotNull] IEnumerable<CodeInstruction> instructions)

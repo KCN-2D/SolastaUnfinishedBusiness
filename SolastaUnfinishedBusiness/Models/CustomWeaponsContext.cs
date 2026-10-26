@@ -1,6 +1,10 @@
-﻿using System.Collections.Generic;
+using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using JetBrains.Annotations;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors;
@@ -66,6 +70,7 @@ internal static class CustomWeaponsContext
         BuildLongMaces();
         BuildKatana();
         BuildHandXbow();
+        LoadCrossbowPresentation();
         ConfigureProducedFlame();
         BuildThunderGauntlet();
         BuildLightningLauncher();
@@ -552,6 +557,113 @@ internal static class CustomWeaponsContext
 
     #region Hand Crossbows
 
+    private static void LoadCrossbowPresentation()
+    {
+        var carry = new CombatAnimationContext.WeaponAnimation(null, null, null,
+            "Idle", "Crossbow_Idle", EquipmentDefinitions.SlotTypeMainHand, false)
+            .WithIdleBindings(new[] { "Idle", "Idle_Fighter", "Idle_Caster", "Crossbow_Idle" });
+        foreach (var weaponType in new[] { LightCrossbowType, HeavyCrossbowType })
+        {
+            if (weaponType.GetFirstSubFeatureOfType<CombatAnimationContext.WeaponAnimation>() == null)
+            {
+                weaponType.AddCustomSubFeatures(carry);
+            }
+        }
+
+        try
+        {
+            var directory = Path.Combine(Main.ModFolder, "BlenderModels", "HandCrossbowFrame");
+            using var text = File.OpenText(Path.Combine(directory, "HandCrossbowFrame.grips.json"));
+            using var reader = new JsonTextReader(text)
+            {
+                DateParseHandling = DateParseHandling.None,
+                FloatParseHandling = FloatParseHandling.Double
+            };
+            var data = JObject.Load(reader,
+                new JsonLoadSettings { DuplicatePropertyNameHandling = DuplicatePropertyNameHandling.Error });
+            if (reader.Read() || (int?)data["schemaVersion"] != 2)
+            {
+                throw new InvalidDataException("Invalid hand crossbow presentation.");
+            }
+            string Text(JToken value) => value?.Type == JTokenType.String &&
+                !string.IsNullOrWhiteSpace(value.Value<string>())
+                    ? value.Value<string>()
+                    : throw new InvalidDataException("Invalid equipment presentation field.");
+            using var mechanismStream = File.OpenRead(Path.Combine(directory, "HandCrossbowFrame.mechanism.json"));
+            var mechanism = CustomModels.WieldedMechanism.FromJson(mechanismStream);
+            var model = CustomModels.ReadWieldedModel(data["model"]).WithMechanism(mechanism);
+            if (data["motion"] is not JObject motion || motion["variants"] is not JArray variants || variants.Count == 0)
+            {
+                throw new InvalidDataException("Missing equipment animation declarations.");
+            }
+            var modelName = Text(motion["modelName"]);
+            if (modelName != Path.GetFileName(modelName))
+            {
+                throw new InvalidDataException("Invalid equipment animation asset name.");
+            }
+            var declarations = new List<object> { model };
+            var selectors = new HashSet<(string Slot, bool Occupied, bool? Combat)>();
+            foreach (var variant in variants)
+            {
+                var slot = Text(variant["slot"]);
+                if (slot != EquipmentDefinitions.SlotTypeMainHand && slot != EquipmentDefinitions.SlotTypeOffHand ||
+                    variant["otherHandOccupied"]?.Type != JTokenType.Boolean)
+                {
+                    throw new InvalidDataException("Invalid equipment animation selector.");
+                }
+                var occupied = variant["otherHandOccupied"].Value<bool>();
+                var combat = variant["inCombat"]?.Type == JTokenType.Boolean
+                    ? variant["inCombat"].Value<bool>() : (bool?)null;
+                if (!selectors.Add((slot, occupied, combat)))
+                {
+                    throw new InvalidDataException("Duplicate equipment animation selector.");
+                }
+                var animation = new CombatAnimationContext.WeaponAnimation(modelName,
+                    Text(motion["attackBinding"]), Text(variant["attackClipPrefix"]),
+                    Text(motion["idleBinding"]), Text(motion["nativeIdleClip"]), slot, false)
+                    .WithOtherHandOccupied(occupied);
+                if (variant["idleClipPrefix"] is { Type: not JTokenType.Null } idleClipPrefix)
+                {
+                    animation = animation.WithIdleAnimation(Text(idleClipPrefix),
+                        variant["idleVariantBinding"] is { Type: not JTokenType.Null } idleVariantBinding
+                            ? Text(idleVariantBinding) : null);
+                }
+                if (motion["idleBindings"] is JArray idleBindings)
+                {
+                    animation = animation.WithIdleBindings(idleBindings.Select(Text));
+                }
+                if (variant["clipPrefixes"] is JObject prefixes)
+                {
+                    animation = animation.WithClipAnimations(prefixes.Properties()
+                            .ToDictionary(property => property.Name, property => Text(property.Value)),
+                        variant["clipVariantBinding"] is { Type: not JTokenType.Null } clipVariantBinding
+                            ? Text(clipVariantBinding) : null);
+                }
+                if (variant["attackEntries"] is { Type: not JTokenType.Null } attackEntries)
+                {
+                    if (attackEntries is not JObject entries)
+                        throw new InvalidDataException("Invalid equipment attack entry declarations.");
+                    animation = animation.WithAttackEntries(entries.Properties()
+                        .ToDictionary(property => property.Name, property => Text(property.Value)));
+                }
+                if (variant["inCombat"] is { Type: not JTokenType.Null } inCombat)
+                {
+                    if (inCombat.Type != JTokenType.Boolean)
+                        throw new InvalidDataException("Invalid equipment combat-state selector.");
+                    animation = animation.WithCombatState(inCombat.Value<bool>());
+                }
+                declarations.Add(animation);
+            }
+            HandXbowWeaponType.AddCustomSubFeatures(declarations.ToArray());
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException or
+            ArgumentException or InvalidOperationException or OverflowException or InvalidCastException or
+            KeyNotFoundException)
+        {
+            Main.Error($"Unable to load hand crossbow presentation: {exception.Message}");
+        }
+    }
+
     private static void BuildHandXbow()
     {
         HandXbowWeaponType = WeaponTypeDefinitionBuilder
@@ -559,7 +671,6 @@ internal static class CustomWeaponsContext
             .SetGuiPresentation(Category.Item, GuiPresentationBuilder.EmptyString)
             .SetWeaponCategory(WeaponCategoryDefinitions.MartialWeaponCategory)
             .AddCustomSubFeatures(new CustomScale(0.5f))
-            .SetAnimationTag("Rapier")
             .AddToDB();
 
         var baseItem = ItemDefinitions.LightCrossbow;

@@ -42,10 +42,195 @@ public sealed class RuntimeVerificationHarness : MonoBehaviour
 
     public static bool Load(UnityModManager.ModEntry entry)
     {
+        if (!InstallNativeUserDataIsolation()) return false;
         var host = new GameObject("UB Runtime Verification");
         DontDestroyOnLoad(host);
         host.AddComponent<RuntimeVerificationHarness>();
         return true;
+    }
+
+    [DataContract]
+    private sealed class NativeUserDataReceipt
+    {
+        [DataMember] public int schemaVersion = 1, processId;
+        [DataMember] public string utc, owner, originalDirectory, expectedOriginalRoot, isolatedDirectory, allowedRoot, actualRoot, error;
+        [DataMember] public bool isolated, rootOverridden, instancePresent, ubLoadedBeforeIsolation;
+        [DataMember] public NativePreferenceReceipt[] preferences;
+        [DataMember] public List<NativeDirectoryReceipt> directories = new List<NativeDirectoryReceipt>();
+    }
+
+    [DataContract]
+    private sealed class NativePreferenceReceipt
+    {
+        [DataMember] public string name, originalPath, originalSha256, ownedPath, ownedSha256, hashError;
+        [DataMember] public bool originalExists, ownedExists, repositoryPresent, repositoryReplaced;
+    }
+
+    [DataContract]
+    private sealed class NativeDirectoryReceipt
+    {
+        [DataMember] public string property, path;
+        [DataMember] public bool existed, created, verified;
+    }
+
+    private static bool InstallNativeUserDataIsolation()
+    {
+        var receipt = new NativeUserDataReceipt {
+            utc = DateTime.UtcNow.ToString("O"), owner = RuntimeVerificationConfiguration.NativeUserDataOwner,
+            expectedOriginalRoot = RuntimeVerificationConfiguration.NativeOriginalGameDirectory,
+            isolatedDirectory = RuntimeVerificationConfiguration.NativeUserDataDirectory,
+            allowedRoot = RuntimeVerificationConfiguration.NativeUserDataRoot,
+            preferences = new[] { new NativePreferenceReceipt { name = "UserPreferences" },
+                new NativePreferenceReceipt { name = "PlatformPreferences" } }
+        };
+        using (var process = System.Diagnostics.Process.GetCurrentProcess()) receipt.processId = process.Id;
+        try
+        {
+            if (String.IsNullOrEmpty(receipt.owner) || !String.Equals(
+                    Environment.GetEnvironmentVariable("UB_RUNTIME_VERIFICATION_OWNER"), receipt.owner, StringComparison.Ordinal))
+                throw new InvalidOperationException("This process does not own the temporary native user-data isolation lease.");
+            var evidence = Path.GetFullPath(RuntimeVerificationConfiguration.EvidenceDirectory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (!Path.IsPathRooted(receipt.isolatedDirectory) || !Path.IsPathRooted(receipt.expectedOriginalRoot) ||
+                !Path.IsPathRooted(receipt.allowedRoot))
+                throw new InvalidOperationException("Native user-data roots must be absolute paths.");
+            receipt.isolatedDirectory = Path.GetFullPath(receipt.isolatedDirectory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            receipt.expectedOriginalRoot = Path.GetFullPath(receipt.expectedOriginalRoot)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            receipt.allowedRoot = Path.GetFullPath(receipt.allowedRoot)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var ownedParent = Directory.GetParent(receipt.isolatedDirectory);
+            if (ownedParent == null || !String.Equals(ownedParent.FullName.TrimEnd(Path.DirectorySeparatorChar), receipt.allowedRoot,
+                    StringComparison.OrdinalIgnoreCase) ||
+                String.Equals(receipt.isolatedDirectory, receipt.expectedOriginalRoot, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Native user data must use a separate owned directory directly inside the authorized short root.");
+            for (var directory = new DirectoryInfo(receipt.isolatedDirectory); directory != null; directory = directory.Parent)
+            {
+                if (!directory.Exists || (directory.Attributes & FileAttributes.ReparsePoint) != 0)
+                    throw new InvalidOperationException("Native user-data ownership cannot cross missing directories or reparse points.");
+                if (String.Equals(directory.FullName.TrimEnd(Path.DirectorySeparatorChar), receipt.allowedRoot, StringComparison.OrdinalIgnoreCase)) break;
+            }
+            var marker = Path.Combine(receipt.isolatedDirectory, ".ub-runtime-userdata");
+            if (String.IsNullOrEmpty(receipt.owner) || !File.Exists(marker) ||
+                (File.GetAttributes(marker) & FileAttributes.ReparsePoint) != 0 ||
+                !String.Equals(File.ReadAllText(marker), receipt.owner, StringComparison.Ordinal))
+                throw new InvalidOperationException("Native user-data ownership marker does not match this verification process.");
+            var evidenceMarker = Path.Combine(receipt.isolatedDirectory, ".ub-runtime-evidence");
+            if (!File.Exists(evidenceMarker) || (File.GetAttributes(evidenceMarker) & FileAttributes.ReparsePoint) != 0 ||
+                !String.Equals(File.ReadAllText(evidenceMarker), evidence, StringComparison.Ordinal))
+                throw new InvalidOperationException("Native user data is not bound to this verification evidence directory.");
+            receipt.ubLoadedBeforeIsolation = UnityModManager.modEntries.Any(mod =>
+                mod.Info.Id == "SolastaUnfinishedBusiness" && mod.Loaded);
+            if (receipt.ubLoadedBeforeIsolation)
+                throw new InvalidOperationException("Native user data must be isolated before UB loads its preference caches.");
+
+            const BindingFlags fields = BindingFlags.Static | BindingFlags.Instance | BindingFlags.NonPublic;
+            var application = typeof(TacticalAdventuresApplication);
+            var rootField = application.GetField("gameDirectory", fields);
+            var instanceField = application.GetField("instance", fields);
+            if (rootField == null || rootField.FieldType != typeof(string) || !rootField.IsStatic || instanceField == null ||
+                instanceField.FieldType != application || !instanceField.IsStatic)
+                throw new MissingFieldException("Native user-data root and application instance fields were not resolved.");
+            receipt.originalDirectory = Path.GetFullPath(TacticalAdventuresApplication.GameDirectory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (!String.Equals(receipt.originalDirectory, receipt.expectedOriginalRoot, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("The initialized native user-data root differs from the archived original root.");
+
+            // Keep this process-local redirect through native Quit, including its direct preference exports.
+            rootField.SetValue(null, receipt.isolatedDirectory);
+            receipt.actualRoot = TacticalAdventuresApplication.GameDirectory;
+            receipt.rootOverridden = String.Equals(receipt.actualRoot, receipt.isolatedDirectory, StringComparison.OrdinalIgnoreCase);
+            if (!receipt.rootOverridden) throw new InvalidOperationException("Native GameDirectory did not adopt the owned user-data root.");
+            foreach (var name in new[] { "SaveGameDirectory", "MultiplayerFilesDirectory", "LostIronManSaveGameDirectory",
+                "GameCharactersDirectory", "GameBuiltInCharactersDirectory", "GameCharactersTemporaryDirectory",
+                "UserContentDirectory", "UserLocationsDirectory", "UserCampaignsDirectory", "ExportedCharacterSheetsDirectory",
+                "EventLogsDirectory", "MarketingDirectory", "ProfilerLogsDirectory" })
+            {
+                var property = application.GetProperty(name, BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+                if (property == null || property.PropertyType != typeof(string) || property.GetGetMethod(true) == null)
+                    throw new MissingMemberException(application.FullName, name);
+                var path = Path.GetFullPath((string)property.GetValue(null, null))
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                var directory = new NativeDirectoryReceipt { property = name, path = path, existed = Directory.Exists(path) };
+                receipt.directories.Add(directory);
+                if (!path.StartsWith(receipt.isolatedDirectory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Native derived user-data directory escapes the owned root: " + name);
+                for (var ancestor = new DirectoryInfo(path); ancestor != null; ancestor = ancestor.Parent)
+                {
+                    if (ancestor.Exists && (ancestor.Attributes & FileAttributes.ReparsePoint) != 0)
+                        throw new InvalidOperationException("Native derived user-data directory crosses a reparse point: " + name);
+                    if (String.Equals(ancestor.FullName.TrimEnd(Path.DirectorySeparatorChar), receipt.isolatedDirectory,
+                            StringComparison.OrdinalIgnoreCase)) break;
+                }
+                Directory.CreateDirectory(path);
+                directory.created = !directory.existed && Directory.Exists(path);
+                directory.verified = Directory.Exists(path) &&
+                    (File.GetAttributes(path) & FileAttributes.ReparsePoint) == 0;
+                if (!directory.verified) throw new IOException("Native derived user-data directory could not be prepared: " + name);
+            }
+            var instance = instanceField.GetValue(null);
+            receipt.instancePresent = !ReferenceEquals(instance, null);
+            if (!receipt.instancePresent) throw new InvalidOperationException("The native application instance must exist after its Start entry point.");
+            foreach (var preference in receipt.preferences)
+            {
+                preference.originalPath = Path.Combine(receipt.expectedOriginalRoot, preference.name + ".xml");
+                preference.ownedPath = Path.Combine(receipt.isolatedDirectory, preference.name + ".xml");
+                preference.originalExists = File.Exists(preference.originalPath);
+                preference.ownedExists = File.Exists(preference.ownedPath);
+                if (preference.ownedExists && (File.GetAttributes(preference.ownedPath) & FileAttributes.ReparsePoint) != 0)
+                    throw new InvalidOperationException("Owned native preferences cannot be reparse points.");
+                if (preference.ownedExists)
+                {
+                    var settings = new System.Xml.XmlReaderSettings {
+                        DtdProcessing = System.Xml.DtdProcessing.Prohibit, XmlResolver = null
+                    };
+                    using (var reader = System.Xml.XmlReader.Create(preference.ownedPath, settings))
+                    {
+                        var document = new System.Xml.XmlDocument { XmlResolver = null };
+                        document.Load(reader);
+                        if (document.DocumentElement == null) throw new InvalidOperationException("Owned native preferences must contain an XML document element.");
+                    }
+                }
+                try
+                {
+                    if (preference.originalExists) preference.originalSha256 = AssemblyFileHash(preference.originalPath);
+                    if (preference.ownedExists) preference.ownedSha256 = AssemblyFileHash(preference.ownedPath);
+                }
+                catch (Exception ex) { preference.hashError = ex.Message; }
+                var fieldName = preference.name == "UserPreferences" ? "userPreferences" : "platformPreferences";
+                var repositoryField = application.GetField(fieldName, fields);
+                if (repositoryField == null || repositoryField.FieldType != typeof(UserPreferencesRepository) || repositoryField.IsStatic)
+                    throw new MissingFieldException("Native preference repository field was not resolved: " + fieldName);
+                preference.repositoryPresent = !ReferenceEquals(repositoryField.GetValue(instance), null);
+                if (!preference.repositoryPresent) continue;
+                var replacement = new UserPreferencesRepository();
+                replacement.Import(preference.ownedPath, true, null);
+                repositoryField.SetValue(instance, replacement);
+                preference.repositoryReplaced = ReferenceEquals(repositoryField.GetValue(instance), replacement);
+                if (!preference.repositoryReplaced) throw new InvalidOperationException("Native preference repository replacement failed: " + fieldName);
+            }
+            receipt.isolated = receipt.rootOverridden && receipt.directories.Count == 13 && receipt.directories.All(directory => directory.verified) &&
+                receipt.preferences.All(preference =>
+                !preference.repositoryPresent || preference.repositoryReplaced);
+            WriteNativeUserDataReceipt(receipt);
+            return receipt.isolated;
+        }
+        catch (Exception ex)
+        {
+            receipt.error = ex.ToString();
+            receipt.isolated = false;
+            try { WriteNativeUserDataReceipt(receipt); } catch { }
+            // Returning false alone does not stop UMM from loading a mod whose requirement failed.
+            Environment.Exit(91);
+            return false;
+        }
+    }
+
+    private static void WriteNativeUserDataReceipt(NativeUserDataReceipt receipt)
+    {
+        using (var stream = File.Create(Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory, "Native-UserData.json")))
+            new DataContractJsonSerializer(typeof(NativeUserDataReceipt)).WriteObject(stream, receipt);
     }
 
     private void Awake()

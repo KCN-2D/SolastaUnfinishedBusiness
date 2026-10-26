@@ -175,7 +175,8 @@ ModUi/&EnableDungeonMakerModdedContent=Dungeon Maker Pro 활성화\n<i><color=#F
 ModUi/&EnableElevationCameraToStayAtPosition=<i>+ 전투 중 고도 카메라를 활성화하여 비활성화 후에도 위치를 유지하고 범위를 3배로 늘립니다.</i>
 ModUi/&EnableEpicPointsAndArray=35포인트의 장대한 구매 시스템과 배열을 활성화하세요 <i><color=#F0DAA0>[17,15,13,12,10,8]</color></i> <b><i><color=#C04040E0>[재시작 필요]</color></i></b>
 ModUi/&ForcePointBuyAbilityScores=캐릭터 생성 및 RESPEC 중 능력치 결정을 포인트 구매로 고정합니다
-ModUi/&EnableExtendedProficienciesPanelDisplay=확장된 숙련도 패널 표시 활성화 <i><color=#F0DAA0>[{0}]</color></i>\n<b><i><color=#C04040E0>[캐릭터 검사 시 성능 저하]</color></i></b>
+ModUi/&EnableExtendedProficienciesPanelDisplay=확장된 숙련도 패널 표시 활성화 <i><color=#F0DAA0>[{0}]</color></i>
+ModUi/&EnablePermanentDefensesPanelDisplay=종족, 클래스, 재주 및 착용 장비로 얻는 저항과 면역을 표시합니다
 ModUi/&EnableFeatsAtEvenLevels=레벨 2, 10, 18에서 <color=#D89555>특기</color> 선택 활성화
 ModUi/&EnableFeatsAtEvenLevelsMiddle=레벨 6과 14에서 <color=#D89555>특기</color> 선택 활성화
 ModUi/&EnableFighterIndomitableSaving2024=<color=#D89555>불굴의 저항</color>을 5e 2024 버전으로 바꾸세요 <i><color=#F0DAA0>[세이브 스로우 재시도에 보너스로 클래스 레벨 추가]</color></i>

@@ -30,6 +30,7 @@ public static class SpellSelectionPanelPatcher
             if (Main.Settings.DisableMultilineSpellOffering)
             {
                 CampaignsContext.PrepareNativeSpellSelectionBind(__instance);
+                CampaignsContext.CaptureNativeSpellSelectionLayout(__instance);
             }
 
             ActionPanelContext.BindFamiliarTouchSelection(__instance, caster.RulesetCharacter);
@@ -57,6 +58,11 @@ public static class SpellSelectionPanelPatcher
             ActionDefinitions.ActionType actionType,
             bool cantripOnly)
         {
+            if (Main.Settings.DisableMultilineSpellOffering)
+            {
+                CampaignsContext.ConfigureNativeSpellSelectionLayout(__instance);
+                return;
+            }
             CampaignsContext.SpellSelectionPanelMultilineBind(
                 __instance, caster, spellCastEngaged, actionType, cantripOnly);
         }
@@ -70,7 +76,29 @@ public static class SpellSelectionPanelPatcher
             var getVisibleRepertoires = new Func<RulesetCharacter, List<RulesetSpellRepertoire>>(GetRepertoires).Method;
 
             return instructions.ReplaceCalls(getRepertoires, "SpellSelectionPanel.Bind",
-                new CodeInstruction(OpCodes.Call, getVisibleRepertoires));
+                    new CodeInstruction(OpCodes.Call, getVisibleRepertoires))
+                .ReplaceCalls(typeof(SpellRepertoireLine).GetMethod(nameof(SpellRepertoireLine.Bind)), 2,
+                    "SpellSelectionPanel.Bind.SourceRange",
+                    new CodeInstruction(OpCodes.Call, new Action<SpellRepertoireLine, GuiCharacter,
+                        RulesetSpellRepertoire, bool, SpellsByLevelBox.SpellCastEngagedHandler,
+                        SlotAdvancementPanel, ActionDefinitions.ActionType, bool, int, int, bool>(BindNativeLine).Method));
+        }
+
+        private static void BindNativeLine(SpellRepertoireLine line, GuiCharacter caster,
+            RulesetSpellRepertoire repertoire, bool showHeader, SpellsByLevelBox.SpellCastEngagedHandler callback,
+            SlotAdvancementPanel advancement, ActionDefinitions.ActionType actionType, bool cantripOnly,
+            int minimum, int maximum, bool primary)
+        {
+            // Native's single overflow row belongs only to the last source. Bind each
+            // complete source once; the viewport handles space without discarding levels.
+            if (!primary)
+            {
+                line.Unbind();
+                line.gameObject.SetActive(false);
+                return;
+            }
+            maximum = CampaignsContext.GetNativeSpellSelectionMaximum(caster.RulesetCharacter, repertoire, cantripOnly);
+            line.Bind(caster, repertoire, showHeader, callback, advancement, actionType, cantripOnly, 0, maximum, true);
         }
 
         private static List<RulesetSpellRepertoire> GetRepertoires(RulesetCharacter character)

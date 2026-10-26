@@ -1,0 +1,10 @@
+# Natural waxed hemp cord
+newmtl CrossbowCord
+Kd .46 .36 .22
+Ka 1 1 1
+Ks .3 .3 .3
+Ke 0 0 0
+Ns 70
+Ni 1.45
+d 1
+illum 2

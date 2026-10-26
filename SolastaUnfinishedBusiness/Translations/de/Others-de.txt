@@ -12,7 +12,7 @@ Action/&CastQuickenedDescription=Wirke den Hauptaktionszauber mit Bonusaktion, i
 Action/&BonusActionFreeJumpDescription=Gib eine Bonusaktion aus, um mit Stärke und Athletik einen kräftigen Sprung auszuführen.
 Action/&BonusActionFreeJumpTitle=Sprung
 Action/&ExplorationFreeJumpToggleDescription=Aktiviert/deaktiviert den Sprungbewegungsmodus.
-Action/&ExplorationFreeJumpToggleTitle=Sprung umschalten
+Action/&ExplorationFreeJumpToggleTitle=Sprung
 Action/&FreeJumpCheckFormat=Dieser Sprung verbraucht {0} Felder Bewegungsrate und erfordert Athletik-SG {1}.
 Action/&FreeJumpMoveCostFormat=Dieser Sprung verbraucht {0} Felder Bewegungsrate.
 Action/&FreeJumpAutomaticFailureFormat=<color=#C04040E0>Dieser Sprung verbraucht {0} Felder Bewegungsrate, und die Landung schlägt fehl.</color>
@@ -20,6 +20,7 @@ Action/&FreeJumpSuccessChance=Die Erfolgschance beträgt {0}%.
 Action/&FreeJumpSuccessChanceWithAffinity=Mit {0} beträgt die Erfolgschance {1}%.
 Action/&FreeJumpAdvantage=Vorteil
 Action/&FreeJumpDisadvantage=Nachteil
+Action/&FreeJumpChooseDestinationDescription=Wähle ein Landefeld innerhalb der Sprungreichweite.
 Action/&CunningStrikeToggleDescription=Listiger Schlag aktivieren/deaktivieren
 Action/&CunningStrikeToggleTitle=Listiger Schlag
 Action/&DragonHideToggleDescription=Deine unbewaffneten Angriffe verursachen Hiebschaden und verwenden mindestens einen Schadenswürfel von mindestens W4.

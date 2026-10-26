@@ -5,6 +5,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Behaviors;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Models;
@@ -16,6 +17,39 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterActionMoveStepJumpPatcher
 {
+    //PATCH: use the same grid distance and armor rule for native arcs and jump execution
+    [HarmonyPatch(typeof(CharacterActionMoveStepJump), nameof(CharacterActionMoveStepJump.NeedsAthleticsCheck))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class NeedsAthleticsCheck_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(GameLocationCharacter character, int3 jumpPosition, int3 landingDestination,
+            ref bool __result)
+        {
+            __result = MotionContext.GetJumpRule(character.RulesetCharacter, landingDestination - jumpPosition) ==
+                       RulesetCharacter.JumpRuleType.Roll;
+
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterActionMoveStepJump), nameof(CharacterActionMoveStepJump.AutomaticPenalty))]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class AutomaticPenalty_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(GameLocationCharacter character, int3 jumpPosition, int3 landingDestination,
+            ref bool __result)
+        {
+            __result = MotionContext.GetJumpRule(character.RulesetCharacter, landingDestination - jumpPosition) ==
+                       RulesetCharacter.JumpRuleType.AutomaticPenalty;
+
+            return false;
+        }
+    }
+
     //PATCH: record jump movement for reach-entered AoO after parent movement completes
     [HarmonyPatch(typeof(CharacterActionMoveStepJump), nameof(CharacterActionMoveStepJump.ExecuteImpl))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]

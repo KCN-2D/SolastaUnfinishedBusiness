@@ -64,6 +64,7 @@ Setting/&TooltipWidthTitle=工具提示宽度
 Setting/&UnlockAdditionalLoreFriendlyNamesTitle=解锁更多符合背景设定的名字
 Setting/&UnlockAllNpcFacesTitle=解锁全部 NPC 脸型
 Setting/&UnlockBeardlessDwarvesTitle=解锁无须矮人
+Setting/&EnableAllRaceBodyShapesTitle=所有种族的体型滑块
 Setting/&UnlockEyeStylesTitle=解锁眼睛样式
 Setting/&UnlockGlowingColorsForAllMarksAndTattoosTitle=解锁发光的标记与纹身颜色
 Setting/&UnlockGlowingEyeColorsTitle=解锁发光眼睛颜色

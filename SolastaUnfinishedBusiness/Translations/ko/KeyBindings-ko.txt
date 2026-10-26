@@ -64,6 +64,7 @@ Setting/&TooltipWidthTitle=툴팁 너비
 Setting/&UnlockAdditionalLoreFriendlyNamesTitle=추가적인 전설 친화적 이름 잠금 해제
 Setting/&UnlockAllNpcFacesTitle=NPC 얼굴 잠금 해제
 Setting/&UnlockBeardlessDwarvesTitle=수염 없는 드워프 잠금 해제
+Setting/&EnableAllRaceBodyShapesTitle=모든 종족의 체격 조절
 Setting/&UnlockEyeStylesTitle=눈 스타일 잠금 해제
 Setting/&UnlockGlowingColorsForAllMarksAndTattoosTitle=빛나는 표시와 문신 색상을 잠금 해제하세요
 Setting/&UnlockGlowingEyeColorsTitle=빛나는 눈 색깔 잠금 해제

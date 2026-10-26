@@ -316,6 +316,7 @@ __pycache__/
 !/tools/runtime-verification/WindowsDesktop.ps1
 !/tools/runtime-verification/WindowsDesktop.cs
 !/tools/runtime-verification/NativeDisplaySettings.ps1
+!/tools/runtime-verification/EvidencePaths.ps1
 !/tools/runtime-verification/README.md
 !/tools/runtime-verification/Probes/
 /tools/runtime-verification/Probes/*

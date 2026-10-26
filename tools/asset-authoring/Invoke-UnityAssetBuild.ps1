@@ -3,9 +3,12 @@ param(
     [Parameter(Mandatory = $true)] [string] $UnityPath,
     [Parameter(Mandatory = $true, ParameterSetName = 'Rig')] [string] $FbxPath,
     [Parameter(Mandatory = $true, ParameterSetName = 'Materials')] [string] $MaterialRecipePath,
+    [Parameter(Mandatory = $true, ParameterSetName = 'Meshes')] [string] $MeshRecipePath,
     [string] $WorkspaceRoot,
     [string] $GuiProjectPath,
     [switch] $InstallGuiWorker,
+    [switch] $StartBackgroundEditor,
+    [string] $UnityCliPath,
     [ValidateRange(5, 3600)] [int] $TimeoutSeconds = 300
 )
 
@@ -108,10 +111,10 @@ function Assert-UnityVersion([string] $Executable) {
 }
 
 function Assert-RecipeFields($Value, [string[]] $Required, [string[]] $Optional = @()) {
-    if ($null -eq $Value -or $Value -isnot [pscustomobject]) { throw 'A material recipe object is required.' }
+    if ($null -eq $Value -or $Value -isnot [pscustomobject]) { throw 'A recipe object is required.' }
     $names = @($Value.PSObject.Properties.Name)
     if (@($names | Where-Object { $_ -notin ($Required + $Optional) }).Count -gt 0 -or
-        @($Required | Where-Object { $_ -notin $names }).Count -gt 0) { throw 'Unknown or missing material recipe field.' }
+        @($Required | Where-Object { $_ -notin $names }).Count -gt 0) { throw 'Unknown or missing recipe field.' }
 }
 
 function Test-FiniteNumber($Value) {
@@ -119,13 +122,74 @@ function Test-FiniteNumber($Value) {
         ![double]::IsNaN([double]$Value) -and ![double]::IsInfinity([double]$Value)
 }
 
+function Assert-MeshNumbers($Values, [int] $Count, [string] $Label) {
+    if ($null -eq $Values -or $Values -isnot [array] -or $Values.Count -ne $Count) { throw "Invalid mesh $Label length." }
+    foreach ($value in $Values) {
+        if (!(Test-FiniteNumber $value) -or [Math]::Abs([double]$value) -gt [single]::MaxValue) { throw "A mesh $Label component is not finite float32 data." }
+    }
+}
+
+function Assert-MeshRecipe($Recipe) {
+    Assert-RecipeFields $Recipe @('schemaVersion', 'bundleName', 'meshes')
+    if ($Recipe.schemaVersion -ne 1 -or $Recipe.bundleName -cnotmatch '^[a-z0-9][a-z0-9_.-]{0,127}$' -or
+        $Recipe.meshes -isnot [array] -or $Recipe.meshes.Count -lt 1 -or $Recipe.meshes.Count -gt 128) { throw 'Invalid mesh recipe version, bundle name or mesh list.' }
+    $names = @{}
+    foreach ($mesh in $Recipe.meshes) {
+        Assert-RecipeFields $mesh @('name', 'vertices', 'normals', 'tangents', 'uvChannels', 'subMeshes', 'bounds', 'indexFormat') @('colors')
+        if ($mesh.name -cnotmatch '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$' -or $names.ContainsKey($mesh.name)) { throw 'Invalid or duplicate mesh name.' }
+        $names[$mesh.name] = $true
+        if ($mesh.vertices -isnot [array] -or $mesh.vertices.Count -lt 9 -or $mesh.vertices.Count -gt 3000000 -or $mesh.vertices.Count % 3 -ne 0) { throw 'Invalid mesh vertex count.' }
+        $count = [int]($mesh.vertices.Count / 3)
+        Assert-MeshNumbers $mesh.vertices ($count * 3) 'vertices'
+        foreach ($channel in @(@('normals', 3), @('tangents', 4))) {
+            $values = $mesh.($channel[0])
+            if ($null -eq $values -or $values -isnot [array] -or $values.Count -notin @(0, ($count * $channel[1]))) { throw 'Invalid mesh channel length.' }
+            Assert-MeshNumbers $values $values.Count $channel[0]
+        }
+        if ($mesh.PSObject.Properties['colors']) {
+            if ($mesh.colors -isnot [array] -or $mesh.colors.Count -notin @(0, ($count * 4))) { throw 'Invalid mesh colors length.' }
+            Assert-MeshNumbers $mesh.colors $mesh.colors.Count 'colors'
+        }
+        if ($mesh.indexFormat -cnotin @('UInt16', 'UInt32') -or ($mesh.indexFormat -ceq 'UInt16' -and $count -gt 65535)) { throw 'Invalid mesh index format or vertex range.' }
+        Assert-RecipeFields $mesh.bounds @('center', 'size')
+        Assert-MeshNumbers $mesh.bounds.center 3 'bounds center'; Assert-MeshNumbers $mesh.bounds.size 3 'bounds size'
+        if (@($mesh.bounds.size | Where-Object { $_ -lt 0 }).Count) { throw 'Mesh bounds size cannot be negative.' }
+        for ($axis = 0; $axis -lt 3; $axis++) {
+            $center = [double][single]$mesh.bounds.center[$axis]; $size = [double][single]$mesh.bounds.size[$axis]
+            $margin = ([Math]::Abs($center) + [Math]::Abs($size)) * 2.384185791015625e-7 + 2.802596928649634e-45
+            for ($vertex = 0; $vertex -lt $count; $vertex++) {
+                if ([Math]::Abs([double][single]$mesh.vertices[$vertex * 3 + $axis] - $center) -gt $size / 2 + $margin) { throw 'Mesh bounds do not enclose the vertices within float32 rounding.' }
+            }
+        }
+        if ($mesh.uvChannels -isnot [array] -or $mesh.uvChannels.Count -gt 8) { throw 'Invalid mesh UV list.' }
+        $uvs = @{}
+        foreach ($uv in $mesh.uvChannels) {
+            Assert-RecipeFields $uv @('channel', 'dimension', 'values')
+            if (!(Test-FiniteNumber $uv.channel) -or $uv.channel -ne [Math]::Truncate($uv.channel) -or $uv.channel -lt 0 -or $uv.channel -gt 7 -or
+                !(Test-FiniteNumber $uv.dimension) -or $uv.dimension -cnotin @(2, 3, 4) -or $uvs.ContainsKey([int]$uv.channel)) { throw 'Invalid or duplicate mesh UV channel/dimension.' }
+            $uvs[[int]$uv.channel] = $true
+            Assert-MeshNumbers $uv.values ($count * $uv.dimension) 'UV'
+        }
+        if ($mesh.subMeshes -isnot [array] -or $mesh.subMeshes.Count -lt 1 -or $mesh.subMeshes.Count -gt 256) { throw 'Invalid mesh submesh list.' }
+        foreach ($submesh in $mesh.subMeshes) {
+            Assert-RecipeFields $submesh @('topology', 'indices')
+            if ($submesh.topology -cne 'Triangles' -or $submesh.indices -isnot [array] -or $submesh.indices.Count -lt 3 -or
+                $submesh.indices.Count -gt 6000000 -or $submesh.indices.Count % 3) { throw 'Invalid mesh triangle list.' }
+            foreach ($index in $submesh.indices) {
+                if (!(Test-FiniteNumber $index) -or $index -ne [Math]::Truncate($index) -or $index -lt 0 -or $index -ge $count) { throw 'A mesh index is outside its vertex range.' }
+            }
+        }
+    }
+}
+
 $unityExe = (Resolve-Path -LiteralPath $UnityPath).ProviderPath
 $materialJob = $PSCmdlet.ParameterSetName -eq 'Materials'
-$sourceFile = (Resolve-Path -LiteralPath $(if ($materialJob) { $MaterialRecipePath } else { $FbxPath })).ProviderPath
+$meshJob = $PSCmdlet.ParameterSetName -eq 'Meshes'
+$sourceFile = (Resolve-Path -LiteralPath $(if ($meshJob) { $MeshRecipePath } elseif ($materialJob) { $MaterialRecipePath } else { $FbxPath })).ProviderPath
 if (!(Test-Path -LiteralPath $unityExe -PathType Leaf) -or [IO.Path]::GetFileName($unityExe) -ine 'Unity.exe') {
     throw '-UnityPath must identify an installed Unity.exe; this script does not install Unity.'
 }
-if (!$materialJob -and (!(Test-Path -LiteralPath $sourceFile -PathType Leaf) -or [IO.Path]::GetExtension($sourceFile) -ine '.fbx')) {
+if (!$materialJob -and !$meshJob -and (!(Test-Path -LiteralPath $sourceFile -PathType Leaf) -or [IO.Path]::GetExtension($sourceFile) -ine '.fbx')) {
     throw '-FbxPath must identify an existing FBX file.'
 }
 Assert-UnityVersion $unityExe
@@ -135,7 +199,7 @@ if ([string]::IsNullOrWhiteSpace($WorkspaceRoot)) {
 $workspace = [IO.Path]::GetFullPath($WorkspaceRoot)
 Assert-WorkspacePath $workspace
 Assert-LocalPath $sourceFile
-$inputName = if ($materialJob) { 'recipe.json' } else { 'SampleRig.fbx' }
+$inputName = if ($meshJob) { 'mesh-recipe.json' } elseif ($materialJob) { 'recipe.json' } else { 'SampleRig.fbx' }
 $bundleName = 'ub_authoring_sample'
 $materialInputs = @()
 if ($materialJob) {
@@ -185,6 +249,27 @@ if ($materialJob) {
     }
 }
 
+$meshInputBytes = $null
+$meshInputHash = $null
+if ($meshJob) {
+    if ([IO.Path]::GetExtension($sourceFile) -ine '.json' -or (Get-Item -LiteralPath $sourceFile).Length -gt 67108864) { throw '-MeshRecipePath must identify a JSON recipe of at most 64 MiB.' }
+    $meshInputBytes = [IO.File]::ReadAllBytes($sourceFile)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { $meshInputHash = ([BitConverter]::ToString($sha.ComputeHash($meshInputBytes))).Replace('-', '').ToLowerInvariant() }
+    finally { $sha.Dispose() }
+    $recipe = [Text.Encoding]::UTF8.GetString($meshInputBytes).TrimStart([char]0xfeff) | ConvertFrom-Json
+    Assert-MeshRecipe $recipe
+    $bundleName = $recipe.bundleName
+}
+
+function Copy-AuthoringInput([string] $Destination) {
+    if ($meshJob) {
+        if ((Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant() -ne $meshInputHash) { throw 'The mesh recipe changed after its validated snapshot.' }
+        [IO.File]::WriteAllBytes($Destination, $meshInputBytes)
+    }
+    else { [IO.File]::Copy($sourceFile, $Destination, $false) }
+}
+
 function Copy-MaterialInputs([string] $InputDirectory) {
     foreach ($asset in $materialInputs) {
         $destination = Join-Path $InputDirectory $asset.path
@@ -210,6 +295,11 @@ foreach ($relative in $templateFiles) {
 if ($InstallGuiWorker -and [string]::IsNullOrWhiteSpace($GuiProjectPath)) {
     throw '-InstallGuiWorker requires -GuiProjectPath.'
 }
+if ($StartBackgroundEditor -and [string]::IsNullOrWhiteSpace($GuiProjectPath)) {
+    throw '-StartBackgroundEditor requires -GuiProjectPath.'
+}
+$backgroundSession = $null
+try {
 
 if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
     $project = (Resolve-Path -LiteralPath $GuiProjectPath).ProviderPath
@@ -240,6 +330,13 @@ if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
         [IO.File]::Copy($source, $destination, $true)
         Write-Output 'GUI worker updated. If it is not loaded yet, select Assets > Refresh in the open Editor once.'
     }
+    if ($StartBackgroundEditor) {
+        if (!$UnityCliPath) { $UnityCliPath = Join-Path $env:LOCALAPPDATA 'Unity\bin\unity.exe' }
+        $cli = (Resolve-Path -LiteralPath $UnityCliPath).ProviderPath
+        Assert-LocalPath $cli
+        . (Join-Path $template 'BackgroundEditor.ps1')
+        $backgroundSession = Start-AssetBackgroundEditor -Project $project -Editor $unityExe -Cli $cli -SourceSha256 $sourceHash -TimeoutSeconds $TimeoutSeconds
+    }
     $readyPath = Join-Path $project '.asset-authoring-jobs\worker.json'
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     $ready = $null
@@ -261,7 +358,7 @@ if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
         }
         Start-Sleep -Milliseconds 500
     }
-    if ($null -eq $ready) { throw "The GUI worker is not ready. In the marked project, select Assets > Refresh and inspect the Editor Console. No Editor was started or stopped. Project: $project" }
+    if ($null -eq $ready) { throw "The GUI worker is not ready. Inspect the Editor log and the marked project: $project" }
     $jobId = [guid]::NewGuid().ToString('N')
     $runRoot = Join-Path $project ('.asset-authoring-jobs\' + $jobId)
     $inputDirectory = Join-Path $project ('Assets\AuthoringJobs\' + $jobId + '\Input')
@@ -272,15 +369,15 @@ if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
     [IO.Directory]::CreateDirectory($inputDirectory) | Out-Null
     [IO.File]::WriteAllText((Join-Path $runRoot '.solasta-asset-authoring-job'), 'SolastaUBAssetAuthoring:UnityJob:1')
     $copiedInput = Join-Path $inputDirectory $inputName
-    [IO.File]::Copy($sourceFile, $copiedInput, $false)
+    Copy-AuthoringInput $copiedInput
     Copy-MaterialInputs $inputDirectory
     $inputHash = (Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant()
-    if ((Get-FileHash -LiteralPath $copiedInput -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputHash) { throw 'The copied FBX differs from the source.' }
+    if ((Get-FileHash -LiteralPath $copiedInput -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputHash) { throw 'The copied authoring input differs from the source.' }
     $bundleOutput = Join-Path $runRoot 'Output'
     $reportPath = Join-Path $bundleOutput 'unity-report.json'
     $logPath = $reportPath
     $startedUtc = [DateTime]::UtcNow
-    $request = @{ schemaVersion = 1; jobId = $jobId; inputSha256 = $inputHash; kind = $(if ($materialJob) { 'materials' } else { 'rig' }) } | ConvertTo-Json
+    $request = @{ schemaVersion = 1; jobId = $jobId; inputSha256 = $inputHash; kind = $(if ($meshJob) { 'mesh-templates' } elseif ($materialJob) { 'materials' } else { 'rig' }) } | ConvertTo-Json
     $temporaryRequest = Join-Path $runRoot 'request.writing'
     [IO.File]::WriteAllText($temporaryRequest, $request)
     [IO.File]::Move($temporaryRequest, (Join-Path $runRoot 'request.json'))
@@ -294,7 +391,7 @@ if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
         Start-Sleep -Milliseconds 500
     }
     if (!(Test-Path -LiteralPath $reportPath -PathType Leaf)) {
-        throw "The GUI job timed out. The Editor was left running; the job may still complete. Inspect $runRoot"
+        throw "The GUI job timed out. Inspect $runRoot"
     }
 }
 else {
@@ -315,11 +412,11 @@ else {
     $inputDirectory = Join-Path $project 'Assets\Input'
     [IO.Directory]::CreateDirectory($inputDirectory) | Out-Null
     $copiedInput = Join-Path $inputDirectory $inputName
-    [IO.File]::Copy($sourceFile, $copiedInput, $false)
+    Copy-AuthoringInput $copiedInput
     Copy-MaterialInputs $inputDirectory
     $inputHash = (Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant()
     if ((Get-FileHash -LiteralPath $copiedInput -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputHash) {
-        throw 'The copied FBX does not match its source.'
+        throw 'The copied authoring input does not match its source.'
     }
     $bundleOutput = Join-Path $project 'BuildOutput'
     $reportPath = Join-Path $bundleOutput 'unity-report.json'
@@ -329,7 +426,7 @@ else {
         '-batchmode', '-nographics', '-quit', '-noUpm',
         '-projectPath', $project,
         '-executeMethod', 'SolastaAssetAuthoring.AssetBundleBuilder.Build',
-        $(if ($materialJob) { '-materialRecipe' } else { '-sampleFbx' }), $copiedInput,
+        $(if ($meshJob) { '-meshRecipe' } elseif ($materialJob) { '-materialRecipe' } else { '-sampleFbx' }), $copiedInput,
         '-bundleOutput', $bundleOutput,
         '-logFile', $logPath
     )
@@ -347,7 +444,7 @@ $report = [IO.File]::ReadAllText($reportPath) | ConvertFrom-Json
 if (!$report.success -or $report.stage -ne 'complete' -or $report.unityVersion -ne $requiredVersion) {
     throw "Unity validation did not complete successfully. Inspect $reportPath and $logPath"
 }
-if ($report.inputSha256 -ne $inputHash) { throw 'The report refers to a different input FBX.' }
+if ($report.inputSha256 -ne $inputHash) { throw 'The report refers to a different authoring input.' }
 if (![string]::IsNullOrWhiteSpace($GuiProjectPath) -and
     ($report.transport -ne 'gui_worker' -or $report.jobId -ne $jobId -or $report.processId -ne $ready.processId -or $report.mainThread -ne $ready.mainThread)) {
     throw 'The report does not identify the selected GUI worker job and main thread.'
@@ -361,7 +458,7 @@ if ((Get-FileHash -LiteralPath $expectedBundle -Algorithm SHA256).Hash.ToLowerIn
 }
 if ((Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputHash -or
     (Get-FileHash -LiteralPath $copiedInput -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputHash) {
-    throw 'The source or copied FBX changed during the build.'
+    throw 'The source or copied authoring input changed during the build.'
 }
 foreach ($asset in $materialInputs) {
     if ((Get-FileHash -LiteralPath $asset.source -Algorithm SHA256).Hash.ToLowerInvariant() -ne $asset.sha256 -or
@@ -369,8 +466,15 @@ foreach ($asset in $materialInputs) {
         throw 'A source or copied material asset changed during the build.'
     }
 }
+if ($meshJob -and ($report.validationScope -ne 'mesh_templates' -or @($report.meshes).Count -ne @($recipe.meshes).Count -or
+    @($report.meshes | Where-Object { !$_.exact }).Count -ne 0)) { throw 'The report does not contain the requested exact mesh validation.' }
 if ($materialJob -and ($report.validationScope -ne 'materials' -or @($report.materials).Count -ne @($recipe.materials).Count)) {
     throw 'The report does not contain the requested material validation.'
 }
+}
+finally {
+    if ($backgroundSession) { Stop-AssetBackgroundEditor $backgroundSession }
+}
 Write-Output "Unity AssetBundle and reload validation succeeded: $reportPath"
+if ($backgroundSession) { Write-Output "Background Editor isolation and normal shutdown verified: $($backgroundSession.RunDirectory)" }
 Write-Output 'Game loading, animation events, avatar compatibility and multiplayer behavior remain unverified.'

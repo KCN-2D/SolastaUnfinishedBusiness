@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -24,6 +25,37 @@ internal static class FloatingPanelBounds
         Above,
         Below
     }
+
+    internal static void ConfigureOverflowViewport(GuiPanel panel, RectTransform content, Func<Rect> availableBounds)
+    {
+        var state = panel.GetComponent<OverflowViewportController>() ??
+                    panel.gameObject.AddComponent<OverflowViewportController>();
+        state.Configure(panel, content, availableBounds);
+    }
+
+    internal static void InvalidateOverflowViewport(Component panel)
+    {
+        panel.GetComponent<OverflowViewportController>()?.Invalidate();
+    }
+
+    internal static void RestoreOverflowViewport(Component panel)
+    {
+        if (panel.GetComponent<OverflowViewportController>() is not { } state)
+        {
+            return;
+        }
+        state.Restore();
+        Object.DestroyImmediate(state);
+    }
+
+    internal static bool RouteOverflowWheel(Component panel, float delta, Vector2 position) =>
+        panel.GetComponent<OverflowViewportController>()?.RouteWheel(delta, position) == true;
+
+    internal static bool CapturesOverflowWheel(Component panel, Vector2 position) =>
+        panel.GetComponent<OverflowViewportController>()?.CapturesWheel(position) == true;
+
+    internal static bool IsOverflowForegroundControl(Component panel, Component source) =>
+        panel.GetComponent<OverflowViewportController>()?.IsForegroundControl(source) == true;
 
     internal static void ClampToScreen(RectTransform rectTransform, bool rebuild = false, float margin = DefaultMargin)
     {
@@ -790,6 +822,311 @@ internal static class FloatingPanelBounds
             position.y = Mathf.Clamp(position.y, 0f, Mathf.Max(0f, _table.rect.height - viewport.height));
             scroll.StopMovement();
             _table.anchoredPosition = position;
+        }
+    }
+
+    // Preserve the content's own layout. Only its viewport is constrained, so nested
+    // native grids retain their card sizes, source ownership and navigation targets.
+    private sealed class OverflowViewportController : MonoBehaviour
+    {
+        private const float BarSize = 16f;
+        private GuiPanel _owner;
+        private RectTransform _content, _canvas, _frame;
+        private Transform _parent;
+        private int _sibling;
+        private ChildLayoutState _original;
+        private Func<Rect> _availableBounds;
+        private OverflowScrollRect _scroll;
+        private Vector2 _normalized = new(0f, 1f);
+        private Vector2 _canvasSize, _contentSize;
+        private Vector3 _scale;
+        private Rect _bounds;
+        private Vector2 _panelSize;
+        private Matrix4x4 _panelMatrix;
+        private bool _dirty;
+        private GameObject _selected;
+        private readonly List<RaycastResult> _hits = [];
+        private readonly List<RectTransform> _controls = [];
+        private Vector2 _controlOverhang;
+        private PointerEventData _pointer;
+        private EventSystem _eventSystem;
+
+        internal void Configure(GuiPanel owner, RectTransform content, Func<Rect> availableBounds)
+        {
+            Restore();
+            _owner = owner;
+            _content = content;
+            _parent = content.parent;
+            _sibling = content.GetSiblingIndex();
+            _original = new ChildLayoutState(content);
+            _availableBounds = availableBounds;
+            CaptureControls(owner.transform);
+            TryGetRootCanvasRect(owner, out _canvas);
+            _normalized = new Vector2(0f, 1f);
+            _dirty = true;
+            Apply();
+        }
+
+        internal void Invalidate() => _dirty = true;
+
+        private void LateUpdate()
+        {
+            if (!_owner || !_content || !_owner.gameObject.activeInHierarchy || _owner.Showing || _owner.Hiding)
+            {
+                return;
+            }
+            if (!_canvas)
+            {
+                TryGetRootCanvasRect(_owner, out _canvas);
+            }
+            if (!_canvas)
+            {
+                return;
+            }
+            if (_canvasSize != _canvas.rect.size || _scale != _owner.transform.lossyScale ||
+                _contentSize != _content.rect.size ||
+                (GetControlOverhang() - _controlOverhang).sqrMagnitude > 0.25f)
+            {
+                _dirty = true;
+            }
+            if (_dirty)
+            {
+                Apply();
+            }
+            if (_panelSize != _owner.RectTransform.rect.size || !_panelMatrix.Equals(_owner.transform.localToWorldMatrix)) ClampOwner();
+            RevealSelection();
+        }
+
+        private void Apply()
+        {
+            if (!_dirty || !_owner || !_content || !_canvas || _owner.Showing || !_content.gameObject.activeInHierarchy ||
+                Mathf.Abs(_owner.transform.lossyScale.x) < 0.001f || Mathf.Abs(_owner.transform.lossyScale.y) < 0.001f)
+            {
+                return;
+            }
+            RestoreFrame();
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_content);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(_owner.RectTransform);
+            var bounds = _availableBounds();
+            _bounds = bounds;
+            var local = _owner.transform.InverseTransformVector(_canvas.TransformVector(bounds.size));
+            var natural = new Vector2(Mathf.Max(_content.rect.width, LayoutUtility.GetPreferredWidth(_content)),
+                Mathf.Max(_content.rect.height, LayoutUtility.GetPreferredHeight(_content)));
+            var overhead = Vector2.Max(Vector2.zero, _owner.RectTransform.rect.size - _content.rect.size);
+            _controlOverhang = GetControlOverhang();
+            var maximum = new Vector2(Mathf.Max(1f, Mathf.Abs(local.x) - overhead.x - _controlOverhang.x),
+                Mathf.Max(1f, Mathf.Abs(local.y) - overhead.y - _controlOverhang.y));
+            var horizontal = natural.x > maximum.x + 0.5f;
+            var vertical = natural.y > maximum.y + 0.5f;
+            var size = Vector2.Min(maximum, natural + new Vector2(vertical ? BarSize : 0f, horizontal ? BarSize : 0f));
+            horizontal |= natural.x > size.x - (vertical ? BarSize : 0f) + 0.5f;
+            vertical |= natural.y > size.y - (horizontal ? BarSize : 0f) + 0.5f;
+            if (horizontal || vertical)
+            {
+                size = Vector2.Min(maximum, natural + new Vector2(vertical ? BarSize : 0f, horizontal ? BarSize : 0f));
+                _frame = CreateOverflowRect("ContentOverflow", _parent, _content.gameObject.layer);
+                _frame.SetSiblingIndex(_sibling);
+                _frame.anchorMin = _content.anchorMin;
+                _frame.anchorMax = _content.anchorMax;
+                _frame.pivot = _content.pivot;
+                _frame.anchoredPosition = _content.anchoredPosition;
+                _frame.sizeDelta = size;
+                var element = _frame.gameObject.AddComponent<LayoutElement>();
+                element.minWidth = element.preferredWidth = size.x;
+                element.minHeight = element.preferredHeight = size.y;
+                var viewport = CreateOverflowRect("Viewport", _frame, _content.gameObject.layer);
+                viewport.anchorMin = Vector2.zero;
+                viewport.anchorMax = Vector2.one;
+                viewport.offsetMin = new Vector2(0f, horizontal ? BarSize : 0f);
+                viewport.offsetMax = new Vector2(vertical ? -BarSize : 0f, 0f);
+                viewport.gameObject.AddComponent<Image>().color = Color.clear;
+                viewport.gameObject.AddComponent<RectMask2D>();
+                _scroll = _frame.gameObject.AddComponent<OverflowScrollRect>();
+                _scroll.Owner = this;
+                _scroll.viewport = viewport;
+                _scroll.content = _content;
+                _scroll.horizontal = horizontal;
+                _scroll.vertical = vertical;
+                _scroll.inertia = false;
+                _scroll.movementType = ScrollRect.MovementType.Clamped;
+                _scroll.scrollSensitivity = 48f;
+                _content.SetParent(viewport, false);
+                _content.anchorMin = _content.anchorMax = _content.pivot = new Vector2(0f, 1f);
+                _content.anchoredPosition = Vector2.zero;
+                _content.sizeDelta = natural;
+                if (horizontal) _scroll.horizontalScrollbar = CreateOverflowScrollbar(_frame, true, vertical);
+                if (vertical) _scroll.verticalScrollbar = CreateOverflowScrollbar(_frame, false, horizontal);
+                _owner.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size.x + overhead.x);
+                _owner.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, size.y + overhead.y);
+                LayoutRebuilder.ForceRebuildLayoutImmediate(_owner.RectTransform);
+                _scroll.Rebuild(CanvasUpdate.PostLayout);
+                _scroll.normalizedPosition = _normalized;
+            }
+            ClampOwner();
+            _canvasSize = _canvas.rect.size;
+            _scale = _owner.transform.lossyScale;
+            _contentSize = _content.rect.size;
+            _selected = null;
+            _dirty = false;
+            RevealSelection();
+        }
+
+        private void ClampOwner()
+        {
+            if (_owner && _canvas && _bounds.width > 0f && _bounds.height > 0f &&
+                Mathf.Abs(_owner.transform.lossyScale.x) > 0.001f && Mathf.Abs(_owner.transform.lossyScale.y) > 0.001f &&
+                TryGetCanvasLocalBounds(_owner.RectTransform, _canvas, out var current))
+            {
+                current = IncludeControls(current, _canvas);
+                var target = ClampRectToRect(current, _bounds);
+                ApplyCanvasLocalDelta(_owner.RectTransform, _canvas, target.position - current.position);
+                _panelSize = _owner.RectTransform.rect.size;
+                _panelMatrix = _owner.transform.localToWorldMatrix;
+            }
+        }
+
+        private void CaptureControls(Transform parent)
+        {
+            if (parent == _content) return;
+            if (parent is RectTransform rect && parent.GetComponent<Selectable>()) _controls.Add(rect);
+            foreach (Transform child in parent) CaptureControls(child);
+        }
+
+        private Rect IncludeControls(Rect bounds, RectTransform relativeTo)
+        {
+            foreach (var control in _controls)
+            {
+                if (control && control.gameObject.activeInHierarchy && TryGetCanvasLocalBounds(control, relativeTo, out var extra))
+                {
+                    bounds = Rect.MinMaxRect(Mathf.Min(bounds.xMin, extra.xMin), Mathf.Min(bounds.yMin, extra.yMin),
+                        Mathf.Max(bounds.xMax, extra.xMax), Mathf.Max(bounds.yMax, extra.yMax));
+                }
+            }
+            return bounds;
+        }
+
+        private Vector2 GetControlOverhang() => _owner
+            ? Vector2.Max(Vector2.zero, IncludeControls(_owner.RectTransform.rect, _owner.RectTransform).size - _owner.RectTransform.rect.size)
+            : Vector2.zero;
+
+        private void RevealSelection()
+        {
+            var selected = EventSystem.current ? EventSystem.current.currentSelectedGameObject : null;
+            if (_selected == selected) return;
+            _selected = selected;
+            if (!_scroll || !selected || !selected.transform.IsChildOf(_content) || selected.transform is not RectTransform rect) return;
+            var bounds = RectTransformUtility.CalculateRelativeRectTransformBounds(_scroll.viewport, rect);
+            var view = _scroll.viewport.rect;
+            var position = _content.anchoredPosition;
+            if (_scroll.horizontal)
+            {
+                if (bounds.min.x < view.xMin) position.x += view.xMin - bounds.min.x;
+                else if (bounds.max.x > view.xMax) position.x -= bounds.max.x - view.xMax;
+                position.x = Mathf.Clamp(position.x, Mathf.Min(0f, view.width - _content.rect.width), 0f);
+            }
+            if (_scroll.vertical)
+            {
+                if (bounds.max.y > view.yMax) position.y -= bounds.max.y - view.yMax;
+                else if (bounds.min.y < view.yMin) position.y += view.yMin - bounds.min.y;
+                position.y = Mathf.Clamp(position.y, 0f, Mathf.Max(0f, _content.rect.height - view.height));
+            }
+            _scroll.StopMovement();
+            _content.anchoredPosition = position;
+        }
+
+        internal bool CapturesWheel(Vector2 position)
+        {
+            if (!_owner || !_owner.isActiveAndEnabled || !_owner.Visible || _owner.Showing || _owner.Hiding) return false;
+            var camera = _canvas ? GetCanvasCamera(_canvas) : null;
+            var inside = RectTransformUtility.RectangleContainsScreenPoint(_owner.RectTransform, position, camera);
+            foreach (var control in _controls)
+            {
+                inside |= control && control.gameObject.activeInHierarchy && RectTransformUtility.RectangleContainsScreenPoint(control, position, camera);
+            }
+            if (!inside) return false;
+            var events = EventSystem.current;
+            if (!events) return true;
+            if (_eventSystem != events) { _eventSystem = events; _pointer = new PointerEventData(events); }
+            _pointer.position = position;
+            _hits.Clear(); events.RaycastAll(_pointer, _hits);
+            foreach (var hit in _hits)
+            {
+                if (hit.gameObject) return hit.gameObject.transform.IsChildOf(_owner.transform);
+            }
+            return true;
+        }
+
+        internal bool RouteWheel(float delta, Vector2 position)
+        {
+            if (!CapturesWheel(position)) return false;
+            if (_scroll)
+            {
+                if (_pointer == null || _eventSystem != EventSystem.current) { _eventSystem = EventSystem.current; _pointer = new PointerEventData(_eventSystem); }
+                _pointer.position = position;
+                _pointer.scrollDelta = new Vector2(0f, delta);
+                _scroll.OnScroll(_pointer);
+            }
+            return true;
+        }
+
+        internal bool IsForegroundControl(Component source) => source && _owner && source.transform.IsChildOf(_owner.transform);
+
+        private void RestoreFrame()
+        {
+            if (!_frame) return;
+            _normalized = _scroll.normalizedPosition;
+            _scroll.content = null;
+            _scroll.Owner = null;
+            if (_content && _parent) { _content.SetParent(_parent, false); _content.SetSiblingIndex(_sibling); _original.Restore(); }
+            Object.DestroyImmediate(_frame.gameObject);
+            _frame = null; _scroll = null;
+        }
+
+        internal void Restore()
+        {
+            RestoreFrame();
+            _owner = null; _content = null; _canvas = null; _availableBounds = null; _selected = null; _dirty = false;
+            _controls.Clear();
+        }
+
+        private void OnDestroy() => Restore();
+
+        private static RectTransform CreateOverflowRect(string name, Transform parent, int layer)
+        {
+            var rect = (RectTransform)new GameObject(name, typeof(RectTransform)).transform;
+            rect.gameObject.layer = layer; rect.SetParent(parent, false);
+            return rect;
+        }
+
+        private static Scrollbar CreateOverflowScrollbar(RectTransform parent, bool horizontal, bool otherAxis)
+        {
+            var rect = CreateOverflowRect(horizontal ? "HorizontalScrollbar" : "VerticalScrollbar", parent, parent.gameObject.layer);
+            rect.anchorMin = horizontal ? Vector2.zero : new Vector2(1f, 0f);
+            rect.anchorMax = horizontal ? new Vector2(1f, 0f) : Vector2.one;
+            rect.offsetMin = horizontal ? Vector2.zero : new Vector2(-BarSize, otherAxis ? BarSize : 0f);
+            rect.offsetMax = horizontal ? new Vector2(otherAxis ? -BarSize : 0f, BarSize) : Vector2.zero;
+            rect.gameObject.AddComponent<Image>().color = new Color(0.12f, 0.15f, 0.16f, 0.85f);
+            var handle = CreateOverflowRect("Handle", rect, parent.gameObject.layer);
+            handle.anchorMin = Vector2.zero; handle.anchorMax = Vector2.one; handle.offsetMin = handle.offsetMax = Vector2.zero;
+            var image = handle.gameObject.AddComponent<Image>(); image.color = new Color(0.65f, 0.75f, 0.78f);
+            var bar = rect.gameObject.AddComponent<Scrollbar>();
+            bar.direction = horizontal ? Scrollbar.Direction.LeftToRight : Scrollbar.Direction.BottomToTop;
+            bar.handleRect = handle; bar.targetGraphic = image;
+            bar.navigation = new Navigation { mode = Navigation.Mode.None };
+            return bar;
+        }
+    }
+
+    private sealed class OverflowScrollRect : ScrollRect
+    {
+        internal OverflowViewportController Owner;
+        private int _wheelFrame = -1;
+
+        public override void OnScroll(PointerEventData eventData)
+        {
+            if (_wheelFrame == Time.frameCount || !Owner || !Owner.CapturesWheel(eventData.position)) return;
+            _wheelFrame = Time.frameCount;
+            base.OnScroll(eventData);
         }
     }
 

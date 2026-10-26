@@ -12,7 +12,7 @@ Action/&CastQuickenedDescription=Lance uma magia de ação principal usando uma 
 Action/&BonusActionFreeJumpDescription=Gaste uma ação bônus para executar um salto reforçado usando Força e Atletismo.
 Action/&BonusActionFreeJumpTitle=Salto
 Action/&ExplorationFreeJumpToggleDescription=Ativa/desativa o modo de movimento de salto.
-Action/&ExplorationFreeJumpToggleTitle=Alternar salto
+Action/&ExplorationFreeJumpToggleTitle=Salto
 Action/&FreeJumpCheckFormat=Este salto consome {0} células de velocidade de movimento e exige um teste de Atletismo CD {1}.
 Action/&FreeJumpMoveCostFormat=Este salto consome {0} células de velocidade de movimento.
 Action/&FreeJumpAutomaticFailureFormat=<color=#C04040E0>Este salto consome {0} células de velocidade de movimento, e a aterrissagem falhará.</color>
@@ -20,6 +20,7 @@ Action/&FreeJumpSuccessChance=A chance de sucesso é {0}%.
 Action/&FreeJumpSuccessChanceWithAffinity=Com {0}, a chance de sucesso é {1}%.
 Action/&FreeJumpAdvantage=vantagem
 Action/&FreeJumpDisadvantage=desvantagem
+Action/&FreeJumpChooseDestinationDescription=Escolha uma célula de aterrissagem dentro do alcance do salto.
 Action/&CunningStrikeToggleDescription=Ativar/desativar Golpe Astuto
 Action/&CunningStrikeToggleTitle=Ataque astuto
 Action/&DragonHideToggleDescription=Seus golpes desarmados causam dano cortante e usam pelo menos um dado de dano de, no mínimo, d4.
