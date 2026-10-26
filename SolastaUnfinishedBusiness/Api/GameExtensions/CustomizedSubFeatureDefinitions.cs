@@ -87,7 +87,19 @@ internal static class CustomizedSubFeatureDefinitions
             return custom;
         }
 
-        return GetForKey(definition)?.OfType<T>().FirstOrDefault();
+        var subFeatures = GetForKey(definition);
+        if (subFeatures != null)
+        {
+            foreach (var feature in subFeatures)
+            {
+                if (feature is T match)
+                {
+                    return match;
+                }
+            }
+        }
+
+        return null;
     }
 
     internal static bool HasSubFeatureOfType<T>(this BaseDefinition definition) where T : class

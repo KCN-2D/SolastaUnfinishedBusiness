@@ -214,7 +214,9 @@ $evidence = '.\tools\game-test\artifacts'
 & .\tools\game-test\Clear-GameTestArtifacts.ps1 -ArtifactRoot $evidence -Apply
 ```
 
-`-PruneSuperseded` を追加すると、保存先の直下にある古い実行フォルダと検証ビルドも対象にします。ケースごとと検証ビルドで、それぞれ完了日時が新しい2件を保持します。保持件数は `-KeepLatestPerCase` で変更できます。検証ごとに保存先を分けた場合は、実行フォルダが並ぶ場所を `-ArtifactRoot` に指定します。
+`-PruneSuperseded` を追加すると、保存先の子孫にある古い実行フォルダと検証ビルドも対象にします。保存先を分けた場合も、ケースごとと検証ビルドで、それぞれ完了日時が新しい2件を保持します。保持件数は `-KeepLatestPerCase` で変更できます。実行フォルダ内の入力・実行証跡・契約テスト用データは独立した実行として扱いません。
+
+保持する実行に `Build.json` が保存されている場合は、その原本と一致する検証ビルドも保持します。整理結果の `retainedDirectories` に、最新の実行・参照先・ビルド入力などの保持理由を記録します。
 
 検証用の設定・出力を保存した `artifacts/.native/` は、対応する実行証跡と一緒に保持します。古い実行を整理するときだけ、`Native-UserDataLocation.json` と両所有マーカーが一致する直下の所有フォルダも対象にします。不一致やreparse pointがある場合は両方を保持します。作業用保存先を `-PreserveDirectory` に指定した場合も、対応する実行証跡を保持します。
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
@@ -100,6 +100,10 @@ public static class CustomModels
             {
                 var c = Math.Cos(angle);
                 var s = Math.Sin(angle);
+                return Rotate(p, c, s);
+            }
+            internal Point Rotate(Point p, double c, double s)
+            {
                 return p * c + Axis.Cross(p) * s + Axis * (Axis.Dot(p) * (1 - c));
             }
         }
@@ -118,6 +122,8 @@ public static class CustomModels
         internal readonly IReadOnlyList<(int Ring, Point Offset)> StringRows;
         internal readonly IReadOnlyList<int> StringIndices;
         internal readonly IReadOnlyList<(double Q, double Span, double A, double B)> Seeds;
+        private readonly double[] _sampleSin, _sampleSinTwice;
+        private readonly double _horizontalStep, _verticalStep;
 
         internal static WieldedMechanism FromJson(Stream stream)
         {
@@ -251,6 +257,16 @@ public static class CustomModels
                 NativeSpanMaximum <= NativeSpanLoaded || WidthRoot <= 0 || WidthTip <= 0 ||
                 leftRoot.X != -Root.X || leftRoot.Y != Root.Y || leftRoot.Z != Root.Z)
                 throw new InvalidDataException("Invalid mechanism dimensions.");
+            _sampleSin = new double[Segments];
+            _sampleSinTwice = new double[Segments];
+            for (var i = 0; i < Segments; i++)
+            {
+                var t = (i + 0.5) / Segments;
+                _sampleSin[i] = Math.Sin(Math.PI * t);
+                _sampleSinTwice[i] = Math.Sin(2 * Math.PI * t);
+            }
+            _horizontalStep = Math.Sqrt(MaterialLength * MaterialLength - (TipY - Root.Y) * (TipY - Root.Y)) / Segments;
+            _verticalStep = (TipY - Root.Y) / Segments;
             Corners = System.Array.AsReadOnly(Array(Required(limb, "cornerHeightAndNormalSign"), 4)
                 .Select(row => { var a = Array(row, 2); return (Number(a[0]), Number(a[1])); }).ToArray());
             var mapping = Required(limb, "frameExpandedVertexContract");
@@ -353,7 +369,7 @@ public static class CustomModels
             }
             var a = seed.A;
             var b = seed.B;
-            var step = Math.Sqrt(MaterialLength * MaterialLength - (TipY - Root.Y) * (TipY - Root.Y)) / Segments;
+            var step = _horizontalStep;
             for (var iteration = 0; iteration < Iterations; iteration++)
             {
                 var x = Root.X;
@@ -361,13 +377,14 @@ public static class CustomModels
                 double j00 = 0, j01 = 0, j10 = 0, j11 = 0;
                 for (var i = 0; i < Segments; i++)
                 {
-                    var t = (i + 0.5) / Segments;
-                    var s1 = Math.Sin(Math.PI * t);
-                    var s2 = Math.Sin(2 * Math.PI * t);
+                    var s1 = _sampleSin[i];
+                    var s2 = _sampleSinTwice[i];
                     var angle = a * s1 + b * s2;
-                    x += step * Math.Cos(angle); zz += step * Math.Sin(angle);
-                    j00 -= step * Math.Sin(angle) * s1; j01 -= step * Math.Sin(angle) * s2;
-                    j10 += step * Math.Cos(angle) * s1; j11 += step * Math.Cos(angle) * s2;
+                    var sine = Math.Sin(angle);
+                    var cosine = Math.Cos(angle);
+                    x += step * cosine; zz += step * sine;
+                    j00 -= step * sine * s1; j01 -= step * sine * s2;
+                    j10 += step * cosine * s1; j11 += step * cosine * s2;
                 }
                 var ex = x - target.X;
                 var ez = zz - target.Z;
@@ -396,12 +413,11 @@ public static class CustomModels
         private Point Endpoint(double a, double b)
         {
             var result = Root;
-            var dy = (TipY - Root.Y) / Segments;
-            var step = Math.Sqrt(MaterialLength * MaterialLength - (TipY - Root.Y) * (TipY - Root.Y)) / Segments;
+            var dy = _verticalStep;
+            var step = _horizontalStep;
             for (var i = 0; i < Segments; i++)
             {
-                var t = (i + 0.5) / Segments;
-                var angle = a * Math.Sin(Math.PI * t) + b * Math.Sin(2 * Math.PI * t);
+                var angle = a * _sampleSin[i] + b * _sampleSinTwice[i];
                 result += new Point(step * Math.Cos(angle), dy, step * Math.Sin(angle));
             }
             return result;
@@ -409,12 +425,11 @@ public static class CustomModels
         private void FillCenters(double a, double b, Point[] centers)
         {
             centers[0] = Root;
-            var dy = (TipY - Root.Y) / Segments;
-            var step = Math.Sqrt(MaterialLength * MaterialLength - (TipY - Root.Y) * (TipY - Root.Y)) / Segments;
+            var dy = _verticalStep;
+            var step = _horizontalStep;
             for (var i = 0; i < Segments; i++)
             {
-                var t = (i + 0.5) / Segments;
-                var angle = a * Math.Sin(Math.PI * t) + b * Math.Sin(2 * Math.PI * t);
+                var angle = a * _sampleSin[i] + b * _sampleSinTwice[i];
                 centers[i + 1] = centers[i] + new Point(step * Math.Cos(angle), dy, step * Math.Sin(angle));
             }
         }
@@ -896,7 +911,24 @@ public static class CustomModels
         private float _modelNormalSign;
         private float _nativeGripAxisSign;
         private SkinnedMeshRenderer[] _armSkins;
+        private SkinShape[] _skinShapes;
         private int _armShapeSignature;
+        private sealed class SkinShape
+        {
+            internal Mesh Mesh;
+            internal SkinMeshSource Source;
+            internal int Muscle = -1, Positive = -1, Negative = -1;
+            internal float MuscleWeight, PositiveWeight, NegativeWeight;
+            internal Vector3 Scale;
+            internal bool Active;
+        }
+        private bool _plateFitReady, _carryFitReady;
+        private Vector3[] _plateFitPoints;
+        private Quaternion _plateFitRotation;
+        private Vector3 _plateFitScale;
+        private Vector3 _carryFitHand, _carryFitUpper, _carryFitThigh, _carryFitKnee;
+        private Quaternion _carryFitRotation;
+        private float _carryTarget;
         private readonly Dictionary<HumanBodyBones, float> _segmentRadii = [];
         private readonly struct SkinPoint(Transform bone, Vector3 local)
         {
@@ -913,6 +945,7 @@ public static class CustomModels
         private int _carryFrame = -1;
         private float _carryAngle;
         private Vector3[] _carryPoints;
+        private Vector3[] _carryFitVectors;
         internal Transform CarryUpperArm => _carryUpperArm;
         internal Quaternion CarryOriginalRotation => _carryOriginalRotation;
         internal Quaternion CarryAppliedRotation => _carryAppliedRotation;
@@ -946,6 +979,12 @@ public static class CustomModels
         private RuntimeAnimatorController _weaponController;
         private Transform[] _weaponBones;
         private Transform[] _weaponParents;
+        private Transform[][] _weaponLocalPaths;
+        private Matrix4x4[] _weaponRelativeMatrices;
+        private WieldedMechanism.Point[] _loadedLimbNormals, _currentLimbNormals;
+        private LimbTransportFrame[] _limbTransportFrames;
+        private bool _mechanismGeometryReady;
+        private double _mechanismQ, _mechanismSpan;
         private Transform _weaponBolt;
         private Transform[] _mechanismBolts;
         private MeshFilter _frameFilter;
@@ -1121,9 +1160,8 @@ public static class CustomModels
         internal void RequestRefresh()
         {
             _armSkins = null;
-            _armShapeSignature = 0;
-            _segmentRadii.Clear();
-            _armEnvelope = null;
+            _skinShapes = null;
+            InvalidateSkinMeasurements();
             RestoreFingers();
             _fingerBones = null;
             _poseResolutionAttempted = false;
@@ -1427,27 +1465,69 @@ public static class CustomModels
             return true;
         }
 
+        private static bool SameScale(Vector3 first, Vector3 second) =>
+            (first - second).sqrMagnitude <= 0.00000001f * Mathf.Max(first.sqrMagnitude, second.sqrMagnitude);
+
+        private void InvalidateSkinMeasurements()
+        {
+            unchecked { _armShapeSignature++; }
+            _segmentRadii.Clear();
+            _armEnvelope = null;
+            _armInParent = null;
+            _plateFitReady = _carryFitReady = false;
+        }
+
         private void RefreshSkinCache()
         {
             _armSkins ??= _graphics.GetComponentsInChildren<SkinnedMeshRenderer>(true);
-            var signature = 17;
-            unchecked
+            if (_skinShapes == null)
             {
-                foreach (var skin in _armSkins)
+                _skinShapes = new SkinShape[_armSkins.Length];
+                for (var i = 0; i < _skinShapes.Length; i++) _skinShapes[i] = new SkinShape();
+            }
+            var changed = false;
+            for (var i = 0; i < _armSkins.Length; i++)
+            {
+                var skin = _armSkins[i];
+                var shape = _skinShapes[i];
+                var active = skin && skin.enabled && skin.gameObject.activeInHierarchy && skin.sharedMesh;
+                if (active != shape.Active) { shape.Active = active; changed = true; }
+                if (!active) continue;
+                if (shape.Source == null || !shape.Source.AcceptsCurrentMesh())
                 {
-                    if (!skin || !skin.enabled || !skin.gameObject.activeInHierarchy || !skin.sharedMesh) continue;
-                    signature = signature * 31 + skin.sharedMesh.GetInstanceID();
-                    var muscle = skin.sharedMesh.GetBlendShapeIndex("Muscular");
-                    if (muscle >= 0) signature = signature * 31 + skin.GetBlendShapeWeight(muscle).GetHashCode();
-                    var volume = skin.sharedMesh.GetBlendShapeIndex("UB_BodyVolumePositive");
-                    if (volume >= 0) signature = signature * 31 + skin.GetBlendShapeWeight(volume).GetHashCode();
-                    volume = skin.sharedMesh.GetBlendShapeIndex("UB_BodyVolumeNegative");
-                    if (volume >= 0) signature = signature * 31 + skin.GetBlendShapeWeight(volume).GetHashCode();
-                    signature = signature * 31 + skin.transform.lossyScale.GetHashCode();
+                    var sources = SkinMeshSource.Capture(_graphics, new[] { skin });
+                    shape.Source = sources != null && sources.TryGetValue(skin, out var source) ? source : null;
+                }
+                // Cloth swaps the renderer between its immutable source and its
+                // simulated runtime copy. The source owner defines body shape;
+                // simulation poses do not require another full skin bake.
+                var mesh = shape.Source?.Original ?? skin.sharedMesh;
+                if (shape.Mesh != mesh)
+                {
+                    shape.Mesh = mesh;
+                    shape.Muscle = mesh.GetBlendShapeIndex("Muscular");
+                    shape.Positive = mesh.GetBlendShapeIndex("UB_BodyVolumePositive");
+                    shape.Negative = mesh.GetBlendShapeIndex("UB_BodyVolumeNegative");
+                    changed = true;
+                }
+                var muscle = shape.Muscle >= 0 ? skin.GetBlendShapeWeight(shape.Muscle) : 0f;
+                var positive = shape.Positive >= 0 ? skin.GetBlendShapeWeight(shape.Positive) : 0f;
+                var negative = shape.Negative >= 0 ? skin.GetBlendShapeWeight(shape.Negative) : 0f;
+                var scale = skin.transform.lossyScale;
+                // Rotation and breathing perturb lossyScale's last bits. They do
+                // not change the body surface and must not rebake every mesh.
+                if (Mathf.Abs(muscle - shape.MuscleWeight) > 0.0001f ||
+                    Mathf.Abs(positive - shape.PositiveWeight) > 0.0001f ||
+                    Mathf.Abs(negative - shape.NegativeWeight) > 0.0001f || !SameScale(scale, shape.Scale))
+                {
+                    shape.MuscleWeight = muscle;
+                    shape.PositiveWeight = positive;
+                    shape.NegativeWeight = negative;
+                    shape.Scale = scale;
+                    changed = true;
                 }
             }
-            if (signature != _armShapeSignature) { _segmentRadii.Clear(); _armEnvelope = null; }
-            _armShapeSignature = signature;
+            if (changed) InvalidateSkinMeasurements();
         }
 
         private float SegmentRadius(HumanBodyBones weightedBone, HumanBodyBones firstBone,
@@ -1531,9 +1611,30 @@ public static class CustomModels
             var gripWorld = _hand.TransformPoint(gripInHand);
             _armInParent ??= new Vector3[_armEnvelope.Length];
             if (_armInParent.Length != _armEnvelope.Length) _armInParent = new Vector3[_armEnvelope.Length];
+            var changed = !_plateFitReady || !SameScale(scale, _plateFitScale) ||
+                          Quaternion.Angle(original, _plateFitRotation) > 0.5f;
             for (var i = 0; i < _armEnvelope.Length; i++)
+            {
                 _armInParent[i] = parent.InverseTransformVector(
                     _armEnvelope[i].Bone.TransformPoint(_armEnvelope[i].Local) - gripWorld);
+                if (!changed && (_armInParent[i] - _plateFitPoints[i]).sqrMagnitude > 0.000004f) changed = true;
+            }
+            if (changed)
+            {
+                SolvePlateFit(parent, scale, axis, original);
+                if (_plateFitPoints == null || _plateFitPoints.Length != _armInParent.Length)
+                    _plateFitPoints = new Vector3[_armInParent.Length];
+                Array.Copy(_armInParent, _plateFitPoints, _armInParent.Length);
+                _plateFitRotation = original;
+                _plateFitScale = scale;
+                _plateFitReady = true;
+            }
+            return Quaternion.AngleAxis(_plateRoll, axis) * original;
+        }
+
+        private void SolvePlateFit(Transform parent, Vector3 scale, Vector3 axis, Quaternion original)
+        {
+            var surface = _gripDefinition.PlateSurface;
             axis.Normalize();
             var support = _gripDefinition.ForearmSupportPoint is { } supportPoint
                 ? Vector3.Scale(supportPoint - _gripDefinition.GripPoint, scale) : Vector3.zero;
@@ -1556,27 +1657,39 @@ public static class CustomModels
                 }
                 return minimum;
             }
-            var best = Gap(_plateRoll);
+            var initial = _plateRoll;
+            var best = Gap(initial);
             if (best < 0.006f)
             {
-                var selected = _plateRoll;
-                for (var delta = 1; delta <= 120; delta++)
+                var selected = initial;
+                var safe = false;
+                for (var delta = 5; delta <= 120 && !safe; delta += 5)
                 {
-                    var found = false;
                     for (var sign = -1; sign <= 1; sign += 2)
                     {
-                        var angle = _plateRoll + delta * sign;
+                        var angle = initial + delta * sign;
                         if (angle < -60f || angle > 60f) continue;
                         var gap = Gap(angle);
                         if (gap > best) { best = gap; selected = angle; }
-                        if (gap >= 0.01f) { found = true; break; }
+                        if (gap >= 0.01f) { selected = angle; safe = true; break; }
                     }
-                    if (found) break;
+                }
+                // Refine only the selected interval, including an unreachable
+                // clearance maximum. A held shield never scans 240 angles/frame.
+                var coarse = selected;
+                for (var angle = Mathf.Max(-60f, coarse - 5f); angle <= Mathf.Min(60f, coarse + 5f); angle += 1f)
+                {
+                    var gap = Gap(angle);
+                    if (safe)
+                    {
+                        if (gap >= 0.01f && Mathf.Abs(angle - initial) < Mathf.Abs(selected - initial))
+                        { selected = angle; best = gap; }
+                    }
+                    else if (gap > best) { best = gap; selected = angle; safe = gap >= 0.01f; }
                 }
                 _plateRoll = selected;
             }
             PlateClearanceGap = best;
-            return Quaternion.AngleAxis(_plateRoll, axis) * original;
         }
 
         private void CaptureArmEnvelope()
@@ -1675,40 +1788,37 @@ public static class CustomModels
                 }
                 _carryPoints = points.ToArray();
             }
+            RefreshSkinCache();
             var axis = _graphics.transform.forward * (left ? -1f : 1f);
             var target = 0f;
             if (_hand.position.y < hips.position.y + (_hand.position - upperArm.position).magnitude * 0.15f)
             {
-                var radius = SegmentRadius(left ? HumanBodyBones.LeftUpperLeg : HumanBodyBones.RightUpperLeg,
-                    left ? HumanBodyBones.LeftUpperLeg : HumanBodyBones.RightUpperLeg,
-                    left ? HumanBodyBones.LeftLowerLeg : HumanBodyBones.RightLowerLeg, 0.22f);
-                var native = _hand.localToWorldMatrix * Matrix4x4.TRS(handPosition, handRotation, Vector3.one);
-                var leg = knee.position - thigh.position;
-                var lengthSquared = leg.sqrMagnitude;
-                float Gap(float angle)
+                var actor = _graphics.transform;
+                var hand = actor.InverseTransformPoint(_hand.position);
+                var upper = actor.InverseTransformPoint(upperArm.position);
+                var leg = actor.InverseTransformPoint(thigh.position);
+                var lower = actor.InverseTransformPoint(knee.position);
+                var rotation = Quaternion.Inverse(actor.rotation) * _hand.rotation;
+                if (!_carryFitReady || (hand - _carryFitHand).sqrMagnitude > 0.000025f ||
+                    (upper - _carryFitUpper).sqrMagnitude > 0.000025f ||
+                    (leg - _carryFitThigh).sqrMagnitude > 0.000025f ||
+                    (lower - _carryFitKnee).sqrMagnitude > 0.000025f ||
+                    Quaternion.Angle(rotation, _carryFitRotation) > 0.5f)
                 {
-                    var delta = Quaternion.AngleAxis(angle, axis);
-                    var minimum = float.PositiveInfinity;
-                    foreach (var point in _carryPoints)
-                    {
-                        var world = upperArm.position + delta * (native.MultiplyPoint3x4(point) - upperArm.position);
-                        var t = lengthSquared > 0f
-                            ? Mathf.Clamp01(Vector3.Dot(world - thigh.position, leg) / lengthSquared) : 0f;
-                        minimum = Mathf.Min(minimum, (world - thigh.position - leg * t).magnitude - radius);
-                    }
-                    return minimum;
+                    target = FitCarryClearance(left, upperArm, thigh, knee, axis, handPosition, handRotation);
+                    // Do not alternate between adjacent sampled angles while a
+                    // native idle breathes around the same clearance boundary.
+                    if (_carryFitReady && Mathf.Abs(target - _carryTarget) <= 2f)
+                        target = Mathf.Max(target, _carryTarget);
+                    _carryTarget = target;
+                    _carryFitHand = hand; _carryFitUpper = upper;
+                    _carryFitThigh = leg; _carryFitKnee = lower;
+                    _carryFitRotation = rotation;
+                    _carryFitReady = true;
                 }
-                if (Gap(0f) < 0.008f)
-                {
-                    var best = float.NegativeInfinity;
-                    for (var angle = 2f; angle <= 35f; angle += 1f)
-                    {
-                        var gap = Gap(angle);
-                        if (gap > best) { target = angle; best = gap; }
-                        if (gap >= 0.008f) break;
-                    }
-                }
+                target = _carryTarget;
             }
+            else _carryFitReady = false;
             if (!_carryAngleInitialized)
             {
                 _carryAngle = target;
@@ -1724,6 +1834,63 @@ public static class CustomModels
             _carryPoseApplied = true;
         }
 
+        private float FitCarryClearance(bool left, Transform upperArm, Transform thigh, Transform knee,
+            Vector3 axis, Vector3 handPosition, Quaternion handRotation)
+        {
+            var radius = SegmentRadius(left ? HumanBodyBones.LeftUpperLeg : HumanBodyBones.RightUpperLeg,
+                left ? HumanBodyBones.LeftUpperLeg : HumanBodyBones.RightUpperLeg,
+                left ? HumanBodyBones.LeftLowerLeg : HumanBodyBones.RightLowerLeg, 0.22f);
+            var native = _hand.localToWorldMatrix * Matrix4x4.TRS(handPosition, handRotation, Vector3.one);
+            var armOrigin = upperArm.position;
+            var legOrigin = thigh.position;
+            var offset = armOrigin - legOrigin;
+            var leg = knee.position - legOrigin;
+            var lengthSquared = leg.sqrMagnitude;
+            if (_carryFitVectors == null || _carryFitVectors.Length != _carryPoints.Length)
+                _carryFitVectors = new Vector3[_carryPoints.Length];
+            for (var i = 0; i < _carryPoints.Length; i++)
+                _carryFitVectors[i] = native.MultiplyPoint3x4(_carryPoints[i]) - armOrigin;
+            float Gap(float angle)
+            {
+                var delta = Quaternion.AngleAxis(angle, axis);
+                var minimum = float.PositiveInfinity;
+                foreach (var vector in _carryFitVectors)
+                {
+                    var relative = offset + delta * vector;
+                    var t = lengthSquared > 0f
+                        ? Mathf.Clamp01(Vector3.Dot(relative, leg) / lengthSquared) : 0f;
+                    minimum = Mathf.Min(minimum, (relative - leg * t).magnitude - radius);
+                }
+                return minimum;
+            }
+            var previousGap = _carryFitReady ? Gap(_carryTarget) : float.NegativeInfinity;
+            if (previousGap >= 0.006f) return _carryTarget;
+            if (Gap(0f) >= 0.008f) return 0f;
+            var target = 2f;
+            var best = Gap(target);
+            var safe = best >= 0.01f;
+            for (var angle = 5f; angle <= 35f && !safe; angle += 5f)
+            {
+                var gap = Gap(angle);
+                if (gap > best) { target = angle; best = gap; }
+                if (gap >= 0.01f) { target = angle; safe = true; }
+            }
+            var coarse = target;
+            for (var angle = Mathf.Max(2f, coarse - 5f); angle <= Mathf.Min(35f, coarse + 5f); angle += 1f)
+            {
+                var gap = Gap(angle);
+                if (safe)
+                {
+                    if (gap >= 0.01f && angle < target) { target = angle; best = gap; }
+                }
+                else if (gap > best) { target = angle; best = gap; safe = gap >= 0.01f; }
+            }
+            // Keep an equally good held pose when this conservative clothing
+            // envelope cannot reach its clearance target during an idle breath.
+            if (_carryFitReady && !safe && previousGap >= best - 0.002f) return _carryTarget;
+            return target;
+        }
+
         private bool MechanismCurrent()
         {
             if (!_frameFilter || !_stringFilter || _frameFilter.sharedMesh != _frameMesh ||
@@ -1731,7 +1898,12 @@ public static class CustomModels
                 _weaponAnimator.runtimeAnimatorController != _weaponController || !_weaponBolt ||
                 !_weaponAnimator.transform.IsChildOf(transform)) return false;
             for (var i = 0; i < _weaponBones.Length; i++)
+            {
                 if (!_weaponBones[i] || _weaponBones[i].parent != _weaponParents[i]) return false;
+                var path = _weaponLocalPaths[i];
+                for (var j = 0; j < path.Length; j++)
+                    if (!path[j] || path[j].parent != (j == 0 ? _weaponBones[0] : path[j - 1])) return false;
+            }
             return true;
         }
 
@@ -1845,6 +2017,17 @@ public static class CustomModels
                     return false;
                 }
                 _weaponParents = _weaponBones.Select(bone => bone.parent).ToArray();
+                _weaponLocalPaths = new Transform[_weaponBones.Length][];
+                _weaponRelativeMatrices = new Matrix4x4[_weaponBones.Length];
+                for (var i = 0; i < _weaponBones.Length; i++)
+                {
+                    var path = new List<Transform>();
+                    var node = _weaponBones[i];
+                    while (node && node != _weaponBones[0]) { path.Add(node); node = node.parent; }
+                    if (!node) return MechanismFault("NativeBoneFrameMismatch");
+                    path.Reverse();
+                    _weaponLocalPaths[i] = path.ToArray();
+                }
                 if (_weaponBolt.parent != _weaponBones[0]) return MechanismFault("NativeBoltFrameMismatch");
             }
             if (!MechanismCurrent()) return MechanismFault("NativeRigChanged");
@@ -1867,11 +2050,10 @@ public static class CustomModels
         private WieldedMechanism.Point ObserveSection(
             IReadOnlyList<(double X, double Y, double Z, double W)> coefficients)
         {
-            var inverse = _weaponBones[0].worldToLocalMatrix;
             double x = 0, y = 0, z = 0;
             for (var i = 0; i < _weaponBones.Length; i++)
             {
-                var m = inverse * _weaponBones[i].localToWorldMatrix;
+                var m = _weaponRelativeMatrices[i];
                 var c = coefficients[i];
                 x += m.m00 * c.X + m.m01 * c.Y + m.m02 * c.Z + m.m03 * c.W;
                 y += m.m10 * c.X + m.m11 * c.Y + m.m12 * c.Z + m.m13 * c.W;
@@ -1880,12 +2062,22 @@ public static class CustomModels
             return new WieldedMechanism.Point(x, y, z);
         }
 
-        private static Vector3 Transport(Vector3 value, WieldedMechanism.Point before,
-            WieldedMechanism.Point after)
+        private readonly struct LimbTransportFrame
         {
-            var p = WieldedMechanism.Point.From(value);
-            var up = new WieldedMechanism.Point(0, 1, 0);
-            return (after * p.Dot(before) + up * p.Y + after.Cross(up) * p.Dot(before.Cross(up))).Float;
+            private static readonly WieldedMechanism.Point Up = new(0, 1, 0);
+            private readonly WieldedMechanism.Point _before, _after, _beforeSide, _afterSide;
+            internal LimbTransportFrame(WieldedMechanism.Point before, WieldedMechanism.Point after)
+            {
+                _before = before;
+                _after = after;
+                _beforeSide = before.Cross(Up);
+                _afterSide = after.Cross(Up);
+            }
+            internal Vector3 Transform(Vector3 value)
+            {
+                var p = WieldedMechanism.Point.From(value);
+                return (_after * p.Dot(_before) + Up * p.Y + _afterSide * p.Dot(_beforeSide)).Float;
+            }
         }
 
         private bool UpdateMechanism()
@@ -1894,59 +2086,101 @@ public static class CustomModels
             if (data == null) return true;
             _mechanismReady = false;
             if (!Model || !PrepareMechanism(data)) return false;
+            for (var i = 0; i < _weaponLocalPaths.Length; i++)
+            {
+                var relative = Matrix4x4.identity;
+                foreach (var bone in _weaponLocalPaths[i])
+                    relative *= Matrix4x4.TRS(bone.localPosition, bone.localRotation, bone.localScale);
+                _weaponRelativeMatrices[i] = relative;
+            }
             var rope = WieldedMechanism.Point.From(_weaponBones[1].localPosition);
             var q = (rope - data.RopeLoaded).Dot(data.RopeAxis) / data.RopeAxis.Dot(data.RopeAxis);
             var span = (ObserveSection(data.LeftObserver) - ObserveSection(data.RightObserver)).Length;
-            if (!data.TryGeometry(q, span, _centers, out var nodes))
+            if (!_mechanismGeometryReady || Math.Abs(q - _mechanismQ) > 0.000001 ||
+                Math.Abs(span - _mechanismSpan) > 0.000001)
             {
-                MechanismStatus = "UnsupportedNativeGeometry";
-                return false;
+                if (!data.TryGeometry(q, span, _centers, out var nodes))
+                {
+                    MechanismStatus = "UnsupportedNativeGeometry";
+                    return false;
+                }
+                _currentLimbNormals ??= new WieldedMechanism.Point[2 * (data.Segments + 1)];
+                _limbTransportFrames ??= new LimbTransportFrame[_currentLimbNormals.Length];
+                if (_loadedLimbNormals == null)
+                {
+                    _loadedLimbNormals = new WieldedMechanism.Point[_currentLimbNormals.Length];
+                    for (var side = 0; side < 2; side++)
+                    for (var section = 0; section <= data.Segments; section++)
+                        _loadedLimbNormals[side * (data.Segments + 1) + section] =
+                            data.RingNormal(_loadedCenters, section, side == 0);
+                }
+                for (var side = 0; side < 2; side++)
+                for (var section = 0; section <= data.Segments; section++)
+                {
+                    var index = side * (data.Segments + 1) + section;
+                    _currentLimbNormals[index] = data.RingNormal(_centers, section, side == 0);
+                    _limbTransportFrames[index] = new LimbTransportFrame(_loadedLimbNormals[index], _currentLimbNormals[index]);
+                }
+                foreach (var row in data.LimbRows)
+                {
+                    var center = _centers[row.Section];
+                    if (row.Left) center = new WieldedMechanism.Point(-center.X, center.Y, center.Z);
+                    var section = (row.Left ? 0 : data.Segments + 1) + row.Section;
+                    var normal = _currentLimbNormals[section];
+                    var corner = data.Corners[row.Corner];
+                    var width = data.WidthRoot + (data.WidthTip - data.WidthRoot) * row.Section / data.Segments;
+                    _frameVertices[row.Index] = (center + new WieldedMechanism.Point(0, corner.Height, 0) +
+                        normal * (width * corner.Sign)).Float;
+                    _frameNormals[row.Index] = _limbTransportFrames[section].Transform(_frameBaseNormals[row.Index]);
+                    var t = _limbTransportFrames[section].Transform(_frameBaseTangents[row.Index]);
+                    _frameTangents[row.Index] = new Vector4(t.x, t.y, t.z, _frameBaseTangents[row.Index].w);
+                }
+                if (!_mechanismGeometryReady || q != _mechanismQ)
+                {
+                    WieldedMechanism.Joint joint = null;
+                    double cosine = 1, sine = 0;
+                    foreach (var row in data.RigidRows)
+                    {
+                        if (!ReferenceEquals(joint, row.Joint))
+                        {
+                            joint = row.Joint;
+                            var angle = joint.Angle(q);
+                            cosine = Math.Cos(angle);
+                            sine = Math.Sin(angle);
+                        }
+                        _frameVertices[row.Index] = (joint.Pivot + joint.Rotate(row.Position - joint.Pivot, cosine, sine)).Float;
+                        _frameNormals[row.Index] = joint.Rotate(WieldedMechanism.Point.From(_frameBaseNormals[row.Index]), cosine, sine).Float;
+                        var t = joint.Rotate(WieldedMechanism.Point.From(_frameBaseTangents[row.Index]), cosine, sine).Float;
+                        _frameTangents[row.Index] = new Vector4(t.x, t.y, t.z, _frameBaseTangents[row.Index].w);
+                    }
+                }
+                for (var i = 0; i < data.StringIndices.Count; i++)
+                {
+                    var row = data.StringRows[data.StringIndices[i]];
+                    var basis = WieldedMechanism.StringFrame(nodes, row.Ring);
+                    var loaded = WieldedMechanism.StringFrame(_loadedStringNodes, row.Ring);
+                    _stringVertices[i] = (nodes[row.Ring] + basis.Tangent * row.Offset.X +
+                        basis.Up * row.Offset.Y + basis.Side * row.Offset.Z).Float;
+                    var n = WieldedMechanism.Point.From(_stringBaseNormals[i]);
+                    _stringNormals[i] = (basis.Tangent * n.Dot(loaded.Tangent) + basis.Up * n.Dot(loaded.Up) +
+                        basis.Side * n.Dot(loaded.Side)).Float;
+                    var t = WieldedMechanism.Point.From(_stringBaseTangents[i]);
+                    var moved = (basis.Tangent * t.Dot(loaded.Tangent) + basis.Up * t.Dot(loaded.Up) +
+                        basis.Side * t.Dot(loaded.Side)).Float;
+                    _stringTangents[i] = new Vector4(moved.x, moved.y, moved.z, _stringBaseTangents[i].w);
+                }
+                _frameMesh.vertices = _frameVertices;
+                _frameMesh.normals = _frameNormals;
+                _frameMesh.tangents = _frameTangents;
+                _frameMesh.RecalculateBounds();
+                _stringMesh.vertices = _stringVertices;
+                _stringMesh.normals = _stringNormals;
+                _stringMesh.tangents = _stringTangents;
+                _stringMesh.RecalculateBounds();
+                _mechanismQ = q;
+                _mechanismSpan = span;
+                _mechanismGeometryReady = true;
             }
-            foreach (var row in data.LimbRows)
-            {
-                var center = _centers[row.Section];
-                if (row.Left) center = new WieldedMechanism.Point(-center.X, center.Y, center.Z);
-                var normal = data.RingNormal(_centers, row.Section, row.Left);
-                var corner = data.Corners[row.Corner];
-                var width = data.WidthRoot + (data.WidthTip - data.WidthRoot) * row.Section / data.Segments;
-                _frameVertices[row.Index] = (center + new WieldedMechanism.Point(0, corner.Height, 0) +
-                    normal * (width * corner.Sign)).Float;
-                var before = data.RingNormal(_loadedCenters, row.Section, row.Left);
-                _frameNormals[row.Index] = Transport(_frameBaseNormals[row.Index], before, normal);
-                var t = Transport(_frameBaseTangents[row.Index], before, normal);
-                _frameTangents[row.Index] = new Vector4(t.x, t.y, t.z, _frameBaseTangents[row.Index].w);
-            }
-            foreach (var row in data.RigidRows)
-            {
-                var angle = row.Joint.Angle(q);
-                _frameVertices[row.Index] = (row.Joint.Pivot + row.Joint.Rotate(row.Position - row.Joint.Pivot, angle)).Float;
-                _frameNormals[row.Index] = row.Joint.Rotate(WieldedMechanism.Point.From(_frameBaseNormals[row.Index]), angle).Float;
-                var t = row.Joint.Rotate(WieldedMechanism.Point.From(_frameBaseTangents[row.Index]), angle).Float;
-                _frameTangents[row.Index] = new Vector4(t.x, t.y, t.z, _frameBaseTangents[row.Index].w);
-            }
-            for (var i = 0; i < data.StringIndices.Count; i++)
-            {
-                var row = data.StringRows[data.StringIndices[i]];
-                var basis = WieldedMechanism.StringFrame(nodes, row.Ring);
-                var loaded = WieldedMechanism.StringFrame(_loadedStringNodes, row.Ring);
-                _stringVertices[i] = (nodes[row.Ring] + basis.Tangent * row.Offset.X +
-                    basis.Up * row.Offset.Y + basis.Side * row.Offset.Z).Float;
-                var n = WieldedMechanism.Point.From(_stringBaseNormals[i]);
-                _stringNormals[i] = (basis.Tangent * n.Dot(loaded.Tangent) + basis.Up * n.Dot(loaded.Up) +
-                    basis.Side * n.Dot(loaded.Side)).Float;
-                var t = WieldedMechanism.Point.From(_stringBaseTangents[i]);
-                var moved = (basis.Tangent * t.Dot(loaded.Tangent) + basis.Up * t.Dot(loaded.Up) +
-                    basis.Side * t.Dot(loaded.Side)).Float;
-                _stringTangents[i] = new Vector4(moved.x, moved.y, moved.z, _stringBaseTangents[i].w);
-            }
-            _frameMesh.vertices = _frameVertices;
-            _frameMesh.normals = _frameNormals;
-            _frameMesh.tangents = _frameTangents;
-            _frameMesh.RecalculateBounds();
-            _stringMesh.vertices = _stringVertices;
-            _stringMesh.normals = _stringNormals;
-            _stringMesh.tangents = _stringTangents;
-            _stringMesh.RecalculateBounds();
             var bolt = _weaponBolt.localPosition;
             var loadedBolt = _weaponBolt.gameObject.activeInHierarchy && q >= data.BoltQMinimum && q <= data.BoltQMaximum &&
                 bolt.x >= data.BoltMinimum.X && bolt.x <= data.BoltMaximum.X &&
@@ -1980,6 +2214,11 @@ public static class CustomModels
             _weaponAnimator = null;
             _weaponController = null;
             _weaponBones = _weaponParents = null;
+            _weaponLocalPaths = null;
+            _weaponRelativeMatrices = null;
+            _loadedLimbNormals = _currentLimbNormals = null;
+            _limbTransportFrames = null;
+            _mechanismGeometryReady = false;
             _weaponBolt = null;
             _mechanismBolts = null;
             _frameOriginal = _stringOriginal = null;
@@ -2150,7 +2389,6 @@ public static class CustomModels
             if (Model)
             {
                 Model.gameObject.SetActive(false);
-                Model.SetParent(null, false);
                 Destroy(Model.gameObject);
             }
 
@@ -2174,14 +2412,16 @@ public static class CustomModels
             _modelNormalSign = 0f;
             _nativeGripAxisSign = 0f;
             _armSkins = null;
-            _armShapeSignature = 0;
-            _segmentRadii.Clear();
-            _armEnvelope = null;
+            _skinShapes = null;
+            InvalidateSkinMeasurements();
             _armInParent = null;
             _plateRoll = 0f;
+            _plateFitPoints = null;
+            _carryTarget = 0f;
             PlateClearanceGap = 0f;
             _carryUpperArm = null;
             _carryPoints = null;
+            _carryFitVectors = null;
             _carryAngle = 0f;
             _carryAngleInitialized = false;
             _carryFrame = -1;

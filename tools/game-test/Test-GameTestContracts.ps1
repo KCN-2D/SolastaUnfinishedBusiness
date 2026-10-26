@@ -668,6 +668,68 @@ function Invoke-StorageCleanupContracts([hashtable]$Sources,[string]$Directory) 
             $again=Invoke-StorageCleanup $pruneRoot -Apply -Prune -Preserve @($preserve)
             Add-StorageCheck 'repeated apply performs no further destructive action' (@($again.actions | Where-Object kind -ne 'retained').Count -eq 0 -and $again.bytes -eq 0)
         } finally { $script:GameTestArtifactRoot=$actualArtifactRoot }
+        $nestedRoot=Join-Path $script:GameTestArtifactRoot 'Nested'
+        [void][IO.Directory]::CreateDirectory($nestedRoot)
+        $script:GameTestArtifactRoot=$nestedRoot
+        try {
+            function New-NestedBuild([string]$Group,[int]$Age) {
+                $path=Join-Path $nestedRoot ($Group+'/20260101-000000-000-Build-'+$Age.ToString('x8'))
+                [void][IO.Directory]::CreateDirectory($path)
+                Write-GtJson (Join-Path $path 'Build.json') @{schemaVersion=1;status='PASS';stage='Stage/SolastaUnfinishedBusiness';completedUtc=[datetime]::UtcNow.AddDays(-$Age).ToString('O');environment=@{gameExe=(Join-Path $game 'Solasta.exe')}}
+                return $path
+            }
+            $newBuild=New-NestedBuild 'day-two' 0
+            $requiredBuild=New-NestedBuild 'day-one' 5
+            $preservedBuild=New-NestedBuild 'day-one' 6
+            $incompleteBuild=New-NestedBuild 'day-one' 7
+            $unusedBuild=New-NestedBuild 'day-one' 8
+            $nestedLatest=New-StorageRun 'day-two/latest' 'restored' 'nested-case' 0
+            $nestedOld=New-StorageRun 'day-one/old' 'restored' 'nested-case' 4
+            $nestedPreserved=New-StorageRun 'day-one/preserved' 'restored' 'nested-case' 5
+            $nestedIncomplete=New-StorageRun 'day-one/incomplete' 'deployed' 'nested-case' 8
+            [IO.File]::Copy((Join-Path $requiredBuild 'Build.json'),(Join-Path $nestedLatest 'Build.json'))
+            [IO.File]::Copy((Join-Path $unusedBuild 'Build.json'),(Join-Path $nestedOld 'Build.json'))
+            [IO.File]::Copy((Join-Path $preservedBuild 'Build.json'),(Join-Path $nestedPreserved 'Build.json'))
+            [IO.File]::Copy((Join-Path $incompleteBuild 'Build.json'),(Join-Path $nestedIncomplete 'Build.json'))
+            # A contract archive contains intentionally realistic Result/Transaction
+            # fixtures. Its Directory.json owns the whole archive, not these inputs.
+            $contract=Join-Path $nestedRoot 'day-one/contracts'
+            [void][IO.Directory]::CreateDirectory($contract)
+            Write-GtJson (Join-Path $contract 'Directory.json') @{schemaVersion=1;layout='GameTest';directory=$contract}
+            $fake=New-StorageRun 'day-one/contracts/Workspace/fake-old' 'restored' 'nested-case' 10
+            $fakeBackup=Get-GtHash (Join-Path $fake 'Backup/000001.bin')
+            $nestedPlan=Invoke-StorageCleanup $nestedRoot -Prune -Preserve @($nestedPreserved)
+            $nestedPlanned=@($nestedPlan.actions | Where-Object kind -eq 'superseded-run' | ForEach-Object path)
+            Add-StorageCheck 'recursive pruning applies one retention policy across grouping folders' ($nestedPlanned.Count -eq 2 -and $nestedOld -in $nestedPlanned -and $unusedBuild -in $nestedPlanned)
+            Add-StorageCheck 'latest preserved and incomplete runs retain their archived staged builds' ($requiredBuild -notin $nestedPlanned -and $preservedBuild -notin $nestedPlanned -and $incompleteBuild -notin $nestedPlanned)
+            Add-StorageCheck 'build dependency retention explains the retained directory' (@($nestedPlan.retainedDirectories | Where-Object { $_.path -eq $requiredBuild -and $_.reason -eq 'retained-run-build' }).Count -eq 1)
+            [void](Invoke-StorageCleanup $nestedRoot -Apply -Prune -Preserve @($nestedPreserved))
+            Add-StorageCheck 'recursive apply removes only superseded nested runs and unused builds' (-not(Test-Path -LiteralPath $nestedOld) -and -not(Test-Path -LiteralPath $unusedBuild) -and (Test-Path -LiteralPath $nestedLatest) -and (Test-Path -LiteralPath $newBuild))
+            Add-StorageCheck 'kept nested run build inputs survive apply' ((Test-Path -LiteralPath $requiredBuild) -and (Test-Path -LiteralPath $preservedBuild) -and (Test-Path -LiteralPath $incompleteBuild))
+            Add-StorageCheck 'owned contract boundary protects nested fake runs and their backups' ((Get-GtHash (Join-Path $fake 'Backup/000001.bin')) -eq $fakeBackup -and -not(Test-Path -LiteralPath (Join-Path $fake 'BackupRelease.json')))
+        } finally { $script:GameTestArtifactRoot=$actualArtifactRoot }
+        $malformedRoot=Join-Path $script:GameTestArtifactRoot 'Malformed'
+        [void][IO.Directory]::CreateDirectory($malformedRoot)
+        $script:GameTestArtifactRoot=$malformedRoot
+        try {
+            $validLatest=New-StorageRun 'valid-latest' 'restored' 'malformed-case' 0
+            $validOld=New-StorageRun 'valid-old' 'restored' 'malformed-case' 2
+            $malformed=New-StorageRun 'malformed-json' 'restored' 'malformed-case' 3
+            [IO.File]::WriteAllText((Join-Path $malformed 'Transaction.json'),'{invalid')
+            $missingState=New-StorageRun 'missing-state' 'restored' 'malformed-case' 4
+            $record=Read-GtObject (Join-Path $missingState 'Transaction.json')
+            $record.PSObject.Properties.Remove('state')
+            Write-GtJson (Join-Path $missingState 'Transaction.json') $record
+            $badBuild=Join-Path $malformedRoot '20260101-000000-000-Build-deadbeef'
+            [void][IO.Directory]::CreateDirectory($badBuild)
+            Write-GtJson (Join-Path $badBuild 'Build.json') @{schemaVersion=1;status='PASS';stage='Stage/SolastaUnfinishedBusiness';completedUtc=[datetime]::UtcNow.AddDays(-5).ToString('O')}
+            $plan=Invoke-StorageCleanup $malformedRoot -Prune -Apply
+            Add-StorageCheck 'malformed receipt does not prevent eligible independent cleanup' (-not(Test-Path -LiteralPath $validOld) -and (Test-Path -LiteralPath $validLatest))
+            Add-StorageCheck 'malformed transaction retains original backup' (Test-Path -LiteralPath (Join-Path $malformed 'Backup/000001.bin'))
+            Add-StorageCheck 'missing transaction state retains original backup' (Test-Path -LiteralPath (Join-Path $missingState 'Backup/000001.bin'))
+            Add-StorageCheck 'missing build field retains the unknown build directory' (Test-Path -LiteralPath $badBuild)
+            Add-StorageCheck 'malformed receipt and missing field retention reasons are reported' (@($plan.retainedDirectories | Where-Object { $_.path -in @($malformed,$missingState,$badBuild) }).Count -eq 3)
+        } finally { $script:GameTestArtifactRoot=$actualArtifactRoot }
         $markerRoot=Join-Path $script:GameTestArtifactRoot 'Marker'
         [void][IO.Directory]::CreateDirectory($markerRoot)
         $script:GameTestArtifactRoot=$markerRoot
@@ -704,6 +766,8 @@ function Invoke-StorageCleanupContracts([hashtable]$Sources,[string]$Directory) 
             }
             $nativeOld=New-StorageRun 'native-old' 'restored' 'native-case' 2
             $native=New-StorageNativeCompanion $nativeOld
+            Add-StorageCheck 'native user-data root and child reject standalone cleanup' ((Test-StorageRejection { & $cleanup -ArtifactRoot (Join-Path $actualArtifactRoot '.native') -Apply }) -and
+                (Test-StorageRejection { & $cleanup -ArtifactRoot $native.path -Apply }) -and (Test-Path -LiteralPath $native.path))
             $nativeBytes=[long]((Get-ChildItem -LiteralPath $native.path -File -Recurse -Force | Measure-Object Length -Sum).Sum)
             $plan=Invoke-StorageCleanup $nativeTestRoot -Prune
             $nativeActions=@($plan.actions | Where-Object kind -eq 'native-user-data')
