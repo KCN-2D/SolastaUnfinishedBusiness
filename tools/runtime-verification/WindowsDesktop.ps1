@@ -31,6 +31,17 @@ function Get-VerificationProcessState {
     [pscustomobject]@{observedUtc=[datetime]::UtcNow.ToString('O');name=$Name;querySucceeded=($null -eq $queryError);absenceBasis=$absenceBasis;matches=$matches;queryError=$queryError}
 }
 
+function Assert-VerificationGameStopped {
+    $processState=Get-VerificationProcessState -Name Solasta
+    $processDiagnostic=$processState | ConvertTo-Json -Depth 6 -Compress
+    if (-not $processState.querySucceeded) {
+        throw ('Cannot verify that Solasta is stopped. Process state: ' + $processDiagnostic)
+    }
+    if ($processState.matches.Count) {
+        throw ('Close Solasta before modifying game files or preferences. Process state: ' + $processDiagnostic)
+    }
+}
+
 function Get-VerificationDesktop {
     [CmdletBinding()]
     param()

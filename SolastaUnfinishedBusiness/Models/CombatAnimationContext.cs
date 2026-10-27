@@ -46,14 +46,15 @@ internal static class CombatAnimationContext
         internal bool? OtherHandOccupied { get; private set; }
         internal bool? InCombat { get; private set; }
         internal GraphicsCharacterDefinitions.CharacterType? CharacterType { get; private set; }
-        internal bool? OtherHandUsesSameWieldedModel { get; private set; }
+        internal string IdlePoseGroup { get; private set; }
+        internal bool? OtherHandSharesIdlePose { get; private set; }
         internal bool SupportsSecondaryIdle { get; private set; }
 
         private WeaponAnimation Copy() => new(ModelName, AttackBinding, AttackClipPrefix, IdleBinding,
             NativeIdleClip, Slot, RequiresFreeOtherHand)
         {
             OtherHandOccupied = OtherHandOccupied, InCombat = InCombat, CharacterType = CharacterType,
-            OtherHandUsesSameWieldedModel = OtherHandUsesSameWieldedModel,
+            IdlePoseGroup = IdlePoseGroup, OtherHandSharesIdlePose = OtherHandSharesIdlePose,
             SupportsSecondaryIdle = SupportsSecondaryIdle,
             IdleClipPrefix = IdleClipPrefix,
             IdleVariantBinding = IdleVariantBinding, IdleBindings = IdleBindings,
@@ -81,10 +82,21 @@ internal static class CombatAnimationContext
             return copy;
         }
 
-        internal WeaponAnimation WithOtherHandUsesSameWieldedModel(bool sameModel)
+        internal WeaponAnimation WithIdlePoseGroup(string group)
+        {
+            if (string.IsNullOrWhiteSpace(group))
+            {
+                throw new ArgumentException("An idle pose group must be named.", nameof(group));
+            }
+            var copy = Copy();
+            copy.IdlePoseGroup = group;
+            return copy;
+        }
+
+        internal WeaponAnimation WithOtherHandSharesIdlePose(bool sharesPose)
         {
             var copy = Copy();
-            copy.OtherHandUsesSameWieldedModel = sameModel;
+            copy.OtherHandSharesIdlePose = sharesPose;
             return copy;
         }
 
@@ -157,7 +169,7 @@ internal static class CombatAnimationContext
             return;
         }
         var animation = GetEquippedWeaponAnimation(character);
-        var attackAnimation = GetWeaponAnimation(character);
+        var attackAnimation = GetWeaponAnimation(character, animation);
         var attackEntry = GetEquipmentAttackEntry(character);
         var references = CustomModels.RequiresEquipmentPoseReferences(character);
 
@@ -222,11 +234,16 @@ internal static class CombatAnimationContext
         return sample.clip ? sample.clip.name : null;
     }
 
-    private static WeaponAnimation GetWeaponAnimation(GraphicsCharacter character) => ResolveWeaponAnimation(character, true);
+    private static WeaponAnimation GetWeaponAnimation(GraphicsCharacter character) =>
+        GetWeaponAnimation(character, GetEquippedWeaponAnimation(character));
+
+    private static WeaponAnimation GetWeaponAnimation(GraphicsCharacter character, WeaponAnimation equipped) =>
+        ResolveWeaponAnimation(character, true, equipped);
 
     private static WeaponAnimation GetEquippedWeaponAnimation(GraphicsCharacter character) => ResolveWeaponAnimation(character, false);
 
-    private static WeaponAnimation ResolveWeaponAnimation(GraphicsCharacter character, bool activeAction)
+    private static WeaponAnimation ResolveWeaponAnimation(GraphicsCharacter character, bool activeAction,
+        WeaponAnimation equipped = null)
     {
         string activeSlot = null;
         var inCombat = EquipmentCombatState(character);
@@ -241,7 +258,6 @@ internal static class CombatAnimationContext
         }
         if (activeAction && activeSlot == null)
         {
-            var equipped = GetEquippedWeaponAnimation(character);
             if (equipped == null)
             {
                 return null;
@@ -264,17 +280,13 @@ internal static class CombatAnimationContext
                 ? EquipmentDefinitions.SlotTypeOffHand
                 : EquipmentDefinitions.SlotTypeMainHand;
             var occupied = character.WieldedRulesetItems.TryGetValue(otherSlot, out var other) && other != null;
-            var model = CustomModels.GetWieldedItemFeature<CustomModels.WieldedModel>(definition);
-            var sameModel = occupied && model != null && ReferenceEquals(model,
-                CustomModels.GetWieldedItemFeature<CustomModels.WieldedModel>(other.ItemDefinition));
             foreach (var animation in CustomModels.GetWieldedItemFeatures<WeaponAnimation>(definition))
             {
-                if (animation.Slot == slot && (!animation.RequiresFreeOtherHand || !occupied) &&
-                    (!animation.OtherHandOccupied.HasValue || animation.OtherHandOccupied.Value == occupied) &&
-                    (!animation.InCombat.HasValue || animation.InCombat.Value == inCombat) &&
-                    (!animation.CharacterType.HasValue || animation.CharacterType.Value == character.CharacterType) &&
-                    (!animation.OtherHandUsesSameWieldedModel.HasValue ||
-                     animation.OtherHandUsesSameWieldedModel.Value == sameModel) &&
+                if (MatchesEquipmentSelector(animation, slot, occupied, inCombat, character.CharacterType) &&
+                    (!animation.OtherHandSharesIdlePose.HasValue ||
+                     animation.OtherHandSharesIdlePose.Value ==
+                     (occupied && SharesIdlePose(animation, other.ItemDefinition, otherSlot, inCombat,
+                         character.CharacterType))) &&
                     (activeAction || !nativePrimaryIdle || animation.SupportsSecondaryIdle))
                 {
                     return animation;
@@ -289,6 +301,36 @@ internal static class CombatAnimationContext
         }
 
         return null;
+    }
+
+    private static bool MatchesEquipmentSelector(WeaponAnimation animation, string slot, bool occupied,
+        bool inCombat, GraphicsCharacterDefinitions.CharacterType characterType) =>
+        animation.Slot == slot && (!animation.RequiresFreeOtherHand || !occupied) &&
+        (!animation.OtherHandOccupied.HasValue || animation.OtherHandOccupied.Value == occupied) &&
+        (!animation.InCombat.HasValue || animation.InCombat.Value == inCombat) &&
+        (!animation.CharacterType.HasValue || animation.CharacterType.Value == characterType);
+
+    private static bool SharesIdlePose(WeaponAnimation animation, ItemDefinition other, string otherSlot,
+        bool inCombat, GraphicsCharacterDefinitions.CharacterType characterType)
+    {
+        if (animation.IdlePoseGroup == null)
+        {
+            return false;
+        }
+        // Holding compatibility belongs to the animation declaration. Different
+        // equipment geometry can share a pose; identical geometry need not do so.
+        foreach (var candidate in CustomModels.GetWieldedItemFeatures<WeaponAnimation>(other))
+        {
+            if (candidate.IdlePoseGroup == animation.IdlePoseGroup &&
+                candidate.OtherHandSharesIdlePose != false &&
+                MatchesEquipmentSelector(candidate, otherSlot, true, inCombat, characterType) &&
+                candidate.IdleBindings.Count > 0 &&
+                (!string.IsNullOrEmpty(candidate.IdleClipPrefix) || !string.IsNullOrEmpty(candidate.NativeIdleClip)))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static IDisposable BeginEquipmentAttack(CharacterAction action)

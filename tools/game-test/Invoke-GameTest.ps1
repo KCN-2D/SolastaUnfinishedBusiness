@@ -302,6 +302,9 @@ if (-not $ValidateOnly -and $result.runtimeResult -and (Test-Path -LiteralPath $
         if ($review.status -eq 'FAIL' -and $result.status -eq 'PASS') {
             $result.status='FAIL'
             $result.reason='Presentation evidence contains a failed check. See PresentationReview.'
+        } elseif ($review.status -eq 'NOT_RECORDED' -and $result.status -eq 'PASS') {
+            $result.status='BLOCKED'
+            $result.reason='Required presentation evidence is missing. See PresentationReview.'
         }
     }
     catch {

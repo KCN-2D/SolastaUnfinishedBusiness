@@ -34,6 +34,7 @@
   "motion": {
     "modelName": "HandCrossbowCurrentMotion",
     "characterType": "Normal",
+    "idlePoseGroup": "one-hand-crossbow",
     "attackBinding": "Crossbow_Attack",
     "idleBinding": "Idle",
     "nativeIdleClip": "Idle",
@@ -57,7 +58,7 @@
         "otherHandOccupied": false,
         "requiresFreeOtherHand": false,
         "inCombat": false,
-        "otherHandUsesSameWieldedModel": false,
+        "otherHandSharesIdlePose": false,
         "supportsSecondaryIdle": false
       },
       {
@@ -90,7 +91,7 @@
         "otherHandOccupied": true,
         "requiresFreeOtherHand": false,
         "inCombat": false,
-        "otherHandUsesSameWieldedModel": false,
+        "otherHandSharesIdlePose": false,
         "supportsSecondaryIdle": false
       },
       {
@@ -123,7 +124,7 @@
         "otherHandOccupied": false,
         "requiresFreeOtherHand": false,
         "inCombat": false,
-        "otherHandUsesSameWieldedModel": false,
+        "otherHandSharesIdlePose": false,
         "supportsSecondaryIdle": false
       },
       {
@@ -159,7 +160,7 @@
         "otherHandOccupied": true,
         "requiresFreeOtherHand": false,
         "inCombat": false,
-        "otherHandUsesSameWieldedModel": false,
+        "otherHandSharesIdlePose": false,
         "supportsSecondaryIdle": true,
         "attackEntries": {
           "Idle": "HandCrossbow_Left_Occupied_Attack_NativeCarry_"
@@ -200,7 +201,7 @@
         "otherHandOccupied": true,
         "requiresFreeOtherHand": false,
         "inCombat": false,
-        "otherHandUsesSameWieldedModel": true,
+        "otherHandSharesIdlePose": true,
         "supportsSecondaryIdle": false
       },
       {
@@ -217,7 +218,7 @@
         "otherHandOccupied": true,
         "requiresFreeOtherHand": false,
         "inCombat": false,
-        "otherHandUsesSameWieldedModel": true,
+        "otherHandSharesIdlePose": true,
         "supportsSecondaryIdle": true,
         "attackEntries": {
           "Idle": "HandCrossbow_Left_Occupied_Attack_NativeCarry_"

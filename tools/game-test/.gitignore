@@ -1,4 +1,4 @@
-# Track execution code; keep local inputs and output outside Git.
+# Track the shared development environment; keep game-specific scenarios local.
 /*
 !/.gitignore
 !/*.ps1
@@ -6,7 +6,7 @@
 !/README.md
 !/Probes/
 /Probes/*
-!/Probes/*.cs
-
-# Local feature scenarios are not part of the shared runner.
+!/Probes/SaveSmokeProbe.cs
 /Scenarios/
+/Cases/
+/artifacts/

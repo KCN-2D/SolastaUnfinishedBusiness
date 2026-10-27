@@ -74,6 +74,58 @@ internal static class CustomizedSubFeatureDefinitions
         return results;
     }
 
+    // Frame-based readers only need to inspect declarations. Keep the copying
+    // List API above for callers that modify their results, without copying it
+    // for each equipment lookup or caching declarations past Add/Set changes.
+    internal static SubFeaturesOfType<T> EnumerateSubFeaturesOfType<T>(
+        [CanBeNull] this BaseDefinition definition) where T : class =>
+        definition ? new SubFeaturesOfType<T>(definition as T, GetForKey(definition)) : default;
+
+    internal readonly struct SubFeaturesOfType<T>(T first, List<object> others) where T : class
+    {
+        internal bool HasAny
+        {
+            get
+            {
+                var enumerator = GetEnumerator();
+                return enumerator.MoveNext();
+            }
+        }
+
+        public Enumerator GetEnumerator() => new(first, others);
+
+        internal struct Enumerator(T first, List<object> others)
+        {
+            private bool _visitedFirst;
+            private int _index;
+
+            public T Current { get; private set; }
+
+            public bool MoveNext()
+            {
+                if (!_visitedFirst)
+                {
+                    _visitedFirst = true;
+                    if (first != null)
+                    {
+                        Current = first;
+                        return true;
+                    }
+                }
+
+                while (others != null && _index < others.Count)
+                {
+                    if (others[_index++] is not T match) continue;
+                    Current = match;
+                    return true;
+                }
+
+                Current = null;
+                return false;
+            }
+        }
+    }
+
     [CanBeNull]
     internal static T GetFirstSubFeatureOfType<T>([CanBeNull] this BaseDefinition definition) where T : class
     {

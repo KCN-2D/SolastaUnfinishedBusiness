@@ -309,9 +309,10 @@ __pycache__/
 # Linux direnv  files
 .envrc
 
-# Local development data and private verification probes
+# Shared runtime infrastructure; game-specific probes and inputs remain local.
 /tools/runtime-verification/*
 !/tools/runtime-verification/Invoke-RuntimeVerification.ps1
+!/tools/runtime-verification/Invoke-SolastaSemiAutoTest.ps1
 !/tools/runtime-verification/RuntimeVerificationHarness.cs
 !/tools/runtime-verification/WindowsDesktop.ps1
 !/tools/runtime-verification/WindowsDesktop.cs
@@ -320,7 +321,6 @@ __pycache__/
 !/tools/runtime-verification/README.md
 !/tools/runtime-verification/Probes/
 /tools/runtime-verification/Probes/*
-!/tools/runtime-verification/Probes/NativeSummonIconInventoryProbe.cs
 !/tools/runtime-verification/Probes/DisplayStateProbe.cs
 !/tools/runtime-verification/Probes/PresentationCapture.cs
 !/tools/runtime-verification/Tests/

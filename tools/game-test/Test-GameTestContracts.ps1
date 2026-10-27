@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$EvidenceRoot,
     [switch]$SkipProcessLifecycle
@@ -23,6 +23,9 @@ $result=[ordered]@{
     nativeUserData=[ordered]@{status='NOT_RUN';reason='Native user-data isolation contracts have not run.'}
     presentationReview=[ordered]@{status='NOT_RUN';reason='Presentation manifest contracts have not run.'}
     nativeEvidencePaths=[ordered]@{status='NOT_RUN';reason='Native evidence path contracts have not run.'}
+    sourceTracking=[ordered]@{status='NOT_RUN';reason='Development source tracking contracts have not run.'}
+    persistentSync=[ordered]@{status='NOT_RUN';reason='Persistent sync contracts have not run.'}
+    presentationWriter=[ordered]@{status='NOT_RUN';reason='Presentation writer contracts have not run.'}
 }
 
 function Read-ContractSource([string]$Path) {
@@ -39,6 +42,111 @@ function Read-ContractFunction([object]$Ast,[string]$Name) {
     },$true))
     if ($functions.Count -ne 1) { throw "The contract requires one function named $Name." }
     return $functions[0].Extent.Text
+}
+
+function Invoke-SourceTrackingContracts([string]$RootIgnore,[string]$GameTestIgnore,[string]$Directory) {
+    [void][IO.Directory]::CreateDirectory((Join-Path $Directory 'tools/game-test'))
+    Copy-GtFile $RootIgnore (Join-Path $Directory '.gitignore') -ExpectedSha256 (Get-GtHash $RootIgnore)
+    Copy-GtFile $GameTestIgnore (Join-Path $Directory 'tools/game-test/.gitignore') -ExpectedSha256 (Get-GtHash $GameTestIgnore)
+    & git init --quiet $Directory
+    if($LASTEXITCODE){throw 'Cannot initialize the isolated source tracking fixture.'}
+    $fixtures=@(
+        @{path='tools/game-test/FutureEnvironmentCommand.ps1';ignored=$false},
+        @{path='tools/game-test/Test-FutureEnvironmentContracts.ps1';ignored=$false},
+        @{path='tools/game-test/Probes/SaveSmokeProbe.cs';ignored=$false},
+        @{path='tools/runtime-verification/Invoke-SolastaSemiAutoTest.ps1';ignored=$false},
+        @{path='tools/runtime-verification/Probes/PresentationCapture.cs';ignored=$false},
+        @{path='tools/runtime-verification/Probes/DisplayStateProbe.cs';ignored=$false},
+        @{path='tools/runtime-verification/Tests/PresentationCaptureProbe.cs';ignored=$false},
+        @{path='tools/runtime-verification/Probes/FutureGameProbe.cs';ignored=$true},
+        @{path='tools/game-test/Probes/FutureGameProbe.cs';ignored=$true},
+        @{path='tools/game-test/Scenarios/FutureFamily/Probe.cs';ignored=$true},
+        @{path='tools/game-test/Scenarios/FutureFamily/Review.ps1';ignored=$true},
+        @{path='tools/game-test/Scenarios/FutureFamily/Review.py';ignored=$true},
+        @{path='tools/game-test/Scenarios/FutureFamily/Future.expectations.json';ignored=$true},
+        @{path='tools/game-test/Scenarios/FutureFamily/tests/fixtures/example.json';ignored=$true},
+        @{path='tools/game-test/Cases/FutureCase/save.sav';ignored=$true},
+        @{path='tools/game-test/Cases/FutureCase/Settings.xml';ignored=$true},
+        @{path='tools/game-test/artifacts/Example/Result.json';ignored=$true},
+        @{path='tools/asset-authoring/workspace/Example/source.py';ignored=$true}
+    )
+    $checks=@(foreach($fixture in $fixtures) {
+        & git -C $Directory -c core.excludesFile= check-ignore --quiet --no-index -- $fixture.path
+        $code=$LASTEXITCODE
+        if($code -notin @(0,1)){throw "Git could not classify the fixture path: $($fixture.path)"}
+        [ordered]@{path=$fixture.path;expectedIgnored=$fixture.ignored;actualIgnored=($code -eq 0);status=$(if(($code -eq 0) -eq $fixture.ignored){'PASS'}else{'FAIL'})}
+    })
+    [ordered]@{status=$(if(@($checks | Where-Object status -ne 'PASS').Count){'FAIL'}else{'PASS'});scope='Actual Git ignore matching in an isolated repository using archived policies; reusable environment logic, individual game scenarios and private inputs.';cases=$checks}
+}
+
+function Invoke-PersistentSyncContracts([object]$SyncAst,[object]$DesktopAst,[string]$Directory) {
+    [void][IO.Directory]::CreateDirectory($Directory)
+    $cases=[Collections.Generic.List[object]]::new()
+    function Check-Sync([string]$Name,[bool]$Passed){$cases.Add([ordered]@{name=$Name;status=$(if($Passed){'PASS'}else{'FAIL'})})}
+    $definitions=@(
+        Read-ContractFunction $DesktopAst 'Assert-VerificationGameStopped'
+        Read-ContractFunction $SyncAst 'Assert-SyncOrLaunchAvailable'
+        Read-ContractFunction $SyncAst 'Get-FileFingerprint'
+        Read-ContractFunction $SyncAst 'Get-PersistentSettingsSnapshot'
+        Read-ContractFunction $SyncAst 'Assert-PersistentSettingsPreserved'
+        Read-ContractFunction $SyncAst 'Invoke-RobocopyOverlay'
+    ) -join [Environment]::NewLine
+    . ([scriptblock]::Create($definitions))
+    $state=[pscustomobject]@{querySucceeded=$true;matches=@()}
+    function Get-VerificationProcessState {param($Name) $state}
+    $game=Join-Path $Directory 'Game';[void][IO.Directory]::CreateDirectory((Join-Path $game 'Mods'))
+    $marker=Join-Path $game 'Mods/.UBGameTestTransaction.json'
+    foreach($mode in @('stopped','running','unknown-process-state','unrestored-transaction')) {
+        $state=[pscustomobject]@{querySucceeded=($mode -ne 'unknown-process-state');matches=@(if($mode -eq 'running'){[pscustomobject]@{pid=12345}})}
+        if($mode -eq 'unrestored-transaction'){[IO.File]::WriteAllText($marker,'{}')}
+        $rejected=$false
+        try{Assert-SyncOrLaunchAvailable $game}catch{$rejected=$true}
+        Check-Sync ($mode+' at standalone sync/launch boundary') ($rejected -eq ($mode -ne 'stopped'))
+        if(Test-Path -LiteralPath $marker){Remove-Item -LiteralPath $marker}
+    }
+    $syncBlock=@($SyncAst.EndBlock.Statements | Where-Object {$_ -is [Management.Automation.Language.IfStatementAst] -and $_.Clauses[0].Item1.Extent.Text -eq '$Sync' -and $_.Extent.Text.Contains('Invoke-RobocopyOverlay')})
+    Check-Sync 'the actual sync branch checks availability before any write' ($syncBlock.Count -eq 1 -and $syncBlock[0].Clauses[0].Item2.Statements[0].Extent.Text -ceq 'Assert-SyncOrLaunchAvailable $gameDirectory')
+    $launchStatements=@($SyncAst.EndBlock.Statements)
+    $launchIndex=-1
+    for($i=0;$i -lt $launchStatements.Count;$i++){if($launchStatements[$i].Extent.Text -like '$process = Start-Process*'){$launchIndex=$i}}
+    $preceding=@(if($launchIndex -gt 0){$launchStatements[0..($launchIndex-1)] | Where-Object {$_.Extent.Text -ceq 'Assert-SyncOrLaunchAvailable $gameDirectory'}})
+    Check-Sync 'the actual launch path checks availability after synchronization' ($launchIndex -ge 0 -and $preceding.Count -eq 1)
+
+    $source=Join-Path $Directory 'Source';$target=Join-Path $Directory 'Target'
+    foreach($path in @($source,$target)){[void][IO.Directory]::CreateDirectory((Join-Path $path 'Settings/nested'))}
+    foreach($overlap in @($source,(Join-Path $source 'child'),$Directory)) {
+        $rejected=$false;try{Invoke-RobocopyOverlay -Source $source -Destination $overlap -PreserveSettings}catch{$rejected=$true}
+        Check-Sync ('overlapping copy destination is rejected: '+[IO.Path]::GetFileName($overlap)) $rejected
+    }
+    [IO.File]::WriteAllText((Join-Path $source 'payload.txt'),'new payload')
+    [IO.File]::WriteAllText((Join-Path $target 'payload.txt'),'old payload')
+    [IO.File]::WriteAllText((Join-Path $source 'Settings.xml'),'default settings')
+    [IO.File]::WriteAllText((Join-Path $source 'Settings/nested/existing.xml'),'default profile')
+    [IO.File]::WriteAllText((Join-Path $source 'Settings/nested/missing.xml'),'new profile')
+    [IO.File]::WriteAllText((Join-Path $target 'Settings.xml'),'user settings')
+    $profile=Join-Path $target 'Settings/nested/existing.xml'
+    [IO.File]::WriteAllText($profile,'user profile')
+    $fixedTime=[datetime]::SpecifyKind([datetime]'2001-02-03T04:05:06',[DateTimeKind]::Utc)
+    [IO.File]::SetLastWriteTimeUtc($profile,$fixedTime)
+    $profileBefore=Get-Item -LiteralPath $profile
+    $expectedAttributes=[int]$profileBefore.Attributes
+    $snapshot=@(Get-PersistentSettingsSnapshot $target)
+    Invoke-RobocopyOverlay -Source $source -Destination $target -PreserveSettings
+    $preserved=$true;try{Assert-PersistentSettingsPreserved $snapshot}catch{$preserved=$false}
+    Check-Sync 'payload is updated while existing settings bytes are preserved' ($preserved -and [IO.File]::ReadAllText((Join-Path $target 'payload.txt')) -ceq 'new payload' -and [IO.File]::ReadAllText((Join-Path $target 'Settings.xml')) -ceq 'user settings' -and [IO.File]::ReadAllText($profile) -ceq 'user profile')
+    $profileAfter=Get-Item -LiteralPath $profile
+    Check-Sync 'nested settings retain their original timestamp and attributes' ($profileAfter.LastWriteTimeUtc -eq $fixedTime -and [int]$profileAfter.Attributes -eq $expectedAttributes)
+    Check-Sync 'missing profile defaults are added' ([IO.File]::ReadAllText((Join-Path $target 'Settings/nested/missing.xml')) -ceq 'new profile')
+    [IO.File]::WriteAllText($profile,'corrupt profile')
+    $rejected=$false;try{Assert-PersistentSettingsPreserved $snapshot}catch{$rejected=$true}
+    Check-Sync 'a changed nested settings file is independently rejected' $rejected
+    [IO.File]::WriteAllText($profile,'user profile');[IO.File]::SetLastWriteTimeUtc($profile,$fixedTime.AddSeconds(1))
+    $rejected=$false;try{Assert-PersistentSettingsPreserved $snapshot}catch{$rejected=$true}
+    Check-Sync 'a changed settings timestamp is rejected even with identical bytes' $rejected
+    [IO.File]::SetLastWriteTimeUtc($profile,$fixedTime);Remove-Item -LiteralPath $profile
+    $rejected=$false;try{Assert-PersistentSettingsPreserved $snapshot}catch{$rejected=$true}
+    Check-Sync 'a deleted nested settings file is rejected' $rejected
+    [ordered]@{status=$(if(@($cases | Where-Object status -ne 'PASS').Count){'FAIL'}else{'PASS'});scope='Actual archived standalone sync guard and overlay functions, synthetic process states, a real owned recovery marker and bounded Robocopy/settings fixtures; no installed game or user settings access.';cases=@($cases.ToArray())}
 }
 
 function Invoke-NativeEvidencePathContracts([string]$Helper,[object]$CommonAst,[object]$RuntimeAst,[string]$Directory) {
@@ -117,15 +225,14 @@ function Invoke-PresentationReviewContracts([string]$Review,[object]$InvokeAst,[
         $cases.Add([ordered]@{name=$Name;status=$(if($Passed){'PASS'}else{'FAIL'})})
     }
     $png=[Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZQAAAABJRU5ErkJggg==')
-    $directories=@(foreach($state in @('PASS','REVIEW','FAIL')) {
+    $states=@('PASS','REVIEW','FAIL','NOT_RECORDED')
+    $directories=@(foreach($state in $states) {
         $folder=Join-Path $inputs $state;[void][IO.Directory]::CreateDirectory($folder)
         [IO.File]::WriteAllBytes((Join-Path $folder 'present.png'),$png)
         [IO.File]::WriteAllText((Join-Path $folder 'raw.txt'),'unchanged raw fixture data')
         Write-GtJson (Join-Path $folder 'PresentationEvidence-Sample.json') ([ordered]@{
             schemaVersion=1;title=('Independent manifest '+$state)
-            frames=@(
-                [ordered]@{id='present';path='present.png';label='recorded';group='sample';phase='before'},
-                [ordered]@{id='missing';path='missing.png';label='not captured';group='sample';phase='after'})
+            frames=@([ordered]@{id='present';path='present.png';label='recorded';group='sample';phase='before'})
             checks=@([ordered]@{id='owner-check';title='Declared check';status=$state;expected='adapter expectation';actual='adapter observation';evidence=@('present')})
             sources=@([ordered]@{path='raw.txt';sha256=(Get-GtHash (Join-Path $folder 'raw.txt'));role='raw fixture'})
         })
@@ -133,21 +240,72 @@ function Invoke-PresentationReviewContracts([string]$Review,[object]$InvokeAst,[
         $folder
     })
     $before=@{};foreach($file in Get-ChildItem -LiteralPath $inputs -Recurse -File){$before[$file.FullName]=Get-GtHash $file.FullName}
-    foreach($index in 0..2) {
-        $state=@('PASS','REVIEW','FAIL')[$index]
+    foreach($index in 0..($states.Count-1)) {
+        $state=$states[$index]
         $reviewResult=& $Review -EvidencePath $directories[$index] -OutputDirectory (Join-Path $outputs $state)
         $summary=Read-GtObject $reviewResult.summary
         Check-Review ($state+' status is preserved') ($reviewResult.status -ceq $state -and $summary.documents[0].checks[0].status -ceq $state)
         Check-Review ($state+' source hash is presented') ($summary.documents[0].sources[0].hashMatches -eq $true)
+        Check-Review ($state+' legacy frame records observation without claiming hash verification') ($summary.documents[0].frames[0].exists -and $summary.documents[0].frames[0].expectedSha256 -ceq '' -and $null -eq $summary.documents[0].frames[0].hashMatches)
     }
     $combined=& $Review -EvidencePath $directories -OutputDirectory (Join-Path $outputs 'Combined')
     $summary=Read-GtObject $combined.summary
-    Check-Review 'a failed check propagates across independent manifests' ($combined.status -ceq 'FAIL' -and @($summary.documents).Count -eq 3 -and $combined.checks -eq 3)
-    $missing=@($summary.documents[0].frames | Where-Object id -eq 'missing')
-    Check-Review 'missing frame is recorded and displayed' ($missing.Count -eq 1 -and -not $missing[0].exists -and [IO.File]::ReadAllText($combined.html).Contains('missing.png'))
+    Check-Review 'a failed check propagates across independent manifests' ($combined.status -ceq 'FAIL' -and @($summary.documents).Count -eq 4 -and $combined.checks -eq 4)
     $firstJson=Get-GtHash $combined.summary;$firstHtml=Get-GtHash $combined.html
     $repeated=& $Review -EvidencePath $directories -OutputDirectory (Join-Path $outputs 'Combined')
     Check-Review 'same manifests produce identical review artifacts' ((Get-GtHash $repeated.summary) -ceq $firstJson -and (Get-GtHash $repeated.html) -ceq $firstHtml)
+    # Mutate only copied fixture inputs. A reader must independently reject
+    # missing/corrupt evidence even when its producer declared PASS.
+    $negativeDirectories=@{}
+    foreach($variant in @('missing-required-frame','missing-unreferenced-frame','missing-source','changed-source','unknown-frame','duplicate-frame','invalid-status','matching-frame-hash','changed-frame','missing-frame-with-hash','review-with-missing-frame','review-with-missing-source')) {
+        $folder=Join-Path $inputs $variant
+        [void][IO.Directory]::CreateDirectory($folder)
+        [IO.File]::WriteAllBytes((Join-Path $folder 'present.png'),$png)
+        [IO.File]::WriteAllText((Join-Path $folder 'raw.txt'),'unchanged raw fixture data')
+        $manifest=Read-GtObject (Join-Path $directories[0] 'PresentationEvidence-Sample.json')
+        if($variant -in @('matching-frame-hash','changed-frame','missing-frame-with-hash')) {
+            $manifest.frames[0] | Add-Member -NotePropertyName sha256 -NotePropertyValue (Get-GtHash (Join-Path $folder 'present.png'))
+        }
+        switch($variant) {
+            'missing-required-frame' {$manifest.frames[0].path='missing.png'}
+            'missing-unreferenced-frame' {$manifest.frames[0].path='missing.png';$manifest.checks[0].evidence=@()}
+            'missing-source' {$manifest.sources[0].path='missing-source.txt'}
+            'changed-source' {[IO.File]::WriteAllText((Join-Path $folder 'raw.txt'),'different bytes')}
+            'unknown-frame' {$manifest.checks[0].evidence=@('unknown')}
+            'duplicate-frame' {$manifest.frames+=@($manifest.frames[0])}
+            'invalid-status' {$manifest.checks[0].status='success'}
+            'changed-frame' {[IO.File]::WriteAllBytes((Join-Path $folder 'present.png'),[byte[]]@(1,2,3,4))}
+            'missing-frame-with-hash' {$manifest.frames[0].path='missing.png'}
+            'review-with-missing-frame' {$manifest.frames[0].path='missing.png';$manifest.checks[0].status='REVIEW'}
+            'review-with-missing-source' {$manifest.sources[0].path='missing-source.txt';$manifest.checks[0].status='REVIEW'}
+        }
+        Write-GtJson (Join-Path $folder 'PresentationEvidence-Sample.json') $manifest
+        $rejected=$false;$reviewResult=$null
+        try {$reviewResult=& $Review -EvidencePath $folder -OutputDirectory (Join-Path $outputs $variant)}catch{$rejected=$true}
+        if($variant -in @('unknown-frame','duplicate-frame','invalid-status')) {
+            Check-Review ($variant+' is rejected before reporting success') $rejected
+        } else {
+            $expectedStatus=if($variant -in @('changed-source','changed-frame')){'FAIL'}elseif($variant -eq 'matching-frame-hash'){'PASS'}else{'NOT_RECORDED'}
+            Check-Review ($variant+' has an independent expected status') (-not $rejected -and $reviewResult.status -ceq $expectedStatus)
+            if($variant -in @('matching-frame-hash','changed-frame','missing-frame-with-hash') -and -not $rejected) {
+                $frame=(Read-GtObject $reviewResult.summary).documents[0].frames[0]
+                $hashState=if($variant -eq 'matching-frame-hash'){$frame.hashMatches -eq $true}elseif($variant -eq 'changed-frame'){$frame.hashMatches -eq $false}else{$null -eq $frame.hashMatches}
+                Check-Review ($variant+' preserves expected hash and exact verification state') ($frame.expectedSha256 -ceq $manifest.frames[0].sha256 -and $hashState)
+                Check-Review ($variant+' presents the recorded frame hash in HTML') ([IO.File]::ReadAllText($reviewResult.html).Contains($manifest.frames[0].sha256) -and [IO.File]::ReadAllText($reviewResult.html).Contains('記録SHA256'))
+            }
+            if($variant -eq 'missing-required-frame' -and -not $rejected) {
+                $incomplete=Read-GtObject $reviewResult.summary
+                Check-Review 'missing frame retains producer declaration for audit' ($incomplete.documents[0].checks[0].declaredStatus -ceq 'PASS' -and $incomplete.documents[0].checks[0].status -ceq 'NOT_RECORDED')
+                Check-Review 'missing frame remains visible in the review' ([IO.File]::ReadAllText($reviewResult.html).Contains('missing.png') -and [IO.File]::ReadAllText($reviewResult.html).Contains('画像未取得'))
+            }
+        }
+        $negativeDirectories[$variant]=$folder
+    }
+    foreach($kind in @('missing-required-frame','missing-source','changed-frame')) {
+        $mixed=& $Review -EvidencePath @($directories[1],$negativeDirectories[$kind]) -OutputDirectory (Join-Path $outputs ('Mixed-'+$kind))
+        $expectedStatus=if($kind -eq 'changed-frame'){'FAIL'}else{'NOT_RECORDED'}
+        Check-Review ($kind+' is not hidden by REVIEW in another document') ($mixed.status -ceq $expectedStatus)
+    }
     $hooks=@($InvokeAst.FindAll({param($node)
         $node -is [Management.Automation.Language.IfStatementAst] -and
         $node.Extent.Text.Contains("`$result['nativeVerificationStatus']") -and
@@ -156,19 +314,77 @@ function Invoke-PresentationReviewContracts([string]$Review,[object]$InvokeAst,[
     if($hooks.Count -ne 1){throw 'Presentation review integration hook is not unique.'}
     # Only the reader path is supplied by the fixture. The actual hook logic is retained.
     $hook=[scriptblock]::Create($hooks[0].Extent.Text.Replace("Join-Path `$PSScriptRoot 'Review-PresentationEvidence.ps1'",'$Review'))
-    foreach($state in @('PASS','REVIEW','FAIL')) {
-        $folder=$directories[[Array]::IndexOf(@('PASS','REVIEW','FAIL'),$state)]
+    foreach($state in $states) {
+        $folder=$directories[[Array]::IndexOf($states,$state)]
         $run=Join-Path $Directory ('Hook-'+$state);[void][IO.Directory]::CreateDirectory($run)
         $ValidateOnly=$false
         $result=[ordered]@{status='PASS';reason='native fixture succeeded';runtimeResult=(Join-Path $folder 'Result.json');restored=$true;toolSources=@([ordered]@{path=$Review;sha256=(Get-GtHash $Review)})}
         & $hook | Out-Null
-        $expected=if($state -eq 'FAIL'){'FAIL'}else{'PASS'}
-        Check-Review ($state+' hook preserves native status and propagates only failure') ($result.status -ceq $expected -and $result.nativeVerificationStatus -ceq 'PASS' -and $result.presentationReview.status -ceq $state -and $result.restored)
+        $expected=if($state -eq 'FAIL'){'FAIL'}elseif($state -eq 'NOT_RECORDED'){'BLOCKED'}else{'PASS'}
+        Check-Review ($state+' hook preserves native status and propagates failure or missing evidence') ($result.status -ceq $expected -and $result.nativeVerificationStatus -ceq 'PASS' -and $result.presentationReview.status -ceq $state -and $result.restored)
+    }
+    foreach($variant in @('review-with-missing-frame','review-with-missing-source','changed-frame')) {
+        $folder=$negativeDirectories[$variant]
+        Write-GtJson (Join-Path $folder 'Result.json') ([ordered]@{status='success';settingsRestored=$true})
+        $run=Join-Path $Directory ('Hook-'+$variant);[void][IO.Directory]::CreateDirectory($run)
+        $ValidateOnly=$false
+        $result=[ordered]@{status='PASS';reason='native fixture succeeded';runtimeResult=(Join-Path $folder 'Result.json');restored=$true;toolSources=@([ordered]@{path=$Review;sha256=(Get-GtHash $Review)})}
+        & $hook | Out-Null
+        $expected=if($variant -eq 'changed-frame'){'FAIL'}else{'BLOCKED'}
+        Check-Review ($variant+' reaches the overall result without hiding behind REVIEW') ($result.status -ceq $expected -and $result.nativeVerificationStatus -ceq 'PASS')
     }
     Check-Review 'source bytes remain unchanged' (@($before.Keys | Where-Object {(Get-GtHash $_) -cne $before[$_]}).Count -eq 0)
     $record=[ordered]@{status=$(if(@($cases | Where-Object status -ne 'PASS').Count){'FAIL'}else{'PASS'});scope='Actual archived generic reader and integration hook with managed manifest/filesystem fixtures; no game or settings access.';cases=@($cases.ToArray())}
     Write-GtJson (Join-Path $Directory 'Result.json') $record
     return $record
+}
+
+function Invoke-PresentationWriterContracts([string]$Source,[string]$Review,[string]$Directory) {
+    [void][IO.Directory]::CreateDirectory($Directory)
+    $text=[IO.File]::ReadAllText($Source)
+    $start=$text.IndexOf('[Serializable] public sealed class ReviewDocument',[StringComparison]::Ordinal)
+    $end=$text.IndexOf('public sealed class Receipt',[StringComparison]::Ordinal)
+    $end=$text.LastIndexOf('[Serializable]',$end,[StringComparison]::Ordinal)
+    $importsEnd=$text.IndexOf('using UnityEngine;',[StringComparison]::Ordinal)
+    if($start -lt 0 -or $end -le $start -or $importsEnd -lt 0){throw 'The presentation serializer source boundaries were not found.'}
+    # Compile the exact serializer members without Unity rendering members.
+    $excerpt=$text.Substring(0,$importsEnd)+'public static class PresentationCapture {'+$text.Substring($start,$end-$start)+'}' +
+        'public static class RuntimeVerificationConfiguration { public static string EvidenceDirectory; }'
+    $compiledSource=Join-Path $Directory 'PresentationWriter.cs'
+    [IO.File]::WriteAllText($compiledSource,$excerpt,[Text.UTF8Encoding]::new($false))
+    $assembly=Join-Path $Directory 'PresentationWriter.dll'
+    Add-Type -TypeDefinition $excerpt -ReferencedAssemblies @('System.dll','System.Core.dll','System.Xml.dll','System.Runtime.Serialization.dll') -OutputAssembly $assembly -PassThru | Out-Null
+    $cases=[Collections.Generic.List[object]]::new()
+    function Check-Writer([string]$Name,[bool]$Passed){$cases.Add([ordered]@{name=$Name;status=$(if($Passed){'PASS'}else{'FAIL'})})}
+    [RuntimeVerificationConfiguration]::EvidenceDirectory=$Directory
+    $png=[Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZQAAAABJRU5ErkJggg==')
+    $image=Join-Path $Directory 'image.png';[IO.File]::WriteAllBytes($image,$png)
+    $expectedHash=Get-GtHash $image
+    $document=New-Object 'PresentationCapture+ReviewDocument'
+    $document.title='Writer contract'
+    $frame=New-Object 'PresentationCapture+ReviewFrame';$frame.id='relative';$frame.path='image.png';$document.frames.Add($frame)
+    $absolute=New-Object 'PresentationCapture+ReviewFrame';$absolute.id='absolute';$absolute.path=$image;$document.frames.Add($absolute)
+    $supplied=New-Object 'PresentationCapture+ReviewFrame';$supplied.id='supplied';$supplied.path='image.png';$supplied.sha256=('0'*64);$document.frames.Add($supplied)
+    $missing=New-Object 'PresentationCapture+ReviewFrame';$missing.id='missing';$missing.path='not-captured.png';$document.frames.Add($missing)
+    [PresentationCapture]::WriteReviewEvidence('contract',$document)
+    $serialized=Read-GtObject (Join-Path $Directory 'PresentationEvidence-contract.json')
+    Check-Writer 'relative and absolute existing frames store their actual SHA256' ($serialized.frames[0].sha256 -ceq $expectedHash -and $serialized.frames[1].sha256 -ceq $expectedHash)
+    Check-Writer 'a caller-supplied expected hash is not overwritten' ($serialized.frames[2].sha256 -ceq ('0'*64))
+    Check-Writer 'a missing frame does not acquire a fabricated hash' ([string]::IsNullOrEmpty($serialized.frames[3].sha256))
+    $reviewed=& $Review -EvidencePath (Join-Path $Directory 'PresentationEvidence-contract.json') -OutputDirectory (Join-Path (Split-Path $Directory -Parent) 'PresentationWriterReview')
+    Check-Writer 'reader rejects a writer manifest with a supplied mismatching frame hash' ($reviewed.status -ceq 'FAIL')
+    $document.frames.Remove($supplied)|Out-Null;$document.frames.Remove($missing)|Out-Null
+    $check=New-Object 'PresentationCapture+ReviewCheck';$check.id='capture';$check.title='Capture';$check.status='PASS';$check.evidence=@('relative','absolute');$document.checks.Add($check)
+    [PresentationCapture]::WriteReviewEvidence('complete',$document)
+    $reviewed=& $Review -EvidencePath (Join-Path $Directory 'PresentationEvidence-complete.json') -OutputDirectory (Join-Path (Split-Path $Directory -Parent) 'PresentationWriterCompleteReview')
+    Check-Writer 'complete writer output passes reader verification' ($reviewed.status -ceq 'PASS')
+    [IO.File]::WriteAllBytes($image,[byte[]]@(1,2,3,4))
+    [PresentationCapture]::WriteReviewEvidence('rewritten',$document)
+    $rewritten=Read-GtObject (Join-Path $Directory 'PresentationEvidence-rewritten.json')
+    Check-Writer 'rewriting a manifest retains the originally recorded hash' ($rewritten.frames[0].sha256 -ceq $expectedHash)
+    $reviewed=& $Review -EvidencePath (Join-Path $Directory 'PresentationEvidence-rewritten.json') -OutputDirectory (Join-Path (Split-Path $Directory -Parent) 'PresentationWriterChangedReview')
+    Check-Writer 'changed frame bytes are rejected after writer serialization' ($reviewed.status -ceq 'FAIL')
+    [ordered]@{status=$(if(@($cases | Where-Object status -ne 'PASS').Count){'FAIL'}else{'PASS'});scope='Exact archived serializer types and method compiled without Unity rendering members; real files and the archived reader. No game launch.';assembly=$assembly;excerptSha256=(Get-GtHash $compiledSource);cases=@($cases.ToArray())}
 }
 
 function Invoke-ModLoadPlanContracts([object]$Ast,[string]$Directory) {
@@ -827,14 +1043,43 @@ function Invoke-DesktopFocusBoundaryContract([string]$Source,[string]$Directory)
         throw 'The desktop focus safety boundaries were not found in the compiled source.'
     }
 
+    function Test-UnchangedHostForeground($Before,$After) {
+        foreach($sample in @($Before,$After)) {
+            if($null -eq $sample){return $false}
+            foreach($field in @('windowHandle','processId','nativeThreadId')) {
+                if($null -eq $sample.PSObject.Properties[$field] -or $null -eq $sample.$field){return $false}
+            }
+            if($sample.windowHandle -eq 0) {
+                if($sample.processId -ne 0 -or $sample.nativeThreadId -ne 0){return $false}
+            } elseif($sample.processId -le 0 -or $sample.nativeThreadId -le 0){return $false}
+        }
+        return $Before.windowHandle -eq $After.windowHandle -and
+            $Before.processId -eq $After.processId -and $Before.nativeThreadId -eq $After.nativeThreadId
+    }
+    $foregroundTrials=@(foreach($mode in @('window-unchanged','none-unchanged','window-changed','owner-changed','none-with-owner','missing-owner')) {
+        $first=[pscustomobject]@{windowHandle=123;processId=456;nativeThreadId=789}
+        $last=[pscustomobject]@{windowHandle=123;processId=456;nativeThreadId=789}
+        switch($mode) {
+            'none-unchanged' {$first.windowHandle=0;$first.processId=0;$first.nativeThreadId=0;$last.windowHandle=0;$last.processId=0;$last.nativeThreadId=0}
+            'window-changed' {$last.windowHandle=124}
+            'owner-changed' {$last.processId=457}
+            'none-with-owner' {$first.windowHandle=0;$last.windowHandle=0}
+            'missing-owner' {$first.processId=$null;$last.processId=$null}
+        }
+        $expected=$mode -in @('window-unchanged','none-unchanged')
+        $accepted=Test-UnchangedHostForeground $first $last
+        [ordered]@{mode=$mode;expected=$expected;accepted=$accepted;passed=($accepted -eq $expected)}
+    })
+
     $before=[UBVerification.DesktopReader]::ReadCurrent($null,'contract-host/before')
     $foregroundBefore=[UBVerification.DesktopReader]::ReadForeground()
     if (-not $before.complete -or -not $before.runnerInputQuery.succeeded -or
         $before.runnerInputQuery.bytesNeeded -ne 4 -or $before.runnerInputQuery.rawValue -ne 1 -or
         $before.runnerReceivesInput -ne $true -or $before.isolated -or
-        $before.runnerDesktop -cne $before.inputDesktop -or $foregroundBefore.windowHandle -eq 0) {
+        $before.runnerDesktop -cne $before.inputDesktop -or
+        -not (Test-UnchangedHostForeground $foregroundBefore $foregroundBefore)) {
         Write-GtJson (Join-Path $Directory 'HostPrerequisite.json') @{desktop=$before;foreground=$foregroundBefore}
-        throw 'The desktop focus contract must run on the observed input desktop with a foreground window.'
+        throw 'The desktop focus contract requires the observed input desktop and a complete foreground observation.'
     }
     $rejection=$null
     try { [UBVerification.DesktopReader]::DeactivateCurrentWindow(1,1) }
@@ -854,9 +1099,7 @@ function Invoke-DesktopFocusBoundaryContract([string]$Source,[string]$Directory)
         $receipt.before.runnerInputQuery.bytesNeeded -eq 4 -and $receipt.before.runnerInputQuery.rawValue -eq 1 -and
         $receipt.before.runnerReceivesInput -eq $true -and $receipt.before.runnerDesktop -ceq $before.runnerDesktop)})
     $checks.Add([ordered]@{name='host foreground PID thread and window unchanged';passed=(
-        $foregroundBefore.windowHandle -eq $foregroundAfter.windowHandle -and
-        $foregroundBefore.processId -eq $foregroundAfter.processId -and
-        $foregroundBefore.nativeThreadId -eq $foregroundAfter.nativeThreadId)})
+        Test-UnchangedHostForeground $foregroundBefore $foregroundAfter)})
     $checks.Add([ordered]@{name='host remains on the observed input desktop without a created peer';passed=(
         $after.complete -and -not $after.isolated -and $after.runnerReceivesInput -eq $true -and
         $after.runnerInputQuery.succeeded -and $after.runnerInputQuery.bytesNeeded -eq 4 -and
@@ -893,10 +1136,12 @@ function Invoke-DesktopFocusBoundaryContract([string]$Source,[string]$Directory)
                 $failure -ceq 'Focus verification requires the owned non-input desktop.'))}
     })
     [ordered]@{
-        status=$(if (@($checks | Where-Object passed -eq $false).Count -or @($trials | Where-Object passed -eq $false).Count) {'FAIL'}else{'PASS'})
+        status=$(if (@($checks | Where-Object passed -eq $false).Count -or @($trials | Where-Object passed -eq $false).Count -or @($foregroundTrials | Where-Object passed -eq $false).Count) {'FAIL'}else{'PASS'})
         scope='Compiled actual desktop source: real input-desktop refusal, foreground readback and invalid-handle UOI failure. Declared snapshots separately exercise the guard; no desktop creation, activation, input or game launch.'
-        assembly=$assembly;checks=@($checks.ToArray());guardTrials=$trials
+        assembly=$assembly;checks=@($checks.ToArray());guardTrials=$trials;foregroundObservationTrials=$foregroundTrials
         hostBefore=$before;hostAfter=$after;foregroundBefore=$foregroundBefore;foregroundAfter=$foregroundAfter
+        hostForegroundStateBefore=$(if($foregroundBefore.windowHandle -eq 0){'NONE'}else{'WINDOW'})
+        hostForegroundStateAfter=$(if($foregroundAfter.windowHandle -eq 0){'NONE'}else{'WINDOW'})
         actualInvalidHandleQuery=$failedInput;rejection=$(if ($rejection) {$rejection.ToString()}else{$null})
     }
 }
@@ -1012,6 +1257,13 @@ if ('fixtureObserved' -in $Case.expected.PSObject.Properties.Name -and $Case.exp
             }
             [ordered]@{mode=$mode;status=$(if (@($checks | Where-Object passed -eq $false).Count) {'FAIL'}else{'PASS'});casePath=$path;checks=$checks}
         })
+        $adapterFunction=(Get-Command Get-GtAdapter -CommandType Function).ScriptBlock.Ast
+        $dispatch=@($adapterFunction.FindAll({param($n) $n -is [Management.Automation.Language.SwitchStatementAst]},$true))
+        $registered=@(if($dispatch.Count -eq 1){$dispatch[0].Clauses | ForEach-Object {$_.Item1.Value} | Sort-Object})
+        $builtInDeclaration=@($adapterFunction.FindAll({param($n) $n -is [Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text -ceq '$builtIn'},$true))
+        $declaredNames=@(if($builtInDeclaration.Count -eq 1){$builtInDeclaration[0].Right.FindAll({param($n) $n -is [Management.Automation.Language.StringConstantExpressionAst]},$true) | ForEach-Object {$_.Value} | Sort-Object})
+        $environmentOnly=($registered.Count -eq 2 -and ($registered -join ',') -ceq 'save-smoke,startup' -and ($declaredNames -join ',') -ceq 'save-smoke,startup')
+        $records+=@([ordered]@{mode='shared-adapter-ownership';status=$(if($environmentOnly){'PASS'}else{'FAIL'});checks=@([ordered]@{name='only startup and save-smoke are reserved environment adapters';passed=$environmentOnly})})
         [ordered]@{
             status=$(if (@($records | Where-Object status -ne 'PASS').Count) {'FAIL'}else{'PASS'})
             scope='Actual adapter and case-validation functions with owned JSON, CLI source and validator fixtures. No game launch, JSON API dispatch or operation execution.'
@@ -1323,6 +1575,8 @@ try {
         'tools/runtime-verification/NativeDisplaySettings.ps1',
         'tools/runtime-verification/EvidencePaths.ps1',
         'tools/runtime-verification/Invoke-RuntimeVerification.ps1',
+        'tools/runtime-verification/Invoke-SolastaSemiAutoTest.ps1',
+        'tools/runtime-verification/Probes/PresentationCapture.cs',
         'tools/game-test/GameTest.Common.ps1',
         'tools/game-test/New-GameTestBuild.ps1',
         'tools/game-test/Clear-GameTestArtifacts.ps1',
@@ -1339,10 +1593,20 @@ try {
         $archived[$relative]=$archive
         $result.sources+=[ordered]@{path=$relative;sha256=$hash;archivePath=$archive}
     }
+    foreach($policy in @(@{relative='.gitignore';archive='Root.gitignore'},@{relative='tools/game-test/.gitignore';archive='GameTest.gitignore'})) {
+        $source=Join-Path $script:GameTestRepo $policy.relative
+        $hash=Get-GtHash $source
+        $archive=Join-Path $run ('InputSources/'+$policy.archive)
+        Copy-GtFile $source $archive -ExpectedSha256 $hash
+        $archived[$policy.relative]=$archive
+        $result.sources+=[ordered]@{path=$policy.relative;sha256=$hash;archivePath=$archive}
+    }
+    $result.sourceTracking=Invoke-SourceTrackingContracts $archived['.gitignore'] $archived['tools/game-test/.gitignore'] (Join-Path $run 'SourceTracking')
     $desktop=Read-ContractSource $archived['tools/runtime-verification/WindowsDesktop.ps1']
     $display=Read-ContractSource $archived['tools/runtime-verification/NativeDisplaySettings.ps1']
     $runtime=Read-ContractSource $archived['tools/runtime-verification/Invoke-RuntimeVerification.ps1']
     $common=Read-ContractSource $archived['tools/game-test/GameTest.Common.ps1']
+    $result.persistentSync=Invoke-PersistentSyncContracts (Read-ContractSource $archived['tools/runtime-verification/Invoke-SolastaSemiAutoTest.ps1']) $desktop (Join-Path $run 'PersistentSync')
     $result.nativeEvidencePaths=Invoke-NativeEvidencePathContracts $archived['tools/runtime-verification/EvidencePaths.ps1'] $common $runtime (Join-Path $run 'NativeEvidencePaths')
     $result.packageManifest=Invoke-PackageManifestContracts (Join-Path $run 'PackageManifest')
     $buildScript=Read-ContractSource $archived['tools/game-test/New-GameTestBuild.ps1']
@@ -1351,6 +1615,7 @@ try {
     $result.modLoadPlan=Invoke-ModLoadPlanContracts $runtime (Join-Path $run 'ModLoadPlan')
     $result.nativeUserData=Invoke-NativeUserDataContracts $runtime (Join-Path $run 'NativeUserData')
     $result.presentationReview=Invoke-PresentationReviewContracts $archived['tools/game-test/Review-PresentationEvidence.ps1'] (Read-ContractSource $archived['tools/game-test/Invoke-GameTest.ps1']) (Join-Path $run 'PresentationReview')
+    $result.presentationWriter=Invoke-PresentationWriterContracts $archived['tools/runtime-verification/Probes/PresentationCapture.cs'] $archived['tools/game-test/Review-PresentationEvidence.ps1'] (Join-Path $run 'PresentationWriter')
     [void](Read-ContractSource $archived['tools/game-test/Clear-GameTestArtifacts.ps1'])
     $result.storageCleanup=Invoke-StorageCleanupContracts $archived (Join-Path $run 'StorageCleanup')
     $result.desktopFocusBoundary=Invoke-DesktopFocusBoundaryContract $archived['tools/runtime-verification/WindowsDesktop.cs'] (Join-Path $run 'DesktopFocusBoundary')
@@ -1395,6 +1660,7 @@ try {
     $definitions=@(
         $registrySetting[0].Extent.Text
         Read-ContractFunction $desktop 'Get-VerificationProcessState'
+        Read-ContractFunction $desktop 'Assert-VerificationGameStopped'
         Read-ContractFunction $display 'Test-NativeDisplayValueName'
         Read-ContractFunction $display 'Assert-NativeDisplaySettingsSnapshot'
         Read-ContractFunction $display 'Restore-NativeDisplaySettings'
@@ -1462,13 +1728,13 @@ try {
     }
     if ($result.processLifecycle.status -eq 'ERROR') {
         $result.status='ERROR'; $result.reason='A process lifecycle fixture could not complete.'
-    } elseif (@($result.processGuards | Where-Object status -ne 'PASS').Count -or $result.processLifecycle.status -eq 'FAIL' -or $result.nativeActionProof.status -eq 'FAIL' -or $result.caseValidation.status -eq 'FAIL' -or $result.compilationBoundary.status -eq 'FAIL' -or $result.desktopFocusBoundary.status -ne 'PASS' -or $result.storageCleanup.status -ne 'PASS' -or $result.packageManifest.status -ne 'PASS' -or $result.buildDiagnostics.status -ne 'PASS' -or $result.sourceIdentity.status -ne 'PASS' -or $result.modLoadPlan.status -ne 'PASS' -or $result.nativeUserData.status -ne 'PASS' -or $result.presentationReview.status -ne 'PASS' -or $result.nativeEvidencePaths.status -ne 'PASS') {
+    } elseif (@($result.processGuards | Where-Object status -ne 'PASS').Count -or $result.processLifecycle.status -eq 'FAIL' -or $result.nativeActionProof.status -eq 'FAIL' -or $result.caseValidation.status -eq 'FAIL' -or $result.compilationBoundary.status -eq 'FAIL' -or $result.desktopFocusBoundary.status -ne 'PASS' -or $result.storageCleanup.status -ne 'PASS' -or $result.packageManifest.status -ne 'PASS' -or $result.buildDiagnostics.status -ne 'PASS' -or $result.sourceIdentity.status -ne 'PASS' -or $result.modLoadPlan.status -ne 'PASS' -or $result.nativeUserData.status -ne 'PASS' -or $result.presentationReview.status -ne 'PASS' -or $result.nativeEvidencePaths.status -ne 'PASS' -or $result.sourceTracking.status -ne 'PASS' -or $result.persistentSync.status -ne 'PASS' -or $result.presentationWriter.status -ne 'PASS') {
         $result.status='FAIL'; $result.reason='A game-test contract failed.'
     } elseif ($SkipProcessLifecycle) {
         $result.processLifecycle=[ordered]@{status='SKIPPED';reason='Skipped by -SkipProcessLifecycle.'}
-        $result.status='PASS'; $result.reason="All 30 process guard contracts, $($compileCases.Count) compilation boundary contracts, $($proofCases.Count) native action proof contracts, $($result.caseValidation.cases.Count) case validation contracts, $($result.storageCleanup.cases.Count) artifact cleanup contracts, $($result.packageManifest.cases.Count) package manifest contracts, $($result.buildDiagnostics.cases.Count) native build diagnostic contracts, verification mod load-order contracts, native user-data isolation contracts, native evidence path contracts, presentation manifest aggregation contracts and desktop focus safety contracts passed. Process lifecycle checks were skipped."
+        $result.status='PASS'; $result.reason="All 30 process guard contracts, $($compileCases.Count) compilation boundary contracts, $($proofCases.Count) native action proof contracts, $($result.caseValidation.cases.Count) case validation contracts, $($result.storageCleanup.cases.Count) artifact cleanup contracts, $($result.packageManifest.cases.Count) package manifest contracts, $($result.buildDiagnostics.cases.Count) native build diagnostic contracts, verification mod load-order contracts, native user-data isolation contracts, native evidence path contracts, presentation manifest aggregation contracts, development source tracking contracts, persistent sync contracts, presentation writer contracts and desktop focus safety contracts passed. Process lifecycle checks were skipped."
     } else {
-        $result.status='PASS'; $result.reason="All 30 process guard contracts, $($compileCases.Count) compilation boundary contracts, $($cases.Count) owned process lifecycle cases, $($proofCases.Count) native action proof contracts, $($result.caseValidation.cases.Count) case validation contracts, $($result.storageCleanup.cases.Count) artifact cleanup contracts, $($result.packageManifest.cases.Count) package manifest contracts, $($result.buildDiagnostics.cases.Count) native build diagnostic contracts, verification mod load-order contracts, native user-data isolation contracts, native evidence path contracts, presentation manifest aggregation contracts and desktop focus safety contracts passed."
+        $result.status='PASS'; $result.reason="All 30 process guard contracts, $($compileCases.Count) compilation boundary contracts, $($cases.Count) owned process lifecycle cases, $($proofCases.Count) native action proof contracts, $($result.caseValidation.cases.Count) case validation contracts, $($result.storageCleanup.cases.Count) artifact cleanup contracts, $($result.packageManifest.cases.Count) package manifest contracts, $($result.buildDiagnostics.cases.Count) native build diagnostic contracts, verification mod load-order contracts, native user-data isolation contracts, native evidence path contracts, presentation manifest aggregation contracts, development source tracking contracts, persistent sync contracts, presentation writer contracts and desktop focus safety contracts passed."
     }
 } catch {
     $result.status='ERROR'; $result.reason=$_.Exception.Message

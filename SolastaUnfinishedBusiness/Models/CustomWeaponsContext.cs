@@ -559,15 +559,15 @@ internal static class CustomWeaponsContext
 
     private static void LoadCrossbowPresentation()
     {
-        var carry = new CombatAnimationContext.WeaponAnimation(null, null, null,
+        var preview = new CombatAnimationContext.WeaponAnimation(null, null, null,
             "Idle", "Crossbow_Idle", EquipmentDefinitions.SlotTypeMainHand, false)
-            .WithCharacterType(GraphicsCharacterDefinitions.CharacterType.Normal)
+            .WithCharacterType(GraphicsCharacterDefinitions.CharacterType.Inventory)
             .WithIdleBindings(new[] { "Idle", "Idle_Fighter", "Idle_Caster", "Crossbow_Idle" });
         foreach (var weaponType in new[] { LightCrossbowType, HeavyCrossbowType })
         {
             if (weaponType.GetFirstSubFeatureOfType<CombatAnimationContext.WeaponAnimation>() == null)
             {
-                weaponType.AddCustomSubFeatures(carry);
+                weaponType.AddCustomSubFeatures(preview);
             }
         }
 
@@ -604,7 +604,7 @@ internal static class CustomWeaponsContext
             }
             var declarations = new List<object> { model };
             var selectors = new HashSet<(string Slot, bool Occupied, bool? Combat,
-                GraphicsCharacterDefinitions.CharacterType? Type, bool? SameModel)>();
+                GraphicsCharacterDefinitions.CharacterType? Type, bool? SharesIdlePose)>();
             foreach (var variant in variants)
             {
                 var slot = Text(variant["slot"]);
@@ -628,16 +628,17 @@ internal static class CustomWeaponsContext
                     }
                     characterType = type;
                 }
-                bool? sameModel = null;
-                if (variant["otherHandUsesSameWieldedModel"] is { Type: not JTokenType.Null } sameModelSelector)
+                bool? sharesIdlePose = null;
+                if (variant["otherHandSharesIdlePose"] is { Type: not JTokenType.Null } poseSelector)
                 {
-                    if (sameModelSelector.Type != JTokenType.Boolean || sameModelSelector.Value<bool>() && !occupied)
+                    if (poseSelector.Type != JTokenType.Boolean || poseSelector.Value<bool>() && !occupied ||
+                        motion["idlePoseGroup"]?.Type != JTokenType.String)
                     {
-                        throw new InvalidDataException("Invalid equipment other-hand model selector.");
+                        throw new InvalidDataException("Invalid equipment other-hand idle pose selector.");
                     }
-                    sameModel = sameModelSelector.Value<bool>();
+                    sharesIdlePose = poseSelector.Value<bool>();
                 }
-                if (!selectors.Add((slot, occupied, combat, characterType, sameModel)))
+                if (!selectors.Add((slot, occupied, combat, characterType, sharesIdlePose)))
                 {
                     throw new InvalidDataException("Duplicate equipment animation selector.");
                 }
@@ -645,13 +646,17 @@ internal static class CustomWeaponsContext
                     Text(motion["attackBinding"]), Text(variant["attackClipPrefix"]),
                     Text(motion["idleBinding"]), Text(motion["nativeIdleClip"]), slot, false)
                     .WithOtherHandOccupied(occupied);
+                if (motion["idlePoseGroup"] is { Type: not JTokenType.Null } idlePoseGroup)
+                {
+                    animation = animation.WithIdlePoseGroup(Text(idlePoseGroup));
+                }
                 if (characterType.HasValue)
                 {
                     animation = animation.WithCharacterType(characterType.Value);
                 }
-                if (sameModel.HasValue)
+                if (sharesIdlePose.HasValue)
                 {
-                    animation = animation.WithOtherHandUsesSameWieldedModel(sameModel.Value);
+                    animation = animation.WithOtherHandSharesIdlePose(sharesIdlePose.Value);
                 }
                 if (variant["supportsSecondaryIdle"] is { Type: not JTokenType.Null } secondaryIdle)
                 {

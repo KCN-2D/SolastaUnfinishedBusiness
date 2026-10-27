@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string[]]$EvidencePath,
     [string]$OutputDirectory,
@@ -36,7 +36,7 @@ function Artifact([string]$Path,[string]$ExpectedSha='') {
 }
 function Check-Status($Checks) {
     $statuses=@($Checks | ForEach-Object {$_.status})
-    if($statuses -ccontains 'FAIL'){'FAIL'}elseif($statuses -ccontains 'REVIEW'){'REVIEW'}elseif($statuses -ccontains 'NOT_RECORDED' -or $statuses.Count -eq 0){'NOT_RECORDED'}else{'PASS'}
+    if($statuses -ccontains 'FAIL'){'FAIL'}elseif($statuses -ccontains 'NOT_RECORDED' -or $statuses.Count -eq 0){'NOT_RECORDED'}elseif($statuses -ccontains 'REVIEW'){'REVIEW'}else{'PASS'}
 }
 $paths=[Collections.Generic.List[string]]::new()
 foreach($requested in $EvidencePath) {
@@ -64,8 +64,8 @@ foreach($path in $orderedPaths) {
     $frames=@(foreach($frame in @(Array-Field $data 'frames')) {
         $id=Text-Field $frame 'id'
         if(-not $frameIds.Add($id)){throw "Duplicate frame id: $id"}
-        $artifact=Artifact (Resolve-ArtifactPath $path (Text-Field $frame 'path'))
-        [ordered]@{id=$id;path=$artifact.path;label=(Text-Field $frame 'label' $true);group=(Text-Field $frame 'group' $true);phase=(Text-Field $frame 'phase' $true);exists=$artifact.exists;sha256=$artifact.sha256}
+        $artifact=Artifact (Resolve-ArtifactPath $path (Text-Field $frame 'path')) (Text-Field $frame 'sha256' $true)
+        [ordered]@{id=$id;path=$artifact.path;label=(Text-Field $frame 'label' $true);group=(Text-Field $frame 'group' $true);phase=(Text-Field $frame 'phase' $true);exists=$artifact.exists;sha256=$artifact.sha256;expectedSha256=$artifact.expectedSha256;hashMatches=$artifact.hashMatches}
     })
     $checkIds=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     $checks=@(foreach($check in @(Array-Field $data 'checks')) {
@@ -76,13 +76,20 @@ foreach($path in $orderedPaths) {
             if($frameId -isnot [string] -or -not $frameIds.Contains($frameId)){throw "Unknown evidence frame id: $frameId"}
             $frameId
         })
-        [ordered]@{id=$id;title=(Text-Field $check 'title');status=$state;expected=(Text-Field $check 'expected' $true);actual=(Text-Field $check 'actual' $true);evidence=$evidence}
+        $missingEvidence=@($frames | Where-Object {$evidence -ccontains $_.id -and -not $_.exists})
+        $changedEvidence=@($frames | Where-Object {$evidence -ccontains $_.id -and $_.hashMatches -eq $false})
+        $evidenceState=if($changedEvidence.Count){'FAIL'}elseif($missingEvidence.Count){'NOT_RECORDED'}else{'PASS'}
+        $effectiveState=Check-Status @([ordered]@{status=$state},[ordered]@{status=$evidenceState})
+        [ordered]@{id=$id;title=(Text-Field $check 'title');status=$effectiveState;declaredStatus=$state;expected=(Text-Field $check 'expected' $true);actual=(Text-Field $check 'actual' $true);evidence=$evidence;missingEvidence=@($missingEvidence | ForEach-Object {$_.id})}
     })
     $sources=@(foreach($source in @(Array-Field $data 'sources')) {
         $artifact=Artifact (Resolve-ArtifactPath $path (Text-Field $source 'path')) (Text-Field $source 'sha256' $true)
         [ordered]@{path=$artifact.path;role=(Text-Field $source 'role' $true);expectedSha256=$artifact.expectedSha256;exists=$artifact.exists;sha256=$artifact.sha256;hashMatches=$artifact.hashMatches}
     })
-    $documents.Add([ordered]@{manifest=$path;manifestSha256=$input.sha256;title=$title;status=(Check-Status $checks);frames=$frames;checks=$checks;sources=$sources})
+    $frameStatus=if(@($frames | Where-Object {$_.hashMatches -eq $false}).Count){'FAIL'}elseif(@($frames | Where-Object {-not $_.exists}).Count){'NOT_RECORDED'}else{'PASS'}
+    $sourceStatus=if(@($sources | Where-Object {$_.hashMatches -eq $false}).Count){'FAIL'}elseif(@($sources | Where-Object {-not $_.exists}).Count){'NOT_RECORDED'}else{'PASS'}
+    $documentStatus=Check-Status @([ordered]@{status=(Check-Status $checks)},[ordered]@{status=$sourceStatus},[ordered]@{status=$frameStatus})
+    $documents.Add([ordered]@{manifest=$path;manifestSha256=$input.sha256;title=$title;status=$documentStatus;sourceIntegrity=$sourceStatus;frameIntegrity=$frameStatus;frames=$frames;checks=$checks;sources=$sources})
 }
 if($documents.Count -eq 0){[pscustomobject]@{status='NOT_APPLICABLE';visualAcceptance='NOT_REVIEWED';reason='No supported presentation evidence manifest.'};return}
 if(-not $OutputDirectory) {
@@ -124,7 +131,7 @@ foreach($input in $inputs) {
 }
 $references=@(foreach($reference in $ReferenceImagePath){Artifact ((Resolve-Path -LiteralPath $reference).ProviderPath)})
 $allChecks=@(foreach($document in $documents){$document.checks})
-$status=Check-Status $allChecks
+$status=Check-Status $documents
 $summary=[ordered]@{schemaVersion=1;status=$status;visualAcceptance='NOT_REVIEWED';generatorSha256=(Hash $PSCommandPath);inputs=@($inputs.ToArray());documents=@($documents.ToArray());references=$references;runContext=@($contexts.ToArray())}
 [void][IO.Directory]::CreateDirectory($output)
 $utf8=[Text.UTF8Encoding]::new($false)
@@ -146,6 +153,7 @@ foreach($document in $documents) {
     foreach($frame in $document.frames) {
         $html.Add('<figure id="'+(Escape ($prefix+$frame.id))+'"><figcaption>'+(Escape ($frame.group+' / '+$frame.label+' / '+$frame.phase))+'</figcaption>')
         if($frame.exists){$url=Link $frame.path;$html.Add('<a href="'+$url+'"><img loading="lazy" src="'+$url+'" alt="'+(Escape $frame.label)+'"></a><p>SHA256 '+$frame.sha256+'</p>')}else{$html.Add('<p>画像未取得: '+(Escape $frame.path)+'</p>')}
+        if($frame.expectedSha256){$html.Add('<p>記録SHA256 '+(Escape $frame.expectedSha256)+' / hash一致 '+(Escape $frame.hashMatches)+'</p>')}
         $html.Add('</figure>')
     }
     $html.Add('</div><details><summary>出典</summary><table><tr><th>role / path</th><th>実在</th><th>期待SHA256 / 実SHA256</th><th>hash一致</th></tr>')

@@ -234,11 +234,7 @@ function Remove-OwnedDirectory([string] $Path, [string] $Parent) {
 }
 
 function Assert-NoGameProcess {
-    # A concurrent instance can overwrite the same Player.log and user settings.
-    $processState=Get-VerificationProcessState -Name Solasta
-    $processDiagnostic=$processState | ConvertTo-Json -Depth 6 -Compress
-    if (-not $processState.querySucceeded) { throw ('Cannot verify that Solasta is stopped before runtime verification. Process state: ' + $processDiagnostic) }
-    if ($processState.matches.Count) { throw ('Solasta is already running. Close it before runtime verification. Process state: ' + $processDiagnostic) }
+    Assert-VerificationGameStopped
 }
 
 if (-not $GameExePath -and $env:SolastaInstallDir) {

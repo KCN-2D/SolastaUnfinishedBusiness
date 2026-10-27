@@ -52,14 +52,7 @@ function Assert-NativeDisplaySettingsRestored([object] $Snapshot) {
 
 function Restore-NativeDisplaySettings([object] $Snapshot) {
     Assert-NativeDisplaySettingsSnapshot $Snapshot
-    $processState=Get-VerificationProcessState -Name Solasta
-    $processDiagnostic=$processState | ConvertTo-Json -Depth 6 -Compress
-    if (-not $processState.querySucceeded) {
-        throw ('Cannot verify that Solasta is stopped before restoring display preferences. Process state: ' + $processDiagnostic)
-    }
-    if ($processState.matches.Count) {
-        throw ('Close Solasta before restoring display preferences. Matching PIDs: ' + (($processState.matches | ForEach-Object pid) -join ', ') + '. Process state: ' + $processDiagnostic)
-    }
+    Assert-VerificationGameStopped
     # Validate both sides before the first write. Do not touch other PlayerPrefs.
     $current=Get-NativeDisplaySettingsSnapshot
     $wanted=@($Snapshot.values | ForEach-Object { $_.name })

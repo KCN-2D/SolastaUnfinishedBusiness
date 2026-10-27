@@ -36,7 +36,7 @@ public static class PresentationCapture
     }
     [Serializable] public sealed class ReviewFrame
     {
-        public string id,path,label,group,phase;
+        public string id,path,label,group,phase,sha256;
     }
     [Serializable] public sealed class ReviewCheck
     {
@@ -63,6 +63,15 @@ public static class PresentationCapture
                 !new[]{"PASS","FAIL","REVIEW","NOT_RECORDED"}.Contains(check.status)||
                 check.evidence==null||check.evidence.Any(id=>!ids.Contains(id)))
                 throw new InvalidDataException("Invalid review check.");
+        foreach(var frame in document.frames)
+        {
+            var framePath=Path.IsPathRooted(frame.path)?frame.path:
+                Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory,frame.path);
+            if(string.IsNullOrEmpty(frame.sha256)&&File.Exists(framePath))
+                using(var stream=File.OpenRead(framePath))
+                using(var hash=SHA256.Create())
+                    frame.sha256=BitConverter.ToString(hash.ComputeHash(stream)).Replace("-","");
+        }
         var path=Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory,"PresentationEvidence-"+name+".json");
         using(var stream=File.Create(path))new DataContractJsonSerializer(typeof(ReviewDocument)).WriteObject(stream,document);
     }

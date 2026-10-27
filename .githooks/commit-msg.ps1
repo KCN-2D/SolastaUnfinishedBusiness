@@ -26,8 +26,10 @@ function Test-FixedLine([string] $Text) {
         return $true
     }
 
-    # A single bare token can be a path, type, setting, ref or hash, but not prose.
-    return $Text -cmatch '^[A-Za-z0-9_./\\:@+~^{}()\[\]<>#%=-]+$'
+    # Standalone words are prose. Fixed identifiers have visible structural
+    # evidence (a path, dotted name, digit, underscore or mixed-case type name).
+    return $Text -cmatch '^[A-Za-z0-9_./\\:@+~^{}()\[\]<>#%=-]+$' -and
+        ($Text -match '[0-9_./\\:@+~^{}()\[\]<>#%=-]' -or $Text -cmatch '^[A-Z][a-z]+[A-Z][A-Za-z]*$')
 }
 
 try {
@@ -40,7 +42,7 @@ try {
 
 $lines = @($message -split '\r?\n')
 $commentCharacter = '#'
-$configuredComment = & git -C $PSScriptRoot config --get core.commentChar 2>$null
+$configuredComment = & git config --get core.commentChar 2>$null
 if ($LASTEXITCODE -eq 0 -and $configuredComment -and $configuredComment -ne 'auto') {
     $commentCharacter = [string] $configuredComment
 }
@@ -69,7 +71,7 @@ for ($lineIndex = $subjectIndex + 1; $lineIndex -lt $content.Count; $lineIndex++
             }
             $fenceCharacter = $fence.Substring(0, 1)
             $fenceLength = $fence.Length
-        } elseif ($fence.Substring(0, 1) -eq $fenceCharacter -and $fence.Length -ge $fenceLength) {
+        } elseif ($fence.Substring(0, 1) -eq $fenceCharacter -and $fence.Length -ge $fenceLength -and $line -match '^[`~]+\s*$') {
             $fenceCharacter = ''
             $fenceLength = 0
         }

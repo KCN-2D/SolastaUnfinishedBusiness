@@ -8,9 +8,7 @@
 git config --local core.hooksPath .githooks
 ```
 
-`commit-msg`がGit for WindowsからWindows PowerShellを起動し、`commit-msg.ps1`でUTF-8のメッセージを検査します。条件を満たさない場合はコミットを中止します。MergeやRevertも同じ条件で検査します。
-
-入口を通した検証は次で実行します。Gitの設定や履歴は変更しません。
+検査の契約テストを実行します。
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\.githooks\Test-CommitMessage.ps1

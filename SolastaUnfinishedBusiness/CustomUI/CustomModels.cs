@@ -118,6 +118,8 @@ public static class CustomModels
         internal readonly int Segments, Iterations, FrameCount;
         internal readonly IReadOnlyList<(double Height, double Sign)> Corners;
         internal readonly IReadOnlyList<(int Index, bool Left, int Section, int Corner)> LimbRows;
+        internal readonly IReadOnlyList<(bool Left, int Section, double Height, double Distance)> LimbPositions;
+        internal readonly IReadOnlyList<int> LimbPositionIndices;
         internal readonly IReadOnlyList<(int Index, Point Position, Joint Joint)> RigidRows;
         internal readonly IReadOnlyList<(int Ring, Point Offset)> StringRows;
         internal readonly IReadOnlyList<int> StringIndices;
@@ -284,6 +286,25 @@ public static class CustomModels
                     side is not ("Left" or "Right")) throw new InvalidDataException("Invalid limb vertex map.");
                 return (index, side == "Left", section, corner);
             }).ToArray());
+            var positions = new List<(bool Left, int Section, double Height, double Distance)>();
+            var positionIndices = new int[LimbRows.Count];
+            var positionMap = new Dictionary<(bool Left, int Section, int Corner), int>();
+            for (var i = 0; i < LimbRows.Count; i++)
+            {
+                var row = LimbRows[i];
+                var key = (row.Left, row.Section, row.Corner);
+                if (!positionMap.TryGetValue(key, out var position))
+                {
+                    position = positions.Count;
+                    positionMap.Add(key, position);
+                    var corner = Corners[row.Corner];
+                    var width = WidthRoot + (WidthTip - WidthRoot) * row.Section / Segments;
+                    positions.Add((row.Left, row.Section, corner.Height, width * corner.Sign));
+                }
+                positionIndices[i] = position;
+            }
+            LimbPositions = positions.AsReadOnly();
+            LimbPositionIndices = System.Array.AsReadOnly(positionIndices);
             Seeds = System.Array.AsReadOnly(Array(Required(limb, "verifiedNativeStateSeeds")).Select(row =>
             {
                 var a = Array(Required(row, "solverAngles"), 2);
@@ -663,23 +684,23 @@ public static class CustomModels
             ? definition.WeaponDescription.WeaponTypeDefinition.GetFirstSubFeatureOfType<T>()
             : null) ?? GetNativeSourceGrip<T>(definition);
 
-    internal static IReadOnlyList<T> GetWieldedItemFeatures<T>(ItemDefinition definition) where T : class
+    internal static CustomizedSubFeatureDefinitions.SubFeaturesOfType<T> GetWieldedItemFeatures<T>(
+        ItemDefinition definition) where T : class
     {
         if (!definition)
         {
-            return Array.Empty<T>();
+            return default;
         }
-        var features = definition.GetAllSubFeaturesOfType<T>();
-        if (features.Count == 0 && definition.IsWeapon)
+        var features = definition.EnumerateSubFeaturesOfType<T>();
+        if (!features.HasAny && definition.IsWeapon)
         {
-            features = definition.WeaponDescription.WeaponTypeDefinition.GetAllSubFeaturesOfType<T>();
+            features = definition.WeaponDescription.WeaponTypeDefinition.EnumerateSubFeaturesOfType<T>();
         }
-        if (features.Count != 0)
+        if (features.HasAny)
         {
             return features;
         }
-        var sourceGrip = GetNativeSourceGrip<T>(definition);
-        return sourceGrip != null ? new[] { sourceGrip } : features;
+        return new CustomizedSubFeatureDefinitions.SubFeaturesOfType<T>(GetNativeSourceGrip<T>(definition), null);
     }
 
     // A measured grip describes the source prefab's geometry. Resolve it when
@@ -967,6 +988,11 @@ public static class CustomModels
         private Matrix4x4[] _weaponRelativeMatrices;
         private WieldedMechanism.Point[] _loadedLimbNormals, _currentLimbNormals;
         private LimbTransportFrame[] _limbTransportFrames;
+        private Vector3[] _limbPositionValues;
+        private WieldedMechanism.Point[] _limbNormalCoordinates, _limbTangentCoordinates;
+        private WieldedMechanism.Point[] _stringNormalCoordinates, _stringTangentCoordinates;
+        private (WieldedMechanism.Point Tangent, WieldedMechanism.Point Up, WieldedMechanism.Point Side)[]
+            _loadedStringFrames, _currentStringFrames;
         private bool _mechanismGeometryReady;
         private double _mechanismQ, _mechanismSpan;
         private Transform _weaponBolt;
@@ -1846,11 +1872,13 @@ public static class CustomModels
                 _beforeSide = before.Cross(Up);
                 _afterSide = after.Cross(Up);
             }
-            internal Vector3 Transform(Vector3 value)
+            internal WieldedMechanism.Point Coordinates(Vector3 value)
             {
                 var p = WieldedMechanism.Point.From(value);
-                return (_after * p.Dot(_before) + Up * p.Y + _afterSide * p.Dot(_beforeSide)).Float;
+                return new WieldedMechanism.Point(p.Dot(_before), p.Y, p.Dot(_beforeSide));
             }
+            internal Vector3 Transform(WieldedMechanism.Point coordinates) =>
+                (_after * coordinates.X + Up * coordinates.Y + _afterSide * coordinates.Z).Float;
         }
 
         private bool UpdateMechanism()
@@ -1894,18 +1922,36 @@ public static class CustomModels
                     _currentLimbNormals[index] = data.RingNormal(_centers, section, side == 0);
                     _limbTransportFrames[index] = new LimbTransportFrame(_loadedLimbNormals[index], _currentLimbNormals[index]);
                 }
-                foreach (var row in data.LimbRows)
+                if (_limbNormalCoordinates == null)
                 {
-                    var center = _centers[row.Section];
-                    if (row.Left) center = new WieldedMechanism.Point(-center.X, center.Y, center.Z);
+                    _limbNormalCoordinates = new WieldedMechanism.Point[data.LimbRows.Count];
+                    _limbTangentCoordinates = new WieldedMechanism.Point[data.LimbRows.Count];
+                    _limbPositionValues = new Vector3[data.LimbPositions.Count];
+                    for (var i = 0; i < data.LimbRows.Count; i++)
+                    {
+                        var row = data.LimbRows[i];
+                        var section = (row.Left ? 0 : data.Segments + 1) + row.Section;
+                        var frame = _limbTransportFrames[section];
+                        _limbNormalCoordinates[i] = frame.Coordinates(_frameBaseNormals[row.Index]);
+                        _limbTangentCoordinates[i] = frame.Coordinates(_frameBaseTangents[row.Index]);
+                    }
+                }
+                for (var i = 0; i < data.LimbPositions.Count; i++)
+                {
+                    var position = data.LimbPositions[i];
+                    var center = _centers[position.Section];
+                    if (position.Left) center = new WieldedMechanism.Point(-center.X, center.Y, center.Z);
+                    var section = (position.Left ? 0 : data.Segments + 1) + position.Section;
+                    _limbPositionValues[i] = (center + new WieldedMechanism.Point(0, position.Height, 0) +
+                        _currentLimbNormals[section] * position.Distance).Float;
+                }
+                for (var i = 0; i < data.LimbRows.Count; i++)
+                {
+                    var row = data.LimbRows[i];
                     var section = (row.Left ? 0 : data.Segments + 1) + row.Section;
-                    var normal = _currentLimbNormals[section];
-                    var corner = data.Corners[row.Corner];
-                    var width = data.WidthRoot + (data.WidthTip - data.WidthRoot) * row.Section / data.Segments;
-                    _frameVertices[row.Index] = (center + new WieldedMechanism.Point(0, corner.Height, 0) +
-                        normal * (width * corner.Sign)).Float;
-                    _frameNormals[row.Index] = _limbTransportFrames[section].Transform(_frameBaseNormals[row.Index]);
-                    var t = _limbTransportFrames[section].Transform(_frameBaseTangents[row.Index]);
+                    _frameVertices[row.Index] = _limbPositionValues[data.LimbPositionIndices[i]];
+                    _frameNormals[row.Index] = _limbTransportFrames[section].Transform(_limbNormalCoordinates[i]);
+                    var t = _limbTransportFrames[section].Transform(_limbTangentCoordinates[i]);
                     _frameTangents[row.Index] = new Vector4(t.x, t.y, t.z, _frameBaseTangents[row.Index].w);
                 }
                 if (!_mechanismGeometryReady || q != _mechanismQ)
@@ -1927,19 +1973,39 @@ public static class CustomModels
                         _frameTangents[row.Index] = new Vector4(t.x, t.y, t.z, _frameBaseTangents[row.Index].w);
                     }
                 }
+                if (_loadedStringFrames == null)
+                {
+                    _loadedStringFrames = new (WieldedMechanism.Point, WieldedMechanism.Point, WieldedMechanism.Point)
+                        [_loadedStringNodes.Length];
+                    _currentStringFrames = new (WieldedMechanism.Point, WieldedMechanism.Point, WieldedMechanism.Point)
+                        [_loadedStringNodes.Length];
+                    for (var ring = 0; ring < _loadedStringFrames.Length; ring++)
+                        _loadedStringFrames[ring] = WieldedMechanism.StringFrame(_loadedStringNodes, ring);
+                    _stringNormalCoordinates = new WieldedMechanism.Point[data.StringIndices.Count];
+                    _stringTangentCoordinates = new WieldedMechanism.Point[data.StringIndices.Count];
+                    for (var i = 0; i < data.StringIndices.Count; i++)
+                    {
+                        var loaded = _loadedStringFrames[data.StringRows[data.StringIndices[i]].Ring];
+                        var n = WieldedMechanism.Point.From(_stringBaseNormals[i]);
+                        _stringNormalCoordinates[i] = new WieldedMechanism.Point(n.Dot(loaded.Tangent),
+                            n.Dot(loaded.Up), n.Dot(loaded.Side));
+                        var t = WieldedMechanism.Point.From(_stringBaseTangents[i]);
+                        _stringTangentCoordinates[i] = new WieldedMechanism.Point(t.Dot(loaded.Tangent),
+                            t.Dot(loaded.Up), t.Dot(loaded.Side));
+                    }
+                }
+                for (var ring = 0; ring < _currentStringFrames.Length; ring++)
+                    _currentStringFrames[ring] = WieldedMechanism.StringFrame(nodes, ring);
                 for (var i = 0; i < data.StringIndices.Count; i++)
                 {
                     var row = data.StringRows[data.StringIndices[i]];
-                    var basis = WieldedMechanism.StringFrame(nodes, row.Ring);
-                    var loaded = WieldedMechanism.StringFrame(_loadedStringNodes, row.Ring);
+                    var basis = _currentStringFrames[row.Ring];
                     _stringVertices[i] = (nodes[row.Ring] + basis.Tangent * row.Offset.X +
                         basis.Up * row.Offset.Y + basis.Side * row.Offset.Z).Float;
-                    var n = WieldedMechanism.Point.From(_stringBaseNormals[i]);
-                    _stringNormals[i] = (basis.Tangent * n.Dot(loaded.Tangent) + basis.Up * n.Dot(loaded.Up) +
-                        basis.Side * n.Dot(loaded.Side)).Float;
-                    var t = WieldedMechanism.Point.From(_stringBaseTangents[i]);
-                    var moved = (basis.Tangent * t.Dot(loaded.Tangent) + basis.Up * t.Dot(loaded.Up) +
-                        basis.Side * t.Dot(loaded.Side)).Float;
+                    var n = _stringNormalCoordinates[i];
+                    _stringNormals[i] = (basis.Tangent * n.X + basis.Up * n.Y + basis.Side * n.Z).Float;
+                    var t = _stringTangentCoordinates[i];
+                    var moved = (basis.Tangent * t.X + basis.Up * t.Y + basis.Side * t.Z).Float;
                     _stringTangents[i] = new Vector4(moved.x, moved.y, moved.z, _stringBaseTangents[i].w);
                 }
                 _frameMesh.vertices = _frameVertices;
@@ -1991,6 +2057,10 @@ public static class CustomModels
             _weaponRelativeMatrices = null;
             _loadedLimbNormals = _currentLimbNormals = null;
             _limbTransportFrames = null;
+            _limbPositionValues = null;
+            _limbNormalCoordinates = _limbTangentCoordinates = null;
+            _stringNormalCoordinates = _stringTangentCoordinates = null;
+            _loadedStringFrames = _currentStringFrames = null;
             _mechanismGeometryReady = false;
             _weaponBolt = null;
             _mechanismBolts = null;
@@ -3001,11 +3071,7 @@ public static class CustomModels
 
             meshFilter.mesh = preserveVertexOrder ? PopulateMeshWithVertexOrder(obj, true) : PopulateMesh(obj);
             meshRenderer.materials = DefineMaterial(filename, obj);
-            using (var algorithm = SHA256.Create())
-            using (var input = File.OpenRead(Path.Combine(directoryPath, filename + ".obj")))
-            {
-                PrefabObjectHashes[prefabGuid] = BitConverter.ToString(algorithm.ComputeHash(input)).Replace("-", "");
-            }
+            PrefabObjectHashes[prefabGuid] = obj.ObjectSourceSha256;
             PrefabsByGuid[prefabGuid] = prefab;
 
             Main.Info($"Model {filename} loaded.");
@@ -3396,9 +3462,11 @@ public static class CustomModels
     [Serializable]
     private sealed class ObjectFile
     {
-        internal const int CurrentSchemaVersion = 2;
+        internal const int CurrentSchemaVersion = 3;
 
         [OptionalField] public int SchemaVersion = CurrentSchemaVersion;
+        [OptionalField] public string ObjectSourceSha256;
+        [OptionalField] public string MaterialSourceSha256;
 
         // ReSharper disable file InconsistentNaming
         public string o;
@@ -3442,29 +3510,38 @@ public static class CustomModels
 
         var pathCache = Path.Combine(pathModel, "../../../ModelsCache");
 
-        if (!Directory.Exists(pathCache))
-        {
-            Directory.CreateDirectory(pathCache);
-        }
-
         var pathObjFile = Path.Combine(pathModel, $"{filename}.obj");
         var pathMtlFile = Path.Combine(pathModel, $"{filename}.mtl");
         var pathCacheFile = Path.Combine(pathCache, $"{filename}.cache");
 
-        if (File.Exists(pathObjFile) &&
-            File.Exists(pathCacheFile) &&
-            File.GetLastWriteTime(pathCacheFile) >= File.GetLastWriteTime(pathObjFile) &&
-            File.GetLastWriteTime(pathCacheFile) >= File.GetLastWriteTime(pathMtlFile) &&
-            Deserialize(pathCacheFile, ref objFile))
-        {
-            Main.Info($"Read {filename} from cache.");
-
-            return true;
-        }
-
         try
         {
-            var lines = File.ReadAllLines(pathObjFile);
+            // Hash and parse the same source bytes. Package rollback and file
+            // copies can retain timestamps while changing their contents.
+            var objectSource = File.ReadAllBytes(pathObjFile);
+            byte[] materialSource;
+            try
+            {
+                materialSource = File.ReadAllBytes(pathMtlFile);
+            }
+            catch
+            {
+                Main.Error($"Failed to read material file {pathMtlFile}");
+                return false;
+            }
+            using (var algorithm = SHA256.Create())
+            {
+                objFile.ObjectSourceSha256 = BitConverter.ToString(algorithm.ComputeHash(objectSource)).Replace("-", "");
+                objFile.MaterialSourceSha256 = BitConverter.ToString(algorithm.ComputeHash(materialSource)).Replace("-", "");
+            }
+            if (File.Exists(pathCacheFile) &&
+                Deserialize(pathCacheFile, objFile.ObjectSourceSha256, objFile.MaterialSourceSha256, ref objFile))
+            {
+                Main.Info($"Read {filename} from cache.");
+                return true;
+            }
+
+            var lines = ReadSourceLines(objectSource);
 
             objFile.usemtl = [];
             objFile.v = [];
@@ -3522,7 +3599,7 @@ public static class CustomModels
                 }
             }
 
-            if (!TryReadMaterialFile(pathModel, filename, objFile.Materials))
+            if (!TryReadMaterialFile(pathMtlFile, materialSource, objFile.Materials))
             {
                 return false;
             }
@@ -3539,13 +3616,18 @@ public static class CustomModels
         }
     }
 
-    private static bool TryReadMaterialFile(string modelPath, string filename, List<NewMtl> materials)
+    private static IEnumerable<string> ReadSourceLines(byte[] source)
     {
-        var pathMtl = Path.Combine(modelPath, $"{filename}.mtl");
+        using var stream = new MemoryStream(source, false);
+        using var reader = new StreamReader(stream);
+        while (reader.ReadLine() is { } line) yield return line;
+    }
 
+    private static bool TryReadMaterialFile(string pathMtl, byte[] source, List<NewMtl> materials)
+    {
         try
         {
-            var lines = File.ReadAllLines(pathMtl);
+            var lines = ReadSourceLines(source);
 
             foreach (var line in lines)
             {
@@ -3614,6 +3696,7 @@ public static class CustomModels
     {
         try
         {
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
             using var file = File.Create(path);
             var bf = GetBinaryFormatter();
 
@@ -3625,7 +3708,8 @@ public static class CustomModels
         }
     }
 
-    private static bool Deserialize(string path, ref ObjectFile objFile)
+    private static bool Deserialize(string path, string objectSourceSha256, string materialSourceSha256,
+        ref ObjectFile objFile)
     {
         try
         {
@@ -3633,7 +3717,9 @@ public static class CustomModels
             var bf = GetBinaryFormatter();
 
             var cached = (ObjectFile)bf.Deserialize(file);
-            if (cached.SchemaVersion != ObjectFile.CurrentSchemaVersion)
+            if (cached.SchemaVersion != ObjectFile.CurrentSchemaVersion ||
+                !string.Equals(cached.ObjectSourceSha256, objectSourceSha256, StringComparison.Ordinal) ||
+                !string.Equals(cached.MaterialSourceSha256, materialSourceSha256, StringComparison.Ordinal))
             {
                 return false;
             }

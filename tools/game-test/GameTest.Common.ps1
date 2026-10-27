@@ -144,10 +144,7 @@ function Resolve-GtArtifactPath([string] $Path) {
 }
 
 function Assert-GtGameStopped {
-    $processState=Get-VerificationProcessState -Name Solasta
-    $processDiagnostic=$processState | ConvertTo-Json -Depth 6 -Compress
-    if (-not $processState.querySucceeded) { throw ('Cannot verify that Solasta is stopped before deployment or restoration. Process state: ' + $processDiagnostic) }
-    if ($processState.matches.Count) { throw ('Solasta is running. Close it before deployment or restoration. Process state: ' + $processDiagnostic) }
+    Assert-VerificationGameStopped
 }
 
 function Get-GtAssemblyCaches([string] $Directory, [string] $AssemblyName) {
@@ -262,7 +259,7 @@ function Get-GtAdapter(
     [Nullable[bool]] $ScenarioSaveScenario=$null,
     [string[]] $ScenarioReferencePath=@()
 ) {
-    $builtIn=@('startup','save-smoke','native-summon-icons')
+    $builtIn=@('startup','save-smoke')
     $localRequested=@($ScenarioSource).Count -gt 0 -or $ScenarioType -or $ScenarioValidator -or $null -ne $ScenarioObservation -or $null -ne $ScenarioSaveScenario -or @($ScenarioReferencePath).Count -gt 0
     if ($localRequested) {
         if ($Name -in $builtIn) { throw 'Local scenario arguments cannot override a built-in adapter.' }
@@ -288,7 +285,6 @@ function Get-GtAdapter(
     switch ($Name) {
         'startup' { return [pscustomobject]@{ name=$Name; saveScenario=$false; observation=$false; sources=@(); probeType=$null; caseValidator=$null; referencePaths=@() } }
         'save-smoke' { return [pscustomobject]@{ name=$Name; saveScenario=$true; observation=$false; sources=@((Join-Path $PSScriptRoot 'Probes\SaveSmokeProbe.cs')); probeType='GameTestSaveSmokeProbe'; caseValidator=$null; referencePaths=@() } }
-        'native-summon-icons' { return [pscustomobject]@{ name=$Name; saveScenario=$false; observation=$false; sources=@((Join-Path $script:GameTestRepo 'tools\runtime-verification\Probes\NativeSummonIconInventoryProbe.cs')); probeType='NativeSummonIconInventoryProbe'; caseValidator=$null; referencePaths=@() } }
         default { throw 'Unknown adapter. Local scenarios require explicit CLI source, type, validator and observation arguments.' }
     }
 }

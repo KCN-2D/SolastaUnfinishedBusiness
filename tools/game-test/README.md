@@ -18,7 +18,7 @@ $build = & .\tools\game-test\New-GameTestBuild.ps1 -GameExePath "$game\Solasta.e
 
 `Build.json` にブランチ、対象コミット、ステージ済み差分、作業ツリー差分、変更ファイル、ゲーム・UMM DLL、wrapper、runtime patch、成果物の識別情報を保存します。`tools/` は製品ソースの識別から除き、ビルド入力とテストツールをそれぞれのハッシュで記録します。ビルド中のソース変更、実行時のソース・ゲーム DLL・ステージングの不一致は中断理由になります。
 
-テスト基盤を変更した場合は、`& .\tools\game-test\Test-GameTestContracts.ps1`で停止ガード、終了処理、証跡整理の安全性を検証します。保存した実装の原本を使い、プロセス取得失敗・復元拒否、所有するPowerShell子プロセスの終了・待機、ダミーファイルでの整理対象と保持条件を確認します。ゲームや設定は変更せず、結果は`tools/game-test/artifacts/`へ保存します。`-SkipProcessLifecycle`は子プロセスの終了・待機の検証を省略します。
+テスト基盤を変更した場合は、`& .\tools\game-test\Test-GameTestContracts.ps1`で停止ガード、終了処理、証跡整理の安全性を検証します。ゲームや設定は変更せず、結果は`tools/game-test/artifacts/`へ保存します。`-SkipProcessLifecycle`は子プロセスの終了・待機の検証を省略します。
 
 ## ケースを固定する
 
@@ -42,11 +42,11 @@ JSON の主要項目は次のとおりです。
 | `observation.enabled` | adapterが所有する読み取り観測。`save-smoke` は `false` |
 | `timeoutSeconds` | 起動から検証完了までの上限。`save-smoke` は30～1800秒、ほかは15～1800秒 |
 
-移動は各軸3マス以内の整数です。プローブ型とソースは adapter ごとに固定し、JSON からコードやメソッドを指定する機能は設けていません。
+移動は各軸3マス以内の整数です。
 
 `actorSource` を省略したケースは `party` として扱います。`guest` はロード済みのゲスト一覧を使います。
 
-共通の `save-smoke` はセーブ読込と通常移動を担当します。個別機能の観測、期待値、作成時の既定値は、Git管理しない `tools/game-test/Scenarios/` のローカル入口が所有します。ローカル入口は `-ScenarioAdapter`、`-ScenarioSource`、`-ScenarioType`、`-ScenarioValidator`、`-ScenarioObservation` をCLI引数で明示します。ケースのadapter名と観測有無がこの指定と一致することを要求し、JSONからソースや型、メソッドを選ぶ機能は設けません。
+共通の `save-smoke` はセーブ読込と通常移動を担当します。個別機能の観測、期待値、作成時の既定値は`tools/game-test/Scenarios/`のローカル入口が所有します。ローカル入口は `-ScenarioAdapter`、`-ScenarioSource`、`-ScenarioType`、`-ScenarioValidator`、`-ScenarioObservation` をCLI引数で明示します。ケースのadapter名と観測有無がこの指定と一致することを要求し、JSONからソースや型、メソッドを選ぶ機能は設けません。
 
 セーブを使わないローカル入口は `-ScenarioSaveScenario $false` を明示し、操作と期待値を固定したvalidatorで検証します。省略時はセーブを使う既存動作を維持します。
 
@@ -57,8 +57,6 @@ JSON の主要項目は次のとおりです。
 ロード後の準備に召喚が必要なケースは、`-SetupPowerName '<所持能力の完全名>'` を指定して作成します。準備用の使用者は `-SetupActorSource`（既定 `party`）と `-SetupActorIndex`（既定 `0`）、召喚位置は `-SetupPositionOffset`（既定 `@(1,0,0)`）、召喚後のゲスト総数は `-SetupExpectedGuestCount`（既定 `1`）で固定します。
 
 JSON の `initialState.setup` は任意です。対応する準備は、所持する主動作・位置指定の召喚能力を1回使う `use-power` です。使用回数、位置の可視性・射程・配置条件、効果成立と消費、ゲスト総数を確認してから `operation` の移動へ進みます。`-SetupPowerName` を省略したケースでは、この準備を実行しません。
-
-`native-summon-icons` は、ネイティブの召喚能力・呪文の画像と定義を読み取る固定プローブです。セーブは指定せず、`operation.kind` を `startup`、`expected.initialized` を `true`、`observation.enabled` を `false` にします。初期設定と配置・復元はほかのケースと共通です。
 
 ## 明示配置と実行
 
@@ -86,7 +84,7 @@ Unityの実フォーカス喪失は、OS入力の非占有と別に検証しま�
 
 ## 画面操作の受入確認
 
-`-VisualAcceptance` はWindows VMのゲスト内で実行する画面操作の受入確認専用です。ゲームと操作runnerを同じVM内で動かし、ケース・ゲーム・ビルドもVM内のパスを指定します。ホストからVMの画面をクリックする操作は使いません。VMや追加ソフトの導入は事前に確認します。
+`-VisualAcceptance` はWindows VMのゲスト内で実行する画面操作の受入確認専用です。ゲームと操作runnerを同じVM内で動かし、ケース・ゲーム・ビルドもVM内のパスを指定します。
 
 VM内の3D描画、画面取得、ゲスト内の入力が利用できることを確認してから、ケース作成時に `-ManualGate -ManualGateTimeoutSeconds 600 -TimeoutSeconds 900` を指定し、VM内で次を実行します。
 
@@ -160,7 +158,7 @@ await gameUi.click({ x: 420, y: 260 });
 | `native-observation` | セーブ回帰を行わない、固定プローブによる観測 |
 | `visual-observation` | `-VisualAcceptance`による実行。通常UI入力の合否は操作と画面の証跡から別に判定 |
 
-scopeは判定結果や必須条件を変更しません。判定対象を次の項目へ分け、実行前に固定した必須条件を、結果を見てから任意条件へ変えません。
+scopeは判定結果や必須条件を変更しません。判定項目は次のとおりです。
 
 | 項目 | 観測と判定 |
 | --- | --- |
@@ -173,13 +171,13 @@ scopeは判定結果や必須条件を変更しません。判定対象を次の
 | 音声 | ネイティブイベントの受理と、出音・音質の確認を分離する。イベント戻り値だけで実際の出音を合格にしない |
 | 復元 | 導入前ファイル、設定、セーブ原本のバイト列・更新時刻・属性。配置を伴う実行で必須 |
 
-`PASS` は固定した必須項目がすべて取得でき、期待結果と復元が成立したケースです。`FAIL` は取得した実測値と期待値の不一致、`BLOCKED` は前提不足・時間切れ・必須の観測不足・検証のみの実行、`ERROR` はビルド・コンパイル・実行基盤・復元のエラーです。必須項目の不明値を `false` や成功値へ変換しません。
+`PASS` は固定した必須項目がすべて取得でき、期待結果と復元が成立したケースです。`FAIL` は取得した実測値と期待値の不一致、`BLOCKED` は前提不足・時間切れ・必須の観測不足・検証のみの実行、`ERROR` はビルド・コンパイル・実行基盤・復元のエラーです。
 
 `backgroundActionProof` はネイティブアクション、フレーム進行、Unityフォーカスを項目別に記録します。`unityFocusTransitionVerified` は、実際のフォーカス獲得状態と喪失を両方観測した場合に `true` になります。メニュー・ボタンの通常操作は `-VisualAcceptance` の結果として分けます。
 
-ケースの `PASS` は未検証項目の合格を表しません。依頼全体の受入で必要な項目が `BLOCKED` または未検証なら、受入全体も未完了です。過去の結果ファイルは変更せず、再監査・再検証の結果を別の証跡へ保存します。
+再監査・再検証の結果は、元の結果と別の証跡へ保存します。
 
-資産制作の検査は[asset-authoring](../asset-authoring/README.md)に従います。Blender工程内の`passed`、互換Unityでの資産ビルド・再読込、実ゲームでの資産ロード・表示・再生は、それぞれの工程で判定します。
+資産制作の検査は[asset-authoring](../asset-authoring/README.md)に従います。
 
 終了・例外・タイムアウト後は、導入済みmodと設定を元のバイト列、更新時刻、属性へ戻します。Unityの表示用レジストリ値も型と値を退避・復元します。UMMの既存DLLキャッシュと付随するPDBは保持し、この実行で作られたものは配置元のハッシュと照合して撤去します。セーブ原本もハッシュ、更新時刻、属性を照合します。復元時にゲームが起動している場合は処理を止め、証跡と配置トランザクションを残します。
 
@@ -200,7 +198,7 @@ PowerShell 自体の強制終了などで復元が残った場合は、ゲーム
 
 ## 表示証跡のレビュー
 
-`Invoke-GameTest`は復元後、`PresentationEvidence*.json`に記録された画像・判定・期待値・実測値・出典を`PresentationReview/Review.html`と`Summary.json`へ集約します。判定基準は各検証adapterが所有し、manifestの`FAIL`を実行結果へ反映します。native検証の結果は`Result.json`の`nativeVerificationStatus`に保持します。
+`Invoke-GameTest`は復元後、`PresentationEvidence*.json`に記録された画像・判定・期待値・実測値・出典を`PresentationReview/Review.html`と`Summary.json`へ集約します。判定基準は各検証adapterが所有します。参照画像や出典の欠落は`NOT_RECORDED`、画像・出典の記録ハッシュとの不一致は`FAIL`として検出し、元の宣言判定も保持します。native検証が`PASS`でも、表示証跡の`FAIL`は総合`FAIL`、欠落は`BLOCKED`へ反映します。native検証の結果は`Result.json`の`nativeVerificationStatus`に保持します。
 
 既存証跡には `& .\tools\game-test\Review-PresentationEvidence.ps1 -EvidencePath '<Runtime>' -OutputDirectory '<review>'` を使います。manifestファイルも直接指定できます。`-ReferenceImagePath '<画像>'`で参照画像を並べ、判定と画像を照合します。
 
@@ -224,4 +222,4 @@ $evidence = '.\tools\game-test\artifacts'
 
 ## Gitの追跡範囲
 
-`tools/game-test/`の実行スクリプト、共通実装、共通プローブとREADMEを追跡します。`tools/game-test/Scenarios/` の個別コード、`tools/game-test/Cases/` のセーブ・固定設定、`tools/game-test/artifacts/` のログ・画像・レポート、一時ファイルは追跡しません。依存する実行基盤の追跡範囲は[Runtime verification](../runtime-verification/README.md#gitの追跡範囲)に従います。
+実行スクリプト、共通実装、`Probes/SaveSmokeProbe.cs`、環境自身の契約テストとREADMEを追跡します。`Scenarios/`のコード・期待値・テスト用データ、`Cases/`のセーブ・固定設定、`artifacts/`のログ・画像・レポート、一時ファイルは追跡しません。依存する実行基盤は[Runtime verification](../runtime-verification/README.md#gitの追跡範囲)に従います。

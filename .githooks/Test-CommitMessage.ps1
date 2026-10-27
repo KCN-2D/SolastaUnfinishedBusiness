@@ -13,20 +13,20 @@ if (-not $shellPath) {
 }
 
 $cases = @(
-    @{ Name = 'Japanese subject and body'; Pass = $true; Text = "装備表示を改善`n`n形状の所有元を使って再計算を抑制した。" },
-    @{ Name = 'English subject'; Pass = $false; Text = "Fix equipment presentation`n`n不要な再計算を抑制した。" },
-    @{ Name = 'English body'; Pass = $false; Text = "装備表示を改善`n`nAvoid repeated mesh recalculation." },
-    @{ Name = 'Later English paragraph'; Pass = $false; Text = "装備表示を改善`n`n不要な再計算を抑制した。`n`nKeep the original material ownership." },
-    @{ Name = 'English list item'; Pass = $false; Text = "装備表示を改善`n`n- 不要な再計算を抑制した。`n- Keep the original material ownership." },
-    @{ Name = 'Short Japanese subject'; Pass = $true; Text = '装備表示を改善' },
-    @{ Name = 'Technical data only'; Pass = $true; Text = "装備表示を改善`n`nCustomModels.cs`nhttps://example.invalid/reference`nSigned-off-by: Example <example@example.invalid>" },
-    @{ Name = 'Fixed values and trailers'; Pass = $true; Text = "装備表示を改善`n`n共通の所有元から形状を取得する。`n`nCustomModels.cs`nnet481`nhttps://example.invalid/reference`n`nCo-authored-by: Example <example@example.invalid>`nSigned-off-by: Example <example@example.invalid>" },
-    @{ Name = 'Code block'; Pass = $true; Text = "装備表示を改善`n`n検証コマンドを記録した。`n`n``````text`ngit diff --check`n``````" },
-    @{ Name = 'Wrapped Japanese paragraph'; Pass = $true; Text = "装備表示を改善`n`n測定結果から再計算の条件を絞り、`nCustomModels.csの所有関係を維持した。" },
-    @{ Name = 'Comments do not supply Japanese'; Pass = $false; Text = "# 日本語の説明`nFix equipment presentation`n`nAvoid repeated mesh recalculation." },
-    @{ Name = 'Merge has no exemption'; Pass = $false; Text = "Merge branch 'custom/work-playtest'`n`n検証した変更を統合した。" },
+    @{ Name = 'Japanese subject and body'; Pass = $true; Text = "処理を修正`n`n入力の検証を追加した。" },
+    @{ Name = 'English subject'; Pass = $false; Text = "Update processing`n`n入力の検証を追加した。" },
+    @{ Name = 'English body'; Pass = $false; Text = "処理を修正`n`nValidate the input." },
+    @{ Name = 'Single English word is prose'; Pass = $false; Text = "処理を修正`n`nImprove" },
+    @{ Name = 'Later English paragraph'; Pass = $false; Text = "処理を修正`n`n入力の検証を追加した。`n`nCheck the returned value." },
+    @{ Name = 'English list item'; Pass = $false; Text = "処理を修正`n`n- 入力の検証を追加した。`n- Check the returned value." },
+    @{ Name = 'Fixed values and trailers'; Pass = $true; Text = "処理を修正`n`n入力と結果を照合した。`n`nmodule.cs`nv1.2.3`nhttps://example.invalid/reference`n`nCo-authored-by: Example <example@example.invalid>`nSigned-off-by: Example <example@example.invalid>" },
+    @{ Name = 'Code block'; Pass = $true; Text = "処理を修正`n`n検証コマンドを記録した。`n`n``````text`ngit diff --check`n``````" },
+    @{ Name = 'Longer code fence with an inner short fence'; Pass = $true; Text = "処理を修正`n`n~~~~text`n``` example`n~~~~" },
+    @{ Name = 'Wrapped Japanese paragraph'; Pass = $true; Text = "処理を修正`n`n入力の検証を追加し、`n返された結果も確認した。" },
+    @{ Name = 'Comments do not supply Japanese'; Pass = $false; Text = "# 日本語の説明`nUpdate processing`n`nValidate the input." },
+    @{ Name = 'Merge has no exemption'; Pass = $false; Text = "Merge branch 'example'`n`n変更を統合した。" },
     @{ Name = 'Revert English body has no exemption'; Pass = $false; Text = "Revert 日本語の変更`n`nThis reverts commit 0123456789abcdef." },
-    @{ Name = 'CRLF and BOM'; Pass = $true; Bom = $true; Text = "装備表示を改善`r`n`r`n実環境で表示を確認した。`r`n" },
+    @{ Name = 'CRLF and BOM'; Pass = $true; Bom = $true; Text = "処理を修正`r`n`r`n結果を確認した。`r`n" },
     @{ Name = 'Invalid UTF8'; Pass = $false; Bytes = [byte[]] @(0xFF, 0xFE, 0xFF) }
 )
 
@@ -38,6 +38,24 @@ if (-not $temporaryDirectory.StartsWith($temporaryRoot, [StringComparison]::Ordi
 }
 [System.IO.Directory]::CreateDirectory($temporaryDirectory) | Out-Null
 $failures = New-Object 'System.Collections.Generic.List[string]'
+function Invoke-TestGit([string[]] $Arguments) {
+    $info = New-Object System.Diagnostics.ProcessStartInfo
+    $info.FileName = $gitExecutable
+    $info.Arguments = (@($Arguments | ForEach-Object {'"' + $_.Replace('"','\"') + '"'}) -join ' ')
+    $info.UseShellExecute = $false
+    $info.CreateNoWindow = $true
+    $info.RedirectStandardOutput = $true
+    $info.RedirectStandardError = $true
+    $info.StandardOutputEncoding = [Text.Encoding]::UTF8
+    $info.StandardErrorEncoding = [Text.Encoding]::UTF8
+    $process = [Diagnostics.Process]::Start($info)
+    try {
+        $output = $process.StandardOutput.ReadToEnd()
+        $errorOutput = $process.StandardError.ReadToEnd()
+        $process.WaitForExit()
+        [pscustomobject]@{exitCode=$process.ExitCode;output=$output;errorOutput=$errorOutput}
+    } finally { $process.Dispose() }
+}
 try {
     for ($index = 0; $index -lt $cases.Count; $index++) {
         $case = $cases[$index]
@@ -69,11 +87,58 @@ try {
         }
         $process.Dispose()
     }
+    # Exercise Git itself, including its working directory, comment cleanup,
+    # commit rejection and a fast-forward importing an existing English commit.
+    $fixture = Join-Path $temporaryDirectory 'repository with spaces'
+    [void][IO.Directory]::CreateDirectory($fixture)
+    $hookDirectory = $PSScriptRoot.Replace('\','/')
+    & $gitExecutable init --quiet $fixture
+    if ($LASTEXITCODE) { throw '契約テスト用リポジトリを作成できません。' }
+    & $gitExecutable -C $fixture config user.name 'Fixture Example'
+    & $gitExecutable -C $fixture config user.email 'fixture@example.invalid'
+    & $gitExecutable -C $fixture config core.hooksPath $hookDirectory
+    & $gitExecutable -C $fixture config core.commentChar ';'
+    $gitCases = @(
+        @{Name='Git accepts Japanese and strips the configured comment';Pass=$true;Text="処理を修正`n`n; An English Git comment."},
+        @{Name='Git does not use Japanese in the configured comment';Pass=$false;Text="; 日本語コメント`nEnglish subject"},
+        @{Name='Git rejects an English body without creating a commit';Pass=$false;Text="処理を修正`n`nValidate the input."},
+        @{Name='Git accepts technical data in a Japanese explanation';Pass=$true;Text="処理を修正`n`n入力の検証を追加した。`n`nExample.Type`nv1.2.3"}
+    )
+    $expectedCount = 0
+    foreach ($case in $gitCases) {
+        $messagePath = Join-Path $temporaryDirectory 'git-message.txt'
+        [IO.File]::WriteAllText($messagePath,$case.Text,[Text.UTF8Encoding]::new($false))
+        # The hook must use the invoking repository's Git configuration, not the
+        # repository where a shared hooksPath happens to be stored.
+        $commit = Invoke-TestGit @('-C',$fixture,'-c','commit.gpgsign=false','commit','--quiet','--allow-empty','--cleanup=strip',('--file='+$messagePath))
+        $accepted = $commit.exitCode -eq 0
+        if ($case.Pass) { $expectedCount++ }
+        $count = [int](& $gitExecutable -C $fixture rev-list --count HEAD)
+        if ($accepted -ne $case.Pass -or $count -ne $expectedCount) {
+            $failures.Add("$($case.Name): accepted=$accepted; count=$count; $($commit.output)$($commit.errorOutput)")
+        }
+    }
+    & $gitExecutable -C $fixture branch imported
+    & $gitExecutable -C $fixture checkout --quiet imported
+    & $gitExecutable -C $fixture -c core.hooksPath= -c commit.gpgsign=false commit --quiet --allow-empty --message='Imported upstream change'
+    $imported = & $gitExecutable -C $fixture rev-parse HEAD
+    & $gitExecutable -C $fixture checkout --quiet -
+    $mergeOutput = & $gitExecutable -C $fixture merge --quiet --ff-only imported 2>&1
+    if ($LASTEXITCODE -ne 0 -or (& $gitExecutable -C $fixture rev-parse HEAD) -cne $imported) {
+        $failures.Add("Fast-forward import changed or rejected existing history: $mergeOutput")
+    }
 } finally {
     # This exact directory was created above; do not discover deletion targets.
+    # Git object files are read-only on Windows.
+    foreach ($item in Get-ChildItem -LiteralPath $temporaryDirectory -Recurse -Force) {
+        if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            throw "契約テストの後始末でreparse pointを検出しました: $($item.FullName)"
+        }
+        if (-not $item.PSIsContainer) { $item.IsReadOnly = $false }
+    }
     [System.IO.Directory]::Delete($temporaryDirectory, $true)
 }
 if ($failures.Count) {
     throw ($failures -join [Environment]::NewLine)
 }
-Write-Output "PASS: $($cases.Count) commit-message cases through the Git hook entry."
+Write-Output "PASS: $($cases.Count) hook-entry cases and $($gitCases.Count + 1) actual Git commit/import contracts."
