@@ -1,0 +1,2 @@
+#!/bin/sh
+exec powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$(dirname "$0")/commit-msg.ps1" "$1"

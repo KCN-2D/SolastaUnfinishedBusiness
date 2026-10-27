@@ -922,14 +922,10 @@ public static class CustomModels
             internal Vector3 Scale;
             internal bool Active;
         }
-        private bool _plateFitReady, _carryFitReady;
+        private bool _plateFitReady;
         private Vector3[] _plateFitPoints;
         private Quaternion _plateFitRotation;
         private Vector3 _plateFitScale;
-        private Vector3 _carryFitHand, _carryFitUpper, _carryFitThigh, _carryFitKnee;
-        private Quaternion _carryFitRotation;
-        private float _carryTarget;
-        private readonly Dictionary<HumanBodyBones, float> _segmentRadii = [];
         private readonly struct SkinPoint(Transform bone, Vector3 local)
         {
             internal readonly Transform Bone = bone;
@@ -939,18 +935,6 @@ public static class CustomModels
         private Vector3[] _armInParent;
         private float _plateRoll;
         internal float PlateClearanceGap { get; private set; }
-        private Transform _carryUpperArm;
-        private Quaternion _carryOriginalRotation, _carryAppliedRotation;
-        private bool _carryPoseApplied, _carryAngleInitialized;
-        private int _carryFrame = -1;
-        private float _carryAngle;
-        private Vector3[] _carryPoints;
-        private Vector3[] _carryFitVectors;
-        internal Transform CarryUpperArm => _carryUpperArm;
-        internal Quaternion CarryOriginalRotation => _carryOriginalRotation;
-        internal Quaternion CarryAppliedRotation => _carryAppliedRotation;
-        internal float CarryAngle => _carryAngle;
-        internal bool CarryPoseApplied => _carryPoseApplied;
         internal WieldedGrip Grip => _gripDefinition;
         internal Mesh NativeMesh => _nativeOriginalMesh;
         internal string GripStatus { get; private set; } = "Unbound";
@@ -1280,7 +1264,6 @@ public static class CustomModels
 
         internal void UpdatePresentation()
         {
-            RestoreCarryPose();
             if (!IsCurrent)
             {
                 Release();
@@ -1444,7 +1427,6 @@ public static class CustomModels
             if (!Frame(modelAxis, modelNormal * _modelNormalSign, out var modelFrame)) return false;
             var handRotation = handFrame * Quaternion.Inverse(modelFrame);
             var handPosition = center - handRotation * Definition.GripPoint;
-            ApplyCarryClearance(handPosition, handRotation);
             // Keep the rigid frame in hand coordinates. Its full native matrix
             // carries body scaling; the item-parent inverse cancels it before
             // ApplyPose removes the native weapon's separate display scale.
@@ -1471,10 +1453,9 @@ public static class CustomModels
         private void InvalidateSkinMeasurements()
         {
             unchecked { _armShapeSignature++; }
-            _segmentRadii.Clear();
             _armEnvelope = null;
             _armInParent = null;
-            _plateFitReady = _carryFitReady = false;
+            _plateFitReady = false;
         }
 
         private void RefreshSkinCache()
@@ -1528,76 +1509,6 @@ public static class CustomModels
                 }
             }
             if (changed) InvalidateSkinMeasurements();
-        }
-
-        private float SegmentRadius(HumanBodyBones weightedBone, HumanBodyBones firstBone,
-            HumanBodyBones lastBone, float minimumRatio)
-        {
-            RefreshSkinCache();
-            if (_segmentRadii.TryGetValue(weightedBone, out var cached)) return cached;
-            var first = _animator.GetBoneTransform(firstBone);
-            var last = _animator.GetBoneTransform(lastBone);
-            var weighted = _animator.GetBoneTransform(weightedBone);
-            if (!first || !last || !weighted) return 0f;
-            var arm = last.position - first.position;
-            var length = arm.magnitude;
-            var direction = arm / Mathf.Max(length, 0.0001f);
-            var radius = length * minimumRatio;
-            var leftLeg = weightedBone == HumanBodyBones.LeftUpperLeg;
-            var legSegment = leftLeg || weightedBone == HumanBodyBones.RightUpperLeg;
-            var hips = _animator.GetBoneTransform(HumanBodyBones.Hips);
-            var opposite = _animator.GetBoneTransform(leftLeg ? HumanBodyBones.RightUpperLeg : HumanBodyBones.LeftUpperLeg);
-            var leftArm = _animator.GetBoneTransform(HumanBodyBones.LeftUpperArm);
-            var rightArm = _animator.GetBoneTransform(HumanBodyBones.RightUpperArm);
-            var snapshot = new Mesh { hideFlags = HideFlags.HideAndDontSave };
-            try
-            {
-                foreach (var skin in _armSkins)
-                {
-                    if (!skin || !skin.enabled || !skin.gameObject.activeInHierarchy || !skin.sharedMesh) continue;
-                    var bones = skin.bones;
-                    var bone = Array.IndexOf(bones, weighted);
-                    if (!legSegment && bone < 0) continue;
-                    var weights = skin.sharedMesh.boneWeights;
-                    if (!legSegment && !weights.Any(weight => weight.boneIndex0 == bone && weight.weight0 >= 0.25f ||
-                                               weight.boneIndex1 == bone && weight.weight1 >= 0.25f ||
-                                               weight.boneIndex2 == bone && weight.weight2 >= 0.25f ||
-                                               weight.boneIndex3 == bone && weight.weight3 >= 0.25f)) continue;
-                    skin.BakeMesh(snapshot);
-                    var vertices = snapshot.vertices;
-                    if (vertices.Length != weights.Length) continue;
-                    var toWorld = Matrix4x4.TRS(skin.transform.position, skin.transform.rotation, Vector3.one);
-                    for (var i = 0; i < vertices.Length; i++)
-                    {
-                        var weight = weights[i];
-                        if (!legSegment && !(weight.boneIndex0 == bone && weight.weight0 >= 0.25f ||
-                              weight.boneIndex1 == bone && weight.weight1 >= 0.25f ||
-                              weight.boneIndex2 == bone && weight.weight2 >= 0.25f ||
-                              weight.boneIndex3 == bone && weight.weight3 >= 0.25f)) continue;
-                        var world = toWorld.MultiplyPoint3x4(vertices[i]);
-                        if (legSegment)
-                        {
-                            var index = weight.boneIndex0; var maximum = weight.weight0;
-                            if (weight.weight1 > maximum) { index = weight.boneIndex1; maximum = weight.weight1; }
-                            if (weight.weight2 > maximum) { index = weight.boneIndex2; maximum = weight.weight2; }
-                            if (weight.weight3 > maximum) index = weight.boneIndex3;
-                            if (index < 0 || index >= bones.Length || !bones[index] || !hips) continue;
-                            var source = bones[index];
-                            if (source != hips && !source.IsChildOf(hips) ||
-                                leftArm && (source == leftArm || source.IsChildOf(leftArm)) ||
-                                rightArm && (source == rightArm || source.IsChildOf(rightArm))) continue;
-                            if (opposite && (world - opposite.position).sqrMagnitude < (world - first.position).sqrMagnitude) continue;
-                        }
-                        var point = world - first.position;
-                        var along = Vector3.Dot(point, direction);
-                        if (along < length * (legSegment ? -0.1f : 0.2f) || along > length * 1.05f) continue;
-                        radius = Mathf.Max(radius, (point - direction * along).magnitude);
-                    }
-                }
-            }
-            finally { Destroy(snapshot); }
-            _segmentRadii[weightedBone] = radius;
-            return radius;
         }
 
         private Quaternion FitPlate(Transform parent, Vector3 gripInHand, Vector3 scale, Vector3 axis,
@@ -1751,144 +1662,6 @@ public static class CustomModels
             finally { Destroy(snapshot); }
             _armEnvelope = samples.Where(sample => sample.Bone).ToArray();
             _armInParent = null;
-        }
-
-        private void RestoreCarryPose()
-        {
-            if (_carryPoseApplied && SameRig && _carryUpperArm &&
-                _carryUpperArm.localRotation.Equals(_carryAppliedRotation))
-                _carryUpperArm.localRotation = _carryOriginalRotation;
-            _carryPoseApplied = false;
-        }
-
-        private void ApplyCarryClearance(Vector3 handPosition, Quaternion handRotation)
-        {
-            if (_item.ItemDefinition.WeaponDescription?.WeaponTags.Contains(TagsDefinitions.WeaponTagTwoHanded) == true)
-                return;
-            var left = _slot == EquipmentDefinitions.SlotTypeOffHand;
-            var upperArm = _animator.GetBoneTransform(left ? HumanBodyBones.LeftUpperArm : HumanBodyBones.RightUpperArm);
-            var thigh = _animator.GetBoneTransform(left ? HumanBodyBones.LeftUpperLeg : HumanBodyBones.RightUpperLeg);
-            var knee = _animator.GetBoneTransform(left ? HumanBodyBones.LeftLowerLeg : HumanBodyBones.RightLowerLeg);
-            var hips = _animator.GetBoneTransform(HumanBodyBones.Hips);
-            if (!upperArm || !thigh || !knee || !hips) return;
-            _carryUpperArm = upperArm;
-            if (_carryPoints == null)
-            {
-                var points = new List<Vector3>();
-                foreach (var filter in Model.GetComponentsInChildren<MeshFilter>(true))
-                {
-                    if (!filter.sharedMesh) continue;
-                    var bounds = filter.sharedMesh.bounds;
-                    var matrix = Model.worldToLocalMatrix * filter.transform.localToWorldMatrix;
-                    for (var x = -1; x <= 1; x++)
-                    for (var y = -1; y <= 1; y++)
-                    for (var z = -1; z <= 1; z++)
-                        points.Add(matrix.MultiplyPoint3x4(bounds.center +
-                            Vector3.Scale(bounds.extents, new Vector3(x, y, z))));
-                }
-                _carryPoints = points.ToArray();
-            }
-            RefreshSkinCache();
-            var axis = _graphics.transform.forward * (left ? -1f : 1f);
-            var target = 0f;
-            if (_hand.position.y < hips.position.y + (_hand.position - upperArm.position).magnitude * 0.15f)
-            {
-                var actor = _graphics.transform;
-                var hand = actor.InverseTransformPoint(_hand.position);
-                var upper = actor.InverseTransformPoint(upperArm.position);
-                var leg = actor.InverseTransformPoint(thigh.position);
-                var lower = actor.InverseTransformPoint(knee.position);
-                var rotation = Quaternion.Inverse(actor.rotation) * _hand.rotation;
-                if (!_carryFitReady || (hand - _carryFitHand).sqrMagnitude > 0.000025f ||
-                    (upper - _carryFitUpper).sqrMagnitude > 0.000025f ||
-                    (leg - _carryFitThigh).sqrMagnitude > 0.000025f ||
-                    (lower - _carryFitKnee).sqrMagnitude > 0.000025f ||
-                    Quaternion.Angle(rotation, _carryFitRotation) > 0.5f)
-                {
-                    target = FitCarryClearance(left, upperArm, thigh, knee, axis, handPosition, handRotation);
-                    // Do not alternate between adjacent sampled angles while a
-                    // native idle breathes around the same clearance boundary.
-                    if (_carryFitReady && Mathf.Abs(target - _carryTarget) <= 2f)
-                        target = Mathf.Max(target, _carryTarget);
-                    _carryTarget = target;
-                    _carryFitHand = hand; _carryFitUpper = upper;
-                    _carryFitThigh = leg; _carryFitKnee = lower;
-                    _carryFitRotation = rotation;
-                    _carryFitReady = true;
-                }
-                target = _carryTarget;
-            }
-            else _carryFitReady = false;
-            if (!_carryAngleInitialized)
-            {
-                _carryAngle = target;
-                _carryAngleInitialized = true;
-            }
-            else if (_carryFrame != Time.frameCount)
-                _carryAngle = Mathf.MoveTowards(_carryAngle, target, Time.deltaTime * 90f);
-            _carryFrame = Time.frameCount;
-            if (_carryAngle <= 0.001f) return;
-            _carryOriginalRotation = upperArm.localRotation;
-            upperArm.rotation = Quaternion.AngleAxis(_carryAngle, axis) * upperArm.rotation;
-            _carryAppliedRotation = upperArm.localRotation;
-            _carryPoseApplied = true;
-        }
-
-        private float FitCarryClearance(bool left, Transform upperArm, Transform thigh, Transform knee,
-            Vector3 axis, Vector3 handPosition, Quaternion handRotation)
-        {
-            var radius = SegmentRadius(left ? HumanBodyBones.LeftUpperLeg : HumanBodyBones.RightUpperLeg,
-                left ? HumanBodyBones.LeftUpperLeg : HumanBodyBones.RightUpperLeg,
-                left ? HumanBodyBones.LeftLowerLeg : HumanBodyBones.RightLowerLeg, 0.22f);
-            var native = _hand.localToWorldMatrix * Matrix4x4.TRS(handPosition, handRotation, Vector3.one);
-            var armOrigin = upperArm.position;
-            var legOrigin = thigh.position;
-            var offset = armOrigin - legOrigin;
-            var leg = knee.position - legOrigin;
-            var lengthSquared = leg.sqrMagnitude;
-            if (_carryFitVectors == null || _carryFitVectors.Length != _carryPoints.Length)
-                _carryFitVectors = new Vector3[_carryPoints.Length];
-            for (var i = 0; i < _carryPoints.Length; i++)
-                _carryFitVectors[i] = native.MultiplyPoint3x4(_carryPoints[i]) - armOrigin;
-            float Gap(float angle)
-            {
-                var delta = Quaternion.AngleAxis(angle, axis);
-                var minimum = float.PositiveInfinity;
-                foreach (var vector in _carryFitVectors)
-                {
-                    var relative = offset + delta * vector;
-                    var t = lengthSquared > 0f
-                        ? Mathf.Clamp01(Vector3.Dot(relative, leg) / lengthSquared) : 0f;
-                    minimum = Mathf.Min(minimum, (relative - leg * t).magnitude - radius);
-                }
-                return minimum;
-            }
-            var previousGap = _carryFitReady ? Gap(_carryTarget) : float.NegativeInfinity;
-            if (previousGap >= 0.006f) return _carryTarget;
-            if (Gap(0f) >= 0.008f) return 0f;
-            var target = 2f;
-            var best = Gap(target);
-            var safe = best >= 0.01f;
-            for (var angle = 5f; angle <= 35f && !safe; angle += 5f)
-            {
-                var gap = Gap(angle);
-                if (gap > best) { target = angle; best = gap; }
-                if (gap >= 0.01f) { target = angle; safe = true; }
-            }
-            var coarse = target;
-            for (var angle = Mathf.Max(2f, coarse - 5f); angle <= Mathf.Min(35f, coarse + 5f); angle += 1f)
-            {
-                var gap = Gap(angle);
-                if (safe)
-                {
-                    if (gap >= 0.01f && angle < target) { target = angle; best = gap; }
-                }
-                else if (gap > best) { target = angle; best = gap; safe = gap >= 0.01f; }
-            }
-            // Keep an equally good held pose when this conservative clothing
-            // envelope cannot reach its clearance target during an idle breath.
-            if (_carryFitReady && !safe && previousGap >= best - 0.002f) return _carryTarget;
-            return target;
         }
 
         private bool MechanismCurrent()
@@ -2355,7 +2128,6 @@ public static class CustomModels
         private void SuspendPresentation()
         {
             _gripReady = false;
-            RestoreCarryPose();
             RestoreWeaponCulling();
             RestoreFingers();
             RestoreItemPose();
@@ -2417,14 +2189,7 @@ public static class CustomModels
             _armInParent = null;
             _plateRoll = 0f;
             _plateFitPoints = null;
-            _carryTarget = 0f;
             PlateClearanceGap = 0f;
-            _carryUpperArm = null;
-            _carryPoints = null;
-            _carryFitVectors = null;
-            _carryAngle = 0f;
-            _carryAngleInitialized = false;
-            _carryFrame = -1;
             GripStatus = "Unbound";
             _fingerBones = null;
             _fingerTargets = null;

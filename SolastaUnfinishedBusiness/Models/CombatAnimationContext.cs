@@ -45,11 +45,17 @@ internal static class CombatAnimationContext
         internal bool RequiresFreeOtherHand { get; } = requiresFreeOtherHand;
         internal bool? OtherHandOccupied { get; private set; }
         internal bool? InCombat { get; private set; }
+        internal GraphicsCharacterDefinitions.CharacterType? CharacterType { get; private set; }
+        internal bool? OtherHandUsesSameWieldedModel { get; private set; }
+        internal bool SupportsSecondaryIdle { get; private set; }
 
         private WeaponAnimation Copy() => new(ModelName, AttackBinding, AttackClipPrefix, IdleBinding,
             NativeIdleClip, Slot, RequiresFreeOtherHand)
         {
-            OtherHandOccupied = OtherHandOccupied, InCombat = InCombat, IdleClipPrefix = IdleClipPrefix,
+            OtherHandOccupied = OtherHandOccupied, InCombat = InCombat, CharacterType = CharacterType,
+            OtherHandUsesSameWieldedModel = OtherHandUsesSameWieldedModel,
+            SupportsSecondaryIdle = SupportsSecondaryIdle,
+            IdleClipPrefix = IdleClipPrefix,
             IdleVariantBinding = IdleVariantBinding, IdleBindings = IdleBindings,
             ClipPrefixes = ClipPrefixes, ClipVariantBinding = ClipVariantBinding, AttackEntries = AttackEntries
         };
@@ -65,6 +71,27 @@ internal static class CombatAnimationContext
         {
             var copy = Copy();
             copy.InCombat = inCombat;
+            return copy;
+        }
+
+        internal WeaponAnimation WithCharacterType(GraphicsCharacterDefinitions.CharacterType characterType)
+        {
+            var copy = Copy();
+            copy.CharacterType = characterType;
+            return copy;
+        }
+
+        internal WeaponAnimation WithOtherHandUsesSameWieldedModel(bool sameModel)
+        {
+            var copy = Copy();
+            copy.OtherHandUsesSameWieldedModel = sameModel;
+            return copy;
+        }
+
+        internal WeaponAnimation WithSecondaryIdleSupport(bool supported)
+        {
+            var copy = Copy();
+            copy.SupportsSecondaryIdle = supported;
             return copy;
         }
 
@@ -221,6 +248,7 @@ internal static class CombatAnimationContext
             }
             activeSlot = equipped.Slot;
         }
+        var nativePrimaryIdle = false;
         for (var index = 0; index < 2; index++)
         {
             var slot = index == 0 ? EquipmentDefinitions.SlotTypeMainHand : EquipmentDefinitions.SlotTypeOffHand;
@@ -236,20 +264,27 @@ internal static class CombatAnimationContext
                 ? EquipmentDefinitions.SlotTypeOffHand
                 : EquipmentDefinitions.SlotTypeMainHand;
             var occupied = character.WieldedRulesetItems.TryGetValue(otherSlot, out var other) && other != null;
+            var model = CustomModels.GetWieldedItemFeature<CustomModels.WieldedModel>(definition);
+            var sameModel = occupied && model != null && ReferenceEquals(model,
+                CustomModels.GetWieldedItemFeature<CustomModels.WieldedModel>(other.ItemDefinition));
             foreach (var animation in CustomModels.GetWieldedItemFeatures<WeaponAnimation>(definition))
             {
                 if (animation.Slot == slot && (!animation.RequiresFreeOtherHand || !occupied) &&
                     (!animation.OtherHandOccupied.HasValue || animation.OtherHandOccupied.Value == occupied) &&
-                    (!animation.InCombat.HasValue || animation.InCombat.Value == inCombat))
+                    (!animation.InCombat.HasValue || animation.InCombat.Value == inCombat) &&
+                    (!animation.CharacterType.HasValue || animation.CharacterType.Value == character.CharacterType) &&
+                    (!animation.OtherHandUsesSameWieldedModel.HasValue ||
+                     animation.OtherHandUsesSameWieldedModel.Value == sameModel) &&
+                    (activeAction || !nativePrimaryIdle || animation.SupportsSecondaryIdle))
                 {
                     return animation;
                 }
             }
-            if (!activeAction)
+            if (!activeAction && index == 0)
             {
-                // The primary weapon owns the usual pose, including its native pose.
-                // An authored off-hand action must not replace that baseline on return.
-                return null;
+                // Only a secondary holding clip that preserves the native primary
+                // pose may opt in here. An off-hand attack alone cannot own idle.
+                nativePrimaryIdle = true;
             }
         }
 

@@ -561,6 +561,7 @@ internal static class CustomWeaponsContext
     {
         var carry = new CombatAnimationContext.WeaponAnimation(null, null, null,
             "Idle", "Crossbow_Idle", EquipmentDefinitions.SlotTypeMainHand, false)
+            .WithCharacterType(GraphicsCharacterDefinitions.CharacterType.Normal)
             .WithIdleBindings(new[] { "Idle", "Idle_Fighter", "Idle_Caster", "Crossbow_Idle" });
         foreach (var weaponType in new[] { LightCrossbowType, HeavyCrossbowType })
         {
@@ -602,7 +603,8 @@ internal static class CustomWeaponsContext
                 throw new InvalidDataException("Invalid equipment animation asset name.");
             }
             var declarations = new List<object> { model };
-            var selectors = new HashSet<(string Slot, bool Occupied, bool? Combat)>();
+            var selectors = new HashSet<(string Slot, bool Occupied, bool? Combat,
+                GraphicsCharacterDefinitions.CharacterType? Type, bool? SameModel)>();
             foreach (var variant in variants)
             {
                 var slot = Text(variant["slot"]);
@@ -614,7 +616,28 @@ internal static class CustomWeaponsContext
                 var occupied = variant["otherHandOccupied"].Value<bool>();
                 var combat = variant["inCombat"]?.Type == JTokenType.Boolean
                     ? variant["inCombat"].Value<bool>() : (bool?)null;
-                if (!selectors.Add((slot, occupied, combat)))
+                GraphicsCharacterDefinitions.CharacterType? characterType = null;
+                var typeSelector = variant["characterType"] ?? motion["characterType"];
+                if (typeSelector != null)
+                {
+                    if (typeSelector.Type != JTokenType.String ||
+                        !Enum.TryParse<GraphicsCharacterDefinitions.CharacterType>(Text(typeSelector), out var type) ||
+                        !Enum.IsDefined(typeof(GraphicsCharacterDefinitions.CharacterType), type))
+                    {
+                        throw new InvalidDataException("Invalid equipment character type selector.");
+                    }
+                    characterType = type;
+                }
+                bool? sameModel = null;
+                if (variant["otherHandUsesSameWieldedModel"] is { Type: not JTokenType.Null } sameModelSelector)
+                {
+                    if (sameModelSelector.Type != JTokenType.Boolean || sameModelSelector.Value<bool>() && !occupied)
+                    {
+                        throw new InvalidDataException("Invalid equipment other-hand model selector.");
+                    }
+                    sameModel = sameModelSelector.Value<bool>();
+                }
+                if (!selectors.Add((slot, occupied, combat, characterType, sameModel)))
                 {
                     throw new InvalidDataException("Duplicate equipment animation selector.");
                 }
@@ -622,6 +645,22 @@ internal static class CustomWeaponsContext
                     Text(motion["attackBinding"]), Text(variant["attackClipPrefix"]),
                     Text(motion["idleBinding"]), Text(motion["nativeIdleClip"]), slot, false)
                     .WithOtherHandOccupied(occupied);
+                if (characterType.HasValue)
+                {
+                    animation = animation.WithCharacterType(characterType.Value);
+                }
+                if (sameModel.HasValue)
+                {
+                    animation = animation.WithOtherHandUsesSameWieldedModel(sameModel.Value);
+                }
+                if (variant["supportsSecondaryIdle"] is { Type: not JTokenType.Null } secondaryIdle)
+                {
+                    if (secondaryIdle.Type != JTokenType.Boolean)
+                    {
+                        throw new InvalidDataException("Invalid equipment secondary idle declaration.");
+                    }
+                    animation = animation.WithSecondaryIdleSupport(secondaryIdle.Value<bool>());
+                }
                 if (variant["idleClipPrefix"] is { Type: not JTokenType.Null } idleClipPrefix)
                 {
                     animation = animation.WithIdleAnimation(Text(idleClipPrefix),
