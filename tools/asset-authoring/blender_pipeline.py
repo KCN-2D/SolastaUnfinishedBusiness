@@ -10,11 +10,14 @@ from collections import defaultdict
 import hashlib
 import json
 import math
+from numbers import Real
 from pathlib import Path
 import re
+import struct
 import sys
 import traceback
 import time
+import zlib
 
 import bpy
 from mathutils import Vector
@@ -61,6 +64,25 @@ def file_hash(path):
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
+def write_packed_rgba(path, width, height, rgba):
+    """Write bottom-up RGBA8 channels without transparency or colour transforms."""
+    require(type(width) is int and type(height) is int and 0 < width <= 16384 and 0 < height <= 16384,
+            "Invalid packed texture dimensions")
+    require(isinstance(rgba, bytes) and len(rgba) == width * height * 4,
+            "Packed texture requires exactly four bytes per pixel")
+    path = Path(path)
+    require(path.suffix.casefold() == ".png" and not path.is_symlink(), "Invalid packed PNG output")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xffffffff)
+    stride = width * 4
+    rows = b"".join(b"\0" + rgba[row * stride:(row + 1) * stride] for row in range(height - 1, -1, -1))
+    encoded = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
+    encoded += chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b"")
+    path.write_bytes(encoded)
+    return {"path": str(path), "width": width, "height": height, "sha256": file_hash(path)}
+
+
 def inputs_report(output, paths):
     return {str(path.relative_to(output)).replace("\\", "/"): file_hash(path) for path in paths}
 
@@ -88,6 +110,17 @@ def material(name, rgb):
     bsdf.inputs["Base Color"].default_value = (*rgb, 1.0)
     bsdf.inputs["Roughness"].default_value = 0.65
     return item
+
+
+def set_mesh_custom_normals(mesh, normals):
+    values = [tuple(normal) for normal in normals]
+    require(len(values) == len(mesh.vertices), "Custom normal count differs from mesh vertices")
+    require(all(len(normal) == 3 and all(isinstance(value, Real) and not isinstance(value, bool)
+                                       and math.isfinite(value) for value in normal) for normal in values),
+            "Custom normals require three finite numeric components")
+    for polygon in mesh.polygons:
+        polygon.use_smooth = True
+    mesh.normals_split_custom_set_from_vertices(values)
 
 
 def mesh_object(name, vertices, faces, materials, face_materials):

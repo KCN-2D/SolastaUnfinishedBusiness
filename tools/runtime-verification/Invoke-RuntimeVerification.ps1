@@ -13,6 +13,7 @@ param(
     [switch] $ShowGameWindow,
     [switch] $RunInBackground,
     [switch] $RequireOtherAppForeground,
+    [switch] $RequireNonInputDesktop,
     [switch] $RequireNativeActionProof,
     [ValidatePattern('^[a-fA-F0-9]{64}$')] [string] $ExpectedUbSha256,
     [ValidateRange(15, 1800)] [int] $TimeoutSeconds = 120,
@@ -25,10 +26,14 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'NativeDisplaySettings.ps1')
 . (Join-Path $PSScriptRoot 'EvidencePaths.ps1')
+if ($RequireOtherAppForeground -and $RequireNonInputDesktop) { throw 'Choose either strict other-app foreground or owned non-input desktop proof.' }
+$requirePrivateDesktop=[bool]($RequireOtherAppForeground -or $RequireNonInputDesktop)
+if ($RequireNonInputDesktop -and ($StartupOnly -or $ShowGameWindow)) { throw 'RequireNonInputDesktop requires the hidden probe harness.' }
+if ($RequireNonInputDesktop -and -not $RunInBackground) { throw 'RequireNonInputDesktop requires RunInBackground.' }
 if ($RunInBackground -and $StartupOnly) { throw 'RunInBackground requires the temporary probe harness and cannot be combined with StartupOnly.' }
 if ($RequireOtherAppForeground -and $StartupOnly) { throw 'RequireOtherAppForeground requires the temporary probe harness and cannot be combined with StartupOnly.' }
 if ($RequireOtherAppForeground -and $ShowGameWindow) { throw 'RequireOtherAppForeground cannot be combined with ShowGameWindow.' }
-if ($RequireNativeActionProof -and (-not $RequireOtherAppForeground -or $StartupOnly)) { throw 'Native action proof requires the background probe harness.' }
+if ($RequireNativeActionProof -and (-not $requirePrivateDesktop -or $StartupOnly)) { throw 'Native action proof requires the background probe harness.' }
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $probeId = 'UBRuntimeVerification'
 
@@ -45,6 +50,27 @@ function Test-IsWithin([string] $Path, [string] $Parent) {
 
 function Assert-File([string] $Path) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "Missing file: $Path" }
+}
+
+function Resolve-VerificationAssemblyReferences([string[]] $Paths) {
+    $byName = [Collections.Generic.Dictionary[string,object]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($value in $Paths) {
+        $path = Get-FullPath $value
+        Assert-File $path
+        $assemblyName = [Reflection.AssemblyName]::GetAssemblyName($path)
+        $identity = $assemblyName.FullName
+        $sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+        if ($byName.ContainsKey($assemblyName.Name)) {
+            $previous = $byName[$assemblyName.Name]
+            if ($identity -cne $previous.fullIdentity -or $sha256 -ne $previous.sha256) {
+                throw "Conflicting compiler reference assembly '$($assemblyName.Name)': '$($previous.path)' and '$path'."
+            }
+            continue
+        }
+        $reference = [pscustomobject]@{ path = $path; fullIdentity = $identity; sha256 = $sha256 }
+        $byName.Add($assemblyName.Name, $reference)
+        $reference
+    }
 }
 
 function Read-SharedText([string] $Path) {
@@ -289,7 +315,7 @@ $nativeDisplayBackup = $null
 $probeCreated = $false
 $process = $null
 $backgroundLease = $null
-$expectedDesktopName=$(if ($RequireOtherAppForeground) { 'UBGameTest_' + [guid]::NewGuid().ToString('N') } else { '' })
+$expectedDesktopName=$(if ($requirePrivateDesktop) { 'UBGameTest_' + [guid]::NewGuid().ToString('N') } else { '' })
 $processStartTime = $null
 $failure = $null
 $foregroundUnavailable = $false
@@ -304,9 +330,10 @@ $result = [ordered]@{
     dedicatedPlayerLog = [bool] $DedicatedPlayerLog
     showGameWindow = [bool] $ShowGameWindow; runInBackground = [bool] $RunInBackground
     requireOtherAppForeground = [bool] $RequireOtherAppForeground
+    requireNonInputDesktop = [bool] $RequireNonInputDesktop
     requireNativeActionProof = [bool] $RequireNativeActionProof
     batchModeRequested = $false
-    desktop = @{name=$expectedDesktopName;before=$null;after=$null;receipt=$null;history='Runtime-Desktop.jsonl';released=$false}
+    desktop = @{name=$expectedDesktopName;launchWindowStation=$null;proofMode=$(if($RequireNonInputDesktop){'owned-non-input-desktop'}elseif($RequireOtherAppForeground){'strict-other-app-foreground'}else{'not-required'});before=$null;after=$null;receipt=$null;history='Runtime-Desktop.jsonl';released=$false}
     foreground = @{ before = $null; after = $null; history = 'Runtime-Foreground.jsonl'; primaryThreadId = $null; released = $false }
     probes = $ProbeType; sources = @(); hashes = @{}; assemblyVersions = @{}; processId = $null
     settingsRestored = $false; displaySettingsRestored = $false; probeRemoved = $false; passed = 0; failed = 0; incomplete = 0
@@ -347,35 +374,59 @@ function Wait-OwnedProcessExit([string] $Kind, [int] $TimeoutMilliseconds) {
     }
 }
 
-function Save-ForegroundObservation([string] $Phase, [switch] $Force) {
-    try { $sample=Get-VerificationForeground }
-    catch { $script:foregroundUnavailable=$true; throw }
-    $now=[datetime]::UtcNow
-    $row=[ordered]@{utc=$sample.capturedUtc;observationSource='host-runner';phase=$Phase;
-        processId=$sample.processId;nativeThreadId=$sample.nativeThreadId;windowHandle=$sample.windowHandle}
-    if ($Force -or $sample.processId -ne $script:lastForegroundPid -or $now -ge $script:lastForegroundWriteUtc.AddSeconds(1)) {
-        $row['desktop']=Get-VerificationDesktop
-        [IO.File]::AppendAllText((Join-Path $runDirectory 'Runtime-Foreground.jsonl'), ($row | ConvertTo-Json -Depth 8 -Compress) + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
-        $script:lastForegroundWriteUtc=$now
-        if (-not $row.desktop.complete -or $row.desktop.runnerReceivesInput -ne $true -or
-            $row.desktop.runnerDesktop -ne $row.desktop.inputDesktop) {
-            $script:foregroundUnavailable=$true
-            throw 'The host input desktop could not be verified as active.'
+function Save-ForegroundObservation([string] $Phase, [switch] $Force, [switch] $ObserveOnly) {
+    for ($attempt = 0; $attempt -le 5; $attempt++) {
+        try { $sample=Get-VerificationForeground }
+        catch {
+            if (-not $ObserveOnly) { $script:foregroundUnavailable=$true; throw }
+            $sample=[pscustomobject]@{capturedUtc=[datetime]::UtcNow.ToString('O');processId=$null;nativeThreadId=$null;windowHandle=$null;queryError=$_.Exception.Message}
         }
+        $now=[datetime]::UtcNow
+        $row=[ordered]@{utc=$sample.capturedUtc;observationSource='host-runner';phase=$Phase;
+            processId=$sample.processId;nativeThreadId=$sample.nativeThreadId;windowHandle=$sample.windowHandle;foregroundAttempt=$attempt;observationOnly=[bool]$ObserveOnly}
+        if ($Force -or $null -eq $sample.processId -or $sample.processId -eq 0 -or $sample.processId -ne $script:lastForegroundPid -or $now -ge $script:lastForegroundWriteUtc.AddSeconds(1)) {
+            try { $row['desktop']=Get-VerificationDesktop }
+            catch {
+                if (-not $ObserveOnly) { $script:foregroundUnavailable=$true; throw }
+                $row['desktop']=$null;$row['desktopError']=$_.Exception.Message
+            }
+            if ($ObserveOnly) {
+                $row['foregroundRequirement']='not-required'
+                $row['foregroundObservationKnown']=($null -ne $sample.processId -and $sample.processId -gt 0 -and $null -ne $row.desktop -and
+                    $row.desktop.complete -eq $true -and $row.desktop.runnerReceivesInput -eq $true -and $row.desktop.runnerDesktop -eq $row.desktop.inputDesktop)
+                if ('queryError' -in $sample.PSObject.Properties.Name) { $row['queryError']=$sample.queryError }
+            }
+            [IO.File]::AppendAllText((Join-Path $runDirectory 'Runtime-Foreground.jsonl'), ($row | ConvertTo-Json -Depth 8 -Compress) + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
+            $script:lastForegroundWriteUtc=$now
+            if (-not $ObserveOnly -and (-not $row.desktop.complete -or $row.desktop.runnerReceivesInput -ne $true -or
+                $row.desktop.runnerDesktop -ne $row.desktop.inputDesktop)) {
+                $script:foregroundUnavailable=$true
+                throw 'The host input desktop could not be verified as active.'
+            }
+        }
+        $script:lastForegroundPid=$sample.processId
+        if ($ObserveOnly -and $null -ne $process -and $sample.processId -eq $process.Id) {
+            $script:foregroundUnavailable=$true; throw 'The game became the foreground application; background verification stopped.'
+        }
+        if ($ObserveOnly) { return $row }
+        if ($sample.processId -eq 0) {
+            # Windows can report no foreground window briefly while switching apps.
+            # Every unknown sample retains the desktop checks and is written above.
+            if ($attempt -lt 5) { Start-Sleep -Milliseconds 50; continue }
+            $script:foregroundUnavailable=$true; throw 'The foreground application could not be identified; background verification stopped.'
+        }
+        if ($null -ne $process -and $sample.processId -eq $process.Id) { $script:foregroundUnavailable=$true; throw 'The game became the foreground application; background verification stopped.' }
+        return $row
     }
-    $script:lastForegroundPid=$sample.processId
-    if ($sample.processId -eq 0) { $script:foregroundUnavailable=$true; throw 'The foreground application could not be identified; background verification stopped.' }
-    if ($null -ne $process -and $sample.processId -eq $process.Id) { $script:foregroundUnavailable=$true; throw 'The game became the foreground application; background verification stopped.' }
-    return $row
 }
 
 try {
-    if ($RequireOtherAppForeground -and -not $ValidateOnly) {
+    if ($requirePrivateDesktop -and -not $ValidateOnly) {
         try {
             . (Join-Path $PSScriptRoot 'WindowsDesktop.ps1')
-            $result.desktop.before=Get-VerificationDesktop
             [void](Get-Command Start-VerificationBackgroundProcess -ErrorAction Stop)
-            $result.foreground.before=Save-ForegroundObservation 'before-launch' -Force
+            $result.foreground.before=Save-ForegroundObservation 'before-launch' -Force -ObserveOnly:$RequireNonInputDesktop
+            $result.desktop.before=$result.foreground.before.desktop
         } catch { $foregroundUnavailable = $true; throw }
     }
     Assert-File $GameExePath
@@ -462,8 +513,8 @@ try {
     $result.hashes['gameAssembly'] = (Get-FileHash (Join-Path $managedDirectory 'Assembly-CSharp.dll') -Algorithm SHA256).Hash
 
     if (-not $StartupOnly) {
-        Assert-File (Join-Path $repoRoot 'lib\Assembly-CSharp_public.dll')
-        $result.hashes['publicizedGameAssembly'] = (Get-FileHash (Join-Path $repoRoot 'lib\Assembly-CSharp_public.dll') -Algorithm SHA256).Hash
+        Assert-File (Join-Path $managedDirectory 'Assembly-CSharp.dll')
+        $result.hashes['probeGameAssembly'] = $result.hashes['gameAssembly']
         # Resolve an installed compiler instead of pinning a developer's SDK patch version.
         $sdks = @(& dotnet --list-sdks | ForEach-Object {
             if ($_ -match '^(\d+\.\d+\.\d+)[^ ]* \[(.+)\]$') {
@@ -491,6 +542,7 @@ try {
         internal const int TimeoutSeconds = $TimeoutSeconds;
         internal static readonly bool RunInBackground = $($RunInBackground.ToString().ToLowerInvariant());
         internal static readonly bool RequireOtherAppForeground = $($RequireOtherAppForeground.ToString().ToLowerInvariant());
+        internal static readonly bool RequireNonInputDesktop = $($RequireNonInputDesktop.ToString().ToLowerInvariant());
         internal const string ExpectedDesktopName = $($expectedDesktopName | ConvertTo-Json -Compress);
         internal const string ExpectedUbLocation = $($result.expectedUb.location | ConvertTo-Json -Compress);
         internal const string ExpectedUbSha256 = $($ExpectedUbSha256 | ConvertTo-Json -Compress);
@@ -503,13 +555,13 @@ try {
         $frameworkDirectory = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319'
         $references = @('mscorlib.dll', 'System.dll', 'System.Core.dll', 'System.Xml.dll', 'System.Runtime.Serialization.dll' |
             ForEach-Object { Join-Path $frameworkDirectory $_ })
-        $references += Join-Path $repoRoot 'lib\Assembly-CSharp_public.dll'
+        $references += Join-Path $managedDirectory 'Assembly-CSharp.dll'
         $references += Join-Path $outputDirectory 'SolastaUnfinishedBusiness.dll'
         $references += Join-Path $managedDirectory 'UnityModManager\UnityModManager.dll'
         $references += @(Get-ChildItem -LiteralPath $managedDirectory -Filter 'Unity*.dll' | Select-Object -ExpandProperty FullName)
         $references += @($ReferencePath | ForEach-Object { (Resolve-Path -LiteralPath $_).Path })
-        $references = @($references | Sort-Object -Unique)
-        foreach ($reference in $references) { Assert-File $reference }
+        $result['compilationReferences'] = @(Resolve-VerificationAssemblyReferences $references)
+        $references = @($result.compilationReferences | ForEach-Object { $_.path })
         $probeDll = Join-Path $workDirectory "$probeId.dll"
         $arguments = @('/nologo', '/target:library', '/nostdlib', '/langversion:latest', "/out:$probeDll")
         $arguments += @($references | ForEach-Object { "/reference:$_" })
@@ -623,13 +675,14 @@ try {
         $previousNativeOwner = [Environment]::GetEnvironmentVariable('UB_RUNTIME_VERIFICATION_OWNER', 'Process')
         try {
             if (-not $StartupOnly) { [Environment]::SetEnvironmentVariable('UB_RUNTIME_VERIFICATION_OWNER', $nativeUserDataOwner, 'Process') }
-            if ($RequireOtherAppForeground) {
+            if ($requirePrivateDesktop) {
                 try {
                     $backgroundArguments=@()
                     if ($DedicatedPlayerLog) { $backgroundArguments+=@('-logFile',$PlayerLogPath) }
                     $backgroundLease=Start-VerificationBackgroundProcess -FilePath $GameExePath -WorkingDirectory $gameDirectory -ArgumentList $backgroundArguments -DesktopName $expectedDesktopName
                     $process=$backgroundLease.Process
                     $result.foreground.primaryThreadId=$backgroundLease.PrimaryThreadId
+                    $result.desktop.launchWindowStation=$backgroundLease.WindowStationName
                 } catch { $foregroundUnavailable=$true; throw }
             } else { $process = Start-Process @launchParameters }
         }
@@ -637,7 +690,7 @@ try {
         $processStartTime = $process.StartTime
         $result.processId = $process.Id
         $result['processStartedUtc']=$processStartTime.ToUniversalTime().ToString('O')
-        if ($RequireOtherAppForeground) { [void](Save-ForegroundObservation 'launched' -Force) }
+        if ($requirePrivateDesktop) { [void](Save-ForegroundObservation 'launched' -Force -ObserveOnly:$RequireNonInputDesktop) }
         $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
         $harnessResultPath = Join-Path $runDirectory 'HarnessResult.json'
         $startupStableSince = $null
@@ -653,7 +706,7 @@ try {
                 $result['earlyExitObservation']=$exitObservation
                 throw "Game exited before verification completed (exit code $($exitObservation.exitCode))."
             }
-            if ($RequireOtherAppForeground) { [void](Save-ForegroundObservation 'running') }
+            if ($requirePrivateDesktop) { [void](Save-ForegroundObservation 'running' -ObserveOnly:$RequireNonInputDesktop) }
             if ($StartupOnly) {
                 $currentLog = Get-CurrentRunLog
                 if (@(Get-RuntimeErrors $currentLog).Count -gt 0) {
@@ -675,7 +728,7 @@ try {
                 # Keep the game alive briefly to catch deferred UI callbacks and late errors.
                 for ($settleIndex=0; $settleIndex -lt 4; $settleIndex++) {
                     Start-Sleep -Milliseconds 500
-                    if ($RequireOtherAppForeground) { [void](Save-ForegroundObservation 'settling') }
+                    if ($requirePrivateDesktop) { [void](Save-ForegroundObservation 'settling' -ObserveOnly:$RequireNonInputDesktop) }
                 }
                 # Unity may update the result after a deferred error. Retry a locked
                 # or partially written result within the existing overall deadline.
@@ -713,8 +766,8 @@ finally {
     $gameStopped = $true
     if ($null -ne $process) {
         $result['processCleanup']=[ordered]@{expectedProcessId=$result.processId;expectedStartTimeUtc=$(if($null -ne $processStartTime){$processStartTime.ToUniversalTime().ToString('O')}else{$null});expectedPath=$GameExePath;observations=@();waits=@();observationErrors=@();alreadyExited=$false;closeMainWindowRequested=$false;closeMainWindowResult=$null;forcedTerminationRequested=$false;completed=$false;error=$null}
-        if ($RequireOtherAppForeground) {
-            try { [void](Save-ForegroundObservation 'before-exit' -Force) }
+        if ($requirePrivateDesktop) {
+            try { [void](Save-ForegroundObservation 'before-exit' -Force -ObserveOnly:$RequireNonInputDesktop) }
             catch {
                 if ($result.status -ne 'failed') { $result.status='incomplete' }
                 if (-not $result.reason.Contains($_.Exception.Message)) { $result.reason+=' ' + $_.Exception.Message }
@@ -772,11 +825,12 @@ finally {
             $result.reason += " Runtime evidence capture failed: $($_.Exception.Message)"
         }
     }
-    if ($RequireOtherAppForeground -and $null -ne $process -and $gameStopped) {
+    if ($requirePrivateDesktop -and $null -ne $process -and $gameStopped) {
         try {
-            $result.foreground.after=Save-ForegroundObservation 'after-exit' -Force
-            $result.desktop.after=Get-VerificationDesktop
-            if ($result.desktop.before.inputDesktop -ne $result.desktop.after.inputDesktop -or $result.desktop.before.runnerDesktop -ne $result.desktop.after.runnerDesktop) { throw 'The parent input or runner desktop changed during verification.' }
+            $result.foreground.after=Save-ForegroundObservation 'after-exit' -Force -ObserveOnly:$RequireNonInputDesktop
+            $result.desktop.after=$result.foreground.after.desktop
+            if ($RequireOtherAppForeground -and ($result.desktop.before.inputDesktop -ne $result.desktop.after.inputDesktop -or
+                $result.desktop.before.runnerDesktop -ne $result.desktop.after.runnerDesktop)) { throw 'The parent input or runner desktop changed during verification.' }
             $receiptPath=Join-Path $runDirectory 'Runtime-Desktop.json'
             if (-not (Test-Path -LiteralPath $receiptPath -PathType Leaf)) { throw 'The game did not provide a main-thread desktop receipt.' }
             $receipt=Read-SharedText $receiptPath | ConvertFrom-Json
@@ -785,35 +839,41 @@ finally {
             else { $receiptUtc=[datetime]::Parse($receipt.capturedUtc,[Globalization.CultureInfo]::InvariantCulture,[Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime() }
             $desktopChecks=[ordered]@{
                 observationSource=($receipt.observationSource -eq 'game-main-thread')
-                acquisitionComplete=($receipt.complete -is [bool] -and $receipt.complete)
                 processId=($receipt.processId -eq $result.processId)
                 mainThread=($receipt.nativeThreadId -eq $result.foreground.primaryThreadId)
                 expectedDesktop=($receipt.expectedDesktop -eq $expectedDesktopName)
                 actualDesktop=($receipt.runnerDesktop -eq $expectedDesktopName)
-                windowStation=($receipt.windowStation -eq $result.desktop.before.windowStation)
-                inputDesktopKnown=($receipt.inputDesktopQuerySucceeded -is [bool] -and $receipt.inputDesktopQuerySucceeded -and
-                    $receipt.inputDesktop -eq $result.desktop.before.inputDesktop)
+                windowStation=($receipt.windowStation -eq $result.desktop.launchWindowStation)
                 inputQuerySucceeded=($receipt.runnerInputQuery.succeeded -is [bool] -and $receipt.runnerInputQuery.succeeded -and
                     $receipt.runnerInputQuery.errorCode -eq 0 -and $receipt.runnerInputQuery.bytesNeeded -eq 4)
                 inputQueryValue=($receipt.runnerInputQuery.rawValue -eq 0 -and $receipt.runnerInputQuery.value -is [bool] -and
                     -not $receipt.runnerInputQuery.value)
                 inactiveInput=($receipt.runnerReceivesInput -is [bool] -and -not $receipt.runnerReceivesInput)
-                isolated=($receipt.isolated -is [bool] -and $receipt.isolated)
                 capturedAfterLaunch=($receiptUtc -ge $processStartTime.ToUniversalTime())
                 capturedBeforeCheck=($receiptUtc -le [datetime]::UtcNow)
+            }
+            $desktopChecks['ownedNonInputProof']=Test-VerificationNonInputDesktopEvidence -Snapshot $receipt -ExpectedDesktop $expectedDesktopName -ExpectedProcessId $result.processId -ExpectedMainThreadId $result.foreground.primaryThreadId -ExpectedWindowStation $result.desktop.launchWindowStation
+            if ($RequireOtherAppForeground) {
+                $desktopChecks['acquisitionComplete']=($receipt.complete -is [bool] -and $receipt.complete)
+                $desktopChecks['inputDesktopKnown']=($receipt.inputDesktopQuerySucceeded -is [bool] -and $receipt.inputDesktopQuerySucceeded -and $receipt.inputDesktop -eq $result.desktop.before.inputDesktop)
+                $desktopChecks['isolated']=($receipt.isolated -is [bool] -and $receipt.isolated)
             }
             $result.desktop['checks']=$desktopChecks
             $mismatches=@($desktopChecks.Keys | Where-Object { -not $desktopChecks[$_] })
             if ($mismatches.Count) { throw ('The main-thread desktop receipt does not match the launch: ' + ($mismatches -join ', ')) }
             $desktopSamples=@(Get-Content -LiteralPath (Join-Path $runDirectory 'Runtime-Desktop.jsonl') | ForEach-Object { $_ | ConvertFrom-Json })
             $unverifiedSamples=@($desktopSamples | Where-Object {
-                $_.observationSource -ne 'game-main-thread' -or $_.processId -ne $result.processId -or
-                $_.nativeThreadId -ne $result.foreground.primaryThreadId -or $_.complete -ne $true -or
-                $_.runnerInputQuery.succeeded -ne $true -or $_.runnerInputQuery.bytesNeeded -ne 4 -or
-                $_.runnerInputQuery.rawValue -ne 0 -or $_.runnerReceivesInput -ne $false -or
-                $_.runnerDesktop -ne $expectedDesktopName -or $_.inputDesktopQuerySucceeded -ne $true -or
-                $_.inputDesktop -ne $result.desktop.before.inputDesktop -or $_.isolated -ne $true
+                $owned=Test-VerificationNonInputDesktopEvidence -Snapshot $_ -ExpectedDesktop $expectedDesktopName -ExpectedProcessId $result.processId -ExpectedMainThreadId $result.foreground.primaryThreadId -ExpectedWindowStation $result.desktop.launchWindowStation
+                $_.observationSource -ne 'game-main-thread' -or -not $owned -or
+                    ($RequireOtherAppForeground -and ($_.complete -ne $true -or $_.isolated -ne $true -or
+                        $_.inputDesktopQuerySucceeded -ne $true -or $_.inputDesktop -ne $result.desktop.before.inputDesktop))
             })
+            $result.desktop['remoteInputIdentityUnavailableSamples']=@($desktopSamples | Where-Object { $_.inputDesktopQuerySucceeded -ne $true }).Count
+            $result.foreground['requirement']=$(if($RequireOtherAppForeground){'other-app-foreground'}else{'observation-only'})
+            if ($RequireNonInputDesktop) {
+                $hostSamples=@(Get-Content -LiteralPath (Join-Path $runDirectory 'Runtime-Foreground.jsonl') | ForEach-Object { $_ | ConvertFrom-Json })
+                $result.foreground['unknownObservationSamples']=@($hostSamples | Where-Object { $_.foregroundObservationKnown -ne $true }).Count
+            }
             $result.desktop['samples']=$desktopSamples.Count
             $result.desktop['unverifiedSamples']=$unverifiedSamples.Count
             if ($desktopSamples.Count -eq 0 -or $unverifiedSamples.Count -gt 0) { throw 'The game desktop history contains missing or unsuccessful acquisition.' }
@@ -840,7 +900,7 @@ finally {
                 $loaded[0].sha256 -ne $ExpectedUbSha256 -or
                 $loaded[0].moduleVersionId -ne $result.expectedUb.moduleVersionId -or
                 [string]::IsNullOrWhiteSpace($loaded[0].fullName)) { throw 'The loaded UB assembly receipt does not match the expected build.' }
-            if ($RequireOtherAppForeground -and $assemblyReceipt.nativeThreadId -ne $result.foreground.primaryThreadId) { throw 'The loaded UB assembly receipt is not from the game main thread.' }
+            if ($requirePrivateDesktop -and $assemblyReceipt.nativeThreadId -ne $result.foreground.primaryThreadId) { throw 'The loaded UB assembly receipt is not from the game main thread.' }
         } catch {
             if ($result.status -ne 'failed') { $result.status='incomplete' }
             $result.reason+=' Loaded assembly observation failed: ' + $_.Exception.Message

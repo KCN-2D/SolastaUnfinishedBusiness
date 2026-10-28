@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.IO;
 using System.Linq;
@@ -29,8 +29,30 @@ public static class PresentationCaptureProbe
             camera.backgroundColor = Color.black;
             camera.orthographic = true;
             camera.orthographicSize = 1;
+            camera.aspect = 1f;
             camera.cullingMask = 1 << 30;
             camera.transform.localPosition = new Vector3(0, 0, -4);
+            camera.nearClipPlane = .02f;
+            camera.farClipPlane = 12f;
+            camera.transform.localPosition = new Vector3(0, 0, -60);
+            var originalRotation = camera.transform.rotation;
+            PresentationCapture.FrameSubjects(camera, new[] { renderer });
+            Check(log, AllCornersVisible(camera, renderer.bounds) && camera.nearClipPlane == .02f &&
+                camera.farClipPlane == 12f && camera.transform.rotation == originalRotation,
+                "surface framing recovers out-of-depth camera within unchanged clip planes");
+            var framedPosition = camera.transform.position;
+            var framedSize = camera.orthographicSize;
+            var effectObject = new GameObject("Owned non-surface framing boundary");
+            effectObject.layer = 30;
+            effectObject.transform.SetParent(owner.transform, false);
+            effectObject.transform.localPosition = Vector3.forward * -100;
+            var effect = effectObject.AddComponent<ParticleSystem>();
+            effect.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            PresentationCapture.FrameSubjects(camera, new[] { renderer, effect.GetComponent<ParticleSystemRenderer>() });
+            Check(log, camera.transform.position == framedPosition && camera.orthographicSize == framedSize &&
+                AllCornersVisible(camera, renderer.bounds), "non-surface renderers cannot change surface framing");
+            effectObject.SetActive(false);
+            UnityEngine.Object.Destroy(effectObject);
             PresentationCapture.Receipt receipt = null;
             yield return PresentationCapture.Capture(camera, new[] { renderer }, "capture-contract", 128, 128,
                 result => receipt = result);
@@ -40,6 +62,44 @@ public static class PresentationCaptureProbe
                 !camera.enabled && camera.targetTexture == null, "settled render, native receipt and camera restoration");
             Check(log, File.Exists(Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory,
                 "capture-contract.capture.json")), "camera receipt is stored beside the original PNG");
+
+            var callbackOrder = new System.Collections.Generic.List<string>();
+            var beforeCalls = 0;
+            var capturedCalls = 0;
+            var renderToken = false;
+            var naturalRenders = 0;
+            var finalRenders = 0;
+            var renderHook = cameraObject.AddComponent<PresentationCaptureContractRenderHook>();
+            renderHook.BeforeCull = () => {
+                if (renderToken) { callbackOrder.Add("render"); finalRenders++; renderToken = false; }
+                else naturalRenders++;
+            };
+            yield return PresentationCapture.Capture(camera, new[] { renderer }, "capture-callback-order", 128, 128,
+                result => receipt = result, 2, 2,
+                () => { capturedCalls++; callbackOrder.Add("captured"); },
+                () => { beforeCalls++; callbackOrder.Add("before"); renderToken = true; });
+            Check(log, receipt != null && receipt.accepted && beforeCalls == 1 && capturedCalls == 1 &&
+                finalRenders == 1 && naturalRenders >= 2 && !renderToken &&
+                callbackOrder.SequenceEqual(new[] { "before", "render", "captured" }),
+                "render callbacks run once in order around the final manual draw after natural warmup");
+            var previousActive = RenderTexture.active;
+            beforeCalls = 0; capturedCalls = 0; finalRenders = 0;
+            yield return ExpectRejected(PresentationCapture.Capture(camera, new[] { renderer },
+                "capture-before-callback-failure", 128, 128, result => receipt = result, 2, 2,
+                () => capturedCalls++, () => { beforeCalls++; throw new InvalidOperationException("Owned before-render failure"); }),
+                log, "before-render callback failure remains a rejected capture");
+            Check(log, beforeCalls == 1 && capturedCalls == 0 && finalRenders == 0 && !receipt.accepted &&
+                !camera.enabled && camera.targetTexture == null && RenderTexture.active == previousActive,
+                "before-render failure restores camera and render target without a final draw");
+            yield return ExpectRejected(PresentationCapture.Capture(camera, new[] { renderer },
+                "capture-after-callback-failure", 128, 128, result => receipt = result, 2, 0,
+                () => { throw new InvalidOperationException("Owned after-render failure"); },
+                () => { beforeCalls++; renderToken = true; }),
+                log, "after-render callback failure remains a rejected capture");
+            Check(log, finalRenders == 1 && !renderToken && !receipt.accepted &&
+                !camera.enabled && camera.targetTexture == null && RenderTexture.active == previousActive,
+                "after-render failure restores camera and render target after its actual final draw");
+            renderHook.BeforeCull = null;
 
             var rejected = false;
             try { PresentationCapture.Capture(camera, new[] { renderer }, "../invalid", 128, 128).MoveNext(); }
@@ -134,6 +194,19 @@ public static class PresentationCaptureProbe
         public void Dispose() { UnityEngine.Object.Destroy(Value); }
     }
 
+    private static bool AllCornersVisible(Camera camera, Bounds bounds)
+    {
+        for (var x = -1; x <= 1; x += 2)
+        for (var y = -1; y <= 1; y += 2)
+        for (var z = -1; z <= 1; z += 2)
+        {
+            var point = camera.WorldToViewportPoint(bounds.center + Vector3.Scale(bounds.extents, new Vector3(x, y, z)));
+            if (point.x < 0 || point.x > 1 || point.y < 0 || point.y > 1 ||
+                point.z <= camera.nearClipPlane || point.z >= camera.farClipPlane) return false;
+        }
+        return true;
+    }
+
     private static IEnumerator ExpectRejected(IEnumerator routine, Action<string> log, string label)
     {
         var rejected = false;
@@ -158,4 +231,10 @@ public static class PresentationCaptureProbe
         log((actual ? "PASS: " : "FAIL: ") + label);
         if (!actual) throw new InvalidOperationException(label);
     }
+}
+
+public sealed class PresentationCaptureContractRenderHook : MonoBehaviour
+{
+    public Action BeforeCull;
+    void OnPreCull() { BeforeCull?.Invoke(); }
 }

@@ -14,6 +14,7 @@ $result=[ordered]@{
     nativeActionProof=[ordered]@{status='NOT_RUN';reason='Native action proof contracts have not run.'}
     caseValidation=[ordered]@{status='NOT_RUN';reason='Saved-game case validation contracts have not run.'}
     compilationBoundary=[ordered]@{status='NOT_RUN';reason='Compilation preflight contracts have not run.'}
+    assemblyReferences=[ordered]@{status='NOT_RUN';reason='Assembly reference contracts have not run.'}
     desktopFocusBoundary=[ordered]@{status='NOT_RUN';reason='Desktop focus safety contracts have not run.'}
     storageCleanup=[ordered]@{status='NOT_RUN';reason='Artifact cleanup safety contracts have not run.'}
     packageManifest=[ordered]@{status='NOT_RUN';reason='Package manifest contracts have not run.'}
@@ -26,6 +27,121 @@ $result=[ordered]@{
     sourceTracking=[ordered]@{status='NOT_RUN';reason='Development source tracking contracts have not run.'}
     persistentSync=[ordered]@{status='NOT_RUN';reason='Persistent sync contracts have not run.'}
     presentationWriter=[ordered]@{status='NOT_RUN';reason='Presentation writer contracts have not run.'}
+    foregroundObservation=[ordered]@{status='NOT_RUN';reason='Foreground observation contracts have not run.'}
+}
+
+function Invoke-AssemblyReferenceContracts($RuntimeAst,[string]$Directory) {
+    [void][IO.Directory]::CreateDirectory($Directory)
+    foreach ($name in @('Get-FullPath','Assert-File','Resolve-VerificationAssemblyReferences')) {
+        Invoke-Expression (Read-ContractFunction $RuntimeAst $name)
+    }
+    $compiler=Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
+    if (-not (Test-Path -LiteralPath $compiler -PathType Leaf)) { throw 'The installed .NET Framework compiler is required.' }
+    $fixturePaths=@{}
+    foreach ($fixture in @(
+        @{id='default';name='ReferenceContract';version='1.0.0.0';value='original'},
+        @{id='changed';name='ReferenceContract';version='1.0.0.0';value='changed'},
+        @{id='version';name='ReferenceContract';version='2.0.0.0';value='original'},
+        @{id='other';name='OtherReferenceContract';version='1.0.0.0';value='original'}
+    )) {
+        $folder=Join-Path $Directory $fixture.id
+        [void][IO.Directory]::CreateDirectory($folder)
+        $sourceFile=Join-Path $folder 'Reference.cs';$output=Join-Path $folder ($fixture.name+'.dll')
+        $code='[assembly:System.Reflection.AssemblyVersion("'+$fixture.version+'")] public class ReferenceContract { public const string Data="'+$fixture.value+'"; }'
+        [IO.File]::WriteAllText($sourceFile,$code,[Text.UTF8Encoding]::new($false))
+        & $compiler /nologo /target:library ("/out:$output") $sourceFile *> (Join-Path $folder 'Compile.log')
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $output -PathType Leaf)) { throw 'Owned reference fixture compilation failed.' }
+        $fixturePaths[$fixture.id]=$output
+    }
+    $copy=Join-Path $Directory 'SameBytes.dll'
+    [IO.File]::Copy($fixturePaths.default,$copy)
+    $rows=[Collections.Generic.List[object]]::new()
+    function Add-ReferenceCheck([string]$Name,[bool]$Pass) {
+        $rows.Add([ordered]@{name=$Name;status=$(if($Pass){'PASS'}else{'FAIL'})})
+    }
+    function Test-ReferenceConflict([string[]]$Paths) {
+        try { $null=@(Resolve-VerificationAssemblyReferences $Paths) }
+        catch { return $_.Exception.Message -like 'Conflicting compiler reference assembly*' }
+        return $false
+    }
+    $native=@(Resolve-VerificationAssemblyReferences @($fixturePaths.default))
+    Add-ReferenceCheck 'effective metadata and bytes are recorded' ($native.Count -eq 1 -and $native[0].path -ceq [IO.Path]::GetFullPath($fixturePaths.default) -and $native[0].fullIdentity -ceq [Reflection.AssemblyName]::GetAssemblyName($fixturePaths.default).FullName -and $native[0].sha256 -ceq (Get-FileHash -LiteralPath $fixturePaths.default -Algorithm SHA256).Hash)
+    $same=@(Resolve-VerificationAssemblyReferences @($fixturePaths.default,$fixturePaths.default))
+    Add-ReferenceCheck 'same path is represented once' ($same.Count -eq 1)
+    $same=@(Resolve-VerificationAssemblyReferences @($fixturePaths.default,$copy))
+    Add-ReferenceCheck 'identical bytes retain the default first path' ($same.Count -eq 1 -and $same[0].path -ceq [IO.Path]::GetFullPath($fixturePaths.default))
+    $same=@(Resolve-VerificationAssemblyReferences @($copy,$fixturePaths.default))
+    Add-ReferenceCheck 'identical bytes preserve supplied order' ($same.Count -eq 1 -and $same[0].path -ceq [IO.Path]::GetFullPath($copy))
+    Add-ReferenceCheck 'same identity with different bytes rejects' (Test-ReferenceConflict @($fixturePaths.default,$fixturePaths.changed))
+    Add-ReferenceCheck 'conflicting bytes reject in either order' (Test-ReferenceConflict @($fixturePaths.changed,$fixturePaths.default))
+    Add-ReferenceCheck 'same simple name with a different version rejects' (Test-ReferenceConflict @($fixturePaths.default,$fixturePaths.version))
+    $different=@(Resolve-VerificationAssemblyReferences @($fixturePaths.other,$fixturePaths.default))
+    Add-ReferenceCheck 'distinct assembly names retain their order' ($different.Count -eq 2 -and $different[0].path -ceq [IO.Path]::GetFullPath($fixturePaths.other) -and $different[1].path -ceq [IO.Path]::GetFullPath($fixturePaths.default))
+    $rejected=$false
+    try { $null=@(Resolve-VerificationAssemblyReferences @((Join-Path $Directory 'Missing.dll'))) }
+    catch { $rejected=$_.Exception.Message -like 'Missing file:*' }
+    Add-ReferenceCheck 'missing metadata is rejected before compilation' $rejected
+    [ordered]@{status=$(if(@($rows|Where-Object status -ne 'PASS').Count){'FAIL'}else{'PASS'});scope='Actual runtime reference normalization AST with owned compiled assemblies. Metadata inspection and hash equality only; no game or assembly code execution.';cases=$rows.ToArray()}
+}
+
+function Invoke-ForegroundObservationContract($RuntimeAst,[string]$Directory) {
+    $definition=Read-ContractFunction $RuntimeAst 'Save-ForegroundObservation'
+    $cases=@(
+        @{name='identified';samples=@(7);success=$true;reads=1;waits=0;desktop=$true},
+        @{name='transient-unknown';samples=@(0,7);success=$true;reads=2;waits=1;desktop=$true},
+        @{name='last-bounded-retry';samples=@(0,0,0,0,0,7);success=$true;reads=6;waits=5;desktop=$true},
+        @{name='persistent-unknown';samples=@(0,0,0,0,0,0);success=$false;reads=6;waits=5;desktop=$true},
+        @{name='game-is-foreground';samples=@(99);success=$false;reads=1;waits=0;desktop=$true},
+        @{name='unknown-then-game';samples=@(0,99);success=$false;reads=2;waits=1;desktop=$true},
+        @{name='unknown-with-unverified-desktop';samples=@(0);success=$false;reads=1;waits=0;desktop=$false},
+        @{name='foreground-query-failed';samples=@(-1);success=$false;reads=1;waits=0;desktop=$true},
+        @{name='observation-only-unknown';samples=@(0);success=$true;reads=1;waits=0;desktop=$false;observeOnly=$true;known=$false},
+        @{name='observation-only-known';samples=@(7);success=$true;reads=1;waits=0;desktop=$true;observeOnly=$true;known=$true},
+        @{name='observation-only-game';samples=@(99);success=$false;reads=1;waits=0;desktop=$true;observeOnly=$true;known=$true},
+        @{name='observation-only-query-failed';samples=@(-1);success=$true;reads=1;waits=0;desktop=$false;observeOnly=$true;known=$false},
+        @{name='observation-only-desktop-failed';samples=@(0);success=$true;reads=1;waits=0;desktop=$false;observeOnly=$true;known=$false;desktopThrows=$true}
+    )
+    $rows=@(foreach($case in $cases) {
+        & {
+            param($case,$definition,$Directory)
+            $observeOnly=$case.ContainsKey('observeOnly') -and $case.observeOnly
+            $runDirectory=Join-Path $Directory $case.name
+            [void][IO.Directory]::CreateDirectory($runDirectory)
+            $process=[pscustomobject]@{Id=99}
+            $script:foregroundUnavailable=$false;$script:lastForegroundPid=-2;$script:lastForegroundWriteUtc=[datetime]::MinValue
+            $state=[pscustomobject]@{index=0;waits=[Collections.Generic.List[int]]::new()}
+            function Get-VerificationForeground {
+                if($state.index -ge $case.samples.Count){throw 'Unexpected extra foreground lookup.'}
+                $value=$case.samples[$state.index];$state.index++
+                if($value -eq -1){throw 'Injected lookup failure.'}
+                [pscustomobject]@{capturedUtc=[datetime]::UtcNow.ToString('O');processId=$value;nativeThreadId=1;windowHandle=$value}
+            }
+            function Get-VerificationDesktop {
+                if($case.ContainsKey('desktopThrows') -and $case.desktopThrows){throw 'Injected desktop lookup failure.'}
+                [pscustomobject]@{complete=$case.desktop;runnerReceivesInput=$case.desktop;runnerDesktop='Input';inputDesktop=$(if($case.desktop){'Input'}else{$null})}
+            }
+            function Start-Sleep { param([int]$Milliseconds) $state.waits.Add($Milliseconds) }
+            Invoke-Expression $definition
+            $failure=$null;$value=$null
+            try{$value=Save-ForegroundObservation 'contract' -Force -ObserveOnly:$observeOnly}catch{$failure=$_.Exception.Message}
+            $file=Join-Path $runDirectory 'Runtime-Foreground.jsonl'
+            $observed=@(if(Test-Path -LiteralPath $file){Get-Content -LiteralPath $file|ForEach-Object{$_|ConvertFrom-Json}})
+            $expectedRecorded=@($case.samples|Where-Object{$observeOnly -or $_ -ne -1})
+            $exact=$observed.Count -eq $expectedRecorded.Count
+            for($i=0;$exact -and $i -lt $observed.Count;$i++){
+                $expectedPid=if($expectedRecorded[$i] -eq -1){$null}else{$expectedRecorded[$i]}
+                $exact=$observed[$i].processId -eq $expectedPid -and $observed[$i].foregroundAttempt -eq $i
+                if($observeOnly){$exact=$exact -and $observed[$i].observationOnly -eq $true -and
+                    $observed[$i].foregroundRequirement -ceq 'not-required' -and $observed[$i].foregroundObservationKnown -eq $case.known}
+                if($observeOnly -and $expectedRecorded[$i] -eq -1){$exact=$exact -and $observed[$i].queryError -ceq 'Injected lookup failure.'}
+            }
+            $passed=($null -eq $failure) -eq $case.success -and $state.index -eq $case.reads -and $state.waits.Count -eq $case.waits -and @($state.waits|Where-Object{$_ -ne 50}).Count -eq 0 -and $exact
+            if($case.success){$passed=$passed -and -not $script:foregroundUnavailable;if(-not $observeOnly){$passed=$passed -and $value.processId -eq 7}}
+            else{$passed=$passed -and $script:foregroundUnavailable}
+            [ordered]@{name=$case.name;status=$(if($passed){'PASS'}else{'FAIL'});reads=$state.index;waitMilliseconds=@($state.waits);rawSamplesPreserved=$exact;failure=$failure}
+        } $case $definition $Directory
+    })
+    [ordered]@{status=$(if(@($rows|Where-Object status -ne 'PASS').Count){'FAIL'}else{'PASS'});scope='Actual foreground observation AST: existing strict bounded checks and explicit observation-only raw unknown/error preservation. No OS focus operations.';cases=$rows}
 }
 
 function Read-ContractSource([string]$Path) {
@@ -353,7 +469,11 @@ function Invoke-PresentationWriterContracts([string]$Source,[string]$Review,[str
     $compiledSource=Join-Path $Directory 'PresentationWriter.cs'
     [IO.File]::WriteAllText($compiledSource,$excerpt,[Text.UTF8Encoding]::new($false))
     $assembly=Join-Path $Directory 'PresentationWriter.dll'
-    Add-Type -TypeDefinition $excerpt -ReferencedAssemblies @('System.dll','System.Core.dll','System.Xml.dll','System.Runtime.Serialization.dll') -OutputAssembly $assembly -PassThru | Out-Null
+    $references=@('System.dll','System.Core.dll','System.Xml.dll','System.Runtime.Serialization.dll')
+    if ($PSVersionTable.PSEdition -eq 'Core') {
+        $references=@([IO.Directory]::EnumerateFiles((Join-Path $PSHOME 'ref'),'*.dll'))
+    }
+    Add-Type -TypeDefinition $excerpt -ReferencedAssemblies $references -OutputAssembly $assembly -PassThru | Out-Null
     $cases=[Collections.Generic.List[object]]::new()
     function Check-Writer([string]$Name,[bool]$Passed){$cases.Add([ordered]@{name=$Name;status=$(if($Passed){'PASS'}else{'FAIL'})})}
     [RuntimeVerificationConfiguration]::EvidenceDirectory=$Directory
@@ -715,6 +835,154 @@ $before | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $report -Encoding 
     return [ordered]@{status='PASS';scope='Actual source identity AST with synthetic Git output, real source hashes, source mutation and both PowerShell editions.';cases=$digests}
 }
 
+function Invoke-StorageJournalContracts([hashtable]$Sources,[string]$OutputDirectory) {
+    $savedJournalScope=@{}
+    foreach($name in @('GameTestRepo','GameTestBuildRoot','GameTestArtifactRoot','GtValidatedDirectories')) {
+        $savedJournalScope[$name]=Get-Variable -Name $name -Scope Script -ValueOnly
+    }
+    try {
+    $source=$Sources['tools/game-test/Clear-GameTestArtifacts.ps1']
+$sourceHash=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
+$cases=[Collections.Generic.List[object]]::new()
+foreach($mode in @('success','delete-failure')){
+    $workspace=Join-Path $OutputDirectory $mode;$tool=Join-Path $workspace 'tools/game-test'
+    foreach($relative in @('tools/game-test','tools/runtime-verification','tools/game-test/artifacts','tools/game-test/Cases','tools/game-test/Scenarios')){[void][IO.Directory]::CreateDirectory((Join-Path $workspace $relative))}
+    foreach($relative in @('tools/game-test/GameTest.Common.ps1','tools/runtime-verification/WindowsDesktop.ps1','tools/runtime-verification/EvidencePaths.ps1')){Copy-Item -LiteralPath $Sources[$relative] -Destination (Join-Path $workspace $relative)}
+    Copy-Item -LiteralPath $source -Destination (Join-Path $tool 'Clear-GameTestArtifacts.ps1')
+    $common=Join-Path $tool 'GameTest.Common.ps1'
+    $text=[IO.File]::ReadAllText($common).Replace('Local\SolastaUBGameTest',('Local\SolastaUBJournalDurability_'+[guid]::NewGuid().ToString('N')))
+    $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseInput($text,[ref]$tokens,[ref]$errors)
+    if($errors.Count){throw 'Fixture common source did not parse.'}
+    $writer=@($ast.FindAll({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst]-and $n.Name -eq 'Write-GtJson'},$true))[0]
+    $text=$text.Insert($writer.Body.Extent.EndOffset-1,@'
+
+    if([IO.Path]::GetFileName($Path) -like 'Storage-Cleanup-*.json'){
+        [IO.File]::AppendAllText((Join-Path $PSScriptRoot 'SummaryWrites.txt'),[IO.FileInfo]::new($Path).Length.ToString()+[Environment]::NewLine)
+    }
+'@)
+    $text+=@'
+
+function Remove-Item {
+    [CmdletBinding()]param([string[]]$LiteralPath,[switch]$Recurse,[switch]$Force)
+    foreach($target in $LiteralPath){
+        if((Split-Path -Leaf $target) -ne 'owned'){throw 'The durability fixture intercepted an unexpected removal.'}
+        $events=@(Get-Content -LiteralPath $journalPath | ForEach-Object {$_|ConvertFrom-Json})
+        $plans=@($events|Where-Object {$_.event -eq 'action-planned' -and $_.action.path -eq $target})
+        $diagnostics=@($events|Where-Object {$_.event -eq 'retire-diagnostic' -and $_.record.path -eq $target})
+        if($plans.Count -ne 1 -or $diagnostics.Count -ne 1 -or $journalState.flushes -lt 2){throw 'Deletion preceded the flushed diagnostic or planned action.'}
+        $original=Join-Path $target 'Result.json'
+        if($diagnostics[0].record.identitySha256 -ne (Get-GtHash $original)){throw 'The journal did not preserve the original result hash.'}
+        [IO.File]::AppendAllText((Join-Path $PSScriptRoot 'BeforeDelete.jsonl'),([ordered]@{path=$target;resultHash=Get-GtHash $original;flushedEvents=$events.Count;flushes=$journalState.flushes;diagnostic=$diagnostics[0].record.result}|ConvertTo-Json -Compress -Depth 10)+[Environment]::NewLine)
+        if((Get-Content -LiteralPath (Join-Path $PSScriptRoot 'FixtureMode.txt') -Raw) -eq 'delete-failure'){throw 'Synthetic delete boundary failure.'}
+        Microsoft.PowerShell.Management\Remove-Item -LiteralPath $target -Recurse:$Recurse -Force:$Force
+    }
+}
+'@
+    [IO.File]::WriteAllText($common,$text,[Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText((Join-Path $tool 'FixtureMode.txt'),$mode)
+    [IO.File]::AppendAllText((Join-Path $workspace 'tools/runtime-verification/WindowsDesktop.ps1'),@'
+
+function Get-VerificationProcessState {param($Name) return [pscustomobject]@{querySucceeded=$true;matches=@()}}
+'@)
+    . $common
+    $root=Join-Path $tool 'artifacts';$owned=Join-Path $root 'owned';[void][IO.Directory]::CreateDirectory($owned)
+    $game=Join-Path $workspace 'DummyGame';[void][IO.Directory]::CreateDirectory((Join-Path $game 'Mods'))
+    Write-GtJson (Join-Path $owned 'Directory.json') @{schemaVersion=1;layout='Runtime';directory=$owned}
+    Write-GtJson (Join-Path $owned 'Result.json') @{status='failed';reason='synthetic original failure';runName='durability';evidenceDirectory=$owned;
+        startedUtc='2020-01-01T00:00:00Z';completedUtc='2020-01-02T00:00:00Z';settingsRestored=$true;displaySettingsRestored=$true;probeRemoved=$true;originalNativeFilesUnchanged=$true;
+        failed=1;diagnosticBulk=('x'*65536);processId=4318;processCleanup=@{completed=$true;expectedProcessId=4318;expectedStartTimeUtc='2020-01-01T00:00:00Z';expectedPath=(Join-Path $game 'Solasta.exe')}}
+    $originalHash=Get-GtHash (Join-Path $owned 'Result.json');$caught=$null
+    try { & (Join-Path $tool 'Clear-GameTestArtifacts.ps1') -ArtifactRoot $root -MaxAgeDays 1 -Apply | Out-Null } catch {$caught=$_.Exception.Message}
+    $report=@(Get-ChildItem -LiteralPath $root -Filter 'Storage-Cleanup-*.json' -File)
+    if($report.Count -ne 1){throw 'The final summary was missing or duplicated.'}
+    $summary=Get-Content -LiteralPath $report[0].FullName -Raw|ConvertFrom-Json
+    $events=@(Get-Content -LiteralPath (Join-Path $root $summary.journal.path)|ForEach-Object {$_|ConvertFrom-Json})
+    $applied=@($summary.actions|Where-Object {$_.kind -eq 'superseded-run' -and $_.applied})
+    $planned=@($events|Where-Object {$_.event -eq 'action-planned'})
+    $completed=@($events|Where-Object {$_.event -eq 'action-complete'})
+    $writes=@(Get-Content -LiteralPath (Join-Path $tool 'SummaryWrites.txt'))
+    $before=@(Get-Content -LiteralPath (Join-Path $tool 'BeforeDelete.jsonl')|ForEach-Object {$_|ConvertFrom-Json})
+    $checks=[ordered]@{
+        originalFailureDiagnosticPreserved=($summary.retiredRuns[0].result.status -eq 'failed' -and $summary.retiredRuns[0].result.reason -eq 'synthetic original failure' -and $summary.retiredRuns[0].identitySha256 -eq $originalHash)
+        omittedLargeDetailWithOriginalHash=(-not ($summary.retiredRuns[0].result.PSObject.Properties['diagnosticBulk']) -and $summary.retiredRuns[0].identitySha256 -eq $originalHash)
+        plannedAndDiagnosticVisibleBeforeDelete=($before.Count -eq 1 -and $before[0].flushes -ge 2 -and $before[0].resultHash -eq $originalHash)
+        summaryWrittenOnce=($writes.Count -eq 1 -and $summary.summaryWrites -eq 1)
+        allAppliedActionsCompleted=($applied.Count -eq $completed.Count)
+        failureStopsBeforeCompletion=$(if($mode -eq 'delete-failure'){$caught -eq 'Synthetic delete boundary failure.' -and (Test-Path -LiteralPath $owned) -and $completed.Count -eq 0 -and $applied.Count -eq 0}else{$null -eq $caught -and -not (Test-Path -LiteralPath $owned) -and $completed.Count -eq 1 -and $applied.Count -eq 1})
+        journalCountsMatch=($events.Count -eq $summary.journal.events -and (Get-Item -LiteralPath (Join-Path $root $summary.journal.path)).Length -eq $summary.journal.bytes -and $planned.Count -eq 1)
+    }
+    foreach($entry in $checks.GetEnumerator()){$cases.Add([ordered]@{mode=$mode;name=$entry.Key;passed=[bool]$entry.Value})}
+}
+Microsoft.PowerShell.Management\Remove-Item -LiteralPath Function:\Remove-Item
+$writerMeasurements=[Collections.Generic.List[object]]::new()
+foreach($count in @(4,8)) {
+    $workspace=Join-Path $OutputDirectory ('writer-'+$count);$tool=Join-Path $workspace 'tools/game-test'
+    foreach($relative in @('tools/game-test','tools/runtime-verification','tools/game-test/artifacts','tools/game-test/Cases','tools/game-test/Scenarios')){[void][IO.Directory]::CreateDirectory((Join-Path $workspace $relative))}
+    foreach($relative in @('tools/game-test/GameTest.Common.ps1','tools/game-test/Clear-GameTestArtifacts.ps1','tools/runtime-verification/WindowsDesktop.ps1','tools/runtime-verification/EvidencePaths.ps1')){[IO.File]::Copy($Sources[$relative],(Join-Path $workspace $relative))}
+    $common=Join-Path $tool 'GameTest.Common.ps1'
+    $text=[IO.File]::ReadAllText($common).Replace('Local\SolastaUBGameTest',('Local\SolastaUBStorageWriter_'+[guid]::NewGuid().ToString('N')))
+    $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseInput($text,[ref]$tokens,[ref]$errors)
+    if($errors.Count){throw 'The writer fixture common source did not parse.'}
+    $writer=@($ast.FindAll({param($node)$node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Write-GtJson'},$true))
+    if($writer.Count -ne 1){throw 'The copied JSON writer is not unique.'}
+    $text=$text.Insert($writer[0].Body.Extent.EndOffset-1,@'
+
+    if([IO.Path]::GetFileName($Path) -like 'Storage-Cleanup-*.json') {
+        [IO.File]::AppendAllText((Join-Path $PSScriptRoot 'SummaryWrites.txt'),([IO.FileInfo]$Path).Length.ToString()+[Environment]::NewLine)
+    }
+'@)
+    [IO.File]::WriteAllText($common,$text,[Text.UTF8Encoding]::new($false))
+    [IO.File]::AppendAllText((Join-Path $workspace 'tools/runtime-verification/WindowsDesktop.ps1'),@'
+
+function Get-VerificationProcessState {param($Name)
+    [IO.File]::AppendAllText((Join-Path $PSScriptRoot 'ProcessQueries.txt'),$Name+[Environment]::NewLine)
+    return [pscustomobject]@{querySucceeded=$true;matches=@()}
+}
+'@)
+    . $common
+    $root=Join-Path $tool 'artifacts';$game=Join-Path $workspace 'DummyGame';[void][IO.Directory]::CreateDirectory((Join-Path $game 'Mods'))
+    $expected=@{}
+    for($index=0;$index -lt $count;$index++) {
+        $owned=Join-Path $root ('owned-'+$index);[void][IO.Directory]::CreateDirectory($owned)
+        Write-GtJson (Join-Path $owned 'Directory.json') @{schemaVersion=1;layout='Runtime';directory=$owned}
+        Write-GtJson (Join-Path $owned 'Result.json') @{status='failed';reason='bounded writer fixture';runName=('unique-'+$index);evidenceDirectory=$owned;
+            startedUtc='2020-01-01T00:00:00Z';completedUtc='2020-01-02T00:00:00Z';settingsRestored=$true;displaySettingsRestored=$true;probeRemoved=$true;originalNativeFilesUnchanged=$true;
+            failed=1;diagnosticBulk=('x'*16384);processId=4318;processCleanup=@{completed=$true;expectedProcessId=4318;expectedStartTimeUtc='2020-01-01T00:00:00Z';expectedPath=(Join-Path $game 'Solasta.exe')}}
+        $expected[$owned]=Get-GtHash (Join-Path $owned 'Result.json')
+    }
+    $timer=[Diagnostics.Stopwatch]::StartNew()
+    & (Join-Path $tool 'Clear-GameTestArtifacts.ps1') -ArtifactRoot $root -MaxAgeDays 1 -Apply | Out-Null
+    $timer.Stop()
+    $report=@(Get-ChildItem -LiteralPath $root -Filter 'Storage-Cleanup-*.json' -File)
+    if($report.Count -ne 1){throw 'The writer fixture final summary is not unique.'}
+    $summary=Get-Content -LiteralPath $report[0].FullName -Raw|ConvertFrom-Json
+    $journal=Join-Path $root $summary.journal.path
+    $events=@(Get-Content -LiteralPath $journal|ForEach-Object{$_|ConvertFrom-Json})
+    $writes=@(Get-Content -LiteralPath (Join-Path $tool 'SummaryWrites.txt'))
+    $queries=@(Get-Content -LiteralPath (Join-Path $workspace 'tools/runtime-verification/ProcessQueries.txt'))
+    $checks=[ordered]@{
+        summarySerializedOnce=($writes.Count -eq 1 -and $summary.summaryWrites -eq 1)
+        exactActionEventCounts=(@($events|Where-Object event -eq 'action-planned').Count -eq $count -and @($events|Where-Object event -eq 'action-complete').Count -eq $count)
+        exactOriginalDiagnostics=($summary.retiredRuns.Count -eq $count -and @($summary.retiredRuns|Where-Object{$_.identitySha256 -ne $expected[$_.path] -or $_.result.status -ne 'failed' -or $_.result.reason -ne 'bounded writer fixture'}).Count -eq 0)
+        unrelatedLargeDetailsOmitted=(@($summary.retiredRuns|Where-Object{$_.result.PSObject.Properties['diagnosticBulk']}).Count -eq 0)
+        boundedWriterOutput=($report[0].Length+(Get-Item -LiteralPath $journal).Length -le 65536+$count*8192)
+        ownedTargetsRemoved=(@($expected.Keys|Where-Object{Test-Path -LiteralPath $_}).Count -eq 0 -and @($summary.actions|Where-Object{$_.kind -eq 'superseded-run' -and $_.applied}).Count -eq $count)
+        freshProcessBoundaryObserved=($queries.Count -ge $count)
+    }
+    foreach($entry in $checks.GetEnumerator()){$cases.Add([ordered]@{mode=('writer-'+$count);name=$entry.Key;passed=[bool]$entry.Value})}
+    $writerMeasurements.Add([ordered]@{inputRuns=$count;summaryWrites=$writes.Count;summaryBytes=$report[0].Length;journalBytes=(Get-Item -LiteralPath $journal).Length;processQueries=$queries.Count;elapsedMilliseconds=$timer.Elapsed.TotalMilliseconds})
+}
+
+$receipt=[ordered]@{status=$(if(@($cases|Where-Object {-not $_.passed}).Count){'FAIL'}else{'PASS'});sourceSha256=$sourceHash;sourceUnchanged=((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -eq $sourceHash);checks=$cases.ToArray();writerMeasurements=$writerMeasurements.ToArray();scope='Synthetic owned Runtime fixtures only. Actual removal is intercepted immediately before the unchanged cmdlet. Independent file reads verify flushed journal content; the failure fixture throws before removal.'}
+[IO.File]::WriteAllText((Join-Path $OutputDirectory 'Result.json'),($receipt|ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false))
+Write-Host ($receipt.status+' '+$cases.Count+' durability checks')
+if($receipt.status -ne 'PASS' -or -not $receipt.sourceUnchanged){throw 'Journal durability validation failed.'}
+return [pscustomobject]$receipt
+    } finally {
+        foreach($name in $savedJournalScope.Keys){Set-Variable -Name $name -Scope Script -Value $savedJournalScope[$name]}
+    }
+}
+
 function Invoke-StorageCleanupContracts([hashtable]$Sources,[string]$Directory) {
     # Run the unchanged cleanup sources against a miniature workspace, never the real artifact tree.
     $workspace=Join-Path $Directory 'Workspace'
@@ -724,6 +992,35 @@ function Invoke-StorageCleanupContracts([hashtable]$Sources,[string]$Directory) 
         [void][IO.Directory]::CreateDirectory((Split-Path -Parent $destination))
         [IO.File]::Copy($Sources[$relative],$destination)
     }
+    $commonPath=Join-Path $tool 'GameTest.Common.ps1'
+    $commonText=[IO.File]::ReadAllText($commonPath)
+    $mutexName='Local\SolastaUBGameTest_StorageContracts_'+[guid]::NewGuid().ToString('N')
+    $mutexLiteral="'Local\SolastaUBGameTest'"
+    if ([regex]::Matches($commonText,[regex]::Escape($mutexLiteral)).Count -ne 1) { throw 'Storage contracts could not isolate the copied cleanup mutex.' }
+    $commonText=$commonText.Replace($mutexLiteral,("'"+$mutexName+"'"))
+    [IO.File]::WriteAllText($commonPath,$commonText,[Text.UTF8Encoding]::new($false))
+    # Only the external process-query boundary is controlled by these contracts.
+    $processFixture=Join-Path $workspace 'tools/runtime-verification/ProcessFixture.json'
+    [IO.File]::AppendAllText((Join-Path $workspace 'tools/runtime-verification/WindowsDesktop.ps1'),@'
+
+function Get-VerificationProcessState {
+    param([string]$Name)
+    $mutation=Join-Path $PSScriptRoot 'QueryMutation.json'
+    if(Test-Path -LiteralPath $mutation) {
+        $change=Get-Content -LiteralPath $mutation -Raw|ConvertFrom-Json
+        $counter=Join-Path $PSScriptRoot 'QueryCounter.txt'
+        $count=if(Test-Path -LiteralPath $counter){[int][IO.File]::ReadAllText($counter)}else{0}
+        $count++;[IO.File]::WriteAllText($counter,[string]$count)
+        if($count -eq $change.atQuery){[IO.File]::WriteAllText($change.path,$change.content)}
+    }
+    $path=Join-Path $PSScriptRoot 'ProcessFixture.json'
+    if(Test-Path -LiteralPath $path) {
+        $state=Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+        return $state
+    }
+    return [pscustomobject]@{querySucceeded=$true;matches=@()}
+}
+'@)
     foreach ($child in @('artifacts','Cases','Scenarios')) { [void][IO.Directory]::CreateDirectory((Join-Path $tool $child)) }
     $saved=@{}
     foreach ($name in @('GameTestRepo','GameTestBuildRoot','GameTestArtifactRoot','GtValidatedDirectories')) {
@@ -755,8 +1052,10 @@ function Invoke-StorageCleanupContracts([hashtable]$Sources,[string]$Directory) 
             })
             return $path
         }
-        function Invoke-StorageCleanup([string]$Root,[switch]$Apply,[switch]$Prune,[string[]]$Preserve=@()) {
-            & $cleanup -ArtifactRoot $Root -Apply:$Apply -PruneSuperseded:$Prune -KeepLatestPerCase 1 -PreserveDirectory $Preserve | Out-Null
+        function Invoke-StorageCleanup([string]$Root,[switch]$Apply,[switch]$Prune,[string[]]$Preserve=@(),[hashtable]$Options=@{}) {
+            $parameters=@{ArtifactRoot=$Root;Apply=[bool]$Apply;PruneSuperseded=[bool]$Prune;KeepLatestPerCase=1;PreserveDirectory=$Preserve}
+            foreach ($key in $Options.Keys) { $parameters[$key]=$Options[$key] }
+            & $cleanup @parameters | Out-Null
             $report=Get-ChildItem -LiteralPath $Root -Filter 'Storage-Cleanup-*.json' -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
             return Read-GtObject $report.FullName
         }
@@ -967,15 +1266,15 @@ function Invoke-StorageCleanupContracts([hashtable]$Sources,[string]$Directory) 
         $script:GameTestArtifactRoot=$nativeTestRoot
         try {
             $nativeLatest=New-StorageRun 'native-latest' 'restored' 'native-case' 0
-            function New-StorageNativeCompanion([string]$Run) {
+            function New-StorageNativeCompanion([string]$Run,[int]$Bytes=5,[switch]$DirectRuntime) {
                 $owner=[guid]::NewGuid().ToString('N')
                 $path=Join-Path $actualArtifactRoot ('.native/' + $owner)
-                $evidence=Join-Path $Run 'Runtime/owned-run'
+                $evidence=if ($DirectRuntime) { $Run } else { Join-Path $Run 'Runtime/owned-run' }
                 [void][IO.Directory]::CreateDirectory($path)
                 [void][IO.Directory]::CreateDirectory($evidence)
                 [IO.File]::WriteAllText((Join-Path $path '.ub-runtime-userdata'),$owner)
                 [IO.File]::WriteAllText((Join-Path $path '.ub-runtime-evidence'),$evidence)
-                [IO.File]::WriteAllBytes((Join-Path $path 'UserPreferences.xml'),[byte[]](1,2,3,4,5))
+                [IO.File]::WriteAllBytes((Join-Path $path 'UserPreferences.xml'),[byte[]]::new($Bytes))
                 $receipt=Join-Path $evidence 'Native-UserDataLocation.json'
                 Write-GtJson $receipt @{owner=$owner;path=$path;evidenceDirectory=$evidence}
                 return [pscustomobject]@{path=$path;receipt=$receipt;owner=$owner}
@@ -1020,13 +1319,318 @@ function Invoke-StorageCleanupContracts([hashtable]$Sources,[string]$Directory) 
                 }
             }
         } finally { $script:GameTestArtifactRoot=$actualArtifactRoot }
-        return [ordered]@{status=$(if(@($checks | Where-Object status -ne 'PASS').Count){'FAIL'}else{'PASS'});scope='Unchanged cleanup sources run against owned dummy files in a mirrored workspace, including real directory junctions and isolated native user-data companions; no installed game or real artifacts are modified.';cases=@($checks.ToArray())}
+        # Age/budget policy and mutation-boundary controls use the same owned workspace.
+        function New-StorageArea([string]$Name){$path=Join-Path $script:GameTestArtifactRoot $Name;[void][IO.Directory]::CreateDirectory($path);return $path}
+        function New-StorageRuntime([string]$Parent,[string]$Name,[double]$Age=8,[string]$Status='success',[int]$Bytes=1024) {
+            $path=Join-Path $Parent $Name;[void][IO.Directory]::CreateDirectory($path)
+            Write-GtJson (Join-Path $path 'Directory.json') ([ordered]@{schemaVersion=1;layout='Runtime';directory=$path;requestedName=$Name})
+            Write-GtJson (Join-Path $path 'Result.json') ([ordered]@{status=$Status;reason='owned diagnostic result';runName=$Name;evidenceDirectory=$path;
+                startedUtc=[datetime]::UtcNow.AddDays(-$Age).AddMinutes(-1).ToString('O');completedUtc=[datetime]::UtcNow.AddDays(-$Age).ToString('O');
+                settingsRestored=$true;displaySettingsRestored=$true;probeRemoved=$true;originalNativeFilesUnchanged=$true;
+                processId=4318;processStartedUtc='2020-01-01T00:00:00Z';failed=$(if($Status -eq 'failed'){1}else{0});
+                processCleanup=@{completed=$true;expectedProcessId=4318;expectedStartTimeUtc='2020-01-01T00:00:00Z';expectedPath=(Join-Path $game 'Solasta.exe')}})
+            [IO.File]::WriteAllBytes((Join-Path $path 'payload.bin'),[byte[]]::new($Bytes))
+            return $path
+        }
+        function New-StorageBuild([string]$Parent,[string]$Name,[double]$Age=8) {
+            $path=Join-Path $Parent $Name;[void][IO.Directory]::CreateDirectory($path)
+            Write-GtJson (Join-Path $path 'Build.json') @{schemaVersion=1;status='PASS';stage='Stage/SolastaUnfinishedBusiness';completedUtc=[datetime]::UtcNow.AddDays(-$Age).ToString('O');environment=@{gameExe=(Join-Path $game 'Solasta.exe')}}
+            [IO.File]::WriteAllBytes((Join-Path $path 'payload.bin'),[byte[]]::new(8192))
+            return $path
+        }
+        function New-StorageConsumer([string]$Parent,[string]$Name,[string]$Build,[double]$Age=8) {
+            $path=Join-Path $Parent $Name;[void][IO.Directory]::CreateDirectory($path)
+            Write-GtJson (Join-Path $path 'Transaction.json') @{schemaVersion=1;state='restored';gameDirectory=$game;files=@()}
+            Write-GtJson (Join-Path $path 'Result.json') @{schemaVersion=1;caseId=$Name;restored=$true;completedUtc=[datetime]::UtcNow.AddDays(-$Age).ToString('O');status='FAIL';reason='diagnostic'}
+            [IO.File]::Copy((Join-Path $Build 'Build.json'),(Join-Path $path 'Build.json'))
+            return $path
+        }
+        function Set-StorageRuntimeResult([string]$Run,[scriptblock]$Action){$r=Get-Content -LiteralPath (Join-Path $Run 'Result.json') -Raw|ConvertFrom-Json;&$Action $r;Write-GtJson (Join-Path $Run 'Result.json') $r}
+        function Set-StorageQueryMutation([string]$Path,$Value,[int]$At=1) {
+            $counter=Join-Path (Split-Path -Parent $processFixture) 'QueryCounter.txt'
+            if(Test-Path -LiteralPath $counter){Remove-Item -LiteralPath $counter}
+            Write-GtJson (Join-Path (Split-Path -Parent $processFixture) 'QueryMutation.json') @{atQuery=$At;path=$Path;content=($Value|ConvertTo-Json -Depth 30)}
+        }
+        function Clear-StorageQueryMutation {
+            foreach($name in @('QueryCounter.txt','QueryMutation.json')){
+                $path=Join-Path (Split-Path -Parent $processFixture) $name
+                if(Test-Path -LiteralPath $path){Remove-Item -LiteralPath $path}
+            }
+        }
+
+        $area=New-StorageArea 'unique-default';$a=New-StorageRuntime $area 'uniqueA';$b=New-StorageRuntime $area 'uniqueB'
+        $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2} -Apply
+        Add-StorageCheck 'default count retention remains compatible for unique IDs' ((Test-Path -LiteralPath $a)-and(Test-Path -LiteralPath $b)-and $r.actions.Count -eq 0)
+        foreach($status in @('success','failed','incomplete')) {
+            $area=New-StorageArea ('age-'+$status);$run=New-StorageRuntime $area ('unique-'+$status) 8 $status;$native=(New-StorageNativeCompanion $run -Bytes 16384 -DirectRuntime).path
+            $preview=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1}
+            Add-StorageCheck ('direct runtime '+$status+' preview is non-destructive') ((Test-Path -LiteralPath $run)-and(Test-Path -LiteralPath $native)-and @($preview.actions|Where-Object kind -eq 'superseded-run').Count -eq 1)
+            $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1} -Apply
+            Add-StorageCheck ('direct runtime '+$status+' expires together with owned native user-data') (-not(Test-Path -LiteralPath $run)-and -not(Test-Path -LiteralPath $native))
+            Add-StorageCheck ('diagnostic receipt survives retirement: '+$status) ($r.retiredRuns.Count -eq 1 -and $r.retiredRuns[0].result.status -ceq $status -and $r.retiredRuns[0].identitySha256 -match '^[A-F0-9]{64}$')
+            $again=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1} -Apply
+            Add-StorageCheck ('repeat age cleanup is idempotent: '+$status) ($again.actions.Count -eq 0)
+        }
+        foreach($field in @('settingsRestored','displaySettingsRestored','probeRemoved','originalNativeFilesUnchanged')) {
+            $area=New-StorageArea ('incomplete-'+$field);$run=New-StorageRuntime $area 'incomplete'
+            $r=Get-Content -LiteralPath (Join-Path $run 'Result.json') -Raw|ConvertFrom-Json;$r.$field=$false;Write-GtJson (Join-Path $run 'Result.json') $r
+            $plan=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1} -Apply
+            Add-StorageCheck ('incomplete restoration is retained: '+$field) ((Test-Path -LiteralPath $run)-and @($plan.retainedDirectories|Where-Object reason -eq 'unrecognized-receipt').Count -eq 1)
+        }
+        $area=New-StorageArea 'string-restoration';$run=New-StorageRuntime $area 'invalid';Set-StorageRuntimeResult $run {param($r)$r.settingsRestored='true'}
+        $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1} -Apply
+        Add-StorageCheck 'string true is not restoration proof' (Test-Path -LiteralPath $run)
+        $area=New-StorageArea 'wrong-owner';$run=New-StorageRuntime $area 'invalid';$d=Get-Content -LiteralPath (Join-Path $run 'Directory.json') -Raw|ConvertFrom-Json;$d.directory=$area;Write-GtJson (Join-Path $run 'Directory.json') $d
+        $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1} -Apply
+        Add-StorageCheck 'mismatched direct runtime ownership stays intact' (Test-Path -LiteralPath $run)
+        $area=New-StorageArea 'active-owner';$run=New-StorageRuntime $area 'active'
+        Write-GtJson $processFixture @{querySucceeded=$true;matches=@(@{pid=4318;startTimeUtc='2020-01-01T00:00:00Z';path=(Join-Path $game 'Solasta.exe');readErrors=@{}})}
+        $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1}
+        Add-StorageCheck 'active exact PID/start/path is retained' ((Test-Path -LiteralPath $run)-and $r.retiredRuns.Count -eq 0)
+        Write-GtJson $processFixture @{querySucceeded=$true;matches=@(@{pid=4318;startTimeUtc='2021-01-01T00:00:00Z';path=(Join-Path $game 'Solasta.exe');readErrors=@{}})}
+        $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1}
+        Add-StorageCheck 'a reused PID does not falsely own the retired runtime' (@($r.actions|Where-Object kind -eq 'superseded-run').Count -eq 1)
+        Remove-Item -LiteralPath $processFixture
+        $area=New-StorageArea 'active-game';$run=New-StorageRuntime $area 'old'
+        Write-GtJson $processFixture @{querySucceeded=$true;matches=@(@{pid=9999;startTimeUtc='2022-01-01T00:00:00Z';path=(Join-Path $game 'Solasta.exe');readErrors=@{}})}
+        Add-StorageCheck 'Apply refuses a running game before payload deletion' ((Test-StorageRejection {Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1} -Apply})-and(Test-Path -LiteralPath $run))
+        Write-GtJson $processFixture @{querySucceeded=$false;matches=@()}
+        $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1} -Apply
+        Add-StorageCheck 'unknown process query is not absence' ((Test-Path -LiteralPath $run)-and $r.retiredRuns.Count -eq 0 -and @($r.retainedDirectories|Where-Object reason -eq 'unrecognized-receipt').Count -eq 1)
+        Remove-Item -LiteralPath $processFixture
+
+        $area=New-StorageArea 'budget-unique';$a=New-StorageRuntime $area 'oldUnique' 8 'success' 8192;$b=New-StorageRuntime $area 'newUnique' 2 'success' 8192
+        $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxRetainedBytes=1000} -Apply
+        Add-StorageCheck 'byte budget can retire obsolete unique latest IDs' (-not(Test-Path -LiteralPath $a)-and -not(Test-Path -LiteralPath $b)-and $r.policy.budgetSatisfied)
+        $area=New-StorageArea 'hard-budget';$a=New-StorageRuntime $area 'hard' 8 'success' 8192;$b=New-StorageRuntime $area 'soft' 2 'success' 8192
+        $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxRetainedBytes=1000;PreserveDirectory=@($a)} -Apply
+        Add-StorageCheck 'hard preservation wins over byte budget and reports the unmet budget' ((Test-Path -LiteralPath $a)-and -not(Test-Path -LiteralPath $b)-and -not $r.policy.budgetSatisfied -and $r.policy.retainedBytes -gt 1000)
+        $area=New-StorageArea 'reference-input';$run=New-StorageRuntime $area 'native-donor';$ref=Join-Path $Directory 'ActiveStorageReferences.json'
+        Write-GtJson $ref @{schemaVersion=1;paths=@((Join-Path $run 'payload.bin'))}
+        $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1;ReferencePath=@($ref)} -Apply
+        Add-StorageCheck 'external authoring reference retains the actual owning run' ((Test-Path -LiteralPath $run)-and @($r.retainedDirectories|Where-Object reason -eq 'declared-input-reference').Count -eq 1)
+        $native=(New-StorageNativeCompanion $run -Bytes 16384 -DirectRuntime).path;Write-GtJson $ref @{schemaVersion=1;paths=@($native)}
+        $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1;ReferencePath=@($ref)} -Apply
+        Add-StorageCheck 'referenced native companion retains its evidence owner' ((Test-Path -LiteralPath $run)-and(Test-Path -LiteralPath $native)-and @($r.retainedDirectories|Where-Object reason -eq 'preserved-native-companion').Count -eq 1)
+        foreach($kind in @('outside','schema','type','unknown')) {
+            $bad=switch($kind){'outside'{@{schemaVersion=1;paths=@($workspace)}}'schema'{@{schemaVersion=2;paths=@($run)}}'type'{@{schemaVersion=1;paths='not-array'}}'unknown'{@{schemaVersion=1;paths=@($run);execute=$true}}}
+            Write-GtJson $ref $bad
+            Add-StorageCheck ('invalid reference manifest is rejected before mutation: '+$kind) ((Test-StorageRejection {Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1;ReferencePath=@($ref)} -Apply})-and(Test-Path -LiteralPath $run))
+        }
+        $area=New-StorageArea 'budget-build-closure'
+        $build=New-StorageBuild $area '20260101-000000-001-Build-abcd' 9
+        $consumer=New-StorageConsumer $area 'unique-consumer' $build 8
+        $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxRetainedBytes=1000} -Apply
+        Add-StorageCheck 'budget releases the build when its last consumer is retired' (-not(Test-Path -LiteralPath $consumer)-and -not(Test-Path -LiteralPath $build)-and $r.policy.budgetSatisfied)
+        $area=New-StorageArea 'hard-build-closure'
+        $required=New-StorageBuild $area '20260101-000000-001-Build-abcd' 9
+        $unneeded=New-StorageBuild $area '20260101-000000-002-Build-abce' 7
+        $consumer=New-StorageConsumer $area 'current-consumer' $required 8
+        $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxRetainedBytes=1000;PreserveDirectory=@($consumer)} -Apply
+        Add-StorageCheck 'hard retained consumer preserves its exact build while unrelated build expires' ((Test-Path -LiteralPath $consumer)-and(Test-Path -LiteralPath $required)-and -not(Test-Path -LiteralPath $unneeded)-and -not $r.policy.budgetSatisfied)
+        $area=New-StorageArea 'hard-native-budget';$run=New-StorageRuntime $area 'current-native';$native=(New-StorageNativeCompanion $run -Bytes 32768 -DirectRuntime).path
+        $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxRetainedBytes=20000;PreserveDirectory=@($run)} -Apply
+        Add-StorageCheck 'byte budget includes native payloads of hard retained owners' ((Test-Path -LiteralPath $run)-and(Test-Path -LiteralPath $native)-and $r.policy.retainedBytes -gt 32768 -and -not $r.policy.budgetSatisfied)
+        $area=New-StorageArea 'age-window';$oldRun=New-StorageRuntime $area 'old-unique' 8;$youngRun=New-StorageRuntime $area 'young-unique' 0.25
+        $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1} -Apply
+        Add-StorageCheck 'age policy preserves a recent unique ID and retires the old one' (-not(Test-Path -LiteralPath $oldRun)-and(Test-Path -LiteralPath $youngRun))
+        $area=New-StorageArea 'negative-budget';$run=New-StorageRuntime $area 'untouched'
+        Add-StorageCheck 'negative byte budget rejects before mutation' ((Test-StorageRejection {Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxRetainedBytes=-1} -Apply})-and(Test-Path -LiteralPath $run))
+
+        $area=New-StorageArea 'root-is-owned-run';$run=New-StorageRuntime $area 'owned-root'
+        $r=Invoke-StorageCleanup $run -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1;MaxRetainedBytes=1} -Apply
+        Add-StorageCheck 'an owned ArtifactRoot keeps itself and its cleanup receipt' ((Test-Path -LiteralPath $run)-and(Test-Path -LiteralPath (Join-Path $run 'Result.json'))-and @($r.retainedDirectories|Where-Object reason -eq 'cleanup-report-directory').Count -eq 1 -and $r.actions.Count -eq 0)
+        $area=New-StorageArea 'manifest-owner';$owner=New-StorageRuntime $area 'manifest-owner';$run=New-StorageRuntime $area 'current-donor';$ref=Join-Path $owner 'ActiveStorageReferences.json'
+        Write-GtJson $ref @{schemaVersion=1;paths=@($run)}
+        $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1;ReferencePath=@($ref)} -Apply
+        Add-StorageCheck 'the active reference manifest itself retains its owning run' ((Test-Path -LiteralPath $owner)-and(Test-Path -LiteralPath $run))
+        $area=New-StorageArea 'changed-manifest';$run=New-StorageRuntime $area 'newly-referenced';$ref=Join-Path $Directory 'ChangingReferences.json'
+        Write-GtJson $ref @{schemaVersion=1;paths=@()};Set-StorageQueryMutation $ref @{schemaVersion=1;paths=@($run)}
+        Add-StorageCheck 'manifest changed during planning aborts before deleting its newly referenced run' ((Test-StorageRejection {Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1;ReferencePath=@($ref)} -Apply})-and(Test-Path -LiteralPath $run))
+        Clear-StorageQueryMutation
+        $area=New-StorageArea 'changed-consumer';$build=New-StorageBuild $area '20260101-000000-001-Build-abcd' 9;$run=New-StorageConsumer $area '000-consumer' $build 8
+        $changed=Get-Content -LiteralPath (Join-Path $run 'Result.json') -Raw|ConvertFrom-Json;$changed.reason='changed after planning'
+        Set-StorageQueryMutation (Join-Path $run 'Result.json') $changed
+        Add-StorageCheck 'consumer identity failure leaves both consumer and required build intact' ((Test-StorageRejection {Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1} -Apply})-and(Test-Path -LiteralPath $run)-and(Test-Path -LiteralPath $build))
+        Clear-StorageQueryMutation
+        $area=New-StorageArea 'changed-marker';$build=New-StorageBuild $area '20260101-000000-001-Build-abcd' 9;$run=New-StorageConsumer $area '000-consumer' $build 8
+        $marker=Join-Path $game 'Mods/.UBGameTestTransaction.json';Set-StorageQueryMutation $marker @{transactionPath=(Join-Path $run 'Transaction.json')}
+        Add-StorageCheck 'a recovery marker appearing before deletion preserves consumer and build' ((Test-StorageRejection {Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1} -Apply})-and(Test-Path -LiteralPath $run)-and(Test-Path -LiteralPath $build))
+        Clear-StorageQueryMutation;Remove-Item -LiteralPath $marker
+        $area=New-StorageArea 'changed-restore';$build=New-StorageBuild $area '20260101-000000-001-Build-abcd' 9;$run=New-StorageConsumer $area '000-consumer' $build 8
+        Set-StorageQueryMutation (Join-Path $run 'Transaction.json') @{schemaVersion=1;state='deployed';gameDirectory=$game;files=@()}
+        Add-StorageCheck 'restore state changed before deletion preserves consumer and build' ((Test-StorageRejection {Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1} -Apply})-and(Test-Path -LiteralPath $run)-and(Test-Path -LiteralPath $build))
+        Clear-StorageQueryMutation
+        $area=New-StorageArea 'changed-native-marker';$run=New-StorageRuntime $area 'owner';$native=(New-StorageNativeCompanion $run -Bytes 16384 -DirectRuntime).path
+        Set-StorageQueryMutation (Join-Path $native '.ub-runtime-userdata') 'changed-owner' 4
+        Add-StorageCheck 'native ownership marker changed at the last process check prevents both deletions' ((Test-StorageRejection {Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1} -Apply})-and(Test-Path -LiteralPath $run)-and(Test-Path -LiteralPath $native))
+        Clear-StorageQueryMutation
+        $area=New-StorageArea 'changed-reference-before-backup';$build=New-StorageBuild $area '20260101-000000-001-Build-abcd';$run=New-StorageConsumer $area 'consumer' $build
+        [void][IO.Directory]::CreateDirectory((Join-Path $run 'Backup'));[IO.File]::WriteAllBytes((Join-Path $run 'Backup/000001.bin'),[byte[]](1,2,3))
+        Write-GtJson (Join-Path $run 'Transaction.json') @{schemaVersion=1;state='restored';gameDirectory=$game;files=@(@{existed=$true;backup='Backup/000001.bin'})}
+        $ref=Join-Path $Directory 'BackupReferences.json';Write-GtJson $ref @{schemaVersion=1;paths=@()};Set-StorageQueryMutation $ref @{schemaVersion=1;paths=@($run)}
+        $backup=Join-Path $run 'Backup/000001.bin';$backupHash=Get-GtHash $backup
+        $aborted=$false;$backupPlan=$null;$failureReason=''
+        try { $backupPlan=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1;ReferencePath=@($ref)} -Apply }
+        catch { $aborted=$true;$failureReason=$_.Exception.Message }
+        $referenceGuard=if ($aborted) { $failureReason -ceq 'A storage reference manifest changed during cleanup.' } else {
+            @($backupPlan.actions | Where-Object { $_.kind -eq 'retained' -and $_.path -eq (Split-Path -Parent $backup) -and
+                $_.reason -ceq 'A storage reference manifest changed during cleanup.' }).Count -eq 1 -and $backupPlan.retiredRuns.Count -eq 0
+        }
+        Add-StorageCheck 'reference hash is rechecked before the first backup release' ($referenceGuard -and
+            (Test-Path -LiteralPath $backup) -and (Get-GtHash $backup) -eq $backupHash -and (Test-Path -LiteralPath $run) -and (Test-Path -LiteralPath $build))
+        Clear-StorageQueryMutation
+
+        $journalArtifactRoot=$script:GameTestArtifactRoot
+        $journalContracts=Invoke-StorageJournalContracts $Sources (Join-Path $Directory 'Journal')
+        Add-StorageCheck 'nested journal fixtures restore the outer artifact scope' ($script:GameTestArtifactRoot -ceq $journalArtifactRoot)
+        foreach($check in $journalContracts.checks){Add-StorageCheck ($check.mode+' '+$check.name) $check.passed}
+
+        $checkpoints=@(Get-ChildItem -LiteralPath $script:GameTestArtifactRoot -Filter Storage-Cleanup-*.json -File -Recurse | ForEach-Object {Get-Content -LiteralPath $_.FullName -Raw|ConvertFrom-Json})
+        Add-StorageCheck 'all applied run deletions retain a prior result/hash diagnostic' (@($checkpoints | ForEach-Object {
+            $plan=$_;foreach($action in @($plan.actions|Where-Object{ $_.kind -eq 'superseded-run' -and $_.applied })) {
+                if(@($plan.retiredRuns|Where-Object{ $_.path -eq $action.path -and $_.result -and $_.identitySha256 -match '^[A-F0-9]{64}$'}).Count -ne 1){$action}
+            }
+        }).Count -eq 0)
+
+        return [ordered]@{status=$(if(@($checks | Where-Object status -ne 'PASS').Count){'FAIL'}else{'PASS'});scope='Actual cleanup and path/restore/delete sources run against owned dummy files, real directory junctions and native companions in one mirrored workspace. Process lookup, the copied mutex, summary writer observation and a synthetic pre-delete failure are controlled fixture boundaries; no installed game or real artifacts are modified.';cases=@($checks.ToArray())}
     } finally {
         foreach ($name in $saved.Keys) { Set-Variable -Name $name -Scope Script -Value $saved[$name] }
     }
 }
 
-function Invoke-DesktopFocusBoundaryContract([string]$Source,[string]$Directory) {
+function Invoke-ProcessThreadAcquisitionContracts([string]$Source,[string]$Directory) {
+    [void][IO.Directory]::CreateDirectory($Directory)
+    $sourceText=[IO.File]::ReadAllText($Source)
+    function Read-PssMember([string]$Text,[string]$Marker,[bool]$Struct=$false) {
+        $start=$Text.IndexOf($Marker,[StringComparison]::Ordinal)
+        if($start -lt 0 -or $Text.IndexOf($Marker,$start+$Marker.Length,[StringComparison]::Ordinal) -ge 0){throw 'A process-thread acquisition member is missing or ambiguous.'}
+        $opening=$Text.IndexOf('{',$start);if($opening -lt 0){throw 'A process-thread acquisition member has no body.'}
+        $depth=0;$quoted=$false;$line=$false;$block=$false
+        for($cursor=$opening;$cursor -lt $Text.Length;$cursor++) {
+            $a=$Text[$cursor];$pair=if($cursor+1-lt$Text.Length){$Text.Substring($cursor,2)}else{''}
+            if($line){if($a-eq"`n"){$line=$false}}
+            elseif($block){if($pair-ceq'*/'){$block=$false;$cursor++}}
+            elseif($quoted){if($a-eq'\'){$cursor++}elseif($a-eq'"'){$quoted=$false}}
+            elseif($pair-ceq'//'){$line=$true;$cursor++}
+            elseif($pair-ceq'/*'){$block=$true;$cursor++}
+            elseif($a-eq'"'){$quoted=$true}
+            elseif($a-eq'{'){$depth++}
+            elseif($a-eq'}'){
+                $depth--;if($depth-eq0){
+                    if($Struct){
+                        $attribute=$Text.LastIndexOf('[StructLayout',$start,[StringComparison]::Ordinal)
+                        if($attribute-lt0-or$Text.Substring($attribute,$start-$attribute)-notmatch'^\[StructLayout\(LayoutKind.Sequential\)\]\s*$'){throw 'The actual PSS struct layout attribute was not preserved.'}
+                        $start=$attribute
+                    }
+                    return $Text.Substring($start,$cursor-$start+1)
+                }
+            }
+        }
+        throw 'A process-thread acquisition member is unterminated.'
+    }
+    $marker='private static uint[] CurrentProcessThreadIds(out ProcessThreadSnapshot acquisition)'
+    $method=Read-PssMember $sourceText $marker
+    $receipt=Read-PssMember $sourceText 'public sealed class ProcessThreadSnapshot'
+    $structs=@(foreach($name in @('PssFileTime','PssThreadInformation','PssThreadEntry')){Read-PssMember $sourceText ('private struct '+$name) $true}) -join "`n"
+    $boundary=@'
+public sealed class Outcome {
+    public string name,error; public bool passed,rejected; public int markerFreeCalls,snapshotFreeCalls;
+    public ProcessThreadSnapshot acquisition; public uint[] ids;
+}
+public static class Collector {
+    sealed class Scenario {
+        public uint count=2,captureCode,queryCode,markerCode,walkCode,terminalCode=259,markerFreeCode,snapshotFreeCode,contextLength;
+        public bool captureNull,markerNull,markerFreeThrow,snapshotFreeThrow,contextNonzero;
+        public uint[] tids=new uint[]{8,7};public uint pid=99;
+    }
+    static Scenario scenario;static int cursor,markerFreeCalls,snapshotFreeCalls;
+    static IntPtr GetCurrentProcess(){return new IntPtr(11);}
+    static uint GetCurrentProcessId(){return 99;}
+    static uint GetCurrentThreadId(){return 7;}
+    static void Need(bool value,string message){if(!value)throw new InvalidOperationException(message);}
+    static uint PssCaptureSnapshot(IntPtr process,uint flags,uint contextFlags,out IntPtr snapshot){
+        Need(process==new IntPtr(11)&&flags==0x80&&contextFlags==0,"Wrong actual capture boundary arguments");
+        snapshot=scenario.captureNull?IntPtr.Zero:new IntPtr(22);return scenario.captureCode;
+    }
+    static uint PssQuerySnapshot(IntPtr snapshot,uint informationClass,out PssThreadInformation information,uint length){
+        Need(snapshot==new IntPtr(22)&&informationClass==5&&length==8,"Wrong actual query boundary arguments");
+        information=new PssThreadInformation{threadsCaptured=scenario.count,contextLength=scenario.contextLength};return scenario.queryCode;
+    }
+    static uint PssWalkMarkerCreate(IntPtr allocator,out IntPtr marker){Need(allocator==IntPtr.Zero,"Unexpected custom allocator");marker=scenario.markerNull?IntPtr.Zero:new IntPtr(33);return scenario.markerCode;}
+    static uint PssWalkSnapshot(IntPtr snapshot,uint informationClass,IntPtr marker,out PssThreadEntry entry,uint length){
+        Need(snapshot==new IntPtr(22)&&informationClass==3&&marker==new IntPtr(33)&&length==Marshal.SizeOf(typeof(PssThreadEntry)),"Wrong actual walk boundary arguments");
+        entry=new PssThreadEntry();if(scenario.walkCode!=0)return scenario.walkCode;
+        if(cursor>=scenario.tids.Length)return scenario.terminalCode;
+        entry.processId=scenario.pid;entry.threadId=scenario.tids[cursor++];
+        if(scenario.contextNonzero){entry.contextRecord=new IntPtr(0xFEED);entry.sizeOfContextRecord=64;}
+        return 0;
+    }
+    static uint PssWalkMarkerFree(IntPtr marker){markerFreeCalls++;Need(marker==new IntPtr(33),"Wrong marker freed");if(scenario.markerFreeThrow)throw new InvalidOperationException("Fake marker-free boundary error");return scenario.markerFreeCode;}
+    static uint PssFreeSnapshot(IntPtr process,IntPtr snapshot){snapshotFreeCalls++;Need(process==new IntPtr(11)&&snapshot==new IntPtr(22),"Wrong owner/snapshot freed");if(scenario.snapshotFreeThrow)throw new InvalidOperationException("Fake snapshot-free boundary error");return scenario.snapshotFreeCode;}
+    static Outcome Test(string name,Action<Scenario> mutate,bool reject,int markerCalls,int snapshotCalls){
+        scenario=new Scenario();mutate(scenario);cursor=markerFreeCalls=snapshotFreeCalls=0;
+        var result=new Outcome{name=name};ProcessThreadSnapshot acquisition=null;
+        try{result.ids=CurrentProcessThreadIds(out acquisition);}catch(Exception error){result.rejected=true;result.error=error.ToString();}
+        result.acquisition=acquisition;result.markerFreeCalls=markerFreeCalls;result.snapshotFreeCalls=snapshotFreeCalls;
+        result.passed=result.rejected==reject&&markerFreeCalls==markerCalls&&snapshotFreeCalls==snapshotCalls&&acquisition!=null&&acquisition.succeeded==!reject;
+        if(!reject)result.passed=result.passed&&result.ids.SequenceEqual(new uint[]{7,8})&&acquisition.released&&acquisition.walkEndCode==259&&acquisition.currentThreadPresent&&acquisition.entryBytes==(IntPtr.Size==8?120:92);
+        return result;
+    }
+    public static Outcome[] Run(){return new[]{
+        Test("actual managed layout, flags, count, sorted IDs and owned release",s=>{},false,1,1),
+        Test("unrequested context fields are observed without zero assumption",s=>{s.contextNonzero=true;s.contextLength=4096;},false,1,1),
+        Test("zero captured count is rejected",s=>s.count=0,true,0,1),
+        Test("zero thread ID is rejected",s=>s.tids=new uint[]{7,0},true,1,1),
+        Test("foreign process ID is rejected",s=>s.pid=100,true,1,1),
+        Test("duplicate thread ID is rejected",s=>s.tids=new uint[]{7,7},true,1,1),
+        Test("missing current thread is rejected",s=>s.tids=new uint[]{8,9},true,1,1),
+        Test("walk shorter than query is rejected",s=>s.count=3,true,1,1),
+        Test("walk longer than query is rejected",s=>s.count=1,true,1,1),
+        Test("terminal error is not interpreted as end of walk",s=>s.terminalCode=87,true,1,1),
+        Test("capture error acquires no resource",s=>s.captureCode=5,true,0,0),
+        Test("query error releases the snapshot",s=>s.queryCode=87,true,0,1),
+        Test("marker creation error releases the snapshot",s=>s.markerCode=8,true,0,1),
+        Test("walk error releases both resources",s=>s.walkCode=5,true,1,1),
+        Test("success with null snapshot rejects without invalid free",s=>s.captureNull=true,true,0,0),
+        Test("success with null marker rejects without invalid marker free",s=>s.markerNull=true,true,0,1),
+        Test("marker free failure still attempts snapshot free",s=>s.markerFreeCode=6,true,1,1),
+        Test("snapshot free failure is not success",s=>s.snapshotFreeCode=6,true,1,1),
+        Test("marker free exception still attempts snapshot free",s=>s.markerFreeThrow=true,true,1,1),
+        Test("snapshot free exception is not success",s=>s.snapshotFreeThrow=true,true,1,1)
+    };}
+
+
+'@
+    $namespace='ProcessThreadBoundaryContracts'+[guid]::NewGuid().ToString('N')
+    $managed="using System;using System.Collections.Generic;using System.ComponentModel;using System.Diagnostics;using System.Linq;using System.Runtime.InteropServices;namespace $namespace {`n"+$receipt+"`n"+$boundary+"`n"+$structs+"`n"+$method+"`n}}"
+    if($managed-match'DllImport|\bextern\s'){throw 'Managed thread-acquisition contracts must not contain native imports.'}
+    if(-not$managed.Contains($method)-or-not$managed.Contains($receipt)){throw 'Actual source acquisition boundaries were not preserved.'}
+    $managedPath=Join-Path $Directory 'ProcessThread.Managed.cs'
+    [IO.File]::WriteAllText($managedPath,$managed,[Text.UTF8Encoding]::new($false))
+    $types=@(Add-Type -TypeDefinition $managed -PassThru)
+    $collector=@($types|Where-Object FullName -ceq ($namespace+'.Collector'))
+    if($collector.Count-ne1){throw 'The actual managed acquisition boundary did not compile.'}
+    $checks=@($collector[0].GetMethod('Run').Invoke($null,@()))
+    $extraction=@(foreach($trial in @('missing-method','duplicate-method','unterminated-body')) {
+        $inputText=switch($trial){
+            'missing-method' {$sourceText.Replace($marker,'RemovedBoundary')}
+            'duplicate-method' {$sourceText+"`n"+$method}
+            'unterminated-body' {$marker+' {'}
+        }
+        $rejected=$false;try{[void](Read-PssMember $inputText $marker)}catch{$rejected=$true}
+        [ordered]@{name=$trial;passed=$rejected}
+    })
+    $sha=[Security.Cryptography.SHA256]::Create()
+    try{$methodSha=([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($method)))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}
+    $result=[ordered]@{status=$(if($checks.Count-ne20-or@($checks|Where-Object passed -ne $true).Count-or@($extraction|Where-Object passed -ne $true).Count){'FAIL'}else{'PASS'});
+        scope='Actual process-thread collector/receipt/structs with fake native API boundaries and actual managed Marshal layout; no native API call.';
+        sourceSha256=(Get-FileHash -LiteralPath $Source -Algorithm SHA256).Hash;methodSha256=$methodSha;managedSource=$managedPath;checks=$checks;extractionChecks=$extraction}
+    Write-GtJson (Join-Path $Directory 'Result.json') $result
+    return $result
+}
+
+function Invoke-DesktopFocusBoundaryContract([string]$Source,[string]$Directory,$RuntimeAst,$DesktopAst,$GameTestAst) {
     if ('UBVerification.DesktopReader' -as [type]) {
         throw 'Desktop focus contracts require a fresh PowerShell process to compile the selected source.'
     }
@@ -1042,6 +1646,169 @@ function Invoke-DesktopFocusBoundaryContract([string]$Source,[string]$Directory)
     if (-not $readInput -or -not $requireDesktop -or -not $peer) {
         throw 'The desktop focus safety boundaries were not found in the compiled source.'
     }
+
+    $threadAcquisition=Invoke-ProcessThreadAcquisitionContracts $Source (Join-Path $Directory 'ProcessThreadAcquisition')
+    if($threadAcquisition.status -ne 'PASS'){throw 'A process-thread acquisition contract failed.'}
+
+    # BEGIN DATA-ONLY DESKTOP CONTRACTS
+    $proofChecks=[Collections.Generic.List[object]]::new()
+    function Add-DesktopProofCheck([string]$Name,[bool]$Passed) { $proofChecks.Add([ordered]@{name=$Name;status=$(if($Passed){'PASS'}else{'FAIL'})}) }
+    Invoke-Expression (Read-ContractFunction $DesktopAst 'Test-VerificationNonInputDesktopEvidence')
+function New-DesktopInputQuery { [UBVerification.BooleanQuery]@{succeeded=$true;errorCode=0;bytesNeeded=4;rawValue=0;value=$false} }
+function New-DesktopProofFixture {
+    $name='UBGameTest_00000000000000000000000000000000'
+    $window=[UBVerification.OwnedWindowSnapshot]@{windowHandle=123;processId=99;nativeThreadId=7;desktop=$name;desktopQuerySucceeded=$true;
+        identityQuerySucceeded=$true;clientRectQuerySucceeded=$true;clientWidth=640;clientHeight=480;visible=$true;inputQuery=(New-DesktopInputQuery)}
+    $snapshot=[UBVerification.DesktopSnapshot]@{capturedUtc=[datetime]::UtcNow.ToString('O');observationSource='game-main-thread';windowStation='WinSta0';expectedDesktop=$name;runnerDesktop=$name;
+        processId=99;nativeThreadId=7;currentDesktopQuerySucceeded=$true;windowStationQuerySucceeded=$true;runnerInputQuery=(New-DesktopInputQuery);runnerReceivesInput=$false;
+        inputDesktop='Default';inputDesktopQuerySucceeded=$true;inputDesktopCloseSucceeded=$true;complete=$true;isolated=$true;nonInputIsolated=$true;
+        ownedWindowsQuerySucceeded=$true;processThreadQuerySucceeded=$true;processThreadCohortStable=$true;processThreadIds=[uint32[]]@(7,8);processThreadIdsAfter=[uint32[]]@(7,8);
+        ownedWindows=[UBVerification.OwnedWindowSnapshot[]]@($window);ownedUiThreads=[UBVerification.OwnedUiThreadSnapshot[]]@(
+            [UBVerification.OwnedUiThreadSnapshot]@{nativeThreadId=7;enumerationReturned=$true;querySucceeded=$true;windowCount=1},
+            [UBVerification.OwnedUiThreadSnapshot]@{nativeThreadId=8;enumerationReturned=$false;querySucceeded=$true;windowCount=0})}
+    $snapshot.processUiScanAttempts=[UBVerification.ProcessUiScan[]]@([UBVerification.ProcessUiScan]@{attempt=1;querySucceeded=$true;cohortStable=$true;
+        beforeThreadIds=$snapshot.processThreadIds;afterThreadIds=$snapshot.processThreadIdsAfter;threads=$snapshot.ownedUiThreads;windows=$snapshot.ownedWindows})
+    return $snapshot
+}
+function Test-DesktopOwnershipProof([string]$Name,[scriptblock]$Mutation,[bool]$Expected,[Nullable[bool]]$ExpectedPowerShell=$null) {
+    $snapshot=New-DesktopProofFixture;& $Mutation $snapshot
+    $actual=[UBVerification.DesktopReader]::HasNonInputOwnershipProof($snapshot,'UBGameTest_00000000000000000000000000000000',99,7)
+    $raw=$snapshot|ConvertTo-Json -Depth 30|ConvertFrom-Json
+    $fromSaved=Test-VerificationNonInputDesktopEvidence -Snapshot $raw -ExpectedDesktop 'UBGameTest_00000000000000000000000000000000' -ExpectedProcessId 99 -ExpectedMainThreadId 7 -ExpectedWindowStation 'WinSta0'
+    $expectedSaved=if($null-eq$ExpectedPowerShell){$Expected}else{[bool]$ExpectedPowerShell}
+    Add-DesktopProofCheck $Name ($actual -eq $Expected -and $fromSaved -eq $expectedSaved)
+}
+Test-DesktopOwnershipProof 'complete known input identity' {param($s)} $true
+Test-DesktopOwnershipProof 'remote access denied preserves own direct proof' {param($s)$s.inputDesktop=$null;$s.inputDesktopQuerySucceeded=$false;$s.inputDesktopCloseSucceeded=$false;$s.inputDesktopQueryError=5;$s.complete=$false;$s.isolated=$false} $true
+Test-DesktopOwnershipProof 'another remote query error has identical independent proof semantics' {param($s)$s.inputDesktop=$null;$s.inputDesktopQuerySucceeded=$false;$s.inputDesktopQueryError=87;$s.complete=$false;$s.isolated=$false} $true
+Test-DesktopOwnershipProof 'changed remote input name is preserved but is not own input' {param($s)$s.inputDesktop='OtherObservedDesktop'} $true
+Test-DesktopOwnershipProof 'own input true is rejected' {param($s)$s.runnerInputQuery.rawValue=1;$s.runnerInputQuery.value=$true;$s.runnerReceivesInput=$true} $false
+Test-DesktopOwnershipProof 'own query failed cannot be replaced by raw zero' {param($s)$s.runnerInputQuery.succeeded=$false} $false
+Test-DesktopOwnershipProof 'own error despite success is rejected' {param($s)$s.runnerInputQuery.errorCode=5} $false
+Test-DesktopOwnershipProof 'own null query is rejected' {param($s)$s.runnerInputQuery=$null} $false
+Test-DesktopOwnershipProof 'own byte shortage is rejected' {param($s)$s.runnerInputQuery.bytesNeeded=0} $false
+Test-DesktopOwnershipProof 'own invalid byte width is rejected' {param($s)$s.runnerInputQuery.bytesNeeded=8} $false
+Test-DesktopOwnershipProof 'own contradictory raw true is rejected' {param($s)$s.runnerInputQuery.rawValue=1} $false
+Test-DesktopOwnershipProof 'own contradictory boolean true is rejected' {param($s)$s.runnerInputQuery.value=$true} $false
+Test-DesktopOwnershipProof 'own value unknown is rejected' {param($s)$s.runnerInputQuery.value=$null} $false
+Test-DesktopOwnershipProof 'current desktop identity unknown is rejected' {param($s)$s.currentDesktopQuerySucceeded=$false} $false
+Test-DesktopOwnershipProof 'actual private desktop mismatch is rejected' {param($s)$s.runnerDesktop='Default'} $false
+Test-DesktopOwnershipProof 'declared private desktop mismatch is rejected' {param($s)$s.expectedDesktop='Wrong'} $false
+Test-DesktopOwnershipProof 'process owner mismatch is rejected' {param($s)$s.processId=98} $false
+Test-DesktopOwnershipProof 'main thread mismatch is rejected' {param($s)$s.nativeThreadId=8} $false
+Test-DesktopOwnershipProof 'window station mismatch is independently rejected by saved evidence owner' {param($s)$s.windowStation='OtherStation'} $true $false
+Test-DesktopOwnershipProof 'process thread query failure is rejected' {param($s)$s.processThreadQuerySucceeded=$false} $false
+Test-DesktopOwnershipProof 'unresolved thread churn is rejected' {param($s)$s.processThreadCohortStable=$false} $false
+Test-DesktopOwnershipProof 'new unobserved thread is rejected' {param($s)$s.processThreadIdsAfter=[uint32[]]@(7,8,9)} $false
+Test-DesktopOwnershipProof 'duplicate thread identity is rejected' {param($s)$s.processThreadIds=[uint32[]]@(7,7);$s.processThreadIdsAfter=[uint32[]]@(7,7)} $false
+Test-DesktopOwnershipProof 'missing UI thread enumeration record is rejected' {param($s)$s.ownedUiThreads=[UBVerification.OwnedUiThreadSnapshot[]]@($s.ownedUiThreads[0])} $false
+Test-DesktopOwnershipProof 'UI thread enumeration failed is rejected' {param($s)$s.ownedUiThreads[1].querySucceeded=$false} $false
+Test-DesktopOwnershipProof 'UI thread callback failure is rejected' {param($s)$s.ownedUiThreads[1].error='unavailable'} $false
+Test-DesktopOwnershipProof 'empty enumeration with error is rejected' {param($s)$s.ownedUiThreads[1].errorCode=5} $false
+Test-DesktopOwnershipProof 'documented no-window thread remains represented' {param($s)} $true
+Test-DesktopOwnershipProof 'false enumeration with callbacks is contradictory' {param($s)$s.ownedUiThreads[0].enumerationReturned=$false} $false
+Test-DesktopOwnershipProof 'completed true enumeration of an empty thread is valid' {param($s)$s.ownedUiThreads[1].enumerationReturned=$true} $true
+Test-DesktopOwnershipProof 'window on a different desktop is rejected' {param($s)$s.ownedWindows[0].desktop='DifferentPrivateDesktop'} $false
+Test-DesktopOwnershipProof 'foreign window owner is rejected' {param($s)$s.ownedWindows[0].processId=98} $false
+Test-DesktopOwnershipProof 'window owner query failure is rejected' {param($s)$s.ownedWindows[0].identityQuerySucceeded=$false} $false
+Test-DesktopOwnershipProof 'window desktop query failure is rejected' {param($s)$s.ownedWindows[0].desktopQuerySucceeded=$false} $false
+Test-DesktopOwnershipProof 'window input query failure is rejected' {param($s)$s.ownedWindows[0].inputQuery.succeeded=$false} $false
+Test-DesktopOwnershipProof 'window input true is rejected' {param($s)$s.ownedWindows[0].inputQuery.rawValue=1;$s.ownedWindows[0].inputQuery.value=$true} $false
+Test-DesktopOwnershipProof 'window client area query failure is rejected' {param($s)$s.ownedWindows[0].clientRectQuerySucceeded=$false} $false
+Test-DesktopOwnershipProof 'missing primary UI window is rejected' {param($s)$s.ownedWindows[0].clientWidth=0;$s.ownedWindows[0].clientHeight=0} $false
+Test-DesktopOwnershipProof 'window count mismatch is rejected' {param($s)$s.ownedUiThreads[0].windowCount=2} $false
+Test-DesktopOwnershipProof 'duplicate window is rejected' {param($s)$s.ownedWindows=[UBVerification.OwnedWindowSnapshot[]]@($s.ownedWindows[0],$s.ownedWindows[0]);$s.ownedUiThreads[0].windowCount=2} $false
+Test-DesktopOwnershipProof 'window from unobserved process thread is rejected' {param($s)$s.ownedWindows[0].nativeThreadId=9} $false
+Test-DesktopOwnershipProof 'saved declared failed proof is not trusted as a pass' {param($s)$s.nonInputIsolated=$false} $true $false
+Test-DesktopOwnershipProof 'missing scan history cannot claim complete acquisition' {param($s)$s.processUiScanAttempts=$null} $false
+Test-DesktopOwnershipProof 'safe thread-cohort retry retains both acquisition attempts' {param($s)
+    $prior=(New-DesktopProofFixture).processUiScanAttempts[0];$prior.afterThreadIds=[uint32[]]@(7,8,9);$prior.cohortStable=$false
+    $last=$s.processUiScanAttempts[0];$last.attempt=2;$s.processUiScanAttempts=[UBVerification.ProcessUiScan[]]@($prior,$last)
+} $true
+Test-DesktopOwnershipProof 'earlier owned input true is never hidden by later stable acquisition' {param($s)
+    $prior=(New-DesktopProofFixture).processUiScanAttempts[0];$prior.afterThreadIds=[uint32[]]@(7,8,9);$prior.cohortStable=$false;$prior.windows[0].inputQuery.rawValue=1;$prior.windows[0].inputQuery.value=$true
+    $last=$s.processUiScanAttempts[0];$last.attempt=2;$s.processUiScanAttempts=[UBVerification.ProcessUiScan[]]@($prior,$last)
+} $false
+Test-DesktopOwnershipProof 'earlier owned window query failure is never hidden by later stable acquisition' {param($s)
+    $prior=(New-DesktopProofFixture).processUiScanAttempts[0];$prior.afterThreadIds=[uint32[]]@(7,8,9);$prior.cohortStable=$false;$prior.windows[0].desktopQuerySucceeded=$false
+    $last=$s.processUiScanAttempts[0];$last.attempt=2;$s.processUiScanAttempts=[UBVerification.ProcessUiScan[]]@($prior,$last)
+} $false
+Test-DesktopOwnershipProof 'earlier enumeration failure is never hidden by later stable acquisition' {param($s)
+    $prior=(New-DesktopProofFixture).processUiScanAttempts[0];$prior.afterThreadIds=[uint32[]]@(7,8,9);$prior.cohortStable=$false;$prior.threads[1].querySucceeded=$false
+    $last=$s.processUiScanAttempts[0];$last.attempt=2;$s.processUiScanAttempts=[UBVerification.ProcessUiScan[]]@($prior,$last)
+} $false
+
+$modeEnd=$RuntimeAst.Extent.Text.IndexOf('$repoRoot =')
+$beforeMode=$RuntimeAst.EndBlock.Statements | Where-Object {
+    if ($_.Extent.EndOffset -ge $modeEnd) { return $false }
+    if ($_ -is [Management.Automation.Language.IfStatementAst]) { return $true }
+    if ($_ -is [Management.Automation.Language.AssignmentStatementAst]) { return $_.Left.Extent.Text -ceq '$requirePrivateDesktop' }
+    return $false
+}
+$modeBody=($beforeMode|ForEach-Object{$_.Extent.Text})-join[Environment]::NewLine
+foreach($case in @(
+    @{name='strict';strict=$true;direct=$false;background=$true;show=$false;startup=$false;action=$true;reject=$false},
+    @{name='direct';strict=$false;direct=$true;background=$true;show=$false;startup=$false;action=$true;reject=$false},
+    @{name='both';strict=$true;direct=$true;background=$true;show=$false;startup=$false;action=$false;reject=$true},
+    @{name='direct visible';strict=$false;direct=$true;background=$true;show=$true;startup=$false;action=$false;reject=$true},
+    @{name='direct startup';strict=$false;direct=$true;background=$true;show=$false;startup=$true;action=$false;reject=$true},
+    @{name='direct without background';strict=$false;direct=$true;background=$false;show=$false;startup=$false;action=$false;reject=$true},
+    @{name='action without private mode';strict=$false;direct=$false;background=$true;show=$false;startup=$false;action=$true;reject=$true}
+)) {
+    $rejected=$false
+    & {param($case,$body) $RequireOtherAppForeground=$case.strict;$RequireNonInputDesktop=$case.direct;$RunInBackground=$case.background;$ShowGameWindow=$case.show;$StartupOnly=$case.startup;$RequireNativeActionProof=$case.action
+        $rejected=$false;try{. ([scriptblock]::Create($body))}catch{$rejected=$true};Add-DesktopProofCheck ('mode preflight: '+$case.name) ($rejected-eq$case.reject)
+    } $case $modeBody
+}
+
+# Execute the actual terminal history consumer, not a second implementation of it.
+$historyAssignment=@($RuntimeAst.FindAll({param($n)$n -is [Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text -ceq '$unverifiedSamples'},$true))
+$historyGuard=@($RuntimeAst.FindAll({param($n)$n -is [Management.Automation.Language.IfStatementAst] -and $n.Extent.Text.Contains("throw 'The game desktop history contains missing or unsuccessful acquisition.'")},$true)|Where-Object{$_.Extent.Text.StartsWith('if ($desktopSamples.Count')})
+if($historyAssignment.Count-ne1-or$historyGuard.Count-ne1){throw 'Terminal desktop history consumer owner is not unique.'}
+$historyBody=$historyAssignment[0].Extent.Text+[Environment]::NewLine+$historyGuard[0].Extent.Text
+foreach($case in @(
+    @{name='known ownership';mutate={param($s)};direct=$true;strict=$true},
+    @{name='unknown remote identity';mutate={param($s)$s.inputDesktopQuerySucceeded=$false;$s.inputDesktop=$null;$s.inputDesktopQueryError=5;$s.complete=$false;$s.isolated=$false};direct=$true;strict=$false},
+    @{name='changed remote identity';mutate={param($s)$s.inputDesktop='Other'};direct=$true;strict=$false},
+    @{name='own input counterexample';mutate={param($s)$s.runnerInputQuery.rawValue=1;$s.runnerInputQuery.value=$true};direct=$false;strict=$false},
+    @{name='unknown own thread coverage';mutate={param($s)$s.processThreadCohortStable=$false};direct=$false;strict=$false},
+    @{name='wrong observation source';mutate={param($s)$s.observationSource='unknown'};direct=$false;strict=$false}
+)) {
+    foreach($strictMode in @($false,$true)) {
+        & {
+            param($case,$strictMode,$body)
+            $sample=New-DesktopProofFixture;& $case.mutate $sample
+            $desktopSamples=@($sample|ConvertTo-Json -Depth 30|ConvertFrom-Json);$RequireOtherAppForeground=$strictMode
+            $expectedDesktopName='UBGameTest_00000000000000000000000000000000'
+            $result=[pscustomobject]@{processId=99;foreground=[pscustomobject]@{primaryThreadId=7};desktop=[pscustomobject]@{launchWindowStation='WinSta0';before=[pscustomobject]@{inputDesktop='Default'}}}
+            $rejected=$false;try{. ([scriptblock]::Create($body))}catch{$rejected=$true}
+            $expected=if($strictMode){$case.strict}else{$case.direct}
+            Add-DesktopProofCheck ('actual terminal history '+$case.name+' strict='+$strictMode) ((-not$rejected)-eq$expected)
+        } $case $strictMode $historyBody
+    }
+}
+foreach($strictMode in @($false,$true)) {
+    & {param($strictMode,$body)
+        $desktopSamples=@();$RequireOtherAppForeground=$strictMode;$rejected=$false
+        try{. ([scriptblock]::Create($body))}catch{$rejected=$true}
+        Add-DesktopProofCheck ('empty terminal history is rejected strict='+$strictMode) $rejected
+    } $strictMode $historyBody
+}
+
+$launchParameters=@($GameTestAst.FindAll({param($n)$n -is [Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text -ceq '$parameters' -and $n.Extent.Text.Contains('RunName=$case.id')},$true))
+if($launchParameters.Count-ne1){throw 'Game test runtime mode argument owner is not unique.'}
+foreach($mode in @('default','direct','visual')) {
+    & {param($mode,$body)
+        $VisualAcceptance=$mode-eq'visual';$RequireNonInputDesktop=$mode-eq'direct'
+        $case=[pscustomobject]@{id='generic';timeoutSeconds=30};$environment=[pscustomobject]@{gameExe='C:\Dummy\Game.exe'};$runtimeRoot='C:\Dummy\Runtime'
+        $adapter=[pscustomobject]@{saveScenario=$true};$build=[pscustomobject]@{manifest=@([pscustomobject]@{path='SolastaUnfinishedBusiness.dll';sha256=('0'*64)})}
+        . ([scriptblock]::Create($body))
+        Add-DesktopProofCheck ('actual game-test launch selection '+$mode) ($parameters.RequireOtherAppForeground-eq($mode-eq'default')-and
+            $parameters.RequireNonInputDesktop-eq($mode-eq'direct')-and$parameters.RequireNativeActionProof-eq($mode-ne'visual'))
+    } $mode $launchParameters[0].Extent.Text
+}
+
+    # END DATA-ONLY DESKTOP CONTRACTS
 
     function Test-UnchangedHostForeground($Before,$After) {
         foreach($sample in @($Before,$After)) {
@@ -1100,6 +1867,11 @@ function Invoke-DesktopFocusBoundaryContract([string]$Source,[string]$Directory)
         $receipt.before.runnerReceivesInput -eq $true -and $receipt.before.runnerDesktop -ceq $before.runnerDesktop)})
     $checks.Add([ordered]@{name='host foreground PID thread and window unchanged';passed=(
         Test-UnchangedHostForeground $foregroundBefore $foregroundAfter)})
+    $checks.Add([ordered]@{name='host observation does not claim or acquire complete process UI coverage';passed=(
+        -not $before.processThreadQuerySucceeded -and -not $after.processThreadQuerySucceeded -and
+        $null -eq $before.processThreadIds -and $null -eq $after.processThreadIds -and
+        $null -eq $before.processUiScanAttempts -and $null -eq $after.processUiScanAttempts -and
+        -not $before.nonInputIsolated -and -not $after.nonInputIsolated)})
     $checks.Add([ordered]@{name='host remains on the observed input desktop without a created peer';passed=(
         $after.complete -and -not $after.isolated -and $after.runnerReceivesInput -eq $true -and
         $after.runnerInputQuery.succeeded -and $after.runnerInputQuery.bytesNeeded -eq 4 -and
@@ -1111,34 +1883,29 @@ function Invoke-DesktopFocusBoundaryContract([string]$Source,[string]$Directory)
     $checks.Add([ordered]@{name='actual failed UOI query retains unknown BOOL';passed=(
         -not $failedInput.succeeded -and
         $null -eq $failedInput.rawValue -and $null -eq $failedInput.value)})
-    $trials=@(foreach ($mode in @('declared-valid-control','actual-invalid-handle','failed-with-false-output','short-bool-output','missing-query','incomplete-snapshot')) {
-        $snapshot=[UBVerification.DesktopSnapshot]::new()
-        $snapshot.complete=$true; $snapshot.isolated=$true
-        $snapshot.runnerDesktop='UBGameTest_' + ('a' * 32)
-        $snapshot.guiThread=[UBVerification.GuiThreadSnapshot]::new()
-        $snapshot.guiThread.querySucceeded=$true
-        $snapshot.runnerInputQuery=[UBVerification.BooleanQuery]::new()
-        $snapshot.runnerInputQuery.succeeded=$true; $snapshot.runnerInputQuery.bytesNeeded=4
-        $snapshot.runnerInputQuery.rawValue=0; $snapshot.runnerInputQuery.value=$false
+    $trials=@(foreach ($mode in @('declared-valid-control','actual-invalid-handle','failed-with-false-output','short-bool-output','missing-query','incomplete-owned-coverage','remote-name-unavailable-control')) {
+        $snapshot=New-DesktopProofFixture
+        $snapshot.guiThread=[UBVerification.GuiThreadSnapshot]::new();$snapshot.guiThread.querySucceeded=$true
         switch ($mode) {
             'actual-invalid-handle' { $snapshot.runnerInputQuery=$failedInput }
             'failed-with-false-output' { $snapshot.runnerInputQuery.succeeded=$false; $snapshot.runnerInputQuery.errorCode=6 }
             'short-bool-output' { $snapshot.runnerInputQuery.bytesNeeded=0 }
             'missing-query' { $snapshot.runnerInputQuery=$null }
-            'incomplete-snapshot' { $snapshot.complete=$false }
+            'incomplete-owned-coverage' { $snapshot.processThreadQuerySucceeded=$false }
+            'remote-name-unavailable-control' { $snapshot.complete=$false;$snapshot.isolated=$false;$snapshot.inputDesktop=$null;$snapshot.inputDesktopQuerySucceeded=$false;$snapshot.inputDesktopQueryError=5 }
         }
         $accepted=$false; $failure=$null
         try { [void]$requireDesktop.Invoke($null,[object[]]@($snapshot)); $accepted=$true }
         catch { $failure=$_.Exception.GetBaseException().Message }
-        $expectedAcceptance=$mode -ceq 'declared-valid-control'
+        $expectedAcceptance=$mode -in @('declared-valid-control','remote-name-unavailable-control')
         [ordered]@{mode=$mode;accepted=$accepted;failure=$failure;passed=(
             $accepted -eq $expectedAcceptance -and ($expectedAcceptance -or
                 $failure -ceq 'Focus verification requires the owned non-input desktop.'))}
     })
     [ordered]@{
-        status=$(if (@($checks | Where-Object passed -eq $false).Count -or @($trials | Where-Object passed -eq $false).Count -or @($foregroundTrials | Where-Object passed -eq $false).Count) {'FAIL'}else{'PASS'})
+        status=$(if (@($proofChecks | Where-Object status -ne 'PASS').Count -or @($checks | Where-Object passed -eq $false).Count -or @($trials | Where-Object passed -eq $false).Count -or @($foregroundTrials | Where-Object passed -eq $false).Count) {'FAIL'}else{'PASS'})
         scope='Compiled actual desktop source: real input-desktop refusal, foreground readback and invalid-handle UOI failure. Declared snapshots separately exercise the guard; no desktop creation, activation, input or game launch.'
-        assembly=$assembly;checks=@($checks.ToArray());guardTrials=$trials;foregroundObservationTrials=$foregroundTrials
+        assembly=$assembly;threadAcquisition=$threadAcquisition;ownershipProofCases=@($proofChecks.ToArray());checks=@($checks.ToArray());guardTrials=$trials;foregroundObservationTrials=$foregroundTrials
         hostBefore=$before;hostAfter=$after;foregroundBefore=$foregroundBefore;foregroundAfter=$foregroundAfter
         hostForegroundStateBefore=$(if($foregroundBefore.windowHandle -eq 0){'NONE'}else{'WINDOW'})
         hostForegroundStateAfter=$(if($foregroundAfter.windowHandle -eq 0){'NONE'}else{'WINDOW'})
@@ -1605,6 +2372,9 @@ try {
     $desktop=Read-ContractSource $archived['tools/runtime-verification/WindowsDesktop.ps1']
     $display=Read-ContractSource $archived['tools/runtime-verification/NativeDisplaySettings.ps1']
     $runtime=Read-ContractSource $archived['tools/runtime-verification/Invoke-RuntimeVerification.ps1']
+    $result.assemblyReferences=Invoke-AssemblyReferenceContracts $runtime (Join-Path $run 'AssemblyReferences')
+    $result.foregroundObservation=Invoke-ForegroundObservationContract $runtime (Join-Path $run 'ForegroundObservation')
+    if ($result.foregroundObservation.status -ne 'PASS') { throw 'A foreground observation contract failed.' }
     $common=Read-ContractSource $archived['tools/game-test/GameTest.Common.ps1']
     $result.persistentSync=Invoke-PersistentSyncContracts (Read-ContractSource $archived['tools/runtime-verification/Invoke-SolastaSemiAutoTest.ps1']) $desktop (Join-Path $run 'PersistentSync')
     $result.nativeEvidencePaths=Invoke-NativeEvidencePathContracts $archived['tools/runtime-verification/EvidencePaths.ps1'] $common $runtime (Join-Path $run 'NativeEvidencePaths')
@@ -1618,7 +2388,7 @@ try {
     $result.presentationWriter=Invoke-PresentationWriterContracts $archived['tools/runtime-verification/Probes/PresentationCapture.cs'] $archived['tools/game-test/Review-PresentationEvidence.ps1'] (Join-Path $run 'PresentationWriter')
     [void](Read-ContractSource $archived['tools/game-test/Clear-GameTestArtifacts.ps1'])
     $result.storageCleanup=Invoke-StorageCleanupContracts $archived (Join-Path $run 'StorageCleanup')
-    $result.desktopFocusBoundary=Invoke-DesktopFocusBoundaryContract $archived['tools/runtime-verification/WindowsDesktop.cs'] (Join-Path $run 'DesktopFocusBoundary')
+    $result.desktopFocusBoundary=Invoke-DesktopFocusBoundaryContract $archived['tools/runtime-verification/WindowsDesktop.cs'] (Join-Path $run 'DesktopFocusBoundary') $runtime $desktop (Read-ContractSource $archived['tools/game-test/Invoke-GameTest.ps1'])
     $preflight=@($runtime.FindAll({
         param($node)
         $node -is [Management.Automation.Language.IfStatementAst] -and
@@ -1728,13 +2498,13 @@ try {
     }
     if ($result.processLifecycle.status -eq 'ERROR') {
         $result.status='ERROR'; $result.reason='A process lifecycle fixture could not complete.'
-    } elseif (@($result.processGuards | Where-Object status -ne 'PASS').Count -or $result.processLifecycle.status -eq 'FAIL' -or $result.nativeActionProof.status -eq 'FAIL' -or $result.caseValidation.status -eq 'FAIL' -or $result.compilationBoundary.status -eq 'FAIL' -or $result.desktopFocusBoundary.status -ne 'PASS' -or $result.storageCleanup.status -ne 'PASS' -or $result.packageManifest.status -ne 'PASS' -or $result.buildDiagnostics.status -ne 'PASS' -or $result.sourceIdentity.status -ne 'PASS' -or $result.modLoadPlan.status -ne 'PASS' -or $result.nativeUserData.status -ne 'PASS' -or $result.presentationReview.status -ne 'PASS' -or $result.nativeEvidencePaths.status -ne 'PASS' -or $result.sourceTracking.status -ne 'PASS' -or $result.persistentSync.status -ne 'PASS' -or $result.presentationWriter.status -ne 'PASS') {
+    } elseif (@($result.processGuards | Where-Object status -ne 'PASS').Count -or $result.processLifecycle.status -eq 'FAIL' -or $result.nativeActionProof.status -eq 'FAIL' -or $result.caseValidation.status -eq 'FAIL' -or $result.compilationBoundary.status -eq 'FAIL' -or $result.assemblyReferences.status -ne 'PASS' -or $result.desktopFocusBoundary.status -ne 'PASS' -or $result.storageCleanup.status -ne 'PASS' -or $result.packageManifest.status -ne 'PASS' -or $result.buildDiagnostics.status -ne 'PASS' -or $result.sourceIdentity.status -ne 'PASS' -or $result.modLoadPlan.status -ne 'PASS' -or $result.nativeUserData.status -ne 'PASS' -or $result.presentationReview.status -ne 'PASS' -or $result.nativeEvidencePaths.status -ne 'PASS' -or $result.sourceTracking.status -ne 'PASS' -or $result.persistentSync.status -ne 'PASS' -or $result.presentationWriter.status -ne 'PASS') {
         $result.status='FAIL'; $result.reason='A game-test contract failed.'
     } elseif ($SkipProcessLifecycle) {
         $result.processLifecycle=[ordered]@{status='SKIPPED';reason='Skipped by -SkipProcessLifecycle.'}
-        $result.status='PASS'; $result.reason="All 30 process guard contracts, $($compileCases.Count) compilation boundary contracts, $($proofCases.Count) native action proof contracts, $($result.caseValidation.cases.Count) case validation contracts, $($result.storageCleanup.cases.Count) artifact cleanup contracts, $($result.packageManifest.cases.Count) package manifest contracts, $($result.buildDiagnostics.cases.Count) native build diagnostic contracts, verification mod load-order contracts, native user-data isolation contracts, native evidence path contracts, presentation manifest aggregation contracts, development source tracking contracts, persistent sync contracts, presentation writer contracts and desktop focus safety contracts passed. Process lifecycle checks were skipped."
+        $result.status='PASS'; $result.reason="All 30 process guard contracts, $($compileCases.Count) compilation boundary contracts, $($result.assemblyReferences.cases.Count) assembly reference contracts, $($proofCases.Count) native action proof contracts, $($result.caseValidation.cases.Count) case validation contracts, $($result.storageCleanup.cases.Count) artifact cleanup contracts, $($result.packageManifest.cases.Count) package manifest contracts, $($result.buildDiagnostics.cases.Count) native build diagnostic contracts, verification mod load-order contracts, native user-data isolation contracts, native evidence path contracts, presentation manifest aggregation contracts, development source tracking contracts, persistent sync contracts, presentation writer contracts and desktop focus safety contracts passed. Process lifecycle checks were skipped."
     } else {
-        $result.status='PASS'; $result.reason="All 30 process guard contracts, $($compileCases.Count) compilation boundary contracts, $($cases.Count) owned process lifecycle cases, $($proofCases.Count) native action proof contracts, $($result.caseValidation.cases.Count) case validation contracts, $($result.storageCleanup.cases.Count) artifact cleanup contracts, $($result.packageManifest.cases.Count) package manifest contracts, $($result.buildDiagnostics.cases.Count) native build diagnostic contracts, verification mod load-order contracts, native user-data isolation contracts, native evidence path contracts, presentation manifest aggregation contracts, development source tracking contracts, persistent sync contracts, presentation writer contracts and desktop focus safety contracts passed."
+        $result.status='PASS'; $result.reason="All 30 process guard contracts, $($compileCases.Count) compilation boundary contracts, $($result.assemblyReferences.cases.Count) assembly reference contracts, $($cases.Count) owned process lifecycle cases, $($proofCases.Count) native action proof contracts, $($result.caseValidation.cases.Count) case validation contracts, $($result.storageCleanup.cases.Count) artifact cleanup contracts, $($result.packageManifest.cases.Count) package manifest contracts, $($result.buildDiagnostics.cases.Count) native build diagnostic contracts, verification mod load-order contracts, native user-data isolation contracts, native evidence path contracts, presentation manifest aggregation contracts, development source tracking contracts, persistent sync contracts, presentation writer contracts and desktop focus safety contracts passed."
     }
 } catch {
     $result.status='ERROR'; $result.reason=$_.Exception.Message

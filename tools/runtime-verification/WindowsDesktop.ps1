@@ -67,3 +67,31 @@ function Start-VerificationBackgroundProcess {
     [UBVerification.DesktopReader]::StartBackground([IO.Path]::GetFullPath($FilePath),
         [IO.Path]::GetFullPath($WorkingDirectory), $ArgumentList, $DesktopName)
 }
+
+
+# Validate saved raw receipts through the same pure desktop owner predicate.
+function Test-VerificationNonInputDesktopEvidence {
+    [CmdletBinding()]
+    param([Parameter(Mandatory=$true)]$Snapshot,
+        [Parameter(Mandatory=$true)][string]$ExpectedDesktop,
+        [Parameter(Mandatory=$true)][int]$ExpectedProcessId,
+        [Parameter(Mandatory=$true)][uint32]$ExpectedMainThreadId,
+        [Parameter(Mandatory=$true)][string]$ExpectedWindowStation)
+    try {
+        if (-not ('UBVerification.DesktopReader' -as [type])) {
+            Add-Type -Path (Join-Path $PSScriptRoot 'WindowsDesktop.cs') | Out-Null
+        }
+        if ($Snapshot.windowStation -cne $ExpectedWindowStation -or $Snapshot.nonInputIsolated -isnot [bool] -or
+            -not $Snapshot.nonInputIsolated) { return $false }
+        if (-not ('System.Runtime.Serialization.Json.DataContractJsonSerializer' -as [type])) {
+            Add-Type -AssemblyName System.Runtime.Serialization | Out-Null
+        }
+        $bytes=[Text.Encoding]::UTF8.GetBytes(($Snapshot | ConvertTo-Json -Depth 30 -Compress))
+        $stream=[IO.MemoryStream]::new($bytes)
+        try {
+            $serializer=[Runtime.Serialization.Json.DataContractJsonSerializer]::new([UBVerification.DesktopSnapshot])
+            $receipt=$serializer.ReadObject($stream)
+            return [UBVerification.DesktopReader]::HasNonInputOwnershipProof($receipt,$ExpectedDesktop,$ExpectedProcessId,$ExpectedMainThreadId)
+        } finally { $stream.Dispose() }
+    } catch { return $false }
+}

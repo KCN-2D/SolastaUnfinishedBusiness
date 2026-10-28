@@ -12,18 +12,52 @@ public static class PresentationCapture
 {
     public static void FrameSubjects(Camera camera,IEnumerable<Renderer> subjects,float margin=1.1f)
     {
-        if(!camera||!camera.orthographic||margin<1f)throw new ArgumentException("Orthographic framing requires a camera and margin >= 1.");
-        var renderers=subjects.Where(renderer=>renderer&&renderer.enabled&&renderer.gameObject.activeInHierarchy&&!renderer.forceRenderingOff).ToArray();
+        RuntimeVerificationHarness.AssertMainThread();
+        if(!camera||!camera.orthographic||subjects==null)throw new ArgumentException("Orthographic surface framing requires a camera and subjects.");
+        var renderers=subjects.Where(renderer=>renderer&&(renderer is MeshRenderer||renderer is SkinnedMeshRenderer)&&
+            renderer.enabled&&renderer.gameObject.activeInHierarchy&&!renderer.forceRenderingOff&&
+            (camera.cullingMask&(1<<renderer.gameObject.layer))!=0).ToArray();
         if(renderers.Length==0)throw new InvalidOperationException("No visible subjects to frame.");
-        var bounds=renderers[0].bounds;foreach(var renderer in renderers.Skip(1))bounds.Encapsulate(renderer.bounds);
-        camera.transform.position+=bounds.center-camera.transform.position-Vector3.Project(bounds.center-camera.transform.position,camera.transform.forward);
-        var minimum=new Vector2(float.PositiveInfinity,float.PositiveInfinity);var maximum=new Vector2(float.NegativeInfinity,float.NegativeInfinity);
+        var bounds=renderers[0].bounds;
+        foreach(var renderer in renderers)
+        {
+            var value=renderer.bounds;var center=value.center;var extent=value.extents;
+            if(!Finite(center.x)||!Finite(center.y)||!Finite(center.z)||!Finite(extent.x)||!Finite(extent.y)||!Finite(extent.z)||
+                extent.x<0||extent.y<0||extent.z<0)throw new InvalidOperationException("A surface subject has invalid world bounds.");
+            bounds.Encapsulate(value);
+        }
+        var minimum=new Vector3(float.PositiveInfinity,float.PositiveInfinity,float.PositiveInfinity);
+        var maximum=new Vector3(float.NegativeInfinity,float.NegativeInfinity,float.NegativeInfinity);
         for(var x=-1;x<=1;x+=2)for(var y=-1;y<=1;y+=2)for(var z=-1;z<=1;z+=2)
         {
-            var local=camera.transform.InverseTransformPoint(bounds.center+Vector3.Scale(bounds.extents,new Vector3(x,y,z)));
-            minimum=Vector2.Min(minimum,new Vector2(local.x,local.y));maximum=Vector2.Max(maximum,new Vector2(local.x,local.y));
+            var relative=bounds.center+Vector3.Scale(bounds.extents,new Vector3(x,y,z))-camera.transform.position;
+            var local=new Vector3(Vector3.Dot(relative,camera.transform.right),Vector3.Dot(relative,camera.transform.up),Vector3.Dot(relative,camera.transform.forward));
+            minimum=Vector3.Min(minimum,local);maximum=Vector3.Max(maximum,local);
         }
-        var size=maximum-minimum;camera.orthographicSize=Mathf.Max(size.y*.5f,size.x*.5f/camera.aspect)*margin;
+        var frame=CalculateOrthographicFrame(minimum,maximum,camera.aspect,camera.nearClipPlane,camera.farClipPlane,margin);
+        camera.transform.position+=camera.transform.TransformDirection(frame.shift);
+        camera.orthographicSize=frame.size;
+    }
+    private struct OrthographicFrame
+    {
+        public Vector3 shift;
+        public float size;
+    }
+    private static OrthographicFrame CalculateOrthographicFrame(Vector3 minimum,Vector3 maximum,float aspect,float near,float far,float margin)
+    {
+        if(!Finite(minimum.x)||!Finite(minimum.y)||!Finite(minimum.z)||!Finite(maximum.x)||!Finite(maximum.y)||!Finite(maximum.z)||
+            !Finite(aspect)||aspect<=0||!Finite(near)||near<=0||!Finite(far)||far<=near||!Finite(margin)||margin<1f)
+            throw new ArgumentException("Surface framing requires finite bounds, a positive aspect and a valid clip interval.");
+        var size=maximum-minimum;var center=minimum+size*.5f;
+        var halfDepth=size.z*.5f*margin;
+        var orthographicSize=Mathf.Max(size.y*.5f,size.x*.5f/aspect)*margin;
+        if(size.x<0||size.y<0||size.z<0||!Finite(halfDepth)||halfDepth*2>=far-near||!Finite(orthographicSize)||orthographicSize<=0)
+            throw new InvalidOperationException("The surface bounds cannot fit the requested orthographic clip interval.");
+        var depth=center.z;
+        if(depth-halfDepth<=near||depth+halfDepth>=far)depth=near+(far-near)*.5f;
+        var shift=new Vector3(center.x,center.y,center.z-depth);
+        if(!Finite(shift.x)||!Finite(shift.y)||!Finite(shift.z))throw new InvalidOperationException("The surface framing offset is not finite.");
+        return new OrthographicFrame{shift=shift,size=orthographicSize};
     }
 
     [Serializable] public sealed class ReviewDocument
@@ -123,7 +157,7 @@ public static class PresentationCapture
 
     public static IEnumerator Capture(Camera camera, Renderer[] subjects, string name,
         int width, int height, Action<Receipt> completed = null, int settleFrames = 2,
-        int warmupFrames = 0, Action onCaptured = null)
+        int warmupFrames = 0, Action onCaptured = null, Action onBeforeRender = null)
     {
         RuntimeVerificationHarness.AssertMainThread();
         if (!camera || subjects == null || subjects.Length == 0 || subjects.Any(subject => !subject))
@@ -184,6 +218,7 @@ public static class PresentationCapture
             if (!receipt.subjects.Any(subject => subject.active && subject.enabled && !subject.forcedOff &&
                                                 subject.includedLayer && subject.inFrustum))
                 throw new InvalidOperationException("No requested subject can be drawn by the capture camera.");
+            onBeforeRender?.Invoke();
             camera.Render();
             if (onCaptured != null)
             {

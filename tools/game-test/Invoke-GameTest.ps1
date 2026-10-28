@@ -8,6 +8,7 @@ param(
     [switch]$Deploy,
     [switch]$Launch,
     [switch]$VisualAcceptance,
+    [switch]$RequireNonInputDesktop,
     [switch]$ObserveDisplay,
     [switch]$ValidateOnly,
     [string]$ScenarioAdapter,
@@ -21,6 +22,7 @@ param(
 . (Join-Path $PSScriptRoot 'GameTest.Common.ps1')
 . (Join-Path $script:GameTestRepo 'tools\runtime-verification\NativeDisplaySettings.ps1')
 if (-not $EvidenceRoot) { $EvidenceRoot=$script:GameTestArtifactRoot }
+if ($RequireNonInputDesktop -and $VisualAcceptance) { throw 'RequireNonInputDesktop cannot be combined with VisualAcceptance.' }
 $CasePath=Resolve-GtArtifactPath $CasePath
 $localRequested=$ScenarioAdapter -or @($ScenarioSource).Count -gt 0 -or $ScenarioType -or $ScenarioValidator -or $null -ne $ScenarioObservation -or $null -ne $ScenarioSaveScenario -or @($ScenarioReferencePath).Count -gt 0
 if ($localRequested) {
@@ -41,6 +43,7 @@ $acceptanceScope = if ($VisualAcceptance) { 'visual-observation' }
     elseif ($adapter.saveScenario) { 'native-non-occupying-runner' }
     else { 'native-observation' }
 $result = [ordered]@{ schemaVersion=1; caseId=$case.id; executionMode=$(if($VisualAcceptance){'visual-acceptance'}else{'native-regression'}); acceptanceScope=$acceptanceScope; status='BLOCKED'; reason='Preconditions have not completed.'; startedUtc=[datetime]::UtcNow.ToString('O'); evidenceDirectory=$run; runtimeResult=$null; restored=$false; images=@(); operations='Operations.json' }
+$result['backgroundProofMode']=$(if($VisualAcceptance){'interactive'}elseif($RequireNonInputDesktop){'owned-non-input-desktop'}else{'strict-other-app-foreground'})
 $transactionCreated=$false; $runtimeFailure=$null; $oldCaseEnvironment=[Environment]::GetEnvironmentVariable('UB_GAME_TEST_CASE_PATH','Process'); $operationLock=$null
 try {
     $operationLock=Enter-GtLock
@@ -206,7 +209,7 @@ try {
         Add-GtEvent 'deployed' ('Staged package explicitly deployed to ' + $installed)
         [Environment]::SetEnvironmentVariable('UB_GAME_TEST_CASE_PATH',(Join-Path $run 'Case.json'),'Process')
         $runtimeRoot=Join-Path $run 'Runtime'
-        $parameters=@{ RunName=$case.id; GameExePath=$environment.gameExe; EvidenceRoot=$runtimeRoot; SkipBuild=$true; ShowGameWindow=[bool]$VisualAcceptance; RunInBackground=(-not $VisualAcceptance); RequireOtherAppForeground=(-not $VisualAcceptance); RequireNativeActionProof=($adapter.saveScenario -and -not $VisualAcceptance); DedicatedPlayerLog=$true; TimeoutSeconds=[int]$case.timeoutSeconds; ExpectedUbSha256=(@($build.manifest | Where-Object { $_.path -eq 'SolastaUnfinishedBusiness.dll' })[0].sha256) }
+        $parameters=@{ RunName=$case.id; GameExePath=$environment.gameExe; EvidenceRoot=$runtimeRoot; SkipBuild=$true; ShowGameWindow=[bool]$VisualAcceptance; RunInBackground=(-not $VisualAcceptance); RequireOtherAppForeground=(-not $VisualAcceptance -and -not $RequireNonInputDesktop); RequireNonInputDesktop=[bool]$RequireNonInputDesktop; RequireNativeActionProof=($adapter.saveScenario -and -not $VisualAcceptance); DedicatedPlayerLog=$true; TimeoutSeconds=[int]$case.timeoutSeconds; ExpectedUbSha256=(@($build.manifest | Where-Object { $_.path -eq 'SolastaUnfinishedBusiness.dll' })[0].sha256) }
         if (@($case.initialState.nativePreferences).Count -gt 0) { $parameters.NativePreferencesInputDirectory = Join-Path $run 'Input' }
         if ($case.adapter -eq 'startup') { $parameters.StartupOnly=$true }
         else {

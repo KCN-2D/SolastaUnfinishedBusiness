@@ -66,7 +66,7 @@ public static class ExampleProbe
 
 例の `CheckTheBehavior()` は検証対象固有の判定に置き換えます。ハーネスは UB の初期化完了後に呼び出し、入れ子の `IEnumerator` も自ら進めて例外を捕捉します。独立して `StartCoroutine` した処理の終了は自動追跡しないため、プローブから必ず終了を待ってください。チェックを一つも報告しないプローブは失敗です。
 
-公開化した参照 DLL の private メンバーは実行時にも public になるわけではありません。実際のゲーム DLL で非公開の API には reflection を使います。既存セーブを使う検証は[game-test](../game-test/README.md)から実行します。
+プローブは起動先の`Assembly-CSharp.dll`を参照してコンパイルします。追加参照を含め、同名assemblyの完全名・SHA-256が異なる場合は拒否し、採用した参照を`Result.json`の`compilationReferences`へ記録します。非公開APIの呼び出しにはreflectionを使います。既存セーブを使う検証は[game-test](../game-test/README.md)から実行します。
 
 ## 実行
 
@@ -164,7 +164,9 @@ User/Platform設定と、読込に必要な `UserContent/`・`TempSessionData/` 
 
 通常回帰は `tools/game-test/Invoke-GameTest.ps1` を使います。直接このrunnerを使う入力不要のプローブでは、`-RunInBackground -RequireOtherAppForeground` を指定します。実行ごとに非入力のWindowsデスクトップを作り、その中でGPU描画するゲームウィンドウを起動します。ホストのデスクトップは切り替えず、`-batchmode` と `-nographics` は指定しません。`-ShowGameWindow` と `-StartupOnly` とは併用できません。
 
-メインスレッドの`Runtime-Desktop.json`と継続観測`Runtime-Desktop.jsonl`にPID・native thread・所有HWND・デスクトップ・入力状態を記録し、起動時の情報と照合します。`UOI_IO`はAPI取得成功、必要バイト数、生BOOL、nullable値を分け、取得失敗を非入力状態の根拠にしません。ホストの前面HWND・PID・所有threadと入力デスクトップも500ミリ秒ごとに読み取り、ゲームが前面になった場合や必要な情報を取得できない場合は終了・復元し、判定を`incomplete`にします。親の入力デスクトップが実行前後で変わっていないことも確認します。
+`-RunInBackground -RequireNonInputDesktop`を明示すると、指定した非入力デスクトップ上のゲームメインスレッドとプロセス内の全所有ウィンドウを確認します。ホストの前面情報や入力デスクトップ名を取得できない場合は、不明のまま証跡へ記録します。`-RequireOtherAppForeground`とは併用できません。
+
+メインスレッドの`Runtime-Desktop.json`と継続観測`Runtime-Desktop.jsonl`にPID・native thread・所有HWND・デスクトップ・入力状態を記録し、起動時の情報と照合します。`UOI_IO`はAPI取得成功、必要バイト数、生BOOL、nullable値を分け、取得失敗を非入力状態の根拠にしません。ホストの前面HWND・PID・所有threadと入力デスクトップも500ミリ秒ごとに読み取り、ゲームが前面になった場合は終了・復元します。`-RequireOtherAppForeground`では、必要な前面情報を取得できない場合も判定を`incomplete`とし、親の入力デスクトップが実行前後で変わっていないことを確認します。
 
 前面ウィンドウの変化と1秒ごとの記録は`Runtime-Foreground.jsonl`、メインスレッドのフォーカス・GPU・フレーム・時間倍率・Screen寸法は`Runtime-Execution.jsonl`に保存します。`-RequireNativeActionProof`は、保存済みゲームのaction開始・終了、GPUとフレーム進行、Screenとclient寸法が一致する一意のゲームウィンドウを照合します。`game-test`の通常回帰ではこの条件を必須にします。
 

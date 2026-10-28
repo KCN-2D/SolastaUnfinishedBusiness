@@ -22,6 +22,8 @@ BlenderのPython APIで生成、書き出し、再読み込み検証、PNGプレ
 
 | 引数 | 用途 |
 | --- | --- |
+| `-SourcePath` | 追加で読み込むスクリプト・設定ファイル。原本とハッシュを保存し、各工程の前後に変更を検出 |
+| `-DependencyPath` | 出力が参照する入力・既存成果物。整理時の保持対象 |
 | `-PipelinePath` | 実行するPythonスクリプト。既定は`tools/asset-authoring/blender_pipeline.py` |
 | `-QualityProfilePath` | モデル側の検証要件JSON。指定時は最後に共通の`validate-quality`工程を実行 |
 | `-Stages` | 順番に実行する工程。既定は`generate`、`verify-static`、`verify-rig` |
@@ -199,7 +201,33 @@ pwsh -NoProfile -File .\tools\asset-authoring\Invoke-UnityAssetBuild.ps1 `
 
 レシピは`schemaVersion=1`、`bundleName`、`meshes`を持ちます。各meshは一意な`name`、`vertices`、`normals`、`tangents`、`uvChannels`、`subMeshes`、`bounds`、`indexFormat`を指定します。`colors`は任意のRGBA配列です。頂点・法線は3成分、接線・色は4成分の平坦な数値配列で、使わない法線・接線は空配列にします。UVは`channel`（0〜7）、`dimension`（2・3・4）、`values`を指定します。submeshは`topology=Triangles`と`indices`、boundsは3成分ずつの`center`と`size`、indexFormatは`UInt16`または`UInt32`です。
 
-非有限値、不正な配列長・indices・bounds、重複名・UVを拒否します。再読み込み後は全チャンネルのfloat32ビット列、UV次元、indices、submesh、bounds、名称を照合します。契約テストに`-MeshesOnly -MeshRecipePath '<メッシュレシピ.json>'`を渡すと、1回のビルドと不正入力の拒否を確認します。
+骨格データは任意の`skin`に、`bindPoses`（骨ごとにUnityの`Matrix4x4[i]`順、列優先の16成分）、`boneWeights`（頂点ごとに降順の4成分、合計1）、`boneIndices`（頂点ごとに4成分、bindPoses内の骨番号）を指定します。`blendShapes`は物理index順の配列で、各要素に`name`と`frames`を指定します。同名のチャンネルも分離して保持し、名前で検索した際の最初のindexを照合します。各frameは昇順の`weight`と、頂点ごとに3成分の変位配列`vertices`・`normals`・`tangents`を持ちます。
+
+同じbundleへTexture2Dを含める場合は、レシピ直下に任意の`textures`配列を指定します。各要素は`name`、レシピからの相対`path`、小文字の`sha256`、真偽値の`normalMap`・`sRGB`・`mipmaps`を持ちます。PNG / JPG / JPEG / TGAに対応し、`name`は拡張子を除いたファイル名と一致させます。名前とパスは一意にします。たとえば法線画像は`{"name":"SurfaceNormal","path":"Textures/SurfaceNormal.png","sha256":"<64桁のハッシュ>","normalMap":true,"sRGB":false,"mipmaps":true}`と宣言します。
+
+Blenderで既存の頂点法線を設定する場合は、共通関数`set_mesh_custom_normals(mesh, normals)`を使います。頂点ごとの3成分配列を渡すと、スムーズ表示を設定してから法線を適用します。
+
+RGBAの各チャンネルに材質データを保存するPNGは、共通関数`write_packed_rgba(path, width, height, rgba)`で出力できます。`rgba`には下の行から並べたRGBA8の`bytes`を渡します。色空間の変換は呼び出し側で行い、関数は渡された値を保持して保存します。
+
+`normalMap=true`はUnityのNormalMapとして取り込み、ハイト画像からの変換を無効にします。法線画像の`sRGB`は`false`にします。取込時は通常圧縮、Crunch無効、宣言したmipmap設定を使い、圧縮データの照合のためRead/Writeを有効にします。作成時、保存したasset、bundle再読み込み後の取込設定、名称、寸法、graphicsFormat、mip数、圧縮済み生データのハッシュを照合します。
+
+非有限値、不正な配列長・indices・bounds、重複名・UV、骨番号・ウェイト・frame順の不整合を拒否します。作成直後、保存したasset、AssetBundle再読み込み後に全チャンネルのfloat32ビット列、UV次元、indices、submesh、bounds、名称、骨格・blendshape全frameを照合します。契約テストに`-MeshesOnly -MeshRecipePath '<メッシュレシピ.json>'`を渡すと、指定レシピと共通の骨格付き複数frame fixtureのビルド、不正入力の拒否を確認します。
+
+## 作業データの整理
+
+通常の生成では、入力依存とジョブの所有範囲を登録し、終了時に成果物のハッシュを保存します。Unityのローカル生成処理は`Register-AssetAuthoringJob`と`Complete-AssetAuthoringJob`で、ジョブ・生成Assets・セッションを同じ所有単位として管理します。
+
+```powershell
+& .\tools\asset-authoring\Invoke-UnityAssetBuild.ps1 -Cleanup `
+  -GuiProjectPath '<Projectのパス>' -ReferencePath '<参照JSON>' `
+  -MaxAgeDays 7 -MaxRetainedBytes 20000000000
+
+& .\tools\asset-authoring\Invoke-AssetAuthoring.ps1 -Cleanup `
+  -OutputRoot '<出力先>' -ReferencePath '<参照JSON>' `
+  -MaxAgeDays 7 -MaxRetainedBytes 20000000000
+```
+
+既定は整理候補の確認で、`-Apply`で削除します。`-KeepLatest`は既定2件、期限・容量の0は制限なしです。参照中・明示保持・未完了・稼働中のデータを保持し、古いBlender出力の成功ポインターも対象と一緒に整理します。参照JSONは`{"schemaVersion":1,"paths":["<保持する入力>"]}`の形式で、相対パスはJSONの場所を基準にします。
 
 ## ゲーム内検証
 

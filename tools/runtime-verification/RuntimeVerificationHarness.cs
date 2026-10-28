@@ -240,7 +240,7 @@ public sealed class RuntimeVerificationHarness : MonoBehaviour
         current = this;
         using (var process = System.Diagnostics.Process.GetCurrentProcess()) processId = process.Id;
         mainThreadId = UBVerification.DesktopReader.CurrentNativeThreadId();
-        if (RuntimeVerificationConfiguration.RequireOtherAppForeground && !RecordDesktopReceipt())
+        if ((RuntimeVerificationConfiguration.RequireOtherAppForeground || RuntimeVerificationConfiguration.RequireNonInputDesktop) && !RecordDesktopReceipt())
         {
             Finish();
             return;
@@ -663,7 +663,7 @@ public sealed class RuntimeVerificationHarness : MonoBehaviour
 
     private void WriteExecution(string eventName, bool? focusCallbackValue = null, bool? pauseCallbackValue = null)
     {
-        if (!RuntimeVerificationConfiguration.RequireOtherAppForeground || executionObservationFailed) return;
+        if (!(RuntimeVerificationConfiguration.RequireOtherAppForeground || RuntimeVerificationConfiguration.RequireNonInputDesktop) || executionObservationFailed) return;
         try
         {
             var sample = new ExecutionSample {
@@ -693,7 +693,8 @@ public sealed class RuntimeVerificationHarness : MonoBehaviour
                 File.AppendAllText(Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory, "Runtime-Desktop.jsonl"),
                     System.Text.Encoding.UTF8.GetString(stream.ToArray()) + Environment.NewLine);
             }
-            if (!desktop.complete || !desktop.isolated || desktop.processId != processId || desktop.nativeThreadId != mainThreadId)
+            if (!UBVerification.DesktopReader.HasNonInputOwnershipProof(desktop, RuntimeVerificationConfiguration.ExpectedDesktopName, processId, mainThreadId) ||
+                RuntimeVerificationConfiguration.RequireOtherAppForeground && (!desktop.complete || !desktop.isolated))
                 throw new InvalidOperationException("The main-thread desktop observation is incomplete or no longer non-input.");
         }
         catch (Exception ex)
@@ -713,9 +714,8 @@ public sealed class RuntimeVerificationHarness : MonoBehaviour
             using (var stream = File.Create(path + ".tmp"))
                 new DataContractJsonSerializer(typeof(UBVerification.DesktopSnapshot)).WriteObject(stream, snapshot);
             File.Move(path + ".tmp", path);
-            if (snapshot.processId != processId || snapshot.nativeThreadId != mainThreadId || !snapshot.complete ||
-                !snapshot.isolated || snapshot.runnerReceivesInput != false ||
-                snapshot.runnerDesktop != RuntimeVerificationConfiguration.ExpectedDesktopName)
+            if (!UBVerification.DesktopReader.HasNonInputOwnershipProof(snapshot, RuntimeVerificationConfiguration.ExpectedDesktopName, processId, mainThreadId) ||
+                RuntimeVerificationConfiguration.RequireOtherAppForeground && (!snapshot.complete || !snapshot.isolated))
             {
                 Log("INCOMPLETE: The main-thread desktop does not match the non-input verification desktop.");
                 return false;
