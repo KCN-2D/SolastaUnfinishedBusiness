@@ -14,6 +14,7 @@ $result=[ordered]@{
     nativeActionProof=[ordered]@{status='NOT_RUN';reason='Native action proof contracts have not run.'}
     caseValidation=[ordered]@{status='NOT_RUN';reason='Saved-game case validation contracts have not run.'}
     compilationBoundary=[ordered]@{status='NOT_RUN';reason='Compilation preflight contracts have not run.'}
+    displayCleanup=[ordered]@{status='NOT_RUN';reason='Display cleanup contracts have not run.'}
     assemblyReferences=[ordered]@{status='NOT_RUN';reason='Assembly reference contracts have not run.'}
     desktopFocusBoundary=[ordered]@{status='NOT_RUN';reason='Desktop focus safety contracts have not run.'}
     storageCleanup=[ordered]@{status='NOT_RUN';reason='Artifact cleanup safety contracts have not run.'}
@@ -28,6 +29,46 @@ $result=[ordered]@{
     persistentSync=[ordered]@{status='NOT_RUN';reason='Persistent sync contracts have not run.'}
     presentationWriter=[ordered]@{status='NOT_RUN';reason='Presentation writer contracts have not run.'}
     foregroundObservation=[ordered]@{status='NOT_RUN';reason='Foreground observation contracts have not run.'}
+}
+
+function Invoke-DisplayCleanupContracts($RuntimeAst,[string]$Directory) {
+    [void][IO.Directory]::CreateDirectory($Directory)
+    $cleanup=@($RuntimeAst.FindAll({
+        param($node)
+        $node -is [Management.Automation.Language.TryStatementAst] -and
+        $node.Body.Statements.Count -eq 1 -and
+        $node.Body.Statements[0] -is [Management.Automation.Language.IfStatementAst] -and
+        $node.Body.Extent.Text.Contains('Restore-NativeDisplaySettings $nativeDisplayBackup')
+    },$true))
+    if ($cleanup.Count -ne 1) { throw 'The native display cleanup boundary must be unique.' }
+    $checks=@(foreach ($mode in @('no-snapshot','restore-succeeded','restore-failed','restore-threw')) {
+        & {
+            param($source,$mode)
+            $nativeDisplayBackup=if($mode -eq 'no-snapshot'){$null}else{[pscustomobject]@{owned=$true}}
+            $result=[ordered]@{status='incomplete';reason='Compilation failed.';displaySettingsRestored=$false}
+            $calls=@{restore=0}
+            function Restore-NativeDisplaySettings($Snapshot) {
+                $calls.restore++
+                if ($null -eq $Snapshot -or -not $Snapshot.owned) { throw 'Invalid synthetic display snapshot.' }
+                if ($mode -eq 'restore-threw') { throw 'Synthetic display restoration failed.' }
+                [pscustomobject]@{succeeded=($mode -eq 'restore-succeeded')}
+            }
+            & ([scriptblock]::Create($source))
+            $expectedRestored=$mode -in @('no-snapshot','restore-succeeded')
+            $expectedCalls=if($mode -eq 'no-snapshot'){0}else{1}
+            $expectedStatus=if($mode -eq 'restore-threw'){'failed'}else{'incomplete'}
+            $expectedReason=if($mode -eq 'restore-threw'){'Compilation failed. Display settings cleanup failed: Synthetic display restoration failed.'}else{'Compilation failed.'}
+            $hasReceipt=$result.Contains('displayRestoration')
+            $passed=$result.displaySettingsRestored -eq $expectedRestored -and
+                $calls.restore -eq $expectedCalls -and $result.status -eq $expectedStatus -and
+                $result.reason -eq $expectedReason -and
+                $hasReceipt -eq ($mode -in @('restore-succeeded','restore-failed'))
+            [ordered]@{mode=$mode;passed=$passed;restoreCalls=$calls.restore;displaySettingsRestored=$result.displaySettingsRestored;status=$result.status;reason=$result.reason;hasRestorationReceipt=$hasReceipt}
+        } $cleanup[0].Extent.Text $mode
+    })
+    $receipt=[ordered]@{status=$(if(@($checks|Where-Object passed -ne $true).Count){'FAIL'}else{'PASS'});scope='Actual runtime cleanup AST with synthetic display snapshots; no display settings are read or changed.';cases=$checks}
+    $receipt|ConvertTo-Json -Depth 8|Set-Content -LiteralPath (Join-Path $Directory 'Result.json') -Encoding UTF8
+    return $receipt
 }
 
 function Invoke-AssemblyReferenceContracts($RuntimeAst,[string]$Directory) {
@@ -1060,6 +1101,15 @@ function Get-VerificationProcessState {
             return Read-GtObject $report.FullName
         }
 
+        $zeroArea=Join-Path $script:GameTestArtifactRoot 'zero-latest';[void][IO.Directory]::CreateDirectory($zeroArea)
+        $obsolete=New-StorageRun 'zero-latest/obsolete' 'restored' 'zero-latest'
+        $active=New-StorageRun 'zero-latest/active' 'restored' 'zero-latest'
+        $unrestored=New-StorageRun 'zero-latest/unrestored' 'deployed' 'zero-latest'
+        $zeroRef=Join-Path $Directory 'zero-latest-references.json';Write-GtJson $zeroRef @{schemaVersion=1;paths=@($active)}
+        $r=Invoke-StorageCleanup $zeroArea -Prune -Options @{KeepLatestPerCase=0;ReferencePath=@($zeroRef)} -Apply
+        Add-StorageCheck 'zero latest artifact policy retains referenced and unrestored owners' (-not(Test-Path -LiteralPath $obsolete) -and (Test-Path -LiteralPath $active) -and (Test-Path -LiteralPath $unrestored) -and @($r.actions|Where-Object {$_.kind -eq 'superseded-run' -and $_.applied}).Count -eq 1)
+        Add-StorageCheck 'negative artifact latest count rejects before cleanup' ((Test-StorageRejection {Invoke-StorageCleanup $zeroArea -Prune -Options @{KeepLatestPerCase=-1}}) -and (Test-Path -LiteralPath $active))
+
         foreach ($state in @('prepared','deployed','unknown')) {
             $path=New-StorageRun ('state-' + $state) $state
             $before=Get-GtHash (Join-Path $path 'Backup/000001.bin')
@@ -1213,15 +1263,34 @@ function Get-VerificationProcessState {
             Write-GtJson (Join-Path $contract 'Directory.json') @{schemaVersion=1;layout='GameTest';directory=$contract}
             $fake=New-StorageRun 'day-one/contracts/Workspace/fake-old' 'restored' 'nested-case' 10
             $fakeBackup=Get-GtHash (Join-Path $fake 'Backup/000001.bin')
+            # A copied environment can also be an input of an unmarked archive.
+            # Its realistic receipts must neither be pruned nor retain our builds.
+            $foreign=Join-Path $nestedRoot 'day-two/embedded-tools'
+            foreach ($relative in @('tools/game-test/GameTest.Common.ps1','tools/game-test/Clear-GameTestArtifacts.ps1','tools/runtime-verification/WindowsDesktop.ps1','tools/runtime-verification/EvidencePaths.ps1')) {
+                $destination=Join-Path $foreign $relative
+                [void][IO.Directory]::CreateDirectory((Split-Path -Parent $destination))
+                [IO.File]::Copy((Join-Path $workspace $relative),$destination)
+            }
+            foreach ($child in @('Cases','Scenarios')) { [void][IO.Directory]::CreateDirectory((Join-Path $foreign ('tools/game-test/'+$child))) }
+            $foreignRun=New-StorageRun 'day-two/embedded-tools/tools/game-test/artifacts/old' 'restored' 'foreign-owner' 10
+            [IO.File]::Copy((Join-Path $unusedBuild 'Build.json'),(Join-Path $foreignRun 'Build.json'))
+            $foreignBackup=Get-GtHash (Join-Path $foreignRun 'Backup/000001.bin')
             $nestedPlan=Invoke-StorageCleanup $nestedRoot -Prune -Preserve @($nestedPreserved)
             $nestedPlanned=@($nestedPlan.actions | Where-Object kind -eq 'superseded-run' | ForEach-Object path)
             Add-StorageCheck 'recursive pruning applies one retention policy across grouping folders' ($nestedPlanned.Count -eq 2 -and $nestedOld -in $nestedPlanned -and $unusedBuild -in $nestedPlanned)
             Add-StorageCheck 'latest preserved and incomplete runs retain their archived staged builds' ($requiredBuild -notin $nestedPlanned -and $preservedBuild -notin $nestedPlanned -and $incompleteBuild -notin $nestedPlanned)
             Add-StorageCheck 'build dependency retention explains the retained directory' (@($nestedPlan.retainedDirectories | Where-Object { $_.path -eq $requiredBuild -and $_.reason -eq 'retained-run-build' }).Count -eq 1)
+            Add-StorageCheck 'copied environment is excluded from backup and run discovery' (@($nestedPlan.actions | Where-Object { Test-GtWithin $_.path $foreign }).Count -eq 0)
             [void](Invoke-StorageCleanup $nestedRoot -Apply -Prune -Preserve @($nestedPreserved))
             Add-StorageCheck 'recursive apply removes only superseded nested runs and unused builds' (-not(Test-Path -LiteralPath $nestedOld) -and -not(Test-Path -LiteralPath $unusedBuild) -and (Test-Path -LiteralPath $nestedLatest) -and (Test-Path -LiteralPath $newBuild))
             Add-StorageCheck 'kept nested run build inputs survive apply' ((Test-Path -LiteralPath $requiredBuild) -and (Test-Path -LiteralPath $preservedBuild) -and (Test-Path -LiteralPath $incompleteBuild))
             Add-StorageCheck 'owned contract boundary protects nested fake runs and their backups' ((Get-GtHash (Join-Path $fake 'Backup/000001.bin')) -eq $fakeBackup -and -not(Test-Path -LiteralPath (Join-Path $fake 'BackupRelease.json')))
+            Add-StorageCheck 'parent cleanup preserves copied environment payloads' ((Test-Path -LiteralPath (Join-Path $foreignRun 'Backup/000001.bin')) -and (Get-GtHash (Join-Path $foreignRun 'Backup/000001.bin')) -eq $foreignBackup -and -not(Test-Path -LiteralPath (Join-Path $foreignRun 'BackupRelease.json')))
+            Add-StorageCheck 'parent tool rejects a copied environment artifact root' (Test-StorageRejection { Invoke-StorageCleanup (Join-Path $foreign 'tools/game-test/artifacts') -Apply })
+            Add-StorageCheck 'parent tool rejects a scope inside copied environment payloads' (Test-StorageRejection { Invoke-StorageCleanup $foreignRun -Apply })
+            Add-StorageCheck 'rejected foreign scopes preserve the copied backup' ((Test-Path -LiteralPath (Join-Path $foreignRun 'Backup/000001.bin')) -and (Get-GtHash (Join-Path $foreignRun 'Backup/000001.bin')) -eq $foreignBackup)
+            & (Join-Path $foreign 'tools/game-test/Clear-GameTestArtifacts.ps1') -ArtifactRoot (Join-Path $foreign 'tools/game-test/artifacts') -Apply | Out-Null
+            Add-StorageCheck 'copied environment can clean its own restored backup' (-not(Test-Path -LiteralPath (Join-Path $foreignRun 'Backup/000001.bin')) -and (Test-Path -LiteralPath (Join-Path $foreignRun 'BackupRelease.json')))
         } finally { $script:GameTestArtifactRoot=$actualArtifactRoot }
         $malformedRoot=Join-Path $script:GameTestArtifactRoot 'Malformed'
         [void][IO.Directory]::CreateDirectory($malformedRoot)
@@ -1346,10 +1415,11 @@ function Get-VerificationProcessState {
             return $path
         }
         function Set-StorageRuntimeResult([string]$Run,[scriptblock]$Action){$r=Get-Content -LiteralPath (Join-Path $Run 'Result.json') -Raw|ConvertFrom-Json;&$Action $r;Write-GtJson (Join-Path $Run 'Result.json') $r}
-        function Set-StorageQueryMutation([string]$Path,$Value,[int]$At=1) {
+        function Set-StorageQueryMutation([string]$Path,$Value,[int]$At=1,[switch]$Raw) {
             $counter=Join-Path (Split-Path -Parent $processFixture) 'QueryCounter.txt'
             if(Test-Path -LiteralPath $counter){Remove-Item -LiteralPath $counter}
-            Write-GtJson (Join-Path (Split-Path -Parent $processFixture) 'QueryMutation.json') @{atQuery=$At;path=$Path;content=($Value|ConvertTo-Json -Depth 30)}
+            $content=if($Raw){[string]$Value}else{$Value|ConvertTo-Json -Depth 30}
+            Write-GtJson (Join-Path (Split-Path -Parent $processFixture) 'QueryMutation.json') @{atQuery=$At;path=$Path;content=$content}
         }
         function Clear-StorageQueryMutation {
             foreach($name in @('QueryCounter.txt','QueryMutation.json')){
@@ -1428,6 +1498,25 @@ function Get-VerificationProcessState {
         $consumer=New-StorageConsumer $area 'current-consumer' $required 8
         $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxRetainedBytes=1000;PreserveDirectory=@($consumer)} -Apply
         Add-StorageCheck 'hard retained consumer preserves its exact build while unrelated build expires' ((Test-Path -LiteralPath $consumer)-and(Test-Path -LiteralPath $required)-and -not(Test-Path -LiteralPath $unneeded)-and -not $r.policy.budgetSatisfied)
+        $area=New-StorageArea 'scoped-build-closure'
+        $buildArea=Join-Path $area 'builds';[void][IO.Directory]::CreateDirectory($buildArea)
+        $required=New-StorageBuild $buildArea '20260101-000000-001-Build-abcd' 9
+        $unneeded=New-StorageBuild $buildArea '20260101-000000-002-Build-abce' 7
+        $consumer=New-StorageConsumer (Join-Path $area 'consumers') 'external-consumer' $required 8
+        $r=Invoke-StorageCleanup $buildArea -Prune -Options @{KeepLatestPerCase=0}
+        Add-StorageCheck 'subtree preview retains a build required by an external consumer' ((Test-Path -LiteralPath $required)-and(Test-Path -LiteralPath $unneeded)-and @($r.actions|Where-Object {$_.kind -eq 'superseded-run' -and $_.path -eq $required}).Count -eq 0-and @($r.actions|Where-Object {$_.kind -eq 'superseded-run' -and $_.path -eq $unneeded}).Count -eq 1)
+        $r=Invoke-StorageCleanup $buildArea -Prune -Options @{KeepLatestPerCase=0} -Apply
+        Add-StorageCheck 'subtree apply preserves the external consumer and required build only' ((Test-Path -LiteralPath $consumer)-and(Test-Path -LiteralPath $required)-and -not(Test-Path -LiteralPath $unneeded))
+        $area=New-StorageArea 'late-external-build-closure'
+        $buildArea=Join-Path $area 'builds';[void][IO.Directory]::CreateDirectory($buildArea)
+        $required=New-StorageBuild $buildArea '20260101-000000-001-Build-abcd' 9
+        $consumer=New-StorageConsumer (Join-Path $area 'consumers') 'late-consumer' $required 8
+        $reference=Join-Path $consumer 'Build.json';Remove-Item -LiteralPath $reference
+        Set-StorageQueryMutation $reference ([IO.File]::ReadAllText((Join-Path $required 'Build.json'))) -Raw
+        try {
+            $r=Invoke-StorageCleanup $buildArea -Prune -Options @{KeepLatestPerCase=0} -Apply
+            Add-StorageCheck 'a consumer outside the subtree appearing before deletion preserves its build' ((Test-Path -LiteralPath $required)-and(Test-Path -LiteralPath $reference)-and @($r.actions|Where-Object {$_.path -eq $required -and $_.kind -eq 'retained' -and -not $_.applied}).Count -eq 1)
+        } finally { Clear-StorageQueryMutation }
         $area=New-StorageArea 'hard-native-budget';$run=New-StorageRuntime $area 'current-native';$native=(New-StorageNativeCompanion $run -Bytes 32768 -DirectRuntime).path
         $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxRetainedBytes=20000;PreserveDirectory=@($run)} -Apply
         Add-StorageCheck 'byte budget includes native payloads of hard retained owners' ((Test-Path -LiteralPath $run)-and(Test-Path -LiteralPath $native)-and $r.policy.retainedBytes -gt 32768 -and -not $r.policy.budgetSatisfied)
@@ -1838,16 +1927,82 @@ foreach($mode in @('default','direct','visual')) {
         [ordered]@{mode=$mode;expected=$expected;accepted=$accepted;passed=($accepted -eq $expected)}
     })
 
+    function Get-ObservedFocusHostKind($Snapshot) {
+        if($null -eq $Snapshot){return $null}
+        foreach($field in @('currentDesktopQuerySucceeded','currentDesktopQueryError','windowStationQuerySucceeded','windowStationQueryError',
+                'inputDesktopQuerySucceeded','inputDesktopQueryError','inputDesktopCloseSucceeded','inputDesktopCloseError',
+                'runnerDesktop','inputDesktop','windowStation','processId','nativeThreadId','runnerInputQuery','runnerReceivesInput','guiThread')) {
+            if($null -eq $Snapshot.PSObject.Properties[$field] -or $null -eq $Snapshot.$field){return $null}
+        }
+        $query=$Snapshot.runnerInputQuery;$gui=$Snapshot.guiThread
+        foreach($field in @('succeeded','errorCode','bytesNeeded','rawValue','value')) {
+            if($null -eq $query.PSObject.Properties[$field] -or $null -eq $query.$field){return $null}
+        }
+        foreach($field in @('querySucceeded','queryError','nativeThreadId','activeWindow','focusWindow')) {
+            if($null -eq $gui.PSObject.Properties[$field] -or $null -eq $gui.$field){return $null}
+        }
+        foreach($field in @('currentDesktopQuerySucceeded','windowStationQuerySucceeded','inputDesktopQuerySucceeded','inputDesktopCloseSucceeded')) {
+            if($Snapshot.$field -isnot [bool]){return $null}
+        }
+        if($Snapshot.runnerDesktop -isnot [string] -or $Snapshot.inputDesktop -isnot [string] -or
+            $Snapshot.windowStation -isnot [string] -or $query.succeeded -isnot [bool] -or $gui.querySucceeded -isnot [bool]){return $null}
+        if($Snapshot.currentDesktopQuerySucceeded -ne $true -or $Snapshot.currentDesktopQueryError -ne 0 -or
+            $Snapshot.windowStationQuerySucceeded -ne $true -or $Snapshot.windowStationQueryError -ne 0 -or
+            $Snapshot.inputDesktopQuerySucceeded -ne $true -or $Snapshot.inputDesktopQueryError -ne 0 -or
+            $Snapshot.inputDesktopCloseSucceeded -ne $true -or $Snapshot.inputDesktopCloseError -ne 0 -or
+            [string]::IsNullOrEmpty($Snapshot.runnerDesktop) -or [string]::IsNullOrEmpty($Snapshot.inputDesktop) -or
+            [string]::IsNullOrEmpty($Snapshot.windowStation) -or $Snapshot.processId -le 0 -or $Snapshot.nativeThreadId -le 0 -or
+            $query.succeeded -ne $true -or $query.errorCode -ne 0 -or $query.bytesNeeded -ne 4 -or
+            ($query.rawValue -isnot [int] -and $query.rawValue -isnot [long]) -or $query.rawValue -notin @(0,1) -or
+            $query.value -isnot [bool] -or $Snapshot.runnerReceivesInput -isnot [bool] -or
+            $query.value -ne ($query.rawValue -eq 1) -or $Snapshot.runnerReceivesInput -ne $query.value -or
+            $gui.querySucceeded -ne $true -or $gui.queryError -ne 0 -or $gui.nativeThreadId -ne $Snapshot.nativeThreadId){return $null}
+        $same=[string]::Equals($Snapshot.runnerDesktop,$Snapshot.inputDesktop,[StringComparison]::OrdinalIgnoreCase)
+        if($query.rawValue -eq 1 -and $same){return 'INPUT_HOST'}
+        if($query.rawValue -eq 0 -and -not $same -and $Snapshot.runnerDesktop -cnotmatch '^UBGameTest_[a-f0-9]{32}$'){return 'NON_INPUT_HOST'}
+        return $null
+    }
+    function Test-SameObservedFocusHost($Before,$After,[string]$Kind) {
+        if(-not $Kind -or (Get-ObservedFocusHostKind $Before) -cne $Kind -or
+            (Get-ObservedFocusHostKind $After) -cne $Kind){return $false}
+        foreach($field in @('runnerDesktop','inputDesktop','windowStation','processId','nativeThreadId','runnerReceivesInput')) {
+            if($Before.$field -cne $After.$field){return $false}
+        }
+        foreach($field in @('activeWindow','focusWindow','nativeThreadId')) {
+            if($Before.guiThread.$field -ne $After.guiThread.$field){return $false}
+        }
+        return $Before.runnerInputQuery.rawValue -eq $After.runnerInputQuery.rawValue -and
+            $Before.runnerInputQuery.value -eq $After.runnerInputQuery.value
+    }
+
     $before=[UBVerification.DesktopReader]::ReadCurrent($null,'contract-host/before')
     $foregroundBefore=[UBVerification.DesktopReader]::ReadForeground()
-    if (-not $before.complete -or -not $before.runnerInputQuery.succeeded -or
-        $before.runnerInputQuery.bytesNeeded -ne 4 -or $before.runnerInputQuery.rawValue -ne 1 -or
-        $before.runnerReceivesInput -ne $true -or $before.isolated -or
-        $before.runnerDesktop -cne $before.inputDesktop -or
-        -not (Test-UnchangedHostForeground $foregroundBefore $foregroundBefore)) {
+    $hostKind=Get-ObservedFocusHostKind $before
+    if (-not $hostKind -or -not (Test-UnchangedHostForeground $foregroundBefore $foregroundBefore)) {
         Write-GtJson (Join-Path $Directory 'HostPrerequisite.json') @{desktop=$before;foreground=$foregroundBefore}
-        throw 'The desktop focus contract requires the observed input desktop and a complete foreground observation.'
+        throw 'The desktop focus contract requires known current/input/UOI/GUI and foreground observations from an unowned host.'
     }
+    $hostObservationTrials=@(foreach($mode in @('input-control','non-input-control','missing-uoi','failed-uoi','short-uoi','unknown-raw','contradictory-bool','missing-input-name','failed-gui','wrong-gui-thread','input-name-with-raw-zero','owned-name')) {
+        $sample=$before|ConvertTo-Json -Depth 30|ConvertFrom-Json
+        $sample.runnerDesktop='ObservedHost';$sample.inputDesktop='ObservedInput';$sample.runnerInputQuery.rawValue=0
+        $sample.runnerInputQuery.value=$false;$sample.runnerReceivesInput=$false
+        switch($mode) {
+            'input-control' {$sample.runnerDesktop=$sample.inputDesktop;$sample.runnerInputQuery.rawValue=1;$sample.runnerInputQuery.value=$true;$sample.runnerReceivesInput=$true}
+            'missing-uoi' {$sample.runnerInputQuery=$null}
+            'failed-uoi' {$sample.runnerInputQuery.succeeded=$false}
+            'short-uoi' {$sample.runnerInputQuery.bytesNeeded=0}
+            'unknown-raw' {$sample.runnerInputQuery.rawValue=$null}
+            'contradictory-bool' {$sample.runnerInputQuery.value=$true}
+            'missing-input-name' {$sample.inputDesktop=$null}
+            'failed-gui' {$sample.guiThread.querySucceeded=$false}
+            'wrong-gui-thread' {$sample.guiThread.nativeThreadId=0}
+            'input-name-with-raw-zero' {$sample.runnerDesktop=$sample.inputDesktop}
+            'owned-name' {$sample.runnerDesktop='UBGameTest_00000000000000000000000000000000'}
+        }
+        $expected=switch($mode){'input-control' {'INPUT_HOST'};'non-input-control' {'NON_INPUT_HOST'};default {$null}}
+        $kind=Get-ObservedFocusHostKind $sample
+        [ordered]@{mode=$mode;expected=$expected;observed=$kind;passed=($kind -ceq $expected)}
+    })
     $rejection=$null
     try { [UBVerification.DesktopReader]::DeactivateCurrentWindow(1,1) }
     catch { $rejection=$_.Exception.GetBaseException() }
@@ -1855,16 +2010,13 @@ foreach($mode in @('default','direct','visual')) {
     $after=[UBVerification.DesktopReader]::ReadCurrent($null,'contract-host/after')
     $receipt=$after.focusActivation
     $checks=[Collections.Generic.List[object]]::new()
-    $checks.Add([ordered]@{name='actual input-desktop entry rejected before activation';passed=(
+    $checks.Add([ordered]@{name='actual unowned host entry rejected before activation';passed=(
         $null -ne $rejection -and $rejection -is [InvalidOperationException] -and
         $rejection.Message -ceq 'Focus verification requires the owned non-input desktop.' -and
         $null -ne $receipt -and -not $receipt.attempted -and -not $receipt.completed -and
         $null -eq $receipt.after -and [bool]$receipt.error)})
-    $checks.Add([ordered]@{name='rejection retains actual host UOI acquisition';passed=(
-        $null -ne $receipt -and $null -ne $receipt.before -and $receipt.before.complete -and
-        -not $receipt.before.isolated -and $receipt.before.runnerInputQuery.succeeded -and
-        $receipt.before.runnerInputQuery.bytesNeeded -eq 4 -and $receipt.before.runnerInputQuery.rawValue -eq 1 -and
-        $receipt.before.runnerReceivesInput -eq $true -and $receipt.before.runnerDesktop -ceq $before.runnerDesktop)})
+    $checks.Add([ordered]@{name='rejection retains actual host desktop UOI and GUI acquisition';passed=(
+        $null -ne $receipt -and (Test-SameObservedFocusHost $before $receipt.before $hostKind))})
     $checks.Add([ordered]@{name='host foreground PID thread and window unchanged';passed=(
         Test-UnchangedHostForeground $foregroundBefore $foregroundAfter)})
     $checks.Add([ordered]@{name='host observation does not claim or acquire complete process UI coverage';passed=(
@@ -1872,11 +2024,8 @@ foreach($mode in @('default','direct','visual')) {
         $null -eq $before.processThreadIds -and $null -eq $after.processThreadIds -and
         $null -eq $before.processUiScanAttempts -and $null -eq $after.processUiScanAttempts -and
         -not $before.nonInputIsolated -and -not $after.nonInputIsolated)})
-    $checks.Add([ordered]@{name='host remains on the observed input desktop without a created peer';passed=(
-        $after.complete -and -not $after.isolated -and $after.runnerReceivesInput -eq $true -and
-        $after.runnerInputQuery.succeeded -and $after.runnerInputQuery.bytesNeeded -eq 4 -and
-        $after.runnerInputQuery.rawValue -eq 1 -and $after.runnerDesktop -ceq $before.runnerDesktop -and
-        $after.inputDesktop -ceq $before.inputDesktop -and $peer.GetValue($null) -eq [IntPtr]::Zero)})
+    $checks.Add([ordered]@{name='host desktop UOI and GUI remain unchanged without a created peer';passed=(
+        (Test-SameObservedFocusHost $before $after $hostKind) -and $peer.GetValue($null) -eq [IntPtr]::Zero)})
 
     # An invalid handle exercises the real Win32 failure, without creating or switching a desktop.
     $failedInput=$readInput.Invoke($null,[object[]]@([IntPtr]::Zero))
@@ -1903,10 +2052,10 @@ foreach($mode in @('default','direct','visual')) {
                 $failure -ceq 'Focus verification requires the owned non-input desktop.'))}
     })
     [ordered]@{
-        status=$(if (@($proofChecks | Where-Object status -ne 'PASS').Count -or @($checks | Where-Object passed -eq $false).Count -or @($trials | Where-Object passed -eq $false).Count -or @($foregroundTrials | Where-Object passed -eq $false).Count) {'FAIL'}else{'PASS'})
-        scope='Compiled actual desktop source: real input-desktop refusal, foreground readback and invalid-handle UOI failure. Declared snapshots separately exercise the guard; no desktop creation, activation, input or game launch.'
-        assembly=$assembly;threadAcquisition=$threadAcquisition;ownershipProofCases=@($proofChecks.ToArray());checks=@($checks.ToArray());guardTrials=$trials;foregroundObservationTrials=$foregroundTrials
-        hostBefore=$before;hostAfter=$after;foregroundBefore=$foregroundBefore;foregroundAfter=$foregroundAfter
+        status=$(if (@($proofChecks | Where-Object status -ne 'PASS').Count -or @($checks | Where-Object passed -eq $false).Count -or @($trials | Where-Object passed -eq $false).Count -or @($foregroundTrials | Where-Object passed -eq $false).Count -or @($hostObservationTrials | Where-Object passed -eq $false).Count) {'FAIL'}else{'PASS'})
+        scope='Compiled actual desktop source: real unowned-host refusal before activation, current/input/UOI/GUI and foreground readback, and invalid-handle UOI failure. Declared snapshots separately exercise the guard; no desktop creation, activation, input or game launch.'
+        assembly=$assembly;threadAcquisition=$threadAcquisition;ownershipProofCases=@($proofChecks.ToArray());checks=@($checks.ToArray());guardTrials=$trials;foregroundObservationTrials=$foregroundTrials;hostObservationTrials=$hostObservationTrials
+        hostKind=$hostKind;hostBefore=$before;hostAfter=$after;foregroundBefore=$foregroundBefore;foregroundAfter=$foregroundAfter
         hostForegroundStateBefore=$(if($foregroundBefore.windowHandle -eq 0){'NONE'}else{'WINDOW'})
         hostForegroundStateAfter=$(if($foregroundAfter.windowHandle -eq 0){'NONE'}else{'WINDOW'})
         actualInvalidHandleQuery=$failedInput;rejection=$(if ($rejection) {$rejection.ToString()}else{$null})
@@ -2372,6 +2521,7 @@ try {
     $desktop=Read-ContractSource $archived['tools/runtime-verification/WindowsDesktop.ps1']
     $display=Read-ContractSource $archived['tools/runtime-verification/NativeDisplaySettings.ps1']
     $runtime=Read-ContractSource $archived['tools/runtime-verification/Invoke-RuntimeVerification.ps1']
+    $result.displayCleanup=Invoke-DisplayCleanupContracts $runtime (Join-Path $run 'DisplayCleanup')
     $result.assemblyReferences=Invoke-AssemblyReferenceContracts $runtime (Join-Path $run 'AssemblyReferences')
     $result.foregroundObservation=Invoke-ForegroundObservationContract $runtime (Join-Path $run 'ForegroundObservation')
     if ($result.foregroundObservation.status -ne 'PASS') { throw 'A foreground observation contract failed.' }
@@ -2498,13 +2648,13 @@ try {
     }
     if ($result.processLifecycle.status -eq 'ERROR') {
         $result.status='ERROR'; $result.reason='A process lifecycle fixture could not complete.'
-    } elseif (@($result.processGuards | Where-Object status -ne 'PASS').Count -or $result.processLifecycle.status -eq 'FAIL' -or $result.nativeActionProof.status -eq 'FAIL' -or $result.caseValidation.status -eq 'FAIL' -or $result.compilationBoundary.status -eq 'FAIL' -or $result.assemblyReferences.status -ne 'PASS' -or $result.desktopFocusBoundary.status -ne 'PASS' -or $result.storageCleanup.status -ne 'PASS' -or $result.packageManifest.status -ne 'PASS' -or $result.buildDiagnostics.status -ne 'PASS' -or $result.sourceIdentity.status -ne 'PASS' -or $result.modLoadPlan.status -ne 'PASS' -or $result.nativeUserData.status -ne 'PASS' -or $result.presentationReview.status -ne 'PASS' -or $result.nativeEvidencePaths.status -ne 'PASS' -or $result.sourceTracking.status -ne 'PASS' -or $result.persistentSync.status -ne 'PASS' -or $result.presentationWriter.status -ne 'PASS') {
+    } elseif (@($result.processGuards | Where-Object status -ne 'PASS').Count -or $result.processLifecycle.status -eq 'FAIL' -or $result.nativeActionProof.status -eq 'FAIL' -or $result.caseValidation.status -eq 'FAIL' -or $result.compilationBoundary.status -eq 'FAIL' -or $result.displayCleanup.status -ne 'PASS' -or $result.assemblyReferences.status -ne 'PASS' -or $result.desktopFocusBoundary.status -ne 'PASS' -or $result.storageCleanup.status -ne 'PASS' -or $result.packageManifest.status -ne 'PASS' -or $result.buildDiagnostics.status -ne 'PASS' -or $result.sourceIdentity.status -ne 'PASS' -or $result.modLoadPlan.status -ne 'PASS' -or $result.nativeUserData.status -ne 'PASS' -or $result.presentationReview.status -ne 'PASS' -or $result.nativeEvidencePaths.status -ne 'PASS' -or $result.sourceTracking.status -ne 'PASS' -or $result.persistentSync.status -ne 'PASS' -or $result.presentationWriter.status -ne 'PASS') {
         $result.status='FAIL'; $result.reason='A game-test contract failed.'
     } elseif ($SkipProcessLifecycle) {
         $result.processLifecycle=[ordered]@{status='SKIPPED';reason='Skipped by -SkipProcessLifecycle.'}
-        $result.status='PASS'; $result.reason="All 30 process guard contracts, $($compileCases.Count) compilation boundary contracts, $($result.assemblyReferences.cases.Count) assembly reference contracts, $($proofCases.Count) native action proof contracts, $($result.caseValidation.cases.Count) case validation contracts, $($result.storageCleanup.cases.Count) artifact cleanup contracts, $($result.packageManifest.cases.Count) package manifest contracts, $($result.buildDiagnostics.cases.Count) native build diagnostic contracts, verification mod load-order contracts, native user-data isolation contracts, native evidence path contracts, presentation manifest aggregation contracts, development source tracking contracts, persistent sync contracts, presentation writer contracts and desktop focus safety contracts passed. Process lifecycle checks were skipped."
+        $result.status='PASS'; $result.reason="All 30 process guard contracts, $($compileCases.Count) compilation boundary contracts, $($result.assemblyReferences.cases.Count) assembly reference contracts, display cleanup contracts, $($proofCases.Count) native action proof contracts, $($result.caseValidation.cases.Count) case validation contracts, $($result.storageCleanup.cases.Count) artifact cleanup contracts, $($result.packageManifest.cases.Count) package manifest contracts, $($result.buildDiagnostics.cases.Count) native build diagnostic contracts, verification mod load-order contracts, native user-data isolation contracts, native evidence path contracts, presentation manifest aggregation contracts, development source tracking contracts, persistent sync contracts, presentation writer contracts and desktop focus safety contracts passed. Process lifecycle checks were skipped."
     } else {
-        $result.status='PASS'; $result.reason="All 30 process guard contracts, $($compileCases.Count) compilation boundary contracts, $($result.assemblyReferences.cases.Count) assembly reference contracts, $($cases.Count) owned process lifecycle cases, $($proofCases.Count) native action proof contracts, $($result.caseValidation.cases.Count) case validation contracts, $($result.storageCleanup.cases.Count) artifact cleanup contracts, $($result.packageManifest.cases.Count) package manifest contracts, $($result.buildDiagnostics.cases.Count) native build diagnostic contracts, verification mod load-order contracts, native user-data isolation contracts, native evidence path contracts, presentation manifest aggregation contracts, development source tracking contracts, persistent sync contracts, presentation writer contracts and desktop focus safety contracts passed."
+        $result.status='PASS'; $result.reason="All 30 process guard contracts, $($compileCases.Count) compilation boundary contracts, $($result.assemblyReferences.cases.Count) assembly reference contracts, display cleanup contracts, $($cases.Count) owned process lifecycle cases, $($proofCases.Count) native action proof contracts, $($result.caseValidation.cases.Count) case validation contracts, $($result.storageCleanup.cases.Count) artifact cleanup contracts, $($result.packageManifest.cases.Count) package manifest contracts, $($result.buildDiagnostics.cases.Count) native build diagnostic contracts, verification mod load-order contracts, native user-data isolation contracts, native evidence path contracts, presentation manifest aggregation contracts, development source tracking contracts, persistent sync contracts, presentation writer contracts and desktop focus safety contracts passed."
     }
 } catch {
     $result.status='ERROR'; $result.reason=$_.Exception.Message

@@ -3,16 +3,24 @@ param(
     [string]$ArtifactRoot,
     [string[]]$PreserveDirectory=@(),
     [string[]]$ReferencePath=@(),
-    [ValidateRange(1,100)][int]$KeepLatestPerCase=2,
+    [ValidateRange(0,100)][int]$KeepLatestPerCase=2,
     [ValidateRange(0,36500)][double]$MaxAgeDays=0,
     [ValidateRange(0,9223372036854775807)][long]$MaxRetainedBytes=0,
     [switch]$PruneSuperseded,
     [switch]$Apply
 )
 . (Join-Path $PSScriptRoot 'GameTest.Common.ps1')
+function Test-ArtifactEnvironment([string]$Path) {
+    return Test-Path -LiteralPath (Join-Path $Path 'tools/game-test/GameTest.Common.ps1') -PathType Leaf
+}
 if (-not $ArtifactRoot) { $ArtifactRoot=$script:GameTestArtifactRoot }
 $root=Get-GtPath $ArtifactRoot
 if (-not (Test-GtWithin $root $script:GameTestArtifactRoot)) { throw 'Cleanup is limited to tools/game-test/artifacts.' }
+$ancestor=$root
+while ($ancestor -ne $script:GameTestArtifactRoot) {
+    if (Test-ArtifactEnvironment $ancestor) { throw 'Copied tool environments must be cleaned by their own tools.' }
+    $ancestor=Split-Path -Parent $ancestor
+}
 if (Test-GtWithin $root (Join-Path $script:GameTestArtifactRoot '.native')) {
     throw 'Native user-data folders must be cleaned with their owning evidence run.'
 }
@@ -98,6 +106,9 @@ function Get-ArtifactBoundaries([string]$Path) {
     $pending.Push($Path)
     while ($pending.Count) {
         $directory=$pending.Pop()
+        # A copied tool environment owns its own artifact root. Its receipts
+        # are inputs of this tree, even when the enclosing archive is unmarked.
+        if (Test-ArtifactEnvironment $directory) { continue }
         # Grouping folders may be nested. An owned run is a boundary: its
         # archived inputs, runtime evidence and contract fixtures are not runs.
         $boundary=$false
@@ -321,7 +332,10 @@ try {
             if ($run.caseId -eq '@Build') { [void]$buildDirectories.Add($run.path) }
         }
         $buildHashes=@{}
-        foreach ($directory in $directories) {
+        # A consumer outside the selected cleanup subtree still owns its build.
+        $dependencyDirectories=if ($root -eq $script:GameTestArtifactRoot) { $directories }
+            else { @(Get-ArtifactBoundaries $script:GameTestArtifactRoot) }
+        foreach ($directory in $dependencyDirectories) {
             if ($buildDirectories.Contains($directory.FullName)) { continue }
             if (-not (Test-Path -LiteralPath (Join-Path $directory.FullName 'Transaction.json') -PathType Leaf) -and
                 -not (Test-Path -LiteralPath (Join-Path $directory.FullName 'Result.json') -PathType Leaf)) { continue }
@@ -337,7 +351,7 @@ try {
         }
         function Get-RemainingRequiredBuilds {
             $hashes=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-            foreach ($directory in @(Get-ArtifactBoundaries $root)) {
+            foreach ($directory in @(Get-ArtifactBoundaries $script:GameTestArtifactRoot)) {
                 if ($buildDirectories.Contains($directory.FullName)) { continue }
                 if (-not $Apply -and $plannedConsumers.Contains($directory.FullName)) { continue }
                 if (-not (Test-Path -LiteralPath (Join-Path $directory.FullName 'Result.json') -PathType Leaf) -and
