@@ -40,6 +40,73 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
+CYCLES_GPU_BACKENDS=('CUDA','OPTIX','HIP','METAL','ONEAPI')
+
+def _prevent_cycles_preferences_save():
+    import bpy
+    require(bpy.app.background, 'Transient device selection requires a background authoring process.')
+    preferences=bpy.context.preferences
+    before=dict(autoSave=bool(preferences.use_preferences_save),
+                skipSaveOnExit=getattr(bpy.app,'use_userpref_skip_save_on_exit',None))
+    # Device enumeration itself updates preference entries. Disable automatic
+    # saving before that first update, and leave it disabled until process exit.
+    preferences.use_preferences_save=False
+    require(not preferences.use_preferences_save,'Transient preference saving was not disabled.')
+    return before
+
+def inspect_cycles_devices(backend):
+    import bpy
+    import _cycles
+    require(tuple(bpy.app.version)==VERSION,'Cycles device selection requires Blender 4.5.9.')
+    require(backend in CYCLES_GPU_BACKENDS,'An explicit supported GPU backend is required.')
+    save_guard=_prevent_cycles_preferences_save()
+    native_flags=_cycles.get_device_types()
+    require(len(native_flags)==6,'The target Cycles backend capability signature differs.')
+    available=dict(zip(('CUDA','OPTIX','HIP','METAL','ONEAPI','HIPRT'),map(bool,native_flags)))
+    require(available[backend],'The installed Cycles build does not report the requested backend.')
+    addon=bpy.context.preferences.addons.get('cycles')
+    require(addon is not None,'The native Cycles addon is unavailable in this process.')
+    preferences=addon.preferences
+    # One selected-backend query. get_devices() returns None and refreshes all
+    # backends; neither behavior is useful or necessary here.
+    native_list=preferences.get_device_list(backend)
+    entries=preferences.get_devices_for_type(backend,device_list=native_list)
+    devices=[dict(id=e.id,name=e.name,type=e.type,use=bool(e.use)) for e in entries]
+    require(len({(d['id'],d['type']) for d in devices})==len(devices),'Native device identity is ambiguous.')
+    return dict(status='OBSERVED_PROCESS_DEVICE_METADATA_ONLY',blenderVersion=bpy.app.version_string,
+                requestedBackend=backend,compiledBackendCapabilities=available,devices=devices,
+                actualRenderVerified=False,preferencesSaved=False,preferenceSaveGuard=save_guard)
+
+def configure_cycles_device(spec,receipt_path):
+    import bpy
+    import _cycles
+    require(isinstance(spec,dict) and set(spec)=={'backend','deviceId'},'The device request must explicitly own backend and native persistent device ID.')
+    backend=spec['backend'];device_id=spec['deviceId']
+    require(isinstance(device_id,str) and bool(device_id),'Use a captured nonempty native device ID; names or invented IDs are not a substitute.')
+    observation=inspect_cycles_devices(backend)
+    selected=[d for d in observation['devices'] if d['id']==device_id and d['type']==backend]
+    require(len(selected)==1,'The captured requested GPU is not uniquely available; no silent CPU fallback.')
+    preferences=bpy.context.preferences.addons['cycles'].preferences
+    before=dict(backend=preferences.compute_device_type,devices=[dict(id=d.id,type=d.type,use=bool(d.use)) for d in preferences.devices])
+    preferences.compute_device_type=backend
+    for d in preferences.devices:d.use=d.type==backend and d.id==device_id
+    active=[d for d in preferences.devices if d.use]
+    require(len(active)==1 and active[0].id==device_id and active[0].type==backend,'The transient device selection is not exclusive.')
+    # Native documented process override also covers producers which set their
+    # newly created scene.cycles.device='CPU'. It does not add unknown CLI args
+    # to the producer's own strict argparse input or mutate the saved .blend.
+    require(_cycles.set_device_override(backend),'Native Cycles rejected the process override.')
+    receipt=dict(status='PROCESS_DEVICE_SELECTION_CONFIGURED_RENDER_PROOF_PENDING',request=spec,
+                 observed=observation,originalProcessPreferences=before,
+                 selectedDevices=[dict(id=d.id,name=d.name,type=d.type,use=bool(d.use)) for d in active],
+                 processOverride=backend,cpuHybridRequested=False,sceneSettingsModified=False,
+                 userPreferencesSaveCalled=False,driverSettingsChanged=False,
+                 actualGpuRenderVerified=False,imageEquivalenceToCpuUnproven=True)
+    path=Path(receipt_path)
+    with path.open('x',encoding='utf-8') as stream:stream.write(json.dumps(receipt,ensure_ascii=False,indent=2)+'\n')
+    return receipt
+
+
 def safe_output(path, owned_paths=()):
     require(path.is_absolute(), "--output must be an absolute path")
     output = path.resolve()
@@ -81,6 +148,35 @@ def write_packed_rgba(path, width, height, rgba):
     encoded += chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b"")
     path.write_bytes(encoded)
     return {"path": str(path), "width": width, "height": height, "sha256": file_hash(path)}
+
+
+def normal_map_rgb(rgba, source_encoding):
+    """Convert RGBA8 normals to normalized XYZ RGB with opaque alpha for Unity import.
+
+    RGB stores XYZ; RG reconstructs positive Z. AG uses Unity's packed R*A/G
+    decoding, accepting both alpha-packed X and red-packed X. Pixel order is kept.
+    """
+    require(source_encoding in ("RGB", "RG", "AG"), "Normal source encoding must be RGB, RG or AG")
+    require(isinstance(rgba, bytes) and len(rgba) > 0 and len(rgba) % 4 == 0,
+            "Normal source requires complete RGBA8 pixels")
+    import numpy as np
+    source = np.frombuffer(rgba, dtype=np.uint8).reshape(-1, 4)
+    result = np.empty(source.shape, dtype=np.uint8)
+    # Bound temporary float storage independently of the source texture dimensions.
+    for start in range(0, len(source), 256 * 1024):
+        stop = min(start + 256 * 1024, len(source))
+        pixels = source[start:stop]
+        x = pixels[:, 0].astype(np.float64) / 255 * 2 - 1
+        y = pixels[:, 1].astype(np.float64) / 255 * 2 - 1
+        if source_encoding == "AG":
+            x = pixels[:, 0].astype(np.float64) / 255 * (pixels[:, 3].astype(np.float64) / 255) * 2 - 1
+        z = pixels[:, 2].astype(np.float64) / 255 * 2 - 1 if source_encoding == "RGB" else np.sqrt(np.maximum(0, 1 - x * x - y * y))
+        length = np.sqrt(x * x + y * y + z * z)
+        require(np.all(length > 0), "Normal source contains a zero-length direction")
+        normal = np.column_stack((x, y, z)) / length[:, None]
+        result[start:stop, :3] = np.clip(np.rint((normal * .5 + .5) * 255), 0, 255).astype(np.uint8)
+        result[start:stop, 3] = 255
+    return result.tobytes()
 
 
 def inputs_report(output, paths):

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.IO;
 using System.Linq;
@@ -9,6 +9,7 @@ public static class PresentationCaptureProbe
 {
     public static IEnumerator Run(Action<string> log)
     {
+        VerifyPayloadStorage(log);
         var owner = new GameObject("Owned capture contract");
         var material = new Material(Shader.Find("Unlit/Color"));
         var mesh = new Mesh();
@@ -62,6 +63,57 @@ public static class PresentationCaptureProbe
                 !camera.enabled && camera.targetTexture == null, "settled render, native receipt and camera restoration");
             Check(log, File.Exists(Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory,
                 "capture-contract.capture.json")), "camera receipt is stored beside the original PNG");
+
+            var originalImagePath = Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory, "capture-contract.png");
+            var originalReceiptPath = Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory, "capture-contract.capture.json");
+            var originalImage = File.ReadAllBytes(originalImagePath);
+            var originalReceipt = File.ReadAllBytes(originalReceiptPath);
+            var collisionCallback = false;
+            yield return ExpectRejected(PresentationCapture.Capture(camera, new[] { renderer }, "capture-contract", 128, 128,
+                null, 2, 2, () => collisionCallback = true, () => collisionCallback = true),
+                log, "an existing evidence pair rejects a second successful capture");
+            camera.cullingMask = 0;
+            yield return ExpectRejected(PresentationCapture.Capture(camera, new[] { renderer }, "capture-contract", 128, 128),
+                log, "an existing evidence pair rejects a failing capture");
+            camera.cullingMask = 1 << 30;
+            Check(log, !collisionCallback && originalImage.SequenceEqual(File.ReadAllBytes(originalImagePath)) &&
+                originalReceipt.SequenceEqual(File.ReadAllBytes(originalReceiptPath)) && !camera.enabled && camera.targetTexture == null,
+                "collisions preserve the original PNG, receipt and camera without invoking callbacks");
+            foreach (var pngOnly in new[] { true, false })
+            {
+                var singleName = pngOnly ? "capture-existing-image" : "capture-existing-receipt";
+                var existingPath = Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory,
+                    singleName + (pngOnly ? ".png" : ".capture.json"));
+                var absentPath = Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory,
+                    singleName + (pngOnly ? ".capture.json" : ".png"));
+                var witness = new byte[] { 19, 71, 123, 241 };
+                File.WriteAllBytes(existingPath, witness);
+                yield return ExpectRejected(PresentationCapture.Capture(camera, new[] { renderer }, singleName, 128, 128),
+                    log, "either existing evidence member rejects capture");
+                Check(log, witness.SequenceEqual(File.ReadAllBytes(existingPath)) && !File.Exists(absentPath),
+                    "a single existing member is preserved without creating its counterpart");
+            }
+            var inFlightName = "capture-in-flight";
+            var inFlight = PresentationCapture.Capture(camera, new[] { renderer }, inFlightName, 128, 128);
+            try
+            {
+                Check(log, inFlight.MoveNext(), "capture reserves its receipt before settling");
+                yield return ExpectRejected(PresentationCapture.Capture(camera, new[] { renderer }, inFlightName, 128, 128),
+                    log, "a concurrent capture cannot take the current capture's receipt");
+            }
+            finally { (inFlight as IDisposable)?.Dispose(); }
+            var inFlightReceipt = Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory, inFlightName + ".capture.json");
+            Check(log, File.Exists(inFlightReceipt) && new FileInfo(inFlightReceipt).Length > 0 &&
+                !File.Exists(Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory, inFlightName + ".png")) &&
+                !camera.enabled && camera.targetTexture == null,
+                "cancelled settling retains only its owned rejected receipt and restores camera state");
+            var lateImagePath = Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory, "capture-late-image.png");
+            var lateWitness = new byte[] { 43, 101, 157, 223 };
+            yield return ExpectRejected(PresentationCapture.Capture(camera, new[] { renderer }, "capture-late-image", 128, 128,
+                null, 2, 0, null, () => File.WriteAllBytes(lateImagePath, lateWitness)),
+                log, "an image introduced after reservation cannot be overwritten");
+            Check(log, lateWitness.SequenceEqual(File.ReadAllBytes(lateImagePath)) && !camera.enabled && camera.targetTexture == null,
+                "late collision preserves the competing image and restores camera state");
 
             var callbackOrder = new System.Collections.Generic.List<string>();
             var beforeCalls = 0;
@@ -186,6 +238,30 @@ public static class PresentationCaptureProbe
             UnityEngine.Object.Destroy(material);
             UnityEngine.Object.Destroy(mesh);
         }
+    }
+
+    public static void VerifyPayloadStorage(Action<string> log)
+    {
+        var directory=Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory,"PayloadContracts");
+        var first=System.Text.Encoding.UTF8.GetBytes("{\"value\":1}");
+        var second=System.Text.Encoding.UTF8.GetBytes("{\"value\":2}");
+        var store=new PresentationCapture.JsonPayloadStore(directory,259);
+        var a=store.Write("state",first);var same=store.Write("other-state",first);var b=store.Write("state",second);
+        Check(log,Path.GetFileName(a.path)=="state-0001.json"&&Path.GetFileName(b.path)=="state-0002.json"&&
+            a.path==same.path&&Directory.GetFiles(directory).Length==2,"payload names use category and sequence with content deduplication");
+        using(var hash=System.Security.Cryptography.SHA256.Create())
+            Check(log,first.SequenceEqual(File.ReadAllBytes(a.path))&&a.bytes==first.Length&&
+                a.sha256==BitConverter.ToString(hash.ComputeHash(first)).Replace("-",""),"payload receipt matches the stored bytes");
+        var another=new PresentationCapture.JsonPayloadStore(directory,259);var c=another.Write("state",first);
+        Check(log,Path.GetFileName(c.path)=="state-0003.json"&&first.SequenceEqual(File.ReadAllBytes(a.path))&&
+            second.SequenceEqual(File.ReadAllBytes(b.path)),"a new payload store preserves existing evidence files");
+        var rejected=false;
+        try{store.Write("../outside",first);}catch(ArgumentException){rejected=true;}
+        Check(log,rejected&&Directory.GetFiles(directory).Length==3,"payload categories cannot leave their output directory");
+        var longDirectory=Path.Combine(directory,new string('x',180));rejected=false;
+        try{new PresentationCapture.JsonPayloadStore(longDirectory,259).Write("state",first);}catch(PathTooLongException){rejected=true;}
+        Check(log,rejected&&!Directory.Exists(longDirectory),"payload path budget rejects before creating a directory or file");
+        Check(log,!Directory.GetFiles(directory,"*.writing").Any(),"payload publication leaves no temporary files");
     }
 
     private sealed class OwnedMesh : IDisposable

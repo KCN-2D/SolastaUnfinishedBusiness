@@ -30,7 +30,11 @@ BlenderのPython APIで生成、書き出し、再読み込み検証、PNGプレ
 | `-ResultName` | 最新の成功結果を`last-<名前>-success.json`に保存。省略時は`last-success.json` |
 | `-BlenderPath` | Blender実行ファイル |
 | `-Threads` | CPUスレッド数。既定2、範囲1～64 |
+| `-CyclesBackend` | 明示して使うCycles GPUバックエンド。`CUDA`、`OPTIX`、`HIP`、`METAL`、`ONEAPI` |
+| `-CyclesDeviceId` | 対象バックエンドから実際に列挙したデバイスID。`-CyclesBackend`と同時に指定 |
 | `-OutputRoot` | 出力の親フォルダ。`tools/asset-authoring/workspace/`配下を指定 |
+
+GPUを指定すると、そのBlenderプロセスだけで対象デバイスを使用し、各工程の選択結果を`reports/<工程名>-cycles-device.json`へ保存します。ユーザー設定は保存しません。指定したデバイスが利用できない場合は停止します。省略時は各制作処理の描画設定を使います。
 
 個別モデルの生成処理はモデル側に置き、`-PipelinePath`と`-Stages`を指定して実行します。各工程は`--stage <工程名> --output <出力先>`を受け取り、`reports/<工程名>.json`へ`stage`と`status`を出力します。成功時の`status`は`passed`です。
 
@@ -138,6 +142,10 @@ $result = Get-Content .\tools\asset-authoring\workspace\Output\last-success.json
 
 作業先は`tools/asset-authoring/workspace/UnityWorkspace/<日時>-<識別子>/Project/`です。実行フォルダ直下の`Editor.log`と、`Project/BuildOutput/unity-report.json`でビルド・再読み込み結果を確認します。
 
+`-ColorSpace`で出力先の色空間を`Linear`または`Gamma`に指定します。既定は`Linear`です。
+
+`-ValidateOnly`を付けると、入力の宣言と参照ファイルの検査だけを実行します。共通の入力検査は`tests/Test-UnityAssetBuildContracts.ps1 -InputValidationOnly`で確認できます。
+
 認証済みEditorを使う場合は、作業用Projectに`-GuiProjectPath`を指定します。`-StartBackgroundEditor`を付けると、Unity CLIから非入力デスクトップへEditorを起動し、ジョブ終了後にEditorとデスクトップを解放します。PowerShell 7とUnity CLIが必要です。
 
 ```powershell
@@ -151,7 +159,7 @@ Unity CLIは既定で`%LOCALAPPDATA%\Unity\bin\unity.exe`を使います。別�
 
 workerの結果にはコンパイル済みコードの識別子を記録し、呼び出し側で依頼時の期待値と照合します。識別子の欠落・不一致は失敗とし、独自workerにも同じ照合を設けます。
 
-指定したUnity Projectを基準に、FBXと生成アセットは`Assets/AuthoringJobs/<識別子>/`、ジョブ・結果・AssetBundleは`.asset-authoring-jobs/<識別子>/`へ保存します。Editorのメインスレッドでインポート、ビルド、再読み込みを行い、開いているシーンは変更しません。非占有起動のPID・開始時刻・デスクトップ・入力状態・正常終了は`.asset-authoring-jobs/BackgroundSessions/<識別子>/session.json`へ記録します。既存Editorを使った場合は終了せず、起動したEditorだけを終了します。失敗したジョブも保持します。
+指定したUnity Projectを基準に、FBXと生成アセットは`Assets/AuthoringJobs/<ジョブ名>/`、ジョブ・結果・AssetBundleは`.asset-authoring-jobs/<ジョブ名>/`へ保存します。Editorのメインスレッドでインポート、ビルド、再読み込みを行い、開いているシーンは変更しません。非占有起動のPID・開始時刻・デスクトップ・入力状態・正常終了は`.asset-authoring-jobs/BackgroundSessions/<識別子>/session.json`へ記録します。既存Editorを使った場合は終了せず、起動したEditorだけを終了します。失敗したジョブも保持します。
 
 非占有起動の契約テストでは、既存workerの継続、2回の制作・再読み込み、入力不正時の後始末を検証します。
 
@@ -173,6 +181,8 @@ GUI経路の契約テストは、現在のworkerを読み込んだProjectを指�
 ```
 
 `-CliTimeoutOnly`は起動CLIのタイムアウト後の終了処理、`-CallerStopOnly`は起動待ちの中断・呼び出し元終了後の停止を検証します。どちらもEditorを起動せず、非入力デスクトップ上でテスト用CLIを使います。`-FbxPath`は不要です。
+
+Pythonでレシピを生成する場合は、[asset_names.py](asset_names.py)の`ResourceName(key, label, detail, suffix)`と`resource_names`を使い、元資産名を`label`、同名を区別するメッシュ・材質名を`detail`、LODや用途を`suffix`に指定します。生成前に`assert_path_budget`で出力先の絶対パスと処理ごとの文字数上限を照合し、Unity入力は`.meta`を含む長さで確認します。
 
 材質・シェーダーを同梱する場合は、`-FbxPath`の代わりに`-MaterialRecipePath`を指定します。
 
@@ -201,9 +211,22 @@ pwsh -NoProfile -File .\tools\asset-authoring\Invoke-UnityAssetBuild.ps1 `
 
 レシピは`schemaVersion=1`、`bundleName`、`meshes`を持ちます。各meshは一意な`name`、`vertices`、`normals`、`tangents`、`uvChannels`、`subMeshes`、`bounds`、`indexFormat`を指定します。`colors`は任意のRGBA配列です。頂点・法線は3成分、接線・色は4成分の平坦な数値配列で、使わない法線・接線は空配列にします。UVは`channel`（0〜7）、`dimension`（2・3・4）、`values`を指定します。submeshは`topology=Triangles`と`indices`、boundsは3成分ずつの`center`と`size`、indexFormatは`UInt16`または`UInt32`です。
 
+大きいメッシュは、数値データを別ファイルへ出力できます。同じディレクトリに新しいレシピ名を指定すると、Textureの相対パスを引き継げます。
+
+```powershell
+python .\tools\asset-authoring\UnityAssetBuild\mesh_recipe_codec.py `
+    --input '<ディレクトリ>/mesh-recipe.json' --output '<ディレクトリ>/mesh-binary.json'
+```
+
+出力レシピは`meshes`の代わりに`numericPayload`の形式名・相対パス・SHA256・byteLengthを持ちます。JSONと数値ファイルはそれぞれ64MiB以下です。数値ファイルはlittle-endianのbinary32/int32とUTF8名を使い、頂点・骨格・表情の物理順序とビット列を保持します。
+
 骨格データは任意の`skin`に、`bindPoses`（骨ごとにUnityの`Matrix4x4[i]`順、列優先の16成分）、`boneWeights`（頂点ごとに降順の4成分、合計1）、`boneIndices`（頂点ごとに4成分、bindPoses内の骨番号）を指定します。`blendShapes`は物理index順の配列で、各要素に`name`と`frames`を指定します。同名のチャンネルも分離して保持し、名前で検索した際の最初のindexを照合します。各frameは昇順の`weight`と、頂点ごとに3成分の変位配列`vertices`・`normals`・`tangents`を持ちます。
 
 同じbundleへTexture2Dを含める場合は、レシピ直下に任意の`textures`配列を指定します。各要素は`name`、レシピからの相対`path`、小文字の`sha256`、真偽値の`normalMap`・`sRGB`・`mipmaps`を持ちます。PNG / JPG / JPEG / TGAに対応し、`name`は拡張子を除いたファイル名と一致させます。名前とパスは一意にします。たとえば法線画像は`{"name":"SurfaceNormal","path":"Textures/SurfaceNormal.png","sha256":"<64桁のハッシュ>","normalMap":true,"sRGB":false,"mipmaps":true}`と宣言します。
+
+`normalMap=true`の画像は、接線空間のX・Y・ZをRGBの0〜1へ格納します。RGBA8の法線は共通関数`normal_map_rgb(rgba, source_encoding)`で変換でき、`source_encoding`に`RGB`・`RG`・`AG`を指定します。
+
+テクスチャのみのbundleは`meshes=[]`と1件以上の`textures`で作成します。
 
 Blenderで既存の頂点法線を設定する場合は、共通関数`set_mesh_custom_normals(mesh, normals)`を使います。頂点ごとの3成分配列を渡すと、スムーズ表示を設定してから法線を適用します。
 
@@ -215,7 +238,7 @@ RGBAの各チャンネルに材質データを保存するPNGは、共通関数`
 
 ## 作業データの整理
 
-通常の生成では、入力依存とジョブの所有範囲を登録し、終了時に成果物のハッシュを保存します。Unityのローカル生成処理は`Register-AssetAuthoringJob`と`Complete-AssetAuthoringJob`で、ジョブ・生成Assets・セッションを同じ所有単位として管理します。
+通常の生成では、入力依存とジョブの所有範囲を登録し、終了時に成果物のハッシュを保存します。Unityのローカル生成処理は`Register-AssetAuthoringJob`と`Complete-AssetAuthoringJob`で、ジョブの成果物、Unityへの取込用コピー、セッションを登録します。
 
 ```powershell
 & .\tools\asset-authoring\Invoke-UnityAssetBuild.ps1 -Cleanup `
@@ -227,7 +250,9 @@ RGBAの各チャンネルに材質データを保存するPNGは、共通関数`
   -MaxAgeDays 7 -MaxRetainedBytes 20000000000
 ```
 
-既定は整理候補の確認で、`-Apply`で削除します。`-KeepLatest`は既定2件、期限・容量の0は制限なしです。参照中・明示保持・未完了・稼働中のデータを保持し、古いBlender出力の成功ポインターも対象と一緒に整理します。参照JSONは`{"schemaVersion":1,"paths":["<保持する入力>"]}`の形式で、相対パスはJSONの場所を基準にします。
+完了したジョブの成果物とUnityへの取込用コピーは別に整理します。成果物の参照だけでは取込用コピーを保持しません。取込用コピーを確認・編集する場合は、その`Assets`フォルダーを参照または保持対象に指定します。
+
+既定は整理候補の確認で、`-Apply`で削除します。`-KeepLatest`は既定2件、0で件数による保持を行いません。期限・容量の0は制限なしです。参照中・明示保持・未完了・稼働中のデータを保持し、古いBlender出力の成功ポインターも対象と一緒に整理します。参照JSONは`{"schemaVersion":1,"paths":["<保持する入力>"]}`の形式で、相対パスはJSONの場所を基準にします。
 
 ## ゲーム内検証
 

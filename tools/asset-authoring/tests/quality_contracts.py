@@ -4,10 +4,127 @@ import copy
 import json
 from pathlib import Path
 import sys
+import tempfile
 import traceback
+from types import ModuleType, SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import blender_pipeline as pipeline
+
+
+def device_contracts(output, checks):
+    """Test the common device boundary without querying a native driver."""
+    def check(name, condition):
+        pipeline.require(condition, name)
+        checks.append({"name": "cycles device " + name, "passed": True})
+
+    def fixture(background=True, version=(4, 5, 9), flags=(True, True, True, False, True, True),
+                backend_accept=True, device_mode="normal"):
+        calls = []
+        devices = [SimpleNamespace(id="gpu-0", name="Example GPU", type="OPTIX", use=False),
+                   SimpleNamespace(id="gpu-1", name="Another GPU", type="OPTIX", use=True),
+                   SimpleNamespace(id="CPU", name="Example CPU", type="CPU", use=True)]
+        if device_mode == "duplicate":
+            devices.append(SimpleNamespace(**vars(devices[0])))
+
+        class Preferences:
+            compute_device_type = "NONE"
+
+            def get_device_list(self, backend):
+                pipeline.require(not bpy.context.preferences.use_preferences_save,
+                                 "Automatic preference saving was not disabled before enumeration")
+                calls.append(("list", backend))
+                return [("native",)]
+
+            def get_devices_for_type(self, backend, device_list):
+                pipeline.require(device_list == [("native",)], "Selected backend results were not reused")
+                calls.append(("entries", backend))
+                return self.devices
+
+        preferences = Preferences()
+        preferences.devices = devices
+        bpy = ModuleType("bpy")
+        bpy.app = SimpleNamespace(background=background, version=version, version_string="4.5.9 LTS",
+                                  use_userpref_skip_save_on_exit=True)
+        bpy.context = SimpleNamespace(preferences=SimpleNamespace(
+            use_preferences_save=True, addons={"cycles": SimpleNamespace(preferences=preferences)}))
+        cycles = ModuleType("_cycles")
+        cycles.get_device_types = lambda: flags
+
+        def override(backend):
+            calls.append(("override", backend))
+            return backend_accept
+
+        cycles.set_device_override = override
+        sys.modules["bpy"] = bpy
+        sys.modules["_cycles"] = cycles
+        return bpy, preferences, calls
+
+    def rejected(name, request, path, **kwargs):
+        fixture(**kwargs)
+        try:
+            pipeline.configure_cycles_device(request, path)
+        except (RuntimeError, FileExistsError):
+            pass
+        else:
+            raise RuntimeError(name + " did not reject")
+        check(name, not path.exists())
+
+    missing = object()
+    originals = {name: sys.modules.get(name, missing) for name in ("bpy", "_cycles")}
+    try:
+        with tempfile.TemporaryDirectory(prefix="cycles-device-contract-", dir=output) as temporary:
+            tmp = Path(temporary)
+            pipeline.require(tmp.resolve().is_relative_to(output.resolve()), "Device test directory escaped output")
+            bpy, preferences, calls = fixture()
+            path = tmp / "accepted.json"
+            result = pipeline.configure_cycles_device({"backend": "OPTIX", "deviceId": "gpu-0"}, path)
+            check("only the explicit native GPU remains enabled", [(d.id, d.use) for d in preferences.devices] ==
+                  [("gpu-0", True), ("gpu-1", False), ("CPU", False)])
+            check("only the requested backend was queried", calls ==
+                  [("list", "OPTIX"), ("entries", "OPTIX"), ("override", "OPTIX")])
+            check("automatic saving stays disabled until process exit", not bpy.context.preferences.use_preferences_save)
+            check("scene API not required or modified", not hasattr(bpy.context, "scene"))
+            check("receipt owns exact request and observed ID", result["request"] ==
+                  {"backend": "OPTIX", "deviceId": "gpu-0"} and result["selectedDevices"][0]["id"] == "gpu-0")
+            check("configuration does not claim completed GPU rendering", result["actualGpuRenderVerified"] is False)
+            original = path.read_bytes()
+            try:
+                pipeline.configure_cycles_device({"backend": "OPTIX", "deviceId": "gpu-0"}, path)
+            except FileExistsError:
+                pass
+            else:
+                raise RuntimeError("Existing receipt was overwritten")
+            check("existing evidence is never overwritten", path.read_bytes() == original)
+            request = {"backend": "OPTIX", "deviceId": "gpu-0"}
+            cases = [
+                ("missing backend", {"deviceId": "gpu-0"}, {}),
+                ("missing device ID", {"backend": "OPTIX"}, {}),
+                ("unknown fields", dict(request, allowFallback=True), {}),
+                ("empty ID", dict(request, deviceId=""), {}),
+                ("non-string ID", dict(request, deviceId=1), {}),
+                ("unavailable ID", dict(request, deviceId="unavailable"), {}),
+                ("CPU ID cannot be selected as GPU", dict(request, deviceId="CPU"), {}),
+                ("hybrid backend is not accepted", dict(request, backend="OPTIX+CPU"), {}),
+                ("unknown backend", dict(request, backend="UNKNOWN"), {}),
+                ("non-background process", request, {"background": False}),
+                ("unexpected Blender version", request, {"version": (4, 4, 0)}),
+                ("backend not compiled", request, {"flags": (True, False, True, False, True, True)}),
+                ("unexpected native capability signature", request, {"flags": (True, True)}),
+                ("duplicate native identity", request, {"device_mode": "duplicate"}),
+                ("native override rejection", request, {"backend_accept": False}),
+            ]
+            for index, (name, value, kwargs) in enumerate(cases):
+                rejected(name, value, tmp / ("rejected-" + str(index) + ".json"), **kwargs)
+    finally:
+        for name, original in originals.items():
+            if original is missing:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = original
+        pipeline.require(all((name not in sys.modules) if original is missing else
+                             sys.modules.get(name) is original for name, original in originals.items()),
+                         "Device tests did not restore imported native module ownership")
 
 
 def archived_pipeline_contract(output, checks):
@@ -85,6 +202,64 @@ def custom_normal_contracts(output, checks):
                    "maximumAngleDegrees": maximum})
 
 
+def normal_map_contracts(checks):
+    def direction(rgb):
+        values = [channel / 255 * 2 - 1 for channel in rgb[:3]]
+        length = pipeline.math.sqrt(sum(value * value for value in values))
+        return [value / length for value in values]
+
+    def matches(name, rgba, encoding, expected):
+        before = bytes(rgba)
+        actual = pipeline.normal_map_rgb(rgba, encoding)
+        length = pipeline.math.sqrt(sum(value * value for value in expected))
+        expected = [value / length for value in expected]
+        pipeline.require(rgba == before and len(actual) == 4 and actual[3] == 255 and
+                         max(abs(a - b) for a, b in zip(direction(actual), expected)) < .01,
+                         "Normal conversion changed direction or alpha: " + name)
+        checks.append({"name": "normal conversion " + name, "passed": True})
+
+    for name, rgba, expected in (
+        ("positive X", bytes((255, 128, 128, 0)), (1, 0, 0)),
+        ("negative X", bytes((0, 128, 128, 77)), (-1, 0, 0)),
+        ("positive Y", bytes((128, 255, 128, 128)), (0, 1, 0)),
+        ("negative Y", bytes((128, 0, 128, 255)), (0, -1, 0)),
+        ("positive Z", bytes((128, 128, 255, 0)), (0, 0, 1)),
+        ("negative Z", bytes((128, 128, 0, 255)), (0, 0, -1)),
+        ("RGB normalization", bytes((220, 180, 150, 0)), (185, 105, 45)),
+    ):
+        matches(name, rgba, "RGB", expected)
+    x, y = 230 / 255 * 2 - 1, 51 / 255 * 2 - 1
+    expected = (x, y, pipeline.math.sqrt(max(0, 1 - x * x - y * y)))
+    matches("RG reconstruction", bytes((230, 51, 77, 0)), "RG", expected)
+    matches("alpha-packed X", bytes((255, 51, 77, 230)), "AG", expected)
+    matches("red-packed X", bytes((230, 51, 77, 255)), "AG", expected)
+    matches("packed red-alpha product", bytes((230, 51, 77, 200)), "AG",
+            (230 / 255 * (200 / 255) * 2 - 1, y,
+             pipeline.math.sqrt(max(0, 1 - (230 / 255 * (200 / 255) * 2 - 1) ** 2 - y * y))))
+    ordered = bytes((255, 128, 128, 0, 128, 0, 128, 255))
+    pipeline.require(pipeline.normal_map_rgb(ordered, "RGB") ==
+                     pipeline.normal_map_rgb(ordered[:4], "RGB") + pipeline.normal_map_rgb(ordered[4:], "RGB"),
+                     "Normal conversion changed pixel order")
+    checks.append({"name": "normal conversion preserves pixel order", "passed": True})
+    packed = bytes((255, 128, 128, 128))
+    correct = direction(pipeline.normal_map_rgb(packed, "AG"))
+    wrong = direction(pipeline.normal_map_rgb(packed, "RGB"))
+    pipeline.require(abs(sum(a * b for a, b in zip(correct, wrong))) < .05,
+                     "Packed-normal-as-RGB regression control did not fail")
+    checks.append({"name": "packed normal mislabelled RGB changes direction", "passed": True})
+    for name, rgba, encoding in (
+        ("unknown encoding", packed, "AUTO"), ("missing encoding", packed, None),
+        ("empty pixels", b"", "RGB"), ("incomplete pixel", packed[:3], "RGB"),
+        ("numeric text", "255,128,128,255", "RGB"), ("mutable pixels", bytearray(packed), "RGB"),
+    ):
+        try:
+            pipeline.normal_map_rgb(rgba, encoding)
+        except RuntimeError:
+            checks.append({"name": "normal conversion rejects " + name, "passed": True})
+        else:
+            raise RuntimeError("Invalid normal input accepted: " + name)
+
+
 def packed_texture_contracts(output, checks):
     path = output / "textures" / "packed.png"
     rgba = bytes((29, 107, 219, 0, 244, 15, 37, 255, 63, 182, 95, 7, 146, 51, 204, 128))
@@ -129,6 +304,8 @@ def run(output):
                                                     ("top", [0, 0, 1]), ("perspective", [2.4, -4, 2.3]))]}
     profile_path = output / "quality.json"
     checks = []
+    device_contracts(output, checks)
+    normal_map_contracts(checks)
     packed_texture_contracts(output, checks)
     custom_normal_contracts(output, checks)
 
@@ -201,14 +378,21 @@ def run(output):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--stage", choices=("verify-contract", "verify-normals"), required=True)
+    parser.add_argument("--stage", choices=("verify-contract", "verify-normals", "verify-devices"), required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:])
     output = pipeline.safe_output(args.output)
     report = {"stage": args.stage, "status": "failed"}
     try:
-        if args.stage == "verify-normals":
+        if args.stage == "verify-devices":
             checks = []
+            archived_pipeline_contract(output, checks)
+            device_contracts(output, checks)
+            report.update(checks=checks, passed=len(checks), failed=0,
+                          native_driver_queries=0, native_gpu_render="not_run")
+        elif args.stage == "verify-normals":
+            checks = []
+            normal_map_contracts(checks)
             custom_normal_contracts(output, checks)
             report.update(checks=checks, passed=len(checks), failed=0)
         else:

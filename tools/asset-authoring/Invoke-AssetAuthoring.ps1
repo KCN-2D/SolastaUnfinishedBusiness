@@ -4,12 +4,17 @@ param(
     [string]$OutputRoot,
     [string]$PipelinePath,
     [string]$QualityProfilePath,
+    [Parameter(ParameterSetName='Build')]
+    [ValidateSet('CUDA','OPTIX','HIP','METAL','ONEAPI')]
+    [string]$CyclesBackend,
+    [Parameter(ParameterSetName='Build')]
+    [string]$CyclesDeviceId,
     [Parameter(Mandatory=$true,ParameterSetName='Cleanup')][switch]$Cleanup,
     [string[]]$DependencyPath=@(),
     [string[]]$SourcePath=@(),
     [string[]]$ReferencePath=@(),
     [string[]]$PreserveDirectory=@(),
-    [ValidateRange(1,100)][int]$KeepLatest=2,
+    [ValidateRange(0,100)][int]$KeepLatest=2,
     [ValidateRange(0,36500)][double]$MaxAgeDays=0,
     [ValidateRange(0,9223372036854775807)][long]$MaxRetainedBytes=0,
     [switch]$Apply,
@@ -23,12 +28,38 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$cyclesRequest=$null
+if($CyclesBackend -or $CyclesDeviceId){
+    if(-not $CyclesBackend -or [string]::IsNullOrWhiteSpace($CyclesDeviceId) -or $CyclesDeviceId -match '[\x00-\x1f\x7f]'){
+        throw 'Explicit Cycles GPU selection requires both -CyclesBackend and a captured native -CyclesDeviceId.'
+    }
+    $cyclesRequest=[ordered]@{backend=$CyclesBackend.ToUpperInvariant();deviceId=$CyclesDeviceId}
+}
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $workbench = Join-Path $PSScriptRoot 'workspace'
 . (Join-Path $PSScriptRoot 'UnityAssetBuild/BackgroundEditor.ps1')
 function Clear-BlenderAuthoringOutputs {
     [CmdletBinding()]
     param([string]$Root,[string[]]$ReferenceFiles,[string[]]$Preserve,[int]$Latest,[double]$Age,[long]$Budget,[switch]$Delete)
+    function Get-BlenderOutputMismatch($Data,[string]$Receipt) {
+        $expected=@{}
+        foreach($entry in $Data.artifacts_sha256){
+            if([IO.Path]::IsPathRooted($entry.path)){throw 'Blender output hashes must use relative paths.'}
+            $path=Get-AssetStoragePath (Join-Path $Data.output $entry.path)
+            if(-not(Test-AssetStorageWithin $path $Data.output)-or $path -eq $Receipt -or $expected.ContainsKey($path)){throw 'Invalid Blender output hash ownership.'}
+            $expected[$path]=$entry.sha256
+        }
+        foreach($entry in $Data.input_archive){
+            $path=Get-AssetStoragePath $entry.archive
+            if(-not(Test-AssetStorageWithin $path $Data.output)-or -not $expected.ContainsKey($path)-or $expected[$path] -cne $entry.sha256){throw 'The archived input is outside its signed output.'}
+        }
+        $actual=@(Get-ChildItem -LiteralPath $Data.output -Recurse -Force)
+        if(@($actual|Where-Object{$_.Attributes -band [IO.FileAttributes]::ReparsePoint}).Count){throw 'Blender output contains a reparse point.'}
+        $files=@($actual|Where-Object{-not $_.PSIsContainer -and $_.FullName -ne $Receipt})
+        if($files.Count -ne $expected.Count){return 'The Blender output file set changed.'}
+        foreach($file in $files){if(-not $expected.ContainsKey($file.FullName)-or (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash -cne $expected[$file.FullName]){return 'A Blender output changed after completion.'}}
+        return $null
+    }
     $storageOperation=Enter-AssetStorageOperation $Root
     try{
 
@@ -38,14 +69,7 @@ function Clear-BlenderAuthoringOutputs {
     $references=Get-AssetStorageReferences $ReferenceFiles
     foreach($path in $Preserve){[void]$references.paths.Add((Get-AssetStoragePath $path))}
     $pointers=[Collections.Generic.List[object]]::new()
-    foreach($pointer in @(Get-ChildItem -LiteralPath $root -Filter 'last*success.json' -File)){
-        $snapshot=Read-AssetStorageJson $pointer.FullName;$current=$snapshot.value
-        if($current.status -cne 'passed' -or -not $current.output){throw 'A current Blender success pointer is invalid.'}
-        $target=Get-AssetStoragePath $current.output
-        if($target -eq $root -or -not(Test-AssetStorageWithin $target $root)){throw 'A Blender success pointer is outside its output scope.'}
-        if(@($references.paths|Where-Object{(Test-AssetStorageWithin $pointer.FullName $_)-or(Test-AssetStorageWithin $_ $pointer.FullName)}).Count){[void]$references.paths.Add($target)}
-        $pointers.Add([pscustomobject]@{path=$pointer.FullName;target=$target;sha256=$snapshot.sha256})
-    }
+    $pointerActions=[Collections.Generic.List[object]]::new()
     $processes=@();$processError=$null
     try{$processes=@(Get-CimInstance Win32_Process -Filter "Name = 'blender.exe'" -Property ProcessId,ExecutablePath,CommandLine,CreationDate)}catch{$processError=$_.Exception.Message}
     $directory=Join-Path $base ('StorageCleanup/Blender/'+[guid]::NewGuid().ToString('N'));[void][IO.Directory]::CreateDirectory($directory)
@@ -54,6 +78,49 @@ function Clear-BlenderAuthoringOutputs {
     $report=[ordered]@{schemaVersion=1;status='planning';scope='Completed Blender run.json output directories only; software and undeclared workspace data remain outside cleanup.';
         outputRoot=$root;applied=[bool]$Delete;referenceInputs=$references.inputs;processQueryError=$processError;retainedBytes=$null;budgetSatisfied=$null;actions=@();retained=@();journal='Journal.jsonl'}
     try{
+        foreach($pointer in @(Get-ChildItem -LiteralPath $root -Filter 'last*success.json' -File)){
+            try{
+                $snapshot=Read-AssetStorageJson $pointer.FullName;$current=$snapshot.value
+                if($pointer.Name -cnotmatch '^last(?:-[A-Za-z][A-Za-z0-9_-]*)?-success\.json$' -or
+                    $current.status -cne 'passed' -or $current.output -isnot [string] -or -not [IO.Path]::IsPathRooted($current.output)){
+                    throw 'Unknown Blender success pointer ownership.'
+                }
+                $target=Get-AssetStoragePath $current.output -ReadOnlyReference
+                $explicit=@($references.paths|Where-Object{(Test-AssetStorageWithin $pointer.FullName $_)-or(Test-AssetStorageWithin $_ $pointer.FullName)}).Count -gt 0
+                $exists=[IO.Directory]::Exists($target)-or[IO.File]::Exists($target)
+                $within=$target -ne $root -and (Test-AssetStorageWithin $target $root)
+                if(-not $exists){
+                    if($explicit){$retained.Add(@{path=$pointer.FullName;reason='referenced-stale-success-pointer'});continue}
+                    Assert-AssetStorageReferences $references
+                    if((Get-FileHash -LiteralPath (Get-AssetStoragePath $pointer.FullName) -Algorithm SHA256).Hash -cne $snapshot.sha256){throw 'A stale Blender pointer changed.'}
+                    $archiveDirectory=Join-Path $directory 'PointerArchive';[void][IO.Directory]::CreateDirectory($archiveDirectory)
+                    $archive=Join-Path $archiveDirectory $pointer.Name
+                    [IO.File]::Copy($pointer.FullName,$archive,$false)
+                    if((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -cne $snapshot.sha256 -or
+                        (Get-FileHash -LiteralPath $pointer.FullName -Algorithm SHA256).Hash -cne $snapshot.sha256){throw 'The stale pointer archive differs.'}
+                    $action=[ordered]@{path=$pointer.FullName;target=$target;reason='missing-target';archive=$archive;sha256=$snapshot.sha256;bytes=$pointer.Length;applied=$false}
+                    $pointerActions.Add($action)
+                    Write-AssetStorageEvent $journal @{event='retire-stale-pointer';action=$action}
+                    if($Delete){
+                        Assert-AssetStorageReferences $references
+                        if([IO.Directory]::Exists($target)-or[IO.File]::Exists($target)){throw 'The pointer target appeared during cleanup; pointer preserved.'}
+                        if((Get-FileHash -LiteralPath (Get-AssetStoragePath $pointer.FullName) -Algorithm SHA256).Hash -cne $snapshot.sha256){throw 'The stale pointer changed before retirement.'}
+                        Remove-Item -LiteralPath $pointer.FullName -Force;$action.applied=$true
+                        Write-AssetStorageEvent $journal @{event='stale-pointer-retired';path=$pointer.FullName;archive=$archive}
+                    }
+                    continue
+                }
+                if(-not $within){$retained.Add(@{path=$pointer.FullName;reason='success-pointer-target-outside-current-scope'});continue}
+                $targetReceipt=Join-Path $target 'run.json'
+                if(-not [IO.File]::Exists($targetReceipt)){$retained.Add(@{path=$pointer.FullName;reason='unknown-success-pointer-target-owner'});continue}
+                $owner=(Read-AssetStorageJson $targetReceipt).value
+                if($owner.schemaVersion -ne 1 -or $owner.output -cne $target -or $owner.input_archive -isnot [array] -or $owner.artifacts_sha256 -isnot [array]){
+                    throw 'Unknown Blender success pointer target ownership.'
+                }
+                if($explicit){[void]$references.paths.Add($target)}
+                $pointers.Add([pscustomobject]@{path=$pointer.FullName;target=$target;sha256=$snapshot.sha256})
+            }catch{$retained.Add(@{path=$pointer.FullName;reason=$_.Exception.Message})}
+        }
         foreach($child in Get-ChildItem -LiteralPath $root -Directory){
             $manifest=Join-Path $child.FullName 'run.json'
             if(-not [IO.File]::Exists($manifest)){continue}
@@ -81,6 +148,13 @@ function Clear-BlenderAuthoringOutputs {
                 $retained.Add([ordered]@{path=$manifest;reason=$failure})
             }
         }
+        $protected=Select-AssetStorageUnits $units.ToArray() $references 0
+        foreach($unit in $units){
+            if($protected.reasons.ContainsKey($unit.path)){continue}
+            # Acquisition/ownership failures still go through the deletion guard below.
+            try{$mismatch=Get-BlenderOutputMismatch $unit.data $unit.path}catch{continue}
+            if($mismatch){$unit.hardReason=$mismatch}
+        }
         $selection=Select-AssetStorageUnits $units.ToArray() $references $Latest $Age $Budget
         $report.retainedBytes=$selection.retainedBytes;$report.budgetSatisfied=$selection.budgetSatisfied
         foreach($unit in $units){if($selection.reasons.ContainsKey($unit.path)){$retained.Add([ordered]@{path=$unit.path;reason=$selection.reasons[$unit.path]})}}
@@ -94,22 +168,8 @@ function Clear-BlenderAuthoringOutputs {
             try{
                 Assert-AssetStorageReferences $references
                 if((Get-FileHash -LiteralPath (Get-AssetStoragePath $unit.path) -Algorithm SHA256).Hash -cne $unit.identityHash){throw 'The Blender output receipt changed.'}
-                $expected=@{}
-                foreach($entry in $data.artifacts_sha256){
-                    if([IO.Path]::IsPathRooted($entry.path)){throw 'Blender output hashes must use relative paths.'}
-                    $path=Get-AssetStoragePath (Join-Path $data.output $entry.path)
-                    if(-not(Test-AssetStorageWithin $path $data.output)-or $path -eq $unit.path -or $expected.ContainsKey($path)){throw 'Invalid Blender output hash ownership.'}
-                    $expected[$path]=$entry.sha256
-                }
-                foreach($entry in $data.input_archive){
-                    $path=Get-AssetStoragePath $entry.archive
-                    if(-not(Test-AssetStorageWithin $path $data.output)-or -not $expected.ContainsKey($path)-or $expected[$path] -cne $entry.sha256){throw 'The archived input is outside its signed output.'}
-                }
-                $actual=@(Get-ChildItem -LiteralPath $data.output -Recurse -Force)
-                if(@($actual|Where-Object{$_.Attributes -band [IO.FileAttributes]::ReparsePoint}).Count){throw 'Blender output contains a reparse point.'}
-                $files=@($actual|Where-Object{-not $_.PSIsContainer -and $_.FullName -ne $unit.path})
-                if($files.Count -ne $expected.Count){throw 'The Blender output file set changed.'}
-                foreach($file in $files){if(-not $expected.ContainsKey($file.FullName)-or (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash -cne $expected[$file.FullName]){throw 'A Blender output changed after completion.'}}
+                $mismatch=Get-BlenderOutputMismatch $data $unit.path
+                if($mismatch){throw $mismatch}
                 $action=[ordered]@{path=$data.output;bytes=$unit.bytes;applied=$false};$actions.Add($action)
                 Write-AssetStorageEvent $journal ([ordered]@{event='retire-output';path=$data.output;receiptSha256=$unit.identityHash;status=$data.status;error=$(if($data.PSObject.Properties['error']){$data.error}else{$null});pipelineSha256=$data.pipeline_sha256;inputArchive=$data.input_archive;action=$action})
                 foreach($pointer in @($pointers|Where-Object target -eq $data.output)){
@@ -128,7 +188,7 @@ function Clear-BlenderAuthoringOutputs {
             $report.retainedBytes=Get-AssetStorageRemainingBytes $units.ToArray() $planned ([bool]$Delete)
             $report.budgetSatisfied=if($Budget -gt 0){$report.retainedBytes -le $Budget}else{$null}
         }
-        $report.actions=@($actions.ToArray());$report.retained=@($retained.ToArray());Write-AssetWorkerJson $reportPath $report
+        $report.actions=@($actions.ToArray());$report['pointerActions']=@($pointerActions.ToArray());$report.retained=@($retained.ToArray());Write-AssetWorkerJson $reportPath $report
     }
     return $reportPath
 
@@ -228,6 +288,7 @@ $run = [ordered]@{
     pipeline_sha256 = (Get-FileHash -LiteralPath $pipeline -Algorithm SHA256).Hash
     validation_sha256 = (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot 'blender_pipeline.py') -Algorithm SHA256).Hash
     threads = $Threads
+    cycles_device_request = $cyclesRequest
     output = $runDirectory
     completed_stages = @()
     stage_results = @()
@@ -240,6 +301,7 @@ $run = [ordered]@{
 $runReport = Join-Path $runDirectory 'run.json'
 $run['dependencies']=@(@($DependencyPath)+@($declaredSources)|ForEach-Object{Get-AssetStoragePath $_ -ReadOnlyReference}|Select-Object -Unique)
 $inputHashes = @{}
+if($cyclesRequest){$inputHashes[$PSCommandPath]=(Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash}
 $inputHashes[$pipeline] = $run.pipeline_sha256
 $inputHashes[(Join-Path $PSScriptRoot 'blender_pipeline.py')] = $run.validation_sha256
 if ($QualityProfilePath) { $inputHashes[$QualityProfilePath] = (Get-FileHash -LiteralPath $QualityProfilePath -Algorithm SHA256).Hash }
@@ -272,9 +334,18 @@ try {
         $blenderArgs = @(
             '--background', '--factory-startup', '--disable-autoexec', '--offline-mode',
             '--threads', [string]$Threads, '--python-exit-code', '1',
-            '--python-expr', 'import sys; sys.dont_write_bytecode = True', '--python', $step.pipeline,
-            '--', '--stage', $stage, '--output', $runDirectory
+            '--python-expr', 'import sys; sys.dont_write_bytecode = True'
         )
+        $cyclesReceipt=$null
+        if($cyclesRequest){
+            $cyclesReceipt=Join-Path $runDirectory ('reports/'+$stage+'-cycles-device.json')
+            $deviceInput=[ordered]@{helper=$validationPipeline;request=$cyclesRequest;receipt=$cyclesReceipt}|ConvertTo-Json -Compress
+            $deviceData=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($deviceInput))
+            # The native override precedes the producer without extending its argv.
+            $devicePrelude="import base64,json,runpy; d=json.loads(base64.b64decode('$deviceData')); runpy.run_path(d['helper'])['configure_cycles_device'](d['request'],d['receipt'])"
+            $blenderArgs+=@('--python-expr',$devicePrelude)
+        }
+        $blenderArgs+=@('--python',$step.pipeline,'--','--stage',$stage,'--output',$runDirectory)
         $blenderArgs += $step.arguments
         $stageLog = Join-Path $runDirectory ("reports\$stage.log")
         New-Item -ItemType Directory -Path (Split-Path -Parent $stageLog) -Force | Out-Null
@@ -286,6 +357,14 @@ try {
             throw "Stage '$stage' produced no validation report."
         }
         $stageReport = Get-Content -LiteralPath $stageReportPath -Raw | ConvertFrom-Json
+        if($cyclesRequest){
+            if(-not(Test-Path -LiteralPath $cyclesReceipt -PathType Leaf)){throw 'The explicit Cycles device receipt is missing.'}
+            $selectedDevice=Get-Content -LiteralPath $cyclesReceipt -Raw|ConvertFrom-Json
+            if($selectedDevice.status -cne 'PROCESS_DEVICE_SELECTION_CONFIGURED_RENDER_PROOF_PENDING' -or
+                $selectedDevice.request.backend -cne $cyclesRequest.backend -or $selectedDevice.request.deviceId -cne $cyclesRequest.deviceId){
+                throw 'The explicit Cycles device selection differs from the requested native device.'
+            }
+        }
         if ($stageReport.status -ne 'passed' -or $stageReport.stage -ne $stage) {
             throw "Stage '$stage' did not report success."
         }
@@ -294,7 +373,7 @@ try {
         $stageTimer.Stop()
         $run.stage_results += [ordered]@{stage=$stage;status=$stageReport.status;report=$stageReportPath;
             report_sha256=(Get-FileHash -LiteralPath $stageReportPath -Algorithm SHA256).Hash;
-            log=$stageLog;elapsed_seconds=$stageTimer.Elapsed.TotalSeconds;measurements=$stageReport}
+            log=$stageLog;elapsed_seconds=$stageTimer.Elapsed.TotalSeconds;cycles_device_receipt=$cyclesReceipt;measurements=$stageReport}
     }
     $run.status = 'passed'
 }

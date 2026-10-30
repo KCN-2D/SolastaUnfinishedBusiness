@@ -10,6 +10,75 @@ using UnityEngine;
 // Optional shared support compiled into a temporary probe, never into UB.
 public static class PresentationCapture
 {
+    const int NativePathBudget=259;
+    public static void AssertPathBudget(string path,int maximum)
+    {
+        if(string.IsNullOrEmpty(path)||!Path.IsPathRooted(path)||maximum<1)
+            throw new ArgumentException("A full output path and positive path budget are required.");
+        if(path.Length>maximum)
+            throw new PathTooLongException("The output needs "+path.Length+" UTF-16 characters; the path budget is "+maximum+": "+path);
+    }
+
+    public sealed class PayloadReceipt
+    {
+        public string path { get; private set; }
+        public string sha256 { get; private set; }
+        public long bytes { get; private set; }
+        internal PayloadReceipt(string path,string sha256,long bytes) { this.path=path;this.sha256=sha256;this.bytes=bytes; }
+    }
+
+    public sealed class JsonPayloadStore
+    {
+        readonly string directory;
+        readonly int maximumPathLength;
+        readonly object gate=new object();
+        readonly Dictionary<string,PayloadReceipt> files=new Dictionary<string,PayloadReceipt>(StringComparer.Ordinal);
+        int sequence;
+
+        public JsonPayloadStore(string directory,int maximumPathLength)
+        {
+            if(string.IsNullOrEmpty(directory)||!Path.IsPathRooted(directory)||maximumPathLength<1)
+                throw new ArgumentException("A full payload directory and positive path budget are required.");
+            AssertPathBudget(directory,maximumPathLength);
+            this.directory=Path.GetFullPath(directory);this.maximumPathLength=maximumPathLength;
+        }
+        public PayloadReceipt Write(string category,byte[] bytes)
+        {
+            if(string.IsNullOrEmpty(category)||category.Any(c=>!char.IsLetterOrDigit(c)&&c!='-'&&c!='_')||bytes==null)
+                throw new ArgumentException("A payload category and serialized JSON bytes are required.");
+            string identity;
+            using(var sha=SHA256.Create())identity=BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-","");
+            lock(gate)
+            {
+                PayloadReceipt known;
+                if(files.TryGetValue(identity,out known))
+                {
+                    if(!File.Exists(known.path)||new FileInfo(known.path).Length!=known.bytes)
+                        throw new IOException("A published payload is missing or has changed: "+known.path);
+                    return known;
+                }
+                string path,temporary;
+                do
+                {
+                    sequence=checked(sequence+1);
+                    path=Path.Combine(directory,category+"-"+sequence.ToString("D4",System.Globalization.CultureInfo.InvariantCulture)+".json");
+                    temporary=path+".writing";
+                    AssertPathBudget(path,maximumPathLength);AssertPathBudget(temporary,maximumPathLength);
+                }while(File.Exists(path)||Directory.Exists(path)||File.Exists(temporary)||Directory.Exists(temporary));
+                Directory.CreateDirectory(directory);
+                var created=false;
+                try
+                {
+                    using(var stream=new FileStream(temporary,FileMode.CreateNew,FileAccess.Write,FileShare.None))
+                    {created=true;stream.Write(bytes,0,bytes.Length);stream.Flush(true);}
+                    File.Move(temporary,path);created=false;
+                }
+                finally { if(created&&File.Exists(temporary))File.Delete(temporary); }
+                var receipt=new PayloadReceipt(path,identity,bytes.LongLength);files.Add(identity,receipt);return receipt;
+            }
+        }
+    }
+
     public static void FrameSubjects(Camera camera,IEnumerable<Renderer> subjects,float margin=1.1f)
     {
         RuntimeVerificationHarness.AssertMainThread();
@@ -107,6 +176,7 @@ public static class PresentationCapture
                     frame.sha256=BitConverter.ToString(hash.ComputeHash(stream)).Replace("-","");
         }
         var path=Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory,"PresentationEvidence-"+name+".json");
+        AssertPathBudget(path,NativePathBudget);
         using(var stream=File.Create(path))new DataContractJsonSerializer(typeof(ReviewDocument)).WriteObject(stream,document);
     }
 
@@ -169,94 +239,126 @@ public static class PresentationCapture
             name.Any(character => !(char.IsLetterOrDigit(character) || character == '-' || character == '_')))
             throw new ArgumentException("Capture name must contain at most 64 letters, digits, underscores or hyphens.");
 
+        var imagePath = Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory, name + ".png");
+        var receiptPath = Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory, name + ".capture.json");
+        AssertPathBudget(imagePath,NativePathBudget);AssertPathBudget(receiptPath,NativePathBudget);
+        if (File.Exists(imagePath) || Directory.Exists(imagePath) || File.Exists(receiptPath) || Directory.Exists(receiptPath))
+            throw new InvalidOperationException("Capture evidence already exists: " + name);
+
         var receipt = new Receipt { name = name, requestFrame = Time.frameCount,
             settleFrames = settleFrames, warmupFrames = warmupFrames, width = width, height = height };
-        for (var frame = 0; frame < settleFrames; frame++) yield return null;
-        yield return new WaitForEndOfFrame();
-        if (warmupFrames > 0) yield return WarmCamera(camera, name, width, height, receipt);
-        RuntimeVerificationHarness.AssertMainThread();
-        receipt.capturedFrame = Time.frameCount;
-        receipt.utc = DateTime.UtcNow.ToString("O");
-        var previousActive = RenderTexture.active;
-        var previousTarget = camera.targetTexture;
-        var previousEnabled = camera.enabled;
-        var target = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
-        Texture2D image = null;
-        Exception failure = null;
+        FileStream receiptStream = null;
+        var receiptWritten = false;
         try
         {
-            camera.enabled = false;
-            camera.targetTexture = target;
-            receipt.cameraPosition = Vector(camera.transform.position);
-            receipt.cameraRotation = new[] { camera.transform.rotation.x, camera.transform.rotation.y,
-                camera.transform.rotation.z, camera.transform.rotation.w };
-            receipt.nearClip = camera.nearClipPlane;
-            receipt.farClip = camera.farClipPlane;
-            receipt.fieldOfView = camera.fieldOfView;
-            receipt.orthographicSize = camera.orthographicSize;
-            receipt.orthographic = camera.orthographic;
-            receipt.cullingMask = camera.cullingMask;
-            var planes = GeometryUtility.CalculateFrustumPlanes(camera);
-            receipt.subjects = subjects.Select(renderer => new Subject {
-                name = renderer.name, active = renderer.gameObject.activeInHierarchy, enabled = renderer.enabled,
-                forcedOff = renderer.forceRenderingOff, layer = renderer.gameObject.layer,
-                includedLayer = (camera.cullingMask & (1 << renderer.gameObject.layer)) != 0,
-                inFrustum = GeometryUtility.TestPlanesAABB(planes, renderer.bounds),
-                center = Vector(renderer.bounds.center), size = Vector(renderer.bounds.size),
-                materials = renderer.sharedMaterials.Select(material => {
-                    if (!material) return new MaterialState { name = "<null>" };
-                    var texture = material.HasProperty("_MainTex") ? material.GetTexture("_MainTex") : null;
-                    return new MaterialState { name = material.name, shader = material.shader ? material.shader.name : null,
-                        texture = texture ? texture.name : null, textureWidth = texture ? texture.width : 0,
-                        textureHeight = texture ? texture.height : 0,
-                        color = material.HasProperty("_Color") ? ColorValues(material.GetColor("_Color")) : null,
-                        emission = material.HasProperty("_EmissionColor") ? ColorValues(material.GetColor("_EmissionColor")) : null,
-                        glossiness = material.HasProperty("_Glossiness") ? material.GetFloat("_Glossiness") : 0,
-                        emissionEnabled = material.IsKeywordEnabled("_EMISSION"), renderQueue = material.renderQueue };
-                }).ToArray()
-            }).ToArray();
-            if (!receipt.subjects.Any(subject => subject.active && subject.enabled && !subject.forcedOff &&
-                                                subject.includedLayer && subject.inFrustum))
-                throw new InvalidOperationException("No requested subject can be drawn by the capture camera.");
-            onBeforeRender?.Invoke();
-            camera.Render();
-            if (onCaptured != null)
+            try { receiptStream = new FileStream(receiptPath, FileMode.CreateNew, FileAccess.Write, FileShare.None); }
+            catch (IOException error) { throw new InvalidOperationException("Capture evidence could not be reserved: " + name, error); }
+            for (var frame = 0; frame < settleFrames; frame++) yield return null;
+            yield return new WaitForEndOfFrame();
+            if (warmupFrames > 0) yield return WarmCamera(camera, name, width, height, receipt);
+            RuntimeVerificationHarness.AssertMainThread();
+            receipt.capturedFrame = Time.frameCount;
+            receipt.utc = DateTime.UtcNow.ToString("O");
+            var previousActive = RenderTexture.active;
+            var previousTarget = camera.targetTexture;
+            var previousEnabled = camera.enabled;
+            var target = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
+            Texture2D image = null;
+            Exception failure = null;
+            try
             {
-                onCaptured();
-                receipt.observationFrame = Time.frameCount;
+                camera.enabled = false;
+                camera.targetTexture = target;
+                receipt.cameraPosition = Vector(camera.transform.position);
+                receipt.cameraRotation = new[] { camera.transform.rotation.x, camera.transform.rotation.y,
+                    camera.transform.rotation.z, camera.transform.rotation.w };
+                receipt.nearClip = camera.nearClipPlane;
+                receipt.farClip = camera.farClipPlane;
+                receipt.fieldOfView = camera.fieldOfView;
+                receipt.orthographicSize = camera.orthographicSize;
+                receipt.orthographic = camera.orthographic;
+                receipt.cullingMask = camera.cullingMask;
+                var planes = GeometryUtility.CalculateFrustumPlanes(camera);
+                receipt.subjects = subjects.Select(renderer => new Subject {
+                    name = renderer.name, active = renderer.gameObject.activeInHierarchy, enabled = renderer.enabled,
+                    forcedOff = renderer.forceRenderingOff, layer = renderer.gameObject.layer,
+                    includedLayer = (camera.cullingMask & (1 << renderer.gameObject.layer)) != 0,
+                    inFrustum = GeometryUtility.TestPlanesAABB(planes, renderer.bounds),
+                    center = Vector(renderer.bounds.center), size = Vector(renderer.bounds.size),
+                    materials = renderer.sharedMaterials.Select(material => {
+                        if (!material) return new MaterialState { name = "<null>" };
+                        var texture = material.HasProperty("_MainTex") ? material.GetTexture("_MainTex") : null;
+                        return new MaterialState { name = material.name, shader = material.shader ? material.shader.name : null,
+                            texture = texture ? texture.name : null, textureWidth = texture ? texture.width : 0,
+                            textureHeight = texture ? texture.height : 0,
+                            color = material.HasProperty("_Color") ? ColorValues(material.GetColor("_Color")) : null,
+                            emission = material.HasProperty("_EmissionColor") ? ColorValues(material.GetColor("_EmissionColor")) : null,
+                            glossiness = material.HasProperty("_Glossiness") ? material.GetFloat("_Glossiness") : 0,
+                            emissionEnabled = material.IsKeywordEnabled("_EMISSION"), renderQueue = material.renderQueue };
+                    }).ToArray()
+                }).ToArray();
+                if (!receipt.subjects.Any(subject => subject.active && subject.enabled && !subject.forcedOff &&
+                                                    subject.includedLayer && subject.inFrustum))
+                    throw new InvalidOperationException("No requested subject can be drawn by the capture camera.");
+                onBeforeRender?.Invoke();
+                camera.Render();
+                if (onCaptured != null)
+                {
+                    onCaptured();
+                    receipt.observationFrame = Time.frameCount;
+                }
+                RenderTexture.active = target;
+                image = new Texture2D(width, height, TextureFormat.RGBA32, false);
+                image.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                image.Apply();
+                var pixels = image.GetPixels32();
+                var first = pixels[0];
+                receipt.variedPixels = pixels.Count(pixel => Math.Abs(pixel.r - first.r) + Math.Abs(pixel.g - first.g) +
+                                                            Math.Abs(pixel.b - first.b) > 6);
+                var bytes = image.EncodeToPNG();
+                using (var stream = new FileStream(imagePath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    stream.Write(bytes, 0, bytes.Length);
+                using (var hash = SHA256.Create())
+                    receipt.sha256 = BitConverter.ToString(hash.ComputeHash(bytes)).Replace("-", "");
+                receipt.accepted = receipt.variedPixels > 0 && receipt.capturedFrame > receipt.requestFrame;
+                if (!receipt.accepted) throw new InvalidOperationException("The captured image is uniform or predates frame settling.");
             }
-            RenderTexture.active = target;
-            image = new Texture2D(width, height, TextureFormat.RGBA32, false);
-            image.ReadPixels(new Rect(0, 0, width, height), 0, 0);
-            image.Apply();
-            var pixels = image.GetPixels32();
-            var first = pixels[0];
-            receipt.variedPixels = pixels.Count(pixel => Math.Abs(pixel.r - first.r) + Math.Abs(pixel.g - first.g) +
-                                                        Math.Abs(pixel.b - first.b) > 6);
-            var bytes = image.EncodeToPNG();
-            File.WriteAllBytes(Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory, name + ".png"), bytes);
-            using (var hash = SHA256.Create())
-                receipt.sha256 = BitConverter.ToString(hash.ComputeHash(bytes)).Replace("-", "");
-            receipt.accepted = receipt.variedPixels > 0 && receipt.capturedFrame > receipt.requestFrame;
-            if (!receipt.accepted) throw new InvalidOperationException("The captured image is uniform or predates frame settling.");
-        }
-        catch (Exception error)
-        {
-            receipt.error = error.ToString();
-            failure = error;
+            catch (Exception error)
+            {
+                receipt.error = error.ToString();
+                failure = error;
+            }
+            finally
+            {
+                RenderTexture.active = previousActive;
+                if (camera) { camera.targetTexture = previousTarget; camera.enabled = previousEnabled; }
+                if (image) UnityEngine.Object.Destroy(image);
+                target.Release();
+                UnityEngine.Object.Destroy(target);
+                new DataContractJsonSerializer(typeof(Receipt)).WriteObject(receiptStream, receipt);
+                receiptStream.Flush();
+                receiptWritten = true;
+                receiptStream.Dispose();
+                receiptStream = null;
+            }
+            completed?.Invoke(receipt);
+            if (failure != null) throw new InvalidOperationException("Presentation capture failed: " + name, failure);
         }
         finally
         {
-            RenderTexture.active = previousActive;
-            if (camera) { camera.targetTexture = previousTarget; camera.enabled = previousEnabled; }
-            if (image) UnityEngine.Object.Destroy(image);
-            target.Release();
-            UnityEngine.Object.Destroy(target);
-            using (var stream = File.Create(Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory, name + ".capture.json")))
-                new DataContractJsonSerializer(typeof(Receipt)).WriteObject(stream, receipt);
+            if (receiptStream != null)
+            {
+                try
+                {
+                    if (!receiptWritten)
+                    {
+                        if (string.IsNullOrEmpty(receipt.error)) receipt.error = "Presentation capture did not complete.";
+                        new DataContractJsonSerializer(typeof(Receipt)).WriteObject(receiptStream, receipt);
+                    }
+                }
+                finally { receiptStream.Dispose(); }
+            }
         }
-        completed?.Invoke(receipt);
-        if (failure != null) throw new InvalidOperationException("Presentation capture failed: " + name, failure);
     }
 
     private static IEnumerator WarmCamera(Camera camera, string name, int width, int height, Receipt receipt)
@@ -291,8 +393,6 @@ public static class PresentationCapture
             if (!completed)
             {
                 receipt.error = "Capture camera warmup did not complete.";
-                using (var stream = File.Create(Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory, name + ".capture.json")))
-                    new DataContractJsonSerializer(typeof(Receipt)).WriteObject(stream, receipt);
             }
         }
     }

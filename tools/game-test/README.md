@@ -212,7 +212,7 @@ $evidence = '.\tools\game-test\artifacts'
 & .\tools\game-test\Clear-GameTestArtifacts.ps1 -ArtifactRoot $evidence -Apply
 ```
 
-`-PruneSuperseded` を追加すると、保存先の子孫にある古い実行フォルダと検証ビルドも対象にします。保存先を分けた場合も、ケースごとと検証ビルドで、それぞれ完了日時が新しい2件を保持します。保持件数は `-KeepLatestPerCase` で変更できます。実行フォルダ内の入力・実行証跡・契約テスト用データは独立した実行として扱いません。
+`-PruneSuperseded` を追加すると、保存先の子孫にある古い実行フォルダと検証ビルドも対象にします。保存先を分けた場合も、ケースごとと検証ビルドで、それぞれ完了日時が新しい2件を保持します。保持件数は `-KeepLatestPerCase` で変更でき、0で件数による保持を行いません。実行フォルダ内の入力・実行証跡・契約テスト用データは独立した実行として扱いません。
 
 `-MaxAgeDays`で保持期限、`-MaxRetainedBytes`で容量上限を指定できます。0は制限なしです。期限・容量を指定すると、最新件数で保持した実行も整理対象になります。容量は復元済みの実行・検証ビルド・所有する検証用データを集計し、参照先などを保持した結果、上限を満たせない場合は`policy.budgetSatisfied=false`を記録します。
 

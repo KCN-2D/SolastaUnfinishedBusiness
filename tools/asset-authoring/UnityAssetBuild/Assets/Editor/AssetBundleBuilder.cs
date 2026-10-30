@@ -9,6 +9,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Text.RegularExpressions;
+#if !MESH_INPUT_ONLY
+using static SolastaAssetAuthoring.MeshRecipeInput;
 using UnityEditor;
 using UnityEditor.Animations;
 using UnityEditor.SceneManagement;
@@ -39,6 +41,7 @@ namespace SolastaAssetAuthoring
             public string jobId = null;
             public string inputSha256 = null;
             public string kind = null;
+            public string colorSpace = "Linear";
         }
 
         [Serializable] private sealed class InputAsset { public string path = null; public string sha256 = null; }
@@ -207,22 +210,38 @@ namespace SolastaAssetAuthoring
             public int sceneCountBefore;
             public int sceneCountAfter;
             public string gameValidation = "not_run";
+            public string requestedColorSpace, previousColorSpace, actualColorSpace;
+        }
+
+        private static void ApplyColorSpace(Report report, string requested)
+        {
+            requested = string.IsNullOrEmpty(requested) ? "Linear" : requested;
+            Require(requested == "Linear" || requested == "Gamma", "Unknown authoring color space.");
+            report.requestedColorSpace = requested;
+            report.previousColorSpace = PlayerSettings.colorSpace.ToString();
+            var target = requested == "Linear" ? ColorSpace.Linear : ColorSpace.Gamma;
+            // This marked project owns its authoring target. Keep it between
+            // jobs so a multi-pack session does not repeatedly reimport shaders.
+            if (PlayerSettings.colorSpace != target) { PlayerSettings.colorSpace = target; }
+            report.actualColorSpace = QualitySettings.activeColorSpace.ToString();
+            Require(report.actualColorSpace == requested, "The Editor did not apply the authoring color space.");
         }
 
         public static void Build()
         {
             var materialJob = Environment.GetCommandLineArgs().Contains("-materialRecipe");
             var meshJob = Environment.GetCommandLineArgs().Contains("-meshRecipe");
-            var success = meshJob ? BuildMeshTemplates(GetArgument("-meshRecipe"), GetArgument("-bundleOutput"), null, null)
-                : materialJob ? BuildMaterials(GetArgument("-materialRecipe"), GetArgument("-bundleOutput"), null, null)
-                : BuildValidated(GetArgument("-sampleFbx"), GetArgument("-bundleOutput"), null, null);
+            var colorSpace = GetArgument("-colorSpace", false);
+            var success = meshJob ? BuildMeshTemplates(GetArgument("-meshRecipe"), GetArgument("-bundleOutput"), null, null, false, colorSpace)
+                : materialJob ? BuildMaterials(GetArgument("-materialRecipe"), GetArgument("-bundleOutput"), null, null, false, colorSpace)
+                : BuildValidated(GetArgument("-sampleFbx"), GetArgument("-bundleOutput"), null, null, colorSpace);
             if (!success)
             {
                 EditorApplication.Exit(1);
             }
         }
 
-        private static bool BuildValidated(string input, string destination, string jobId, string expectedHash)
+        private static bool BuildValidated(string input, string destination, string jobId, string expectedHash, string colorSpace = "Linear")
         {
             var report = new Report
             {
@@ -261,6 +280,7 @@ namespace SolastaAssetAuthoring
                 reportPath = Path.Combine(output, "unity-report.json");
                 Require(!File.Exists(reportPath), "This project has already run. Create a new run with the launcher.");
                 Require(Application.unityVersion == EditorVersion, "Unity " + EditorVersion + " is required.");
+                ApplyColorSpace(report, colorSpace);
                 Require(File.Exists(sampleFbx), "The copied FBX does not exist.");
                 report.inputSha256 = Sha256(sampleFbx);
                 Require(expectedHash == null || report.inputSha256 == expectedHash, "The copied FBX changed after submission.");
@@ -399,6 +419,10 @@ namespace SolastaAssetAuthoring
 
         private static AssetBundle BuildAndReload(string output, string bundleName, string[] assets, string generatedFolder, Report report)
         {
+            Require(PlayerSettings.colorSpace.ToString() == report.requestedColorSpace &&
+                    QualitySettings.activeColorSpace.ToString() == report.requestedColorSpace,
+                    "The authoring color space changed before bundle compilation.");
+            report.actualColorSpace = QualitySettings.activeColorSpace.ToString();
             report.stage = "build_bundle";
             AssetBundleManifest manifest;
             SavingFolder = generatedFolder + "/";
@@ -428,75 +452,11 @@ namespace SolastaAssetAuthoring
             catch { bundle.Unload(true); throw; }
         }
 
-        [DataContract] private sealed class MeshRecipe
-        {
-            [DataMember(IsRequired = true)] public int schemaVersion;
-            [DataMember(IsRequired = true)] public string bundleName;
-            [DataMember(IsRequired = true)] public MeshSpec[] meshes;
-            [DataMember] public TextureSpec[] textures;
-        }
-        [DataContract] private sealed class TextureSpec
-        {
-            [DataMember(IsRequired = true)] public string name;
-            [DataMember(IsRequired = true)] public string path;
-            [DataMember(IsRequired = true)] public string sha256;
-            [DataMember(IsRequired = true)] public bool normalMap;
-            [DataMember(IsRequired = true)] public bool sRGB;
-            [DataMember(IsRequired = true)] public bool mipmaps;
-        }
         [Serializable] private sealed class TextureValidation
         {
             public string name, path, inputSha256, graphicsFormat, rawSha256, compression;
             public int width, height, mipCount, rawBytes;
             public bool normalMap, sRGB, mipmaps, heightConversion, readable, crunched, exact, importSettingsExact;
-        }
-        [DataContract] private sealed class MeshBounds
-        {
-            [DataMember(IsRequired = true)] public float[] center;
-            [DataMember(IsRequired = true)] public float[] size;
-        }
-        [DataContract] private sealed class MeshUv
-        {
-            [DataMember(IsRequired = true)] public int channel;
-            [DataMember(IsRequired = true)] public int dimension;
-            [DataMember(IsRequired = true)] public float[] values;
-        }
-        [DataContract] private sealed class MeshSubmesh
-        {
-            [DataMember(IsRequired = true)] public string topology;
-            [DataMember(IsRequired = true)] public int[] indices;
-        }
-        [DataContract] private sealed class MeshSkin
-        {
-            [DataMember(IsRequired = true)] public float[] bindPoses;
-            [DataMember(IsRequired = true)] public float[] boneWeights;
-            [DataMember(IsRequired = true)] public int[] boneIndices;
-        }
-        [DataContract] private sealed class MeshBlendFrame
-        {
-            [DataMember(IsRequired = true)] public float weight;
-            [DataMember(IsRequired = true)] public float[] vertices;
-            [DataMember(IsRequired = true)] public float[] normals;
-            [DataMember(IsRequired = true)] public float[] tangents;
-        }
-        [DataContract] private sealed class MeshBlendShape
-        {
-            [DataMember(IsRequired = true)] public string name;
-            [DataMember(IsRequired = true)] public MeshBlendFrame[] frames;
-        }
-        [DataContract] private sealed class MeshSpec
-        {
-            [DataMember(IsRequired = true)] public string name;
-            [DataMember(IsRequired = true)] public float[] vertices;
-            [DataMember(IsRequired = true)] public float[] normals;
-            [DataMember(IsRequired = true)] public float[] tangents;
-            [DataMember] public float[] colors;
-            [DataMember(IsRequired = true)] public MeshUv[] uvChannels;
-            [DataMember(IsRequired = true)] public MeshSubmesh[] subMeshes;
-            [DataMember(IsRequired = true)] public MeshBounds bounds;
-            [DataMember(IsRequired = true)] public string indexFormat;
-            [DataMember] public MeshSkin skin;
-            [DataMember] public MeshBlendShape[] blendShapes;
         }
         [Serializable] private sealed class MeshChannelValidation
         {
@@ -533,7 +493,7 @@ namespace SolastaAssetAuthoring
             public bool rejected, applicable = true;
         }
 
-        private static bool BuildMeshTemplates(string input, string destination, string jobId, string expectedHash, bool validationContracts = false)
+        private static bool BuildMeshTemplates(string input, string destination, string jobId, string expectedHash, bool validationContracts = false, string colorSpace = "Linear")
         {
             var report = new Report
             {
@@ -563,20 +523,15 @@ namespace SolastaAssetAuthoring
                 Directory.CreateDirectory(output); reportPath = Path.Combine(output, "unity-report.json");
                 Require(!File.Exists(reportPath), "This mesh job has already run.");
                 Require(Application.unityVersion == EditorVersion, "Unity " + EditorVersion + " is required.");
+                ApplyColorSpace(report, colorSpace);
                 var bytes = File.ReadAllBytes(recipePath);
                 report.inputSha256 = HashBytes(bytes);
                 Require(expectedHash == null || expectedHash == report.inputSha256, "The mesh recipe changed after submission.");
-                ValidateMeshTextureJson(bytes);
-                MeshRecipe recipe;
-                using (var stream = new MemoryStream(bytes)) { recipe = (MeshRecipe)new DataContractJsonSerializer(typeof(MeshRecipe)).ReadObject(stream); }
-                Require(recipe != null && recipe.schemaVersion == 1 && recipe.bundleName != null && Regex.IsMatch(recipe.bundleName, "^[a-z0-9][a-z0-9_.-]{0,127}$"), "Invalid mesh recipe version or bundle name.");
-                Require(recipe.meshes != null && recipe.meshes.Length > 0 && recipe.meshes.Length <= 128, "Invalid mesh list.");
-                Require(recipe.meshes.All(mesh => mesh != null && mesh.name != null && Regex.IsMatch(mesh.name, "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$")) &&
-                        recipe.meshes.Select(mesh => mesh.name).Distinct(StringComparer.OrdinalIgnoreCase).Count() == recipe.meshes.Length, "Invalid or duplicate mesh name.");
-                foreach (var spec in recipe.meshes) { ValidateMeshSpec(spec); }
+                var recipe = MeshRecipeInput.Read(bytes, recipePath);
                 var textures = recipe.textures ?? new TextureSpec[0];
                 ValidateTextureSpecs(textures, root, assetRoot);
-                report.inputAssets = textures.Select(spec => new InputAsset { path = spec.path, sha256 = spec.sha256 }).ToArray();
+                report.inputAssets = textures.Select(spec => new InputAsset { path = spec.path, sha256 = spec.sha256 })
+                    .Concat(recipe.numericPayload == null ? new InputAsset[0] : new[] { new InputAsset { path = recipe.numericPayload.path, sha256 = recipe.numericPayload.sha256 } }).ToArray();
                 Require(Sha256(recipePath) == report.inputSha256, "The mesh input changed during validation.");
                 report.stage = "create_assets";
                 AssetDatabase.ImportAsset(assetRoot, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ImportRecursive);
@@ -633,6 +588,7 @@ namespace SolastaAssetAuthoring
                 }
                 finally { bundle.Unload(true); }
                 Require(Sha256(recipePath) == report.inputSha256 && textures.All(spec => Sha256(MaterialInputPath(root, assetRoot, spec.path)) == spec.sha256), "The mesh or texture input changed during the build.");
+                if (recipe.numericPayload != null) MeshRecipeInput.VerifyPayload(recipePath, recipe.numericPayload);
                 report.activeScenePathAfter = SceneManager.GetActiveScene().path;
                 report.activeSceneDirtyAfter = SceneManager.GetActiveScene().isDirty;
                 report.sceneCountAfter = SceneManager.sceneCount;
@@ -649,28 +605,7 @@ namespace SolastaAssetAuthoring
             }
         }
 
-        private static void ValidateMeshTextureJson(byte[] bytes)
-        {
-            var document = new System.Xml.XmlDocument();
-            using (var reader = JsonReaderWriterFactory.CreateJsonReader(bytes, System.Xml.XmlDictionaryReaderQuotas.Max)) { document.Load(reader); }
-            var root = document.DocumentElement;
-            var fields = root.ChildNodes.Cast<System.Xml.XmlNode>().ToArray();
-            Require(fields.All(node => new[] { "schemaVersion", "bundleName", "meshes", "textures" }.Contains(node.Name)) &&
-                fields.Select(node => node.Name).Distinct().Count() == fields.Length, "Unknown or duplicate mesh recipe field.");
-            var list = root["textures"];
-            if (list == null) return;
-            Require(list.GetAttribute("type") == "array", "The mesh texture list must be a JSON array.");
-            foreach (System.Xml.XmlElement texture in list.ChildNodes)
-            {
-                var members = texture.ChildNodes.Cast<System.Xml.XmlNode>().ToArray();
-                var names = new[] { "name", "path", "sha256", "normalMap", "sRGB", "mipmaps" };
-                Require(texture.GetAttribute("type") == "object" && members.Length == names.Length && names.All(name => members.Count(node => node.Name == name) == 1),
-                    "Unknown, duplicate or missing mesh texture field.");
-                foreach (var name in names)
-                    Require(texture[name].GetAttribute("type") == (new[] { "normalMap", "sRGB", "mipmaps" }.Contains(name) ? "boolean" : "string"),
-                        "Invalid JSON type for texture " + name);
-            }
-        }
+        private static void ValidateMeshTextureJson(byte[] bytes) { MeshRecipeInput.ValidateJson(bytes); }
 
         private static void ValidateTextureSpecs(TextureSpec[] specs, string root, string assetRoot)
         {
@@ -770,11 +705,6 @@ namespace SolastaAssetAuthoring
             return contracts.ToArray();
         }
 
-        private static bool Finite(float value) { return !float.IsNaN(value) && !float.IsInfinity(value); }
-        private static void MeshNumbers(float[] values, int count, string channel)
-        {
-            Require(values != null && values.Length == count && values.All(Finite), "Invalid mesh " + channel + " numeric data/length.");
-        }
         private static Vector3 MeshVector3(float[] values) { return new Vector3(values[0], values[1], values[2]); }
         private static Vector3[] MeshVectors3(float[] values)
         {
@@ -784,80 +714,7 @@ namespace SolastaAssetAuthoring
         {
             return Enumerable.Range(0, values.Length / 4).Select(i => new Vector4(values[i * 4], values[i * 4 + 1], values[i * 4 + 2], values[i * 4 + 3])).ToArray();
         }
-        private static void ValidateMeshSpec(MeshSpec spec)
-        {
-            Require(spec.vertices != null && spec.vertices.Length >= 9 && spec.vertices.Length <= 3000000 && spec.vertices.Length % 3 == 0, "Invalid mesh vertex count.");
-            var count = spec.vertices.Length / 3;
-            MeshNumbers(spec.vertices, count * 3, "vertices");
-            Require(spec.normals != null && (spec.normals.Length == 0 || spec.normals.Length == count * 3), "Invalid normal count.");
-            Require(spec.tangents != null && (spec.tangents.Length == 0 || spec.tangents.Length == count * 4), "Invalid tangent count.");
-            MeshNumbers(spec.normals, spec.normals.Length, "normals"); MeshNumbers(spec.tangents, spec.tangents.Length, "tangents");
-            Require(spec.colors == null || spec.colors.Length == 0 || spec.colors.Length == count * 4, "Invalid color count.");
-            if (spec.colors != null) { MeshNumbers(spec.colors, spec.colors.Length, "colors"); }
-            Require(spec.indexFormat == "UInt16" || spec.indexFormat == "UInt32", "Invalid mesh index format.");
-            Require(spec.indexFormat != "UInt16" || count <= 65535, "The mesh exceeds UInt16 vertex capacity.");
-            Require(spec.bounds != null, "Missing mesh bounds."); MeshNumbers(spec.bounds.center, 3, "bounds center"); MeshNumbers(spec.bounds.size, 3, "bounds size");
-            Require(spec.bounds.size.All(value => value >= 0), "Negative mesh bounds size.");
-            var bounds = new Bounds(MeshVector3(spec.bounds.center), MeshVector3(spec.bounds.size));
-            Require(new[] { bounds.min.x, bounds.min.y, bounds.min.z, bounds.max.x, bounds.max.y, bounds.max.z }.All(Finite), "Mesh bounds overflow.");
-            for (var axis = 0; axis < 3; axis++)
-            {
-                var center = (double)spec.bounds.center[axis]; var size = (double)spec.bounds.size[axis];
-                // Two float32 rounding steps in center/size are permitted for enclosure;
-                // the declared bounds themselves must still roundtrip bit-for-bit.
-                var margin = (Math.Abs(center) + Math.Abs(size)) * 2.384185791015625e-7 + 2.802596928649634e-45;
-                for (var vertex = 0; vertex < count; vertex++) { Require(Math.Abs(spec.vertices[vertex * 3 + axis] - center) <= size / 2 + margin, "Mesh bounds do not enclose the vertices within float32 rounding."); }
-            }
-            Require(spec.uvChannels != null && spec.uvChannels.Length <= 8 && spec.uvChannels.All(uv => uv != null && uv.channel >= 0 && uv.channel <= 7 && uv.dimension >= 2 && uv.dimension <= 4) &&
-                    spec.uvChannels.Select(uv => uv.channel).Distinct().Count() == spec.uvChannels.Length, "Invalid or duplicate UV channel/dimension.");
-            foreach (var uv in spec.uvChannels) { MeshNumbers(uv.values, count * uv.dimension, "UV"); }
-            Require(spec.subMeshes != null && spec.subMeshes.Length > 0 && spec.subMeshes.Length <= 256, "Invalid submesh count.");
-            foreach (var submesh in spec.subMeshes)
-            {
-                Require(submesh != null && submesh.topology == "Triangles" && submesh.indices != null && submesh.indices.Length >= 3 && submesh.indices.Length <= 6000000 && submesh.indices.Length % 3 == 0 &&
-                        submesh.indices.All(index => index >= 0 && index < count), "Invalid mesh topology or index range.");
-            }
-            if (spec.skin != null)
-            {
-                var skin = spec.skin;
-                Require(skin.bindPoses != null && skin.bindPoses.Length > 0 && skin.bindPoses.Length % 16 == 0, "Invalid mesh bind pose count.");
-                MeshNumbers(skin.bindPoses, skin.bindPoses.Length, "bind poses");
-                MeshNumbers(skin.boneWeights, count * 4, "bone weights");
-                var bones = skin.bindPoses.Length / 16;
-                Require(skin.boneIndices != null && skin.boneIndices.Length == count * 4 &&
-                        skin.boneIndices.All(index => index >= 0 && index < bones), "Invalid mesh bone index range/count.");
-                for (var vertex = 0; vertex < count; vertex++)
-                {
-                    double total = 0;
-                    for (var influence = 0; influence < 4; influence++)
-                    {
-                        var weight = skin.boneWeights[vertex * 4 + influence];
-                        Require(weight >= 0f && weight <= 1f && (influence == 0 || skin.boneWeights[vertex * 4 + influence - 1] >= weight),
-                            "Mesh bone weights must be nonnegative, at most one and descending.");
-                        total += weight;
-                    }
-                    Require(Math.Abs(total - 1d) <= 1e-5, "Mesh bone weights must sum to one.");
-                }
-            }
-            if (spec.blendShapes != null)
-            {
-                Require(spec.blendShapes.All(shape => shape != null && !string.IsNullOrWhiteSpace(shape.name) && !shape.name.Any(char.IsControl)),
-                    "Invalid mesh blend shape name.");
-                foreach (var shape in spec.blendShapes)
-                {
-                    Require(shape.frames != null && shape.frames.Length > 0, "Missing mesh blend shape frames.");
-                    for (var frame = 0; frame < shape.frames.Length; frame++)
-                    {
-                        var value = shape.frames[frame];
-                        Require(value != null && Finite(value.weight) && (frame == 0 || value.weight > shape.frames[frame - 1].weight),
-                            "Mesh blend shape frame weights must be finite and strictly increasing.");
-                        MeshNumbers(value.vertices, count * 3, "blend shape vertices");
-                        MeshNumbers(value.normals, count * 3, "blend shape normals");
-                        MeshNumbers(value.tangents, count * 3, "blend shape tangents");
-                    }
-                }
-            }
-        }
+        private static void ValidateMeshSpec(MeshSpec spec) { MeshRecipeInput.ValidateSpec(spec); }
         private static Mesh CreateTemplateMesh(MeshSpec spec)
         {
             var mesh = new Mesh { name = spec.name, indexFormat = spec.indexFormat == "UInt16" ? UnityEngine.Rendering.IndexFormat.UInt16 : UnityEngine.Rendering.IndexFormat.UInt32 };
@@ -966,6 +823,34 @@ namespace SolastaAssetAuthoring
             using (var stream = new MemoryStream())
             using (var writer = new BinaryWriter(stream)) { foreach (var value in values) { writer.Write(value); } writer.Flush(); return HashBytes(stream.ToArray()); }
         }
+        private static string MeshFloatDifference(float[] expected, float[] actual)
+        {
+            var mismatch = 0; var zeroSign = 0; var dropped = 0; var introduced = 0; var first = -1;
+            var maximum = 0d;
+            var firstExpected = ""; var firstActual = ""; var firstExpectedBits = ""; var firstActualBits = "";
+            for (var index = 0; index < Math.Min(expected.Length, actual.Length); index++)
+            {
+                var expectedBits = BitConverter.ToInt32(BitConverter.GetBytes(expected[index]), 0);
+                var actualBits = BitConverter.ToInt32(BitConverter.GetBytes(actual[index]), 0);
+                if (expectedBits == actualBits) continue;
+                mismatch++;
+                if (expected[index] == 0f && actual[index] == 0f) zeroSign++;
+                if (expected[index] != 0f && actual[index] == 0f) dropped++;
+                if (expected[index] == 0f && actual[index] != 0f) introduced++;
+                maximum = Math.Max(maximum, Math.Abs((double)expected[index] - actual[index]));
+                if (first >= 0) continue;
+                first = index;
+                firstExpected = expected[index].ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+                firstActual = actual[index].ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+                firstExpectedBits = unchecked((uint)expectedBits).ToString("X8");
+                firstActualBits = unchecked((uint)actualBits).ToString("X8");
+            }
+            return " expectedElements=" + expected.Length + " actualElements=" + actual.Length + " mismatchCount=" + mismatch +
+                " signedZeroOnly=" + zeroSign + " droppedNonzero=" + dropped + " introducedNonzero=" + introduced +
+                " maxAbsoluteDifference=" + maximum.ToString("R", System.Globalization.CultureInfo.InvariantCulture) +
+                " firstIndex=" + first + " firstExpected=" + firstExpected + " firstActual=" + firstActual +
+                " firstExpectedBits=" + firstExpectedBits + " firstActualBits=" + firstActualBits;
+        }
         private static MeshValidation ValidateTemplateMesh(Mesh mesh, MeshSpec spec)
         {
             Require(mesh != null && mesh.isReadable && mesh.name == spec.name && mesh.vertexCount == spec.vertices.Length / 3 && mesh.subMeshCount == spec.subMeshes.Length && mesh.indexFormat.ToString() == spec.indexFormat, "The mesh identity/format changed.");
@@ -982,12 +867,15 @@ namespace SolastaAssetAuthoring
                     (!exists || mesh.GetVertexAttributeFormat(attribute) == UnityEngine.Rendering.VertexAttributeFormat.Float32);
                 channels.Add(value); Require(value.exact, "The mesh channel bits/dimension changed: " + attribute);
             };
+            var numericOwner = spec.name;
             Action<string, int, float[], float[], List<MeshChannelValidation>> numeric = (name, dimension, expected, actual, target) =>
             {
                 var value = new MeshChannelValidation { attribute = name, dimension = dimension, elements = actual.Length,
                     expectedSha256 = MeshFloatHash(expected), reloadedSha256 = MeshFloatHash(actual) };
                 value.exact = actual.Length == expected.Length && value.expectedSha256 == value.reloadedSha256;
-                target.Add(value); Require(value.exact, "The mesh numeric channel bits changed: " + name);
+                target.Add(value);
+                if (!value.exact) throw new InvalidOperationException("The mesh numeric channel bits changed: " + name +
+                    " owner=" + numericOwner + MeshFloatDifference(expected, actual));
             };
             channel(UnityEngine.Rendering.VertexAttribute.Position, 3, spec.vertices, mesh.vertices.SelectMany(v => new[] { v.x, v.y, v.z }).ToArray());
             channel(UnityEngine.Rendering.VertexAttribute.Normal, 3, spec.normals, mesh.normals.SelectMany(v => new[] { v.x, v.y, v.z }).ToArray());
@@ -1049,6 +937,7 @@ namespace SolastaAssetAuthoring
                 firstFrame += shape.frames.Length;
                 for (var frame = 0; frame < shape.frames.Length; frame++)
                 {
+                    numericOwner = spec.name + "/shape[" + shapeIndex + "]=" + shape.name + "/frame[" + frame + "]";
                     var expected = shape.frames[frame];
                     var value = new MeshBlendFrameValidation { weight = mesh.GetBlendShapeFrameWeight(shapeIndex, frame) };
                     shapeReport.frames[frame] = value;
@@ -1162,7 +1051,7 @@ namespace SolastaAssetAuthoring
         }
 
         private static bool BuildMaterials(string input, string destination, string jobId, string expectedHash,
-            bool identityContracts = false)
+            bool identityContracts = false, string colorSpace = "Linear")
         {
             var report = new Report
             {
@@ -1192,6 +1081,7 @@ namespace SolastaAssetAuthoring
                 reportPath = Path.Combine(output, "unity-report.json");
                 Require(!File.Exists(reportPath), "This material job has already run.");
                 Require(Application.unityVersion == EditorVersion, "Unity " + EditorVersion + " is required.");
+                ApplyColorSpace(report, colorSpace);
                 report.inputSha256 = Sha256(recipePath);
                 Require(expectedHash == null || report.inputSha256 == expectedHash, "The material recipe changed after submission.");
                 var recipe = JsonUtility.FromJson<MaterialRecipe>(File.ReadAllText(recipePath));
@@ -1446,17 +1336,21 @@ namespace SolastaAssetAuthoring
                 foreach (var jobDirectory in Directory.GetDirectories(directory).OrderBy(path => path, StringComparer.Ordinal))
                 {
                     var jobId = Path.GetFileName(jobDirectory);
-                    if (!Regex.IsMatch(jobId, "^[a-f0-9]{32}$")) { continue; }
+                    if (!Regex.IsMatch(jobId, "^[a-z0-9][a-z0-9_-]{0,63}$")) { continue; }
                     var requestPath = Path.Combine(jobDirectory, "request.json");
                     var claimedPath = Path.Combine(jobDirectory, "started.json");
                     if (!File.Exists(requestPath)) { continue; }
-                    RequireJob(root, jobId);
                     var reportPath = Path.Combine(jobDirectory, "Output/unity-report.json");
                     if (File.Exists(claimedPath))
                     {
-                        if (!File.Exists(reportPath)) { WriteJobFailure(reportPath, jobId, "The previous job was interrupted; submit a new job."); }
+                        if (!File.Exists(reportPath))
+                        {
+                            RequireJob(root, jobId);
+                            WriteJobFailure(reportPath, jobId, "The previous job was interrupted; submit a new job.");
+                        }
                         continue;
                     }
+                    RequireJob(root, jobId);
                     using (var claim = new FileStream(claimedPath, FileMode.CreateNew, FileAccess.Write, FileShare.Read))
                     using (var writer = new StreamWriter(claim)) { writer.Write(DateTime.UtcNow.ToString("o")); }
                     workerBusy = true;
@@ -1472,18 +1366,18 @@ namespace SolastaAssetAuthoring
                         if (job.kind == "mesh-templates" || job.kind == "mesh-template-contracts")
                         {
                             BuildMeshTemplates(Path.Combine(root, "Assets/AuthoringJobs", jobId, "Input/mesh-recipe.json"),
-                                Path.Combine(jobDirectory, "Output"), jobId, job.inputSha256, job.kind == "mesh-template-contracts");
+                                Path.Combine(jobDirectory, "Output"), jobId, job.inputSha256, job.kind == "mesh-template-contracts", job.colorSpace);
                         }
                         else if (job.kind == "materials" || job.kind == "material-identity-contracts")
                         {
                             BuildMaterials(Path.Combine(root, "Assets/AuthoringJobs", jobId, "Input/recipe.json"),
                                 Path.Combine(jobDirectory, "Output"), jobId, job.inputSha256,
-                                job.kind == "material-identity-contracts");
+                                job.kind == "material-identity-contracts", job.colorSpace);
                         }
                         else
                         {
                             BuildValidated(Path.Combine(root, "Assets/AuthoringJobs", jobId, "Input/SampleRig.fbx"),
-                                Path.Combine(jobDirectory, "Output"), jobId, job.inputSha256);
+                                Path.Combine(jobDirectory, "Output"), jobId, job.inputSha256, job.colorSpace);
                         }
                     }
                     catch (Exception exception)
@@ -1503,7 +1397,7 @@ namespace SolastaAssetAuthoring
 
         private static void RequireJob(string root, string jobId)
         {
-            Require(Regex.IsMatch(jobId, "^[a-f0-9]{32}$"), "Invalid job identifier.");
+            Require(Regex.IsMatch(jobId, "^[a-z0-9][a-z0-9_-]{0,63}$"), "Invalid job identifier.");
             var directory = Path.Combine(root, JobFolder, jobId);
             RejectReparsePoints(directory);
             var marker = Path.Combine(directory, ".solasta-asset-authoring-job");
@@ -1680,6 +1574,378 @@ namespace SolastaAssetAuthoring
         {
             return AssetBundleBuilder.SavingFolder == null ? paths : paths.Where(path =>
                 path.StartsWith(AssetBundleBuilder.SavingFolder, StringComparison.Ordinal)).ToArray();
+        }
+    }
+}
+
+#endif
+
+namespace SolastaAssetAuthoring
+{
+    public static class MeshRecipeInput
+    {
+        [DataContract] public sealed class MeshRecipe
+        {
+            [DataMember(IsRequired = true)] public int schemaVersion;
+            [DataMember(IsRequired = true)] public string bundleName;
+            [DataMember] public MeshSpec[] meshes;
+            [DataMember] public TextureSpec[] textures;
+            [DataMember] public NumericPayload numericPayload;
+        }
+        [DataContract] public sealed class TextureSpec
+        {
+            [DataMember(IsRequired = true)] public string name;
+            [DataMember(IsRequired = true)] public string path;
+            [DataMember(IsRequired = true)] public string sha256;
+            [DataMember(IsRequired = true)] public bool normalMap;
+            [DataMember(IsRequired = true)] public bool sRGB;
+            [DataMember(IsRequired = true)] public bool mipmaps;
+        }
+        [DataContract] public sealed class MeshBounds
+        {
+            [DataMember(IsRequired = true)] public float[] center;
+            [DataMember(IsRequired = true)] public float[] size;
+        }
+        [DataContract] public sealed class MeshUv
+        {
+            [DataMember(IsRequired = true)] public int channel;
+            [DataMember(IsRequired = true)] public int dimension;
+            [DataMember(IsRequired = true)] public float[] values;
+        }
+        [DataContract] public sealed class MeshSubmesh
+        {
+            [DataMember(IsRequired = true)] public string topology;
+            [DataMember(IsRequired = true)] public int[] indices;
+        }
+        [DataContract] public sealed class MeshSkin
+        {
+            [DataMember(IsRequired = true)] public float[] bindPoses;
+            [DataMember(IsRequired = true)] public float[] boneWeights;
+            [DataMember(IsRequired = true)] public int[] boneIndices;
+        }
+        [DataContract] public sealed class MeshBlendFrame
+        {
+            [DataMember(IsRequired = true)] public float weight;
+            [DataMember(IsRequired = true)] public float[] vertices;
+            [DataMember(IsRequired = true)] public float[] normals;
+            [DataMember(IsRequired = true)] public float[] tangents;
+        }
+        [DataContract] public sealed class MeshBlendShape
+        {
+            [DataMember(IsRequired = true)] public string name;
+            [DataMember(IsRequired = true)] public MeshBlendFrame[] frames;
+        }
+        [DataContract] public sealed class MeshSpec
+        {
+            [DataMember(IsRequired = true)] public string name;
+            [DataMember(IsRequired = true)] public float[] vertices;
+            [DataMember(IsRequired = true)] public float[] normals;
+            [DataMember(IsRequired = true)] public float[] tangents;
+            [DataMember] public float[] colors;
+            [DataMember(IsRequired = true)] public MeshUv[] uvChannels;
+            [DataMember(IsRequired = true)] public MeshSubmesh[] subMeshes;
+            [DataMember(IsRequired = true)] public MeshBounds bounds;
+            [DataMember(IsRequired = true)] public string indexFormat;
+            [DataMember] public MeshSkin skin;
+            [DataMember] public MeshBlendShape[] blendShapes;
+        }
+        public const int InputLimit = 67108864;
+        public const string NumericFormat = "Solasta.MeshNumeric.1";
+
+        [DataContract] public sealed class NumericPayload
+        {
+            [DataMember(IsRequired = true)] public string format;
+            [DataMember(IsRequired = true)] public string path;
+            [DataMember(IsRequired = true)] public string sha256;
+            [DataMember(IsRequired = true)] public long byteLength;
+        }
+
+        private static void Require(bool condition, string message)
+        {
+            if (!condition) throw new InvalidDataException(message);
+        }
+        private static bool Finite(float value) { return !float.IsNaN(value) && !float.IsInfinity(value); }
+        private static void MeshNumbers(float[] values, int count, string channel)
+        {
+            Require(values != null && values.Length == count && values.All(Finite), "Invalid mesh " + channel + " numeric data/length.");
+        }
+
+        public static void ValidateJson(byte[] bytes)
+        {
+            var document = new System.Xml.XmlDocument();
+            using (var reader = JsonReaderWriterFactory.CreateJsonReader(bytes, System.Xml.XmlDictionaryReaderQuotas.Max)) { document.Load(reader); }
+            var root = document.DocumentElement;
+            var fields = root.ChildNodes.Cast<System.Xml.XmlNode>().ToArray();
+            Require(fields.All(node => new[] { "schemaVersion", "bundleName", "meshes", "textures", "numericPayload" }.Contains(node.Name)) &&
+                    fields.Select(node => node.Name).Distinct().Count() == fields.Length, "Unknown or duplicate mesh recipe field.");
+            var payload = root["numericPayload"];
+            if (payload != null)
+            {
+                Require(root["meshes"] == null, "Inline meshes and an external numeric payload cannot be mixed.");
+                var members = payload.ChildNodes.Cast<System.Xml.XmlNode>().ToArray();
+                var names = new[] { "format", "path", "sha256", "byteLength" };
+                Require(payload.GetAttribute("type") == "object" && members.Length == names.Length &&
+                        names.All(name => members.Count(node => node.Name == name) == 1), "Unknown, duplicate or missing numeric payload field.");
+                foreach (var name in names)
+                    Require(payload[name].GetAttribute("type") == (name == "byteLength" ? "number" : "string"), "Invalid numeric payload JSON type.");
+                long length;
+                Require(long.TryParse(payload["byteLength"].InnerText, System.Globalization.NumberStyles.None,
+                        System.Globalization.CultureInfo.InvariantCulture, out length) && length >= 16 && length <= InputLimit,
+                        "Invalid numeric payload byte length.");
+            }
+            else Require(root["meshes"] != null && root["meshes"].GetAttribute("type") == "array", "The inline mesh list must be a JSON array.");
+            var list = root["textures"];
+            if (list == null) return;
+            Require(list.GetAttribute("type") == "array", "The mesh texture list must be a JSON array.");
+            foreach (System.Xml.XmlElement texture in list.ChildNodes)
+            {
+                var members = texture.ChildNodes.Cast<System.Xml.XmlNode>().ToArray();
+                var names = new[] { "name", "path", "sha256", "normalMap", "sRGB", "mipmaps" };
+                Require(texture.GetAttribute("type") == "object" && members.Length == names.Length && names.All(name => members.Count(node => node.Name == name) == 1),
+                        "Unknown, duplicate or missing mesh texture field.");
+                foreach (var name in names)
+                    Require(texture[name].GetAttribute("type") == (new[] { "normalMap", "sRGB", "mipmaps" }.Contains(name) ? "boolean" : "string"),
+                            "Invalid JSON type for texture " + name);
+            }
+        }
+
+        public static MeshRecipe ReadFile(string path)
+        {
+            RejectLinks(path);
+            Require(new FileInfo(path).Length <= InputLimit, "The mesh recipe must be at most 64 MiB.");
+            return Read(File.ReadAllBytes(path), path);
+        }
+
+        public static MeshRecipe Read(byte[] bytes, string path)
+        {
+            Require(bytes != null && bytes.Length <= InputLimit, "The mesh recipe must be at most 64 MiB.");
+            ValidateJson(bytes);
+            MeshRecipe recipe;
+            using (var stream = new MemoryStream(bytes)) { recipe = (MeshRecipe)new DataContractJsonSerializer(typeof(MeshRecipe)).ReadObject(stream); }
+            Require(recipe != null && recipe.schemaVersion == 1 && recipe.bundleName != null &&
+                    Regex.IsMatch(recipe.bundleName, "^[a-z0-9][a-z0-9_.-]{0,127}$"), "Invalid mesh recipe version or bundle name.");
+            if (recipe.numericPayload != null) recipe.meshes = ReadNumeric(PayloadPath(path, recipe.numericPayload), recipe.numericPayload);
+            Require(recipe.meshes != null && recipe.meshes.Length <= 128, "Invalid mesh list.");
+            Require(recipe.meshes.All(mesh => mesh != null && mesh.name != null && Regex.IsMatch(mesh.name, "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$")) &&
+                    recipe.meshes.Select(mesh => mesh.name).Distinct(StringComparer.OrdinalIgnoreCase).Count() == recipe.meshes.Length,
+                    "Invalid or duplicate mesh name.");
+            foreach (var mesh in recipe.meshes) ValidateSpec(mesh);
+            recipe.textures = recipe.textures ?? new TextureSpec[0];
+            Require(recipe.textures.Length <= 128 && recipe.textures.All(texture => texture != null && texture.name != null &&
+                    Regex.IsMatch(texture.name, "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$")) &&
+                    recipe.textures.Select(texture => texture.name).Distinct(StringComparer.OrdinalIgnoreCase).Count() == recipe.textures.Length &&
+                    recipe.textures.Select(texture => texture.path).Distinct(StringComparer.OrdinalIgnoreCase).Count() == recipe.textures.Length,
+                    "Invalid or duplicate mesh texture name/path.");
+            foreach (var texture in recipe.textures)
+                Require(texture.path != null && Regex.IsMatch(texture.path, "^[A-Za-z0-9_./-]+$") && !texture.path.StartsWith("/", StringComparison.Ordinal) &&
+                        texture.path.Split('/').All(part => part.Length > 0 && part != "." && part != "..") &&
+                        new[] { ".png", ".jpg", ".jpeg", ".tga" }.Contains(Path.GetExtension(texture.path)) &&
+                        Path.GetFileNameWithoutExtension(texture.path) == texture.name && !(texture.normalMap && texture.sRGB) &&
+                        texture.sha256 != null && Regex.IsMatch(texture.sha256, "^[a-f0-9]{64}$"), "Invalid mesh texture path, hash or import flags.");
+            Require(recipe.meshes.Length > 0 || recipe.textures.Length > 0, "The mesh recipe must contain a mesh or texture.");
+            return recipe;
+        }
+
+        public static string PayloadPath(string recipePath, NumericPayload payload)
+        {
+            Require(payload != null && payload.format == NumericFormat && payload.sha256 != null &&
+                    Regex.IsMatch(payload.sha256, "^[a-f0-9]{64}$") && payload.byteLength >= 16 && payload.byteLength <= InputLimit,
+                    "Invalid numeric payload declaration.");
+            var relative = payload.path;
+            Require(relative != null && Regex.IsMatch(relative, "^[A-Za-z0-9_./-]+$") && !relative.StartsWith("/", StringComparison.Ordinal) &&
+                    relative.Split('/').All(part => part.Length > 0 && part != "." && part != "..") &&
+                    relative.EndsWith(".bin", StringComparison.Ordinal), "Invalid numeric payload relative path.");
+            var directory = Path.GetDirectoryName(Path.GetFullPath(recipePath));
+            var path = Path.GetFullPath(Path.Combine(directory, relative));
+            Require(path.StartsWith(directory.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase),
+                    "The numeric payload escaped its recipe directory.");
+            RejectLinks(path);
+            return path;
+        }
+
+        private static void RejectLinks(string path)
+        {
+            var current = Path.GetFullPath(path);
+            Require(!current.StartsWith("\\\\", StringComparison.Ordinal), "A network input path is not supported.");
+            while (!string.IsNullOrEmpty(current))
+            {
+                if (File.Exists(current) || Directory.Exists(current))
+                    Require((File.GetAttributes(current) & FileAttributes.ReparsePoint) == 0, "A numeric input path contains a reparse point.");
+                var parent = Path.GetDirectoryName(current);
+                if (parent == current) break;
+                current = parent;
+            }
+        }
+
+        public static void VerifyPayload(string recipePath, NumericPayload payload)
+        {
+            var path = PayloadPath(recipePath, payload);
+            using (var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                Require(stream.Length == payload.byteLength && stream.Length <= InputLimit, "Numeric payload length differs.");
+                using (var hash = SHA256.Create())
+                    Require(BitConverter.ToString(hash.ComputeHash(stream)).Replace("-", "").ToLowerInvariant() == payload.sha256,
+                            "Numeric payload SHA256 differs.");
+            }
+        }
+
+        private static int Count(BinaryReader reader, int minimumBytes, int maximum)
+        {
+            Require(reader.BaseStream.Length - reader.BaseStream.Position >= 4, "Truncated numeric payload count.");
+            var count = reader.ReadInt32();
+            Require(count >= 0 && count <= maximum && (long)count * minimumBytes <= reader.BaseStream.Length - reader.BaseStream.Position,
+                    "Numeric payload count exceeds the remaining bounded file.");
+            return count;
+        }
+        private static string Text(BinaryReader reader)
+        {
+            var count = Count(reader, 1, InputLimit);
+            return new UTF8Encoding(false, true).GetString(reader.ReadBytes(count));
+        }
+        private static float[] Floats(BinaryReader reader)
+        {
+            var count = Count(reader, 4, InputLimit / 4);
+            var bytes = reader.ReadBytes(checked(count * 4));
+            Require(bytes.Length == count * 4, "Truncated numeric float32 array.");
+            var values = new float[count];
+            Buffer.BlockCopy(bytes, 0, values, 0, bytes.Length);
+            return values;
+        }
+        private static int[] Integers(BinaryReader reader)
+        {
+            var count = Count(reader, 4, InputLimit / 4);
+            var bytes = reader.ReadBytes(checked(count * 4));
+            Require(bytes.Length == count * 4, "Truncated numeric int32 array.");
+            var values = new int[count];
+            Buffer.BlockCopy(bytes, 0, values, 0, bytes.Length);
+            return values;
+        }
+        private static MeshSpec[] ReadNumeric(string path, NumericPayload payload)
+        {
+            Require(BitConverter.IsLittleEndian, "The numeric input host must use little-endian data.");
+            using (var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                Require(stream.Length == payload.byteLength && stream.Length >= 16 && stream.Length <= InputLimit, "Numeric payload length differs.");
+                using (var hash = SHA256.Create())
+                    Require(BitConverter.ToString(hash.ComputeHash(stream)).Replace("-", "").ToLowerInvariant() == payload.sha256,
+                            "Numeric payload SHA256 differs.");
+                stream.Position = 0;
+                using (var reader = new BinaryReader(stream, new UTF8Encoding(false, true)))
+                {
+                    Require(reader.ReadBytes(8).SequenceEqual(Encoding.ASCII.GetBytes("UBMSH001")) && reader.ReadInt32() == 1,
+                            "Unknown numeric payload magic or version.");
+                    var meshes = new MeshSpec[Count(reader, 4, 128)];
+                    Require(meshes.Length > 0, "The numeric payload has no meshes.");
+                    for (var index = 0; index < meshes.Length; index++)
+                    {
+                        var mesh = new MeshSpec { name = Text(reader), vertices = Floats(reader), normals = Floats(reader),
+                            tangents = Floats(reader), colors = Floats(reader) };
+                        mesh.uvChannels = new MeshUv[Count(reader, 12, 8)];
+                        for (var uv = 0; uv < mesh.uvChannels.Length; uv++)
+                            mesh.uvChannels[uv] = new MeshUv { channel = reader.ReadInt32(), dimension = reader.ReadInt32(), values = Floats(reader) };
+                        mesh.subMeshes = new MeshSubmesh[Count(reader, 8, 256)];
+                        for (var submesh = 0; submesh < mesh.subMeshes.Length; submesh++)
+                            mesh.subMeshes[submesh] = new MeshSubmesh { topology = Text(reader), indices = Integers(reader) };
+                        mesh.bounds = new MeshBounds { center = Floats(reader), size = Floats(reader) };
+                        mesh.indexFormat = Text(reader);
+                        var hasSkin = reader.ReadInt32();
+                        Require(hasSkin == 0 || hasSkin == 1, "Invalid numeric skin presence flag.");
+                        if (hasSkin == 1) mesh.skin = new MeshSkin { bindPoses = Floats(reader), boneWeights = Floats(reader), boneIndices = Integers(reader) };
+                        mesh.blendShapes = new MeshBlendShape[Count(reader, 8, InputLimit / 8)];
+                        for (var shape = 0; shape < mesh.blendShapes.Length; shape++)
+                        {
+                            var value = new MeshBlendShape { name = Text(reader) };
+                            value.frames = new MeshBlendFrame[Count(reader, 20, InputLimit / 20)];
+                            for (var frame = 0; frame < value.frames.Length; frame++)
+                            {
+                                var weight = Floats(reader);
+                                Require(weight.Length == 1, "A numeric frame weight must contain one float32.");
+                                value.frames[frame] = new MeshBlendFrame { weight = weight[0], vertices = Floats(reader),
+                                    normals = Floats(reader), tangents = Floats(reader) };
+                            }
+                            mesh.blendShapes[shape] = value;
+                        }
+                        meshes[index] = mesh;
+                    }
+                    Require(stream.Position == stream.Length, "Trailing numeric payload data.");
+                    return meshes;
+                }
+            }
+        }
+
+        public static void ValidateSpec(MeshSpec spec)
+        {
+            Require(spec.vertices != null && spec.vertices.Length >= 9 && spec.vertices.Length <= 3000000 && spec.vertices.Length % 3 == 0, "Invalid mesh vertex count.");
+            var count = spec.vertices.Length / 3;
+            MeshNumbers(spec.vertices, count * 3, "vertices");
+            Require(spec.normals != null && (spec.normals.Length == 0 || spec.normals.Length == count * 3), "Invalid normal count.");
+            Require(spec.tangents != null && (spec.tangents.Length == 0 || spec.tangents.Length == count * 4), "Invalid tangent count.");
+            MeshNumbers(spec.normals, spec.normals.Length, "normals"); MeshNumbers(spec.tangents, spec.tangents.Length, "tangents");
+            Require(spec.colors == null || spec.colors.Length == 0 || spec.colors.Length == count * 4, "Invalid color count.");
+            if (spec.colors != null) { MeshNumbers(spec.colors, spec.colors.Length, "colors"); }
+            Require(spec.indexFormat == "UInt16" || spec.indexFormat == "UInt32", "Invalid mesh index format.");
+            Require(spec.indexFormat != "UInt16" || count <= 65535, "The mesh exceeds UInt16 vertex capacity.");
+            Require(spec.bounds != null, "Missing mesh bounds."); MeshNumbers(spec.bounds.center, 3, "bounds center"); MeshNumbers(spec.bounds.size, 3, "bounds size");
+            Require(spec.bounds.size.All(value => value >= 0), "Negative mesh bounds size.");
+            Require(Enumerable.Range(0, 3).All(axis => Finite(spec.bounds.center[axis] - spec.bounds.size[axis] / 2f) &&
+                    Finite(spec.bounds.center[axis] + spec.bounds.size[axis] / 2f)), "Mesh bounds overflow.");
+            for (var axis = 0; axis < 3; axis++)
+            {
+                var center = (double)spec.bounds.center[axis]; var size = (double)spec.bounds.size[axis];
+                // Two float32 rounding steps in center/size are permitted for enclosure;
+                // the declared bounds themselves must still roundtrip bit-for-bit.
+                var margin = (Math.Abs(center) + Math.Abs(size)) * 2.384185791015625e-7 + 2.802596928649634e-45;
+                for (var vertex = 0; vertex < count; vertex++) { Require(Math.Abs(spec.vertices[vertex * 3 + axis] - center) <= size / 2 + margin, "Mesh bounds do not enclose the vertices within float32 rounding."); }
+            }
+            Require(spec.uvChannels != null && spec.uvChannels.Length <= 8 && spec.uvChannels.All(uv => uv != null && uv.channel >= 0 && uv.channel <= 7 && uv.dimension >= 2 && uv.dimension <= 4) &&
+                    spec.uvChannels.Select(uv => uv.channel).Distinct().Count() == spec.uvChannels.Length, "Invalid or duplicate UV channel/dimension.");
+            foreach (var uv in spec.uvChannels) { MeshNumbers(uv.values, count * uv.dimension, "UV"); }
+            Require(spec.subMeshes != null && spec.subMeshes.Length > 0 && spec.subMeshes.Length <= 256, "Invalid submesh count.");
+            foreach (var submesh in spec.subMeshes)
+            {
+                Require(submesh != null && submesh.topology == "Triangles" && submesh.indices != null && submesh.indices.Length >= 3 && submesh.indices.Length <= 6000000 && submesh.indices.Length % 3 == 0 &&
+                        submesh.indices.All(index => index >= 0 && index < count), "Invalid mesh topology or index range.");
+            }
+            if (spec.skin != null)
+            {
+                var skin = spec.skin;
+                Require(skin.bindPoses != null && skin.bindPoses.Length > 0 && skin.bindPoses.Length % 16 == 0, "Invalid mesh bind pose count.");
+                MeshNumbers(skin.bindPoses, skin.bindPoses.Length, "bind poses");
+                MeshNumbers(skin.boneWeights, count * 4, "bone weights");
+                var bones = skin.bindPoses.Length / 16;
+                Require(skin.boneIndices != null && skin.boneIndices.Length == count * 4 &&
+                        skin.boneIndices.All(index => index >= 0 && index < bones), "Invalid mesh bone index range/count.");
+                for (var vertex = 0; vertex < count; vertex++)
+                {
+                    double total = 0;
+                    for (var influence = 0; influence < 4; influence++)
+                    {
+                        var weight = skin.boneWeights[vertex * 4 + influence];
+                        Require(weight >= 0f && weight <= 1f && (influence == 0 || skin.boneWeights[vertex * 4 + influence - 1] >= weight),
+                            "Mesh bone weights must be nonnegative, at most one and descending.");
+                        total += weight;
+                    }
+                    Require(Math.Abs(total - 1d) <= 1e-5, "Mesh bone weights must sum to one.");
+                }
+            }
+            if (spec.blendShapes != null)
+            {
+                Require(spec.blendShapes.All(shape => shape != null && !string.IsNullOrWhiteSpace(shape.name) && !shape.name.Any(char.IsControl)),
+                    "Invalid mesh blend shape name.");
+                foreach (var shape in spec.blendShapes)
+                {
+                    Require(shape.frames != null && shape.frames.Length > 0, "Missing mesh blend shape frames.");
+                    for (var frame = 0; frame < shape.frames.Length; frame++)
+                    {
+                        var value = shape.frames[frame];
+                        Require(value != null && Finite(value.weight) && (frame == 0 || value.weight > shape.frames[frame - 1].weight),
+                            "Mesh blend shape frame weights must be finite and strictly increasing.");
+                        MeshNumbers(value.vertices, count * 3, "blend shape vertices");
+                        MeshNumbers(value.normals, count * 3, "blend shape normals");
+                        MeshNumbers(value.tangents, count * 3, "blend shape tangents");
+                    }
+                }
+            }
         }
     }
 }

@@ -3,9 +3,16 @@ param(
     [Parameter(Mandatory = $true, ParameterSetName = 'Rig')]
     [Parameter(Mandatory = $true, ParameterSetName = 'Materials')]
     [Parameter(Mandatory = $true, ParameterSetName = 'Meshes')] [string] $UnityPath,
+    [Parameter(ParameterSetName = 'Rig')]
+    [Parameter(ParameterSetName = 'Materials')]
+    [Parameter(ParameterSetName = 'Meshes')]
+    [ValidateSet('Gamma', 'Linear')] [string] $ColorSpace = 'Linear',
     [Parameter(Mandatory = $true, ParameterSetName = 'Rig')] [string] $FbxPath,
     [Parameter(Mandatory = $true, ParameterSetName = 'Materials')] [string] $MaterialRecipePath,
     [Parameter(Mandatory = $true, ParameterSetName = 'Meshes')] [string] $MeshRecipePath,
+    [Parameter(ParameterSetName = 'Rig')]
+    [Parameter(ParameterSetName = 'Materials')]
+    [Parameter(ParameterSetName = 'Meshes')] [switch] $ValidateOnly,
     [Parameter(Mandatory = $true, ParameterSetName = 'Cleanup')] [switch] $Cleanup,
     [string] $WorkspaceRoot,
     [string] $GuiProjectPath,
@@ -14,7 +21,7 @@ param(
     [string] $UnityCliPath,
     [string[]] $ReferencePath=@(),
     [string[]] $PreserveDirectory=@(),
-    [ValidateRange(1,100)] [int] $KeepLatest=2,
+    [ValidateRange(0,100)] [int] $KeepLatest=2,
     [ValidateRange(0,36500)] [double] $MaxAgeDays=0,
     [ValidateRange(0,9223372036854775807)] [long] $MaxRetainedBytes=0,
     [switch] $Apply,
@@ -23,6 +30,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$ColorSpace = if ($ColorSpace -ieq 'Linear') { 'Linear' } else { 'Gamma' }
 $requiredVersion = '2019.4.37f1'
 $workspaceMarker = 'SolastaUBAssetAuthoring:UnityWorkspace:1'
 $projectMarker = 'SolastaUBAssetAuthoring:UnityProject:1'
@@ -36,7 +44,10 @@ function Test-WithinPath([string] $Child, [string] $Parent) {
         $fullChild.StartsWith($fullParent + '\', [StringComparison]::OrdinalIgnoreCase)
 }
 
-function Assert-LocalPath([string] $Path) {
+function Assert-LocalPath([string] $Path, [switch] $UnityImport) {
+    if ($UnityImport -and ($Path + '.meta').Length -gt 259) {
+        throw "Unity 2019 import path is too long ($($Path.Length + 5) characters including .meta; maximum 259). Shorten the project/workspace path or asset relative names: $Path"
+    }
     if ($Path.StartsWith('\\') -or $Path -notmatch '^[A-Za-z]:\\') {
         throw "A local Windows drive path is required: $Path"
     }
@@ -141,7 +152,7 @@ function Assert-MeshNumbers($Values, [int] $Count, [string] $Label) {
 function Assert-MeshRecipe($Recipe) {
     Assert-RecipeFields $Recipe @('schemaVersion', 'bundleName', 'meshes') @('textures')
     if ($Recipe.schemaVersion -ne 1 -or $Recipe.bundleName -cnotmatch '^[a-z0-9][a-z0-9_.-]{0,127}$' -or
-        $Recipe.meshes -isnot [array] -or $Recipe.meshes.Count -lt 1 -or $Recipe.meshes.Count -gt 128) { throw 'Invalid mesh recipe version, bundle name or mesh list.' }
+        $Recipe.meshes -isnot [array] -or $Recipe.meshes.Count -gt 128) { throw 'Invalid mesh recipe version, bundle name or mesh list.' }
     $names = @{}
     foreach ($mesh in $Recipe.meshes) {
         Assert-RecipeFields $mesh @('name', 'vertices', 'normals', 'tangents', 'uvChannels', 'subMeshes', 'bounds', 'indexFormat') @('colors', 'skin', 'blendShapes')
@@ -243,6 +254,27 @@ function Assert-MeshRecipe($Recipe) {
             $textureNames[$texture.name] = $true; $texturePaths[$texture.path] = $true
         }
     }
+    $textureCount = if ($Recipe.PSObject.Properties['textures']) { $Recipe.textures.Count } else { 0 }
+    if ($Recipe.meshes.Count -eq 0 -and $textureCount -eq 0) { throw 'The mesh recipe must contain a mesh or texture.' }
+}
+
+function Read-ExternalMeshRecipe([string] $Path, [string] $InputOwnerPath) {
+    $source = if ($InputOwnerPath) { $InputOwnerPath } else { Join-Path $PSScriptRoot 'UnityAssetBuild/Assets/Editor/AssetBundleBuilder.cs' }
+    $bytes = [IO.File]::ReadAllBytes($source)
+    $hash = [Security.Cryptography.SHA256]::Create()
+    try { $identity = ([BitConverter]::ToString($hash.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant() }
+    finally { $hash.Dispose() }
+    $namespace = 'SolastaAssetInput_' + $identity
+    $typeName = $namespace + '.MeshRecipeInput'
+    $codec = $typeName -as [type]
+    if ($null -eq $codec) {
+        $text = [Text.Encoding]::UTF8.GetString($bytes).TrimStart([char]0xfeff).Replace('namespace SolastaAssetAuthoring', ('namespace ' + $namespace))
+        $arguments = @{TypeDefinition=('#define MESH_INPUT_ONLY' + [Environment]::NewLine + $text); Language='CSharp'; ErrorAction='Stop'}
+        if ($PSVersionTable.PSVersion.Major -lt 6) { $arguments.ReferencedAssemblies = @('System.Core.dll','System.Runtime.Serialization.dll','System.Xml.dll') }
+        Add-Type @arguments
+        $codec = $typeName -as [type]
+    }
+    return $codec::ReadFile($Path)
 }
 
 if ($Cleanup) {
@@ -253,7 +285,7 @@ if ($Cleanup) {
 }
 if ($Apply -or $ReferencePath.Count -or $PreserveDirectory.Count -or $MaxAgeDays -gt 0 -or $MaxRetainedBytes -gt 0) { throw 'Storage policy arguments require -Cleanup.' }
 . (Join-Path $PSScriptRoot 'UnityAssetBuild/BackgroundEditor.ps1')
-$storageOperation=if($GuiProjectPath){Enter-AssetStorageOperation $GuiProjectPath}else{$null}
+$storageOperation=if($GuiProjectPath -and -not $ValidateOnly){Enter-AssetStorageOperation $GuiProjectPath}else{$null}
 try {
 $unityExe = (Resolve-Path -LiteralPath $UnityPath).ProviderPath
 $materialJob = $PSCmdlet.ParameterSetName -eq 'Materials'
@@ -265,7 +297,6 @@ if (!(Test-Path -LiteralPath $unityExe -PathType Leaf) -or [IO.Path]::GetFileNam
 if (!$materialJob -and !$meshJob -and (!(Test-Path -LiteralPath $sourceFile -PathType Leaf) -or [IO.Path]::GetExtension($sourceFile) -ine '.fbx')) {
     throw '-FbxPath must identify an existing FBX file.'
 }
-Assert-UnityVersion $unityExe
 if ([string]::IsNullOrWhiteSpace($WorkspaceRoot)) {
     $WorkspaceRoot = Join-Path $authoringRoot 'UnityWorkspace'
 }
@@ -331,7 +362,13 @@ if ($meshJob) {
     try { $meshInputHash = ([BitConverter]::ToString($sha.ComputeHash($meshInputBytes))).Replace('-', '').ToLowerInvariant() }
     finally { $sha.Dispose() }
     $recipe = [Text.Encoding]::UTF8.GetString($meshInputBytes).TrimStart([char]0xfeff) | ConvertFrom-Json
-    Assert-MeshRecipe $recipe
+    if ($recipe.PSObject.Properties['numericPayload']) {
+        $recipe = Read-ExternalMeshRecipe $sourceFile
+        $assetSource = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetDirectoryName($sourceFile)) $recipe.numericPayload.path))
+        Assert-LocalPath $assetSource
+        $materialInputs += [pscustomobject]@{path=$recipe.numericPayload.path;source=$assetSource;sha256=$recipe.numericPayload.sha256}
+    }
+    else { Assert-MeshRecipe $recipe }
     $bundleName = $recipe.bundleName
     if ($recipe.PSObject.Properties['textures']) {
         foreach ($texture in $recipe.textures) {
@@ -353,10 +390,11 @@ function Copy-AuthoringInput([string] $Destination) {
     else { [IO.File]::Copy($sourceFile, $Destination, $false) }
 }
 
-function Copy-MaterialInputs([string] $InputDirectory) {
+function Copy-MaterialInputs([string] $InputDirectory, [switch] $ValidateOnly) {
     foreach ($asset in $materialInputs) {
-        $destination = Join-Path $InputDirectory $asset.path
-        Assert-LocalPath $destination
+        $destination = [IO.Path]::Combine($InputDirectory, $asset.path.Replace('/', '\'))
+        Assert-LocalPath $destination -UnityImport
+        if ($ValidateOnly) { continue }
         [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($destination)) | Out-Null
         [IO.File]::Copy($asset.source, $destination, $false)
         if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant() -ne $asset.sha256) {
@@ -364,6 +402,16 @@ function Copy-MaterialInputs([string] $InputDirectory) {
         }
     }
 }
+if ($ValidateOnly) {
+    [pscustomobject]@{
+        status='PASS_AUTHORING_INPUT';validationScope='input_declaration';inputPath=$sourceFile
+        sha256=(Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant()
+        kind=$(if($meshJob){'mesh-templates'}elseif($materialJob){'materials'}else{'rig'})
+        bundleName=$bundleName;colorSpace=$ColorSpace;dependencyCount=$materialInputs.Count;appsStarted=0;outputsCreated=0
+    }
+    return
+}
+Assert-UnityVersion $unityExe
 $markerFile = Join-Path $workspace '.solasta-asset-authoring-workspace'
 $template = Join-Path $PSScriptRoot 'UnityAssetBuild'
 $templateFiles = @(
@@ -399,6 +447,12 @@ if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
     if ([IO.File]::ReadAllText($versionFile) -notmatch ('(?m)^m_EditorVersion: ' + [regex]::Escape($requiredVersion) + '\s*$')) {
         throw 'The GUI project uses a different Editor version.'
     }
+    $jobKind = if ($meshJob) { 'mesh' } elseif ($materialJob) { 'material' } else { 'rig' }
+    $jobId = [datetime]::UtcNow.ToString('yyyyMMdd-HHmmss-fffffff', [Globalization.CultureInfo]::InvariantCulture) + '-' + $jobKind
+    $runRoot = Join-Path $project ('.asset-authoring-jobs\' + $jobId)
+    $inputDirectory = [IO.Path]::Combine($project, 'Assets\AuthoringJobs\' + $jobId + '\Input')
+    Assert-LocalPath ([IO.Path]::Combine($inputDirectory, $inputName)) -UnityImport
+    Copy-MaterialInputs $inputDirectory -ValidateOnly
     $source = Join-Path $template 'Assets\Editor\AssetBundleBuilder.cs'
     $destination = Join-Path $project 'Assets\Editor\AssetBundleBuilder.cs'
     Assert-LocalPath $destination
@@ -444,9 +498,6 @@ if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
         Start-Sleep -Milliseconds 500
     }
     if ($null -eq $ready) { throw "The GUI worker is not ready. Inspect the Editor log and the marked project: $project" }
-    $jobId = [guid]::NewGuid().ToString('N')
-    $runRoot = Join-Path $project ('.asset-authoring-jobs\' + $jobId)
-    $inputDirectory = Join-Path $project ('Assets\AuthoringJobs\' + $jobId + '\Input')
     Assert-LocalPath $runRoot
     Assert-LocalPath $inputDirectory
     if ((Test-Path -LiteralPath $runRoot) -or (Test-Path -LiteralPath $inputDirectory)) { throw 'The unique GUI job already exists.' }
@@ -463,7 +514,7 @@ if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
     $logPath = $reportPath
     $startedUtc = [DateTime]::UtcNow
     $jobOwnership=Register-AssetAuthoringJob -Project $project -JobDirectory $runRoot -AssetDirectory (Split-Path -Parent $inputDirectory) -ResultPath $reportPath -DependencyPath (@($sourceFile)+@($materialInputs|ForEach-Object source)) -Session $backgroundSession
-    $request = @{ schemaVersion = 1; jobId = $jobId; inputSha256 = $inputHash; kind = $(if ($meshJob) { 'mesh-templates' } elseif ($materialJob) { 'materials' } else { 'rig' }) } | ConvertTo-Json
+    $request = @{ schemaVersion = 1; jobId = $jobId; inputSha256 = $inputHash; colorSpace = $ColorSpace; kind = $(if ($meshJob) { 'mesh-templates' } elseif ($materialJob) { 'materials' } else { 'rig' }) } | ConvertTo-Json
     $temporaryRequest = Join-Path $runRoot 'request.writing'
     [IO.File]::WriteAllText($temporaryRequest, $request)
     [IO.File]::Move($temporaryRequest, (Join-Path $runRoot 'request.json'))
@@ -482,12 +533,15 @@ if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
 }
 else {
 
-    [IO.Directory]::CreateDirectory($workspace) | Out-Null
-    [IO.File]::WriteAllText($markerFile, $workspaceMarker + [Environment]::NewLine)
     $runId = (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
     $runRoot = Join-Path $workspace $runId
     if (Test-Path -LiteralPath $runRoot) { throw 'The unique run directory already exists.' }
     $project = Join-Path $runRoot 'Project'
+    $inputDirectory = [IO.Path]::Combine($project, 'Assets\Input')
+    Assert-LocalPath ([IO.Path]::Combine($inputDirectory, $inputName)) -UnityImport
+    Copy-MaterialInputs $inputDirectory -ValidateOnly
+    [IO.Directory]::CreateDirectory($workspace) | Out-Null
+    [IO.File]::WriteAllText($markerFile, $workspaceMarker + [Environment]::NewLine)
     [IO.Directory]::CreateDirectory($project) | Out-Null
     foreach ($relative in $templateFiles) {
         $destination = Join-Path $project $relative
@@ -496,7 +550,6 @@ else {
     }
     [IO.File]::WriteAllText((Join-Path $project '.solasta-asset-authoring-project'), $projectMarker)
     $storageOperation=Enter-AssetStorageOperation $project
-    $inputDirectory = Join-Path $project 'Assets\Input'
     [IO.Directory]::CreateDirectory($inputDirectory) | Out-Null
     $copiedInput = Join-Path $inputDirectory $inputName
     Copy-AuthoringInput $copiedInput
@@ -516,6 +569,7 @@ else {
         '-executeMethod', 'SolastaAssetAuthoring.AssetBundleBuilder.Build',
         $(if ($meshJob) { '-meshRecipe' } elseif ($materialJob) { '-materialRecipe' } else { '-sampleFbx' }), $copiedInput,
         '-bundleOutput', $bundleOutput,
+        '-colorSpace', $ColorSpace,
         '-logFile', $logPath
     )
     # All paths are resolved Windows paths without quotes; none of these arguments ends in a backslash.
@@ -533,6 +587,10 @@ if (!$report.success -or $report.stage -ne 'complete' -or $report.unityVersion -
     throw "Unity validation did not complete successfully. Inspect $reportPath and $logPath"
 }
 if ($report.inputSha256 -ne $inputHash) { throw 'The report refers to a different authoring input.' }
+if (!$report.PSObject.Properties['requestedColorSpace'] -or !$report.PSObject.Properties['actualColorSpace'] -or
+    $report.requestedColorSpace -cne $ColorSpace -or $report.actualColorSpace -cne $ColorSpace) {
+    throw 'The compiled assets use a different color space from the declared authoring target.'
+}
 if (![string]::IsNullOrWhiteSpace($GuiProjectPath) -and
     ($report.transport -ne 'gui_worker' -or $report.jobId -ne $jobId -or $report.processId -ne $ready.processId -or $report.mainThread -ne $ready.mainThread)) {
     throw 'The report does not identify the selected GUI worker job and main thread.'

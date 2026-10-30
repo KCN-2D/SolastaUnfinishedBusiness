@@ -1018,6 +1018,8 @@ finally {
             if ($null -ne $nativeDisplayBackup) {
                 $result['displayRestoration']=Restore-NativeDisplaySettings $nativeDisplayBackup
                 $result.displaySettingsRestored=$result.displayRestoration.succeeded
+            } else {
+                $result.displaySettingsRestored=$true
             }
         }
         catch {

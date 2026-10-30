@@ -25,6 +25,9 @@ param(
     [Parameter(Mandatory = $true, ParameterSetName = 'CallerStop')] [switch] $CallerStopOnly,
     [Parameter(Mandatory = $true, ParameterSetName = 'Storage')] [switch] $StorageOnly,
     [Parameter(ParameterSetName = 'Storage')] [string] $StorageEvidenceRoot,
+    [Parameter(Mandatory = $true, ParameterSetName = 'InputValidation')] [switch] $InputValidationOnly,
+    [Parameter(ParameterSetName = 'InputValidation')] [string] $InputValidationEvidenceRoot,
+    [Parameter(ParameterSetName = 'InputValidation')] [string] $InputValidationEntryPath,
     [string] $UnityCliPath,
     [switch] $InstallGuiWorker,
     [ValidateRange(5, 300)] [int] $TimeoutSeconds = 60
@@ -32,6 +35,131 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+function Invoke-AuthoringInputValidationContracts([string]$EntryPath, [string]$OutputDirectory) {
+    $entry=(Resolve-Path -LiteralPath $EntryPath).ProviderPath
+    $entryHash=(Get-FileHash -LiteralPath $entry -Algorithm SHA256).Hash
+    $authoringWorkspace=[IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $entry) 'workspace')).TrimEnd('\')
+    if (-not $OutputDirectory) {
+        $OutputDirectory=Join-Path $authoringWorkspace ('InputValidationContracts/'+(Get-Date -Format 'yyyyMMdd-HHmmss-fff')+'-'+[guid]::NewGuid().ToString('N').Substring(0,8))
+    }
+    $OutputDirectory=[IO.Path]::GetFullPath($OutputDirectory)
+    if (-not $OutputDirectory.StartsWith($authoringWorkspace+'\',[StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Input-validation evidence must be within the authoring workspace.'
+    }
+    if (Test-Path -LiteralPath $OutputDirectory) { throw 'Input-validation evidence requires a new directory.' }
+    $inputs=Join-Path $OutputDirectory 'Inputs'
+    [void][IO.Directory]::CreateDirectory($inputs)
+    $outputs=Join-Path $OutputDirectory 'Outputs'
+    $checks=[Collections.Generic.List[object]]::new()
+    function Save-ValidationJson([string]$Path,$Value) {
+        [IO.File]::WriteAllText($Path,($Value|ConvertTo-Json -Depth 30),[Text.UTF8Encoding]::new($false))
+    }
+    function Get-ValidationInputTree {
+        $rows=@(Get-ChildItem -LiteralPath $inputs -Recurse -Force | Sort-Object FullName | ForEach-Object {
+            [ordered]@{path=$_.FullName.Substring($inputs.Length+1);directory=$_.PSIsContainer;
+                length=$(if($_.PSIsContainer){$null}else{$_.Length});lastWriteUtcTicks=$_.LastWriteTimeUtc.Ticks;
+                attributes=[int]$_.Attributes;sha256=$(if($_.PSIsContainer){$null}else{(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash})}
+        })
+        return ConvertTo-Json -InputObject $rows -Depth 6 -Compress
+    }
+    function Add-ValidationCheck([string]$Name,[bool]$Passed,$Evidence) {
+        $checks.Add([ordered]@{name=$Name;passed=$Passed;evidence=$Evidence})
+        if(-not $Passed){Write-Host ('FAIL '+$Name)}
+    }
+    # This file cannot answer a PE/version query or start an Editor.
+    $unity=Join-Path $inputs 'Unity.exe';[IO.File]::WriteAllBytes($unity,[byte[]]@())
+    $png=Join-Path $inputs 'Pixel.png'
+    [IO.File]::WriteAllBytes($png,[Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aG9kAAAAASUVORK5CYII='))
+    $pngHash=(Get-FileHash -LiteralPath $png -Algorithm SHA256).Hash.ToLowerInvariant()
+    $shader=Join-Path $inputs 'Plain.shader'
+    [IO.File]::WriteAllText($shader,'Shader "AuthoringInputContracts/Plain" { Properties { _MainTex ("Main", 2D) = "white" {} } SubShader { Pass { Name "FORWARD" SetTexture [_MainTex] { combine texture } } } }')
+    $shaderHash=(Get-FileHash -LiteralPath $shader -Algorithm SHA256).Hash.ToLowerInvariant()
+    $fbx=Join-Path $inputs 'Reference.fbx'
+    [IO.File]::WriteAllText($fbx,"; FBX reference fixture; declaration validation does not parse FBX contents.`nFBXHeaderExtension: { FBXVersion: 7400 }")
+    $mesh=[ordered]@{schemaVersion=1;bundleName='contract_mesh';meshes=@([ordered]@{
+        name='Triangle';vertices=@(0,0,0,1,0,0,0,1,0);normals=@(0,0,1,0,0,1,0,0,1);
+        tangents=@(1,0,0,1,1,0,0,1,1,0,0,1);colors=@();
+        uvChannels=@(@{channel=0;dimension=2;values=@(0,0,1,0,0,1)});
+        subMeshes=@(@{topology='Triangles';indices=@(0,1,2)});
+        bounds=@{center=@(0.5,0.5,0);size=@(1,1,0)};indexFormat='UInt16'});textures=@()}
+    $texture=[ordered]@{schemaVersion=1;bundleName='contract_texture';meshes=@();textures=@(@{
+        name='Pixel';path='Pixel.png';sha256=$pngHash;normalMap=$false;sRGB=$false;mipmaps=$true})}
+    $material=[ordered]@{schemaVersion=1;bundleName='contract_material';assets=@(
+        @{path='Plain.shader';sha256=$shaderHash},@{path='Pixel.png';sha256=$pngHash});materials=@(@{
+            name='Plain';shader='Plain.shader';requiredPasses=@('FORWARD');
+            properties=@(@{name='_MainTex';kind='texture';texture='Pixel.png'})})}
+    $meshPath=Join-Path $inputs 'Mesh.json';Save-ValidationJson $meshPath $mesh
+    $texturePath=Join-Path $inputs 'Texture.json';Save-ValidationJson $texturePath $texture
+    $materialPath=Join-Path $inputs 'Material.json';Save-ValidationJson $materialPath $material
+    $badBundle=$mesh|ConvertTo-Json -Depth 30|ConvertFrom-Json;$badBundle.bundleName='Contract_Mesh'
+    $badBundlePath=Join-Path $inputs 'BundleCase.json';Save-ValidationJson $badBundlePath $badBundle
+    $badUv=$mesh|ConvertTo-Json -Depth 30|ConvertFrom-Json;$badUv.meshes[0].uvChannels[0].values=@(0,0,1,0)
+    $badUvPath=Join-Path $inputs 'UvLength.json';Save-ValidationJson $badUvPath $badUv
+    $badTexture=$texture|ConvertTo-Json -Depth 30|ConvertFrom-Json;$badTexture.textures[0].sha256='0'*64
+    $badTexturePath=Join-Path $inputs 'TextureHash.json';Save-ValidationJson $badTexturePath $badTexture
+    $badMaterial=$material|ConvertTo-Json -Depth 30|ConvertFrom-Json;$badMaterial.assets[0].sha256='0'*64
+    $badMaterialPath=Join-Path $inputs 'MaterialHash.json';Save-ValidationJson $badMaterialPath $badMaterial
+    $cases=@(
+        @{name='mesh';parameter='MeshRecipePath';path=$meshPath;kind='mesh-templates';bundle='contract_mesh';dependencies=0;colorSpace='Gamma'},
+        @{name='texture-only';parameter='MeshRecipePath';path=$texturePath;kind='mesh-templates';bundle='contract_texture';dependencies=1},
+        @{name='material';parameter='MaterialRecipePath';path=$materialPath;kind='materials';bundle='contract_material';dependencies=2},
+        @{name='fbx-reference';parameter='FbxPath';path=$fbx;kind='rig';bundle='ub_authoring_sample';dependencies=0},
+        @{name='bundle-case';parameter='MeshRecipePath';path=$badBundlePath;error='Invalid mesh recipe version, bundle name'},
+        @{name='texture-hash';parameter='MeshRecipePath';path=$badTexturePath;error='The mesh texture source hash differs'},
+        @{name='material-hash';parameter='MaterialRecipePath';path=$badMaterialPath;error='The material source hash differs'},
+        @{name='uv-array';parameter='MeshRecipePath';path=$badUvPath;error='Invalid mesh UV length'},
+        @{name='empty-executable-version-trap';parameter='MeshRecipePath';path=$meshPath;error='executable file version is not 2019.4.37';withoutValidate=$true}
+    )
+    $before=Get-ValidationInputTree
+    [IO.File]::WriteAllText((Join-Path $OutputDirectory 'InputTree.Before.json'),$before)
+    foreach($case in $cases) {
+        $arguments=@{UnityPath=$unity;WorkspaceRoot=(Join-Path $outputs $case.name)}
+        $arguments[$case.parameter]=$case.path
+        $expectedColorSpace=if($case.ContainsKey('colorSpace')){$case.colorSpace}else{'Linear'}
+        if($case.ContainsKey('colorSpace')){$arguments.ColorSpace=$case.colorSpace}
+        if(-not $case.ContainsKey('withoutValidate')) {
+            $arguments.ValidateOnly=$true
+            # A supplied GUI project must not acquire a lease or create a directory either.
+            $arguments.GuiProjectPath=Join-Path $outputs ($case.name+'/Project')
+        }
+        $observed=@();$failure=$null
+        try{$observed=@(& $entry @arguments)}catch{$failure=$_.Exception.Message}
+        if($case.ContainsKey('error')) {
+            Add-ValidationCheck ($case.name+'-rejects-reason') ($null -ne $failure -and $failure -match [regex]::Escape($case.error)) @{error=$failure;outputs=$observed}
+        } else {
+            $accepted=$null -eq $failure -and $observed.Count -eq 1
+            if($accepted) {
+                $value=$observed[0]
+                $accepted=$value.status -ceq 'PASS_AUTHORING_INPUT' -and $value.validationScope -ceq 'input_declaration' -and
+                    $value.inputPath -ceq $case.path -and $value.sha256 -ceq (Get-FileHash -LiteralPath $case.path -Algorithm SHA256).Hash.ToLowerInvariant() -and
+                    $value.kind -ceq $case.kind -and $value.bundleName -ceq $case.bundle -and
+                    $value.dependencyCount -eq $case.dependencies -and $value.colorSpace -ceq $expectedColorSpace -and $value.appsStarted -eq 0 -and $value.outputsCreated -eq 0
+            }
+            Add-ValidationCheck ($case.name+'-accepts-declaration') $accepted @{error=$failure;outputs=$observed}
+        }
+        Add-ValidationCheck ($case.name+'-inputs-unchanged') ((Get-ValidationInputTree) -ceq $before) $null
+        Add-ValidationCheck ($case.name+'-no-output-workspace') (-not (Test-Path -LiteralPath $outputs)) $outputs
+    }
+    $after=Get-ValidationInputTree
+    [IO.File]::WriteAllText((Join-Path $OutputDirectory 'InputTree.After.json'),$after)
+    Add-ValidationCheck 'entry-source-unchanged' ((Get-FileHash -LiteralPath $entry -Algorithm SHA256).Hash -ceq $entryHash) $entryHash
+    $result=[ordered]@{status=$(if(@($checks|Where-Object{-not $_.passed}).Count){'FAIL'}else{'PASS'});
+        scope='Actual launcher input declarations only; no import, shader compilation or FBX content validation.';
+        entry=$entry;entrySha256=$entryHash;powerShell=$PSVersionTable.PSVersion.ToString();
+        emptyUnityExeBytes=(Get-Item -LiteralPath $unity).Length;inputTreeUnchanged=($before -ceq $after);
+        outputWorkspaceCreated=(Test-Path -LiteralPath $outputs);checks=@($checks.ToArray())}
+    Save-ValidationJson (Join-Path $OutputDirectory 'Result.json') $result
+    Write-Host ($result.status+': '+$checks.Count+' input-validation contracts; '+$OutputDirectory)
+    if($result.status -cne 'PASS'){throw 'Authoring input-validation contracts failed.'}
+    return [pscustomobject]$result
+}
+
+if ($InputValidationOnly) {
+    if(-not $InputValidationEntryPath){$InputValidationEntryPath=Join-Path $PSScriptRoot '../Invoke-UnityAssetBuild.ps1'}
+    Invoke-AuthoringInputValidationContracts $InputValidationEntryPath $InputValidationEvidenceRoot
+    return
+}
+
 function Invoke-AuthoringStorageContracts([string]$OutputDirectory) {
     $candidate=Join-Path $OutputDirectory 'Sources/tools/asset-authoring'
     foreach($relative in @('UnityAssetBuild/BackgroundEditor.ps1','Invoke-UnityAssetBuild.ps1','Invoke-AssetAuthoring.ps1')) {
@@ -109,9 +237,34 @@ function BlenderClean([string]$Root,[hashtable]$Options=@{},[switch]$Apply){
  $path=Clear-BlenderAuthoringOutputs @args;return Get-Content -LiteralPath $path -Raw|ConvertFrom-Json
 }
 
+foreach($representation in @('uniform','mixed')){foreach($reverse in @($false,$true)){
+ $orderRoot=Join-Path $workbench 'TimestampOrder'
+ $units=@(
+  [pscustomobject]@{kind='job';path=(Join-Path $orderRoot 'a');roots=@((Join-Path $orderRoot 'a'));dependencies=@();completedUtc=[datetimeoffset]'2020-01-01T00:00:00Z';bytes=16L;hardReason=$null},
+  [pscustomobject]@{kind='job';path=(Join-Path $orderRoot 'b');roots=@((Join-Path $orderRoot 'b'));dependencies=@();completedUtc='2020-01-02T00:00:00Z';bytes=8L;hardReason=$null},
+  [pscustomobject]@{kind='job';path=(Join-Path $orderRoot 'c');roots=@((Join-Path $orderRoot 'c'));dependencies=@();completedUtc=$null;bytes=2L;hardReason='incomplete'},
+  [pscustomobject]@{kind='job';path=(Join-Path $orderRoot 'd');roots=@((Join-Path $orderRoot 'd'));dependencies=@();completedUtc=[datetime]'2020-01-03T00:00:00+09:00';bytes=8L;hardReason=$null})
+ if($representation -eq 'uniform'){foreach($unit in $units){if($unit.completedUtc){$unit.completedUtc=([datetimeoffset]$unit.completedUtc).UtcDateTime}}}
+ if($reverse){[array]::Reverse($units)}
+ $reference=[pscustomobject]@{paths=@()};$selection=Select-AssetStorageUnits $units $reference 2 0 10
+ $label=$representation+' reverse='+$reverse
+ Need ('cleanup timestamp UTC admission '+$label) (@($units|Where-Object {$_.completedUtc -isnot [datetime] -or $_.completedUtc.Kind -ne [DateTimeKind]::Utc}).Count -eq 0)
+ Need ('cleanup timestamp ordering '+$label) (((@($units|Sort-Object completedUtc,path|ForEach-Object{Split-Path -Leaf $_.path})) -join ',') -ceq 'c,a,b,d')
+ Need ('cleanup timestamp latest byte budget '+$label) ($selection.budgetSatisfied -and $selection.retainedBytes -eq 10 -and $selection.reasons.Count -eq 2 -and $selection.reasons[(Join-Path $orderRoot 'c')] -eq 'incomplete' -and $selection.reasons[(Join-Path $orderRoot 'd')] -eq 'latest')
+ $reference.paths=@((Join-Path $orderRoot 'a'));$selection=Select-AssetStorageUnits $units $reference 2 0 10
+ Need ('cleanup timestamp hard owners survive insufficient budget '+$label) (-not $selection.budgetSatisfied -and $selection.retainedBytes -eq 18 -and $selection.reasons.Count -eq 2 -and $selection.reasons[(Join-Path $orderRoot 'a')] -eq 'explicit-reference' -and $selection.reasons[(Join-Path $orderRoot 'c')] -eq 'incomplete')
+}}
+$project=Project 'unity-zero-latest';$donor=Job $project 'donor';$changed=Job $project 'changed' @($donor.assets);$active=Job $project 'active';$obsolete=Job $project 'obsolete'
+[IO.File]::AppendAllText((Join-Path $changed.assets 'mesh.asset'),'changed')
+$zeroRef=Join-Path $OutputDirectory 'zero-latest-unity-references.json';Save $zeroRef @{schemaVersion=1;paths=@($active.assets)}
+$zeroOptions=@{KeepLatest=0;MaxAgeDays=0;ReferencePath=@($zeroRef)}
+$preview=UnityClean $project $zeroOptions;$r=UnityClean $project $zeroOptions -Apply
+Need 'zero latest Unity policy retires only unreferenced unchanged completed output' ($preview.actions.Count -eq 2 -and $preview.actions[0].jobDirectory -eq $obsolete.job -and $r.actions.Count -eq 2 -and $r.actions[0].applied -and -not(Test-Path $obsolete.job) -and (Test-Path $active.job) -and (Test-Path $changed.job) -and (Test-Path $donor.job))
+Need 'zero latest Unity policy retains changed owner dependency closure' (@($preview.retained|Where-Object {$_.reason -eq 'Authoring outputs changed after completion.'}).Count -eq 2 -and @($preview.retained|Where-Object {$_.reason -eq 'retained-input'}).Count -ge 1)
+Need 'negative Unity latest count rejects before cleanup' ((Rejected {UnityClean $project @{KeepLatest=-1}}) -and (Test-Path $active.job))
 $project=Project 'unity-preview';$job=Job $project 'first'
 $r=UnityClean $project
-Need 'Unity dry run keeps output and paired Assets' ((Test-Path $job.job)-and(Test-Path $job.assets)-and $r.actions.Count -eq 1 -and -not $r.actions[0].applied)
+Need 'Unity dry run keeps output and paired Assets' ((Test-Path $job.job)-and(Test-Path $job.assets)-and $r.actions.Count -eq 2 -and -not $r.actions[0].applied)
 $r=UnityClean $project -Apply
 Need 'Unity age cleanup retires job, assets and sibling meta together' (-not(Test-Path $job.job)-and -not(Test-Path $job.assets)-and -not(Test-Path ($job.assets+'.meta')))
 $r=UnityClean $project -Apply;Need 'Unity cleanup is idempotent' ($r.actions.Count -eq 0)
@@ -119,6 +272,21 @@ Need 'durable Unity diagnostic survives retirement' ((Get-ChildItem (Join-Path (
 $project=Project 'unity-preserve';$job=Job $project 'hard';$ref=Join-Path $OutputDirectory 'references.json';Save $ref @{schemaVersion=1;paths=@($job.assets)}
 $r=UnityClean $project @{ReferencePath=@($ref);MaxRetainedBytes=1} -Apply
 Need 'current referenced Unity assets keep their paired job above byte budget' ((Test-Path $job.job)-and(Test-Path $job.assets)-and -not $r.budgetSatisfied)
+$project=Project 'unity-latest-roles';$older=Job $project 'older';$newer=Job $project 'newer'
+$r=UnityClean $project @{KeepLatest=1;MaxAgeDays=0} -Apply
+Need 'latest retention keeps each output and import role without doubling the owner count' (-not(Test-Path $older.job)-and -not(Test-Path $older.assets)-and(Test-Path $newer.job)-and(Test-Path $newer.assets)-and $r.actions.Count -eq 2)
+$project=Project 'unity-output-reference';$job=Job $project 'completed';$result=Join-Path $job.job 'output.json'
+$resultHash=(Get-FileHash -LiteralPath $result -Algorithm SHA256).Hash;$ownerHash=(Get-FileHash -LiteralPath $job.ownership.path -Algorithm SHA256).Hash
+Save $ref @{schemaVersion=1;paths=@($result)};$r=UnityClean $project @{ReferencePath=@($ref)} -Apply
+Need 'referenced completed output releases only its unreferenced import copies' ((Test-Path $result)-and(Test-Path $job.ownership.path)-and -not(Test-Path $job.assets)-and -not(Test-Path ($job.assets+'.meta'))-and $r.actions.Count -eq 1 -and $r.actions[0].kind -eq 'import')
+Need 'import retirement preserves the original output and ownership receipt' ((Get-FileHash -LiteralPath $result -Algorithm SHA256).Hash -ceq $resultHash -and (Get-FileHash -LiteralPath $job.ownership.path -Algorithm SHA256).Hash -ceq $ownerHash)
+$r=UnityClean $project @{ReferencePath=@($ref)} -Apply
+Need 'released import roots remain valid under the existing ownership schema' ($r.status -eq 'complete' -and $r.actions.Count -eq 0 -and (Test-Path $result))
+Save $ref @{schemaVersion=1;paths=@()};$r=UnityClean $project -Apply
+Need 'unreferenced output retires after its import roots were released' (-not(Test-Path $job.job)-and $r.actions.Count -eq 1 -and $r.actions[0].kind -eq 'job')
+$project=Project 'unity-output-mutated';$job=Job $project 'completed';[IO.File]::AppendAllText((Join-Path $job.job 'output.json'),'changed')
+Save $ref @{schemaVersion=1;paths=@((Join-Path $job.job 'output.json'))};$r=UnityClean $project @{ReferencePath=@($ref)} -Apply
+Need 'a changed referenced output preserves its paired import copies' ($r.actions.Count -eq 0 -and (Test-Path $job.job)-and(Test-Path $job.assets))
 $project=Project 'unity-running';$job=Job $project 'running' @() $false
 $r=UnityClean $project -Apply
 Need 'incomplete Unity output is preserved' ((Test-Path $job.job)-and(Test-Path $job.assets)-and $r.actions.Count -eq 0)
@@ -134,9 +302,12 @@ Need 'Editor source folder is protected' (Rejected {Register-AssetAuthoringJob $
 $project=Project 'unity-locked';[void](Directory (Join-Path $project 'Temp'));$lock=[IO.File]::Open((Join-Path $project 'Temp/UnityLockfile'),[IO.FileMode]::Create,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
 try{Need 'an open native project lock blocks cleanup' (Rejected {UnityClean $project -Apply})}finally{$lock.Dispose()}
 
+$project=Project 'unity-unreadable-output';$job=Job $project 'completed';$locked=[IO.File]::Open((Join-Path $job.assets 'mesh.asset'),[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+try{Need 'unreadable completed output still fails apply without deleting its owner' ((Rejected {UnityClean $project -Apply}) -and (Test-Path $job.job) -and (Test-Path $job.assets))}finally{$locked.Dispose()}
 $project=Project 'unity-chain';$donor=Job $project 'old-donor';$consumer=Job $project 'new-consumer' @((Join-Path $donor.assets 'mesh.asset'))
 $r=UnityClean $project
-Need 'Unity preview retires consumers before their input owners' ($r.actions.Count -eq 2 -and $r.actions[0].jobDirectory -eq $consumer.job -and $r.actions[1].jobDirectory -eq $donor.job)
+$retiredOutputs=@($r.actions|Where-Object kind -eq 'job')
+Need 'Unity preview retires consumers before their input owners' ($retiredOutputs.Count -eq 2 -and $retiredOutputs[0].jobDirectory -eq $consumer.job -and $retiredOutputs[1].jobDirectory -eq $donor.job -and $r.actions.Count -eq 4)
 $r=UnityClean $project -Apply
 Need 'Unity consumer and obsolete donor retire in dependency order' (-not(Test-Path $consumer.job)-and -not(Test-Path $donor.job)-and $r.actions[0].jobDirectory -eq $consumer.job)
 $project=Project 'unity-hard-chain';$donor=Job $project 'old-donor';$consumer=Job $project 'new-consumer' @((Join-Path $donor.assets 'mesh.asset'))
@@ -145,11 +316,36 @@ Need 'referenced Unity consumer keeps its source job and assets' ((Test-Path $co
 $project=Project 'unity-running-chain';$donor=Job $project 'old-donor';$consumer=Job $project 'pending' @((Join-Path $donor.assets 'mesh.asset')) $false
 $r=UnityClean $project -Apply
 Need 'incomplete Unity consumer keeps its declared donor' ((Test-Path $consumer.job)-and(Test-Path $donor.job))
-$project=Project 'unity-failure-chain';$donor=Job $project 'old-donor';$consumer=Job $project 'changed' @((Join-Path $donor.assets 'mesh.asset'));[IO.File]::AppendAllText((Join-Path $consumer.assets 'mesh.asset'),'changed')
-Need 'Unity consumer validation failure preserves donor' ((Rejected {UnityClean $project -Apply})-and(Test-Path $consumer.job)-and(Test-Path $donor.job))
+$project=Project 'unity-failure-chain';$donor=Job $project 'old-donor';$consumer=Job $project 'changed' @((Join-Path $donor.assets 'mesh.asset'));$unrelated=Job $project 'unrelated';[IO.File]::AppendAllText((Join-Path $consumer.assets 'mesh.asset'),'changed')
+$preview=UnityClean $project
+Need 'modified Unity owner and dependency are retained before retirement selection' ($preview.status -eq 'complete' -and @($preview.actions|Where-Object kind -eq 'job').Count -eq 1 -and $preview.actions[0].jobDirectory -eq $unrelated.job -and @($preview.retained|Where-Object {$_.path -eq $consumer.ownership.path -and $_.reason -eq 'Authoring outputs changed after completion.'}).Count -eq 1 -and @($preview.retained|Where-Object {$_.path -eq $donor.ownership.path -and $_.reason -eq 'retained-input'}).Count -eq 1)
+$r=UnityClean $project -Apply
+Need 'modified Unity output retains its donor while unrelated completed output retires' ($r.status -eq 'complete' -and @($r.actions|Where-Object kind -eq 'job').Count -eq 1 -and $r.actions[0].applied -and -not(Test-Path $unrelated.job) -and (Test-Path $consumer.job) -and (Test-Path $donor.job))
 $project=Project 'unity-missing-file';$job=Job $project 'edited';Remove-Item -LiteralPath (Join-Path $job.assets 'mesh.asset')
 $r=UnityClean $project
 Need 'a missing file inside a surviving Unity output is not ignored' ((Test-Path $job.job)-and $r.actions.Count -eq 0)
+$r=UnityClean $project -Apply
+Need 'missing completed Unity file is retained during apply without stopping other cleanup' ($r.status -eq 'complete' -and $r.actions.Count -eq 0 -and (Test-Path $job.job))
+foreach($addedName in @('mesh.asset.meta','additional.bin')){
+ $project=Project ('unity-added-'+($addedName -replace '[^A-Za-z0-9]','-'));$job=Job $project 'completed';$unrelated=Job $project 'obsolete';[IO.File]::WriteAllText((Join-Path $job.assets $addedName),'post-completion output')
+ $preview=UnityClean $project;$r=UnityClean $project -Apply
+ Need ('additional output is retained without a file-name exception: '+$addedName) (@($preview.actions|Where-Object kind -eq 'job').Count -eq 1 -and $preview.actions[0].jobDirectory -eq $unrelated.job -and $r.status -eq 'complete' -and @($r.actions|Where-Object kind -eq 'job').Count -eq 1 -and (Test-Path $job.job) -and (Test-Path (Join-Path $job.assets $addedName)) -and -not(Test-Path $unrelated.job))
+}
+foreach($mutation in @('output','owner')){
+ $project=Project ('unity-post-selection-'+$mutation);$job=Job $project 'completed'
+ $nativeProjectLock=(Get-Command Get-AssetProjectLock).ScriptBlock;$script:MutationProject=$project;$script:MutationJob=$job;$script:MutationKind=$mutation;$script:MutationLockCalls=0
+ function Get-AssetProjectLock([string]$Project){
+  if($Project -eq $script:MutationProject){$script:MutationLockCalls++;if($script:MutationLockCalls -eq 2){
+   $path=if($script:MutationKind -eq 'output'){Join-Path $script:MutationJob.assets 'mesh.asset'}else{$script:MutationJob.ownership.path}
+   [IO.File]::AppendAllText($path,'post-selection mutation')
+  }}
+  & $nativeProjectLock $Project
+ }
+ try{
+  $pattern=if($mutation -eq 'output'){'Authoring outputs changed after completion'}else{'Job ownership changed during cleanup'}
+  Need ('deletion guard rejects a new post-selection '+$mutation+' mutation') ((RejectedAs {UnityClean $project -Apply} $pattern) -and (Test-Path $job.job) -and (Test-Path $job.assets) -and (Test-Path ($job.assets+'.meta')))
+ }finally{Set-Item -LiteralPath Function:Get-AssetProjectLock -Value $nativeProjectLock}
+}
 $project=Project 'unity-overlap';$job=Job $project 'first';$other=Directory (Join-Path $project '.asset-authoring-jobs/second')
 Need 'two jobs cannot claim the same asset directory' (Rejected {Register-AssetAuthoringJob -Project $project -JobDirectory $other -AssetDirectory $job.assets -ResultPath (Join-Path $other 'result.json')})
 $project=Project 'unity-tampered-owner';$job=Job $project 'edited' @() $false;$data=Get-Content $job.ownership.path -Raw|ConvertFrom-Json;$data.assetDirectory=Join-Path $OutputDirectory 'outside-assets';Save $job.ownership.path $data
@@ -159,7 +355,7 @@ $r=UnityClean $project -Apply
 Need 'a completed job is not pinned by its still-running caller shell' (-not(Test-Path $job.job))
 $project=Project 'unity-session';$session=Session $project;$job=Job $project 'ended' @() $true $session
 $r=UnityClean $project -Apply
-Need 'closed background session retires after its last job' (-not(Test-Path $job.job)-and -not(Test-Path $session.RunDirectory)-and $r.actions.Count -eq 2 -and $r.actions[0].jobDirectory -eq $job.job)
+Need 'closed background session retires after its last job' (-not(Test-Path $job.job)-and -not(Test-Path $session.RunDirectory)-and $r.actions.Count -eq 3 -and $r.actions[0].jobDirectory -eq $job.job)
 $project=Project 'unity-session-kept';$session=Session $project;$job=Job $project 'current' @() $true $session;Save $ref @{schemaVersion=1;paths=@($job.assets)}
 $r=UnityClean $project @{ReferencePath=@($ref)} -Apply
 Need 'current job keeps its background diagnostics' ((Test-Path $job.job)-and(Test-Path $session.RunDirectory))
@@ -208,12 +404,57 @@ $r=BlenderClean $root @{References=@($ref);Budget=1} -Apply
 Need 'current Blender consumer retains native input output chain' ((Test-Path $consumer)-and(Test-Path $donor)-and -not $r.budgetSatisfied)
 $root=Directory (Join-Path $workbench 'BlenderRunningChain');$donor=BlenderRun $root 'donor';$consumer=BlenderRun $root 'pending' 'running' @((Join-Path $donor 'mesh.obj'));$r=BlenderClean $root -Apply
 Need 'incomplete Blender consumer preserves declared donor' ((Test-Path $consumer)-and(Test-Path $donor))
-$root=Directory (Join-Path $workbench 'BlenderFailureChain');$donor=BlenderRun $root 'donor';$consumer=BlenderRun $root 'bad-consumer' 'passed' @((Join-Path $donor 'mesh.obj'));[IO.File]::AppendAllText((Join-Path $consumer 'mesh.obj'),'changed')
-Need 'Blender validation failure preserves its input owner' ((Rejected {BlenderClean $root -Apply})-and(Test-Path $consumer)-and(Test-Path $donor))
+$root=Directory (Join-Path $workbench 'BlenderFailureChain');$donor=BlenderRun $root 'donor';$consumer=BlenderRun $root 'bad-consumer' 'passed' @((Join-Path $donor 'mesh.obj'));$unrelated=BlenderRun $root 'obsolete';[IO.File]::AppendAllText((Join-Path $consumer 'mesh.obj'),'changed')
+$preview=BlenderClean $root
+Need 'modified Blender owner and dependency are retained before retirement selection' ($preview.status -eq 'complete' -and $preview.actions.Count -eq 1 -and $preview.actions[0].path -eq $unrelated -and @($preview.retained|Where-Object {$_.path -eq (Join-Path $consumer 'run.json') -and $_.reason -eq 'A Blender output changed after completion.'}).Count -eq 1 -and @($preview.retained|Where-Object {$_.path -eq (Join-Path $donor 'run.json') -and $_.reason -eq 'retained-input'}).Count -eq 1)
+$r=BlenderClean $root -Apply
+Need 'modified Blender output retains its donor while unrelated completed output retires' ($r.status -eq 'complete' -and $r.actions.Count -eq 1 -and $r.actions[0].applied -and (Test-Path $consumer) -and (Test-Path $donor) -and -not(Test-Path $unrelated))
+foreach($change in @('added','missing')){
+ $root=Directory (Join-Path $workbench ('BlenderFileSet-'+$change));$run=BlenderRun $root 'completed';$unrelated=BlenderRun $root 'obsolete'
+ if($change -eq 'added'){[IO.File]::WriteAllText((Join-Path $run 'additional.bin'),'post-completion output')}else{Remove-Item -LiteralPath (Join-Path $run 'mesh.obj')}
+ $preview=BlenderClean $root;$r=BlenderClean $root -Apply
+ Need ('Blender '+$change+' file set is retained while unrelated output retires') ($preview.status -eq 'complete' -and $preview.actions.Count -eq 1 -and $preview.actions[0].path -eq $unrelated -and $r.status -eq 'complete' -and $r.actions.Count -eq 1 -and (Test-Path $run) -and -not(Test-Path $unrelated))
+}
+$root=Directory (Join-Path $workbench 'BlenderUnreadable');$run=BlenderRun $root 'completed';$locked=[IO.File]::Open((Join-Path $run 'mesh.obj'),[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+try{Need 'unreadable Blender output still fails apply without deleting its owner' ((Rejected {BlenderClean $root -Apply}) -and (Test-Path $run))}finally{$locked.Dispose()}
+$root=Directory (Join-Path $workbench 'BlenderUnsafeOwner');$run=BlenderRun $root 'completed';$path=Join-Path $run 'run.json';$data=Get-Content -LiteralPath $path -Raw|ConvertFrom-Json;$data.artifacts_sha256[0].path='../outside.bin';Save $path $data
+Need 'invalid Blender artifact ownership is still rejected before deletion' ((Rejected {BlenderClean $root -Apply}) -and (Test-Path $run))
+foreach($mutation in @('output','receipt')){
+ $root=Directory (Join-Path $workbench ('BlenderPostSelection-'+$mutation));$run=BlenderRun $root 'completed'
+ $nativeReferences=(Get-Command Assert-AssetStorageReferences).ScriptBlock;$script:BlenderMutationPath=if($mutation -eq 'output'){Join-Path $run 'mesh.obj'}else{Join-Path $run 'run.json'};$script:BlenderMutationDone=$false
+ function Assert-AssetStorageReferences($References){
+  if(-not $script:BlenderMutationDone){$script:BlenderMutationDone=$true;[IO.File]::AppendAllText($script:BlenderMutationPath,'post-selection mutation')}
+  & $nativeReferences $References
+ }
+ try{
+  $pattern=if($mutation -eq 'output'){'A Blender output changed after completion'}else{'The Blender output receipt changed'}
+  Need ('Blender deletion guard rejects a new post-selection '+$mutation+' mutation') ((RejectedAs {BlenderClean $root -Apply} $pattern) -and (Test-Path $run))
+ }finally{Set-Item -LiteralPath Function:Assert-AssetStorageReferences -Value $nativeReferences}
+}
+$root=Directory (Join-Path $workbench 'BlenderZeroLatest');$donor=BlenderRun $root 'donor';$changed=BlenderRun $root 'changed' 'passed' @((Join-Path $donor 'mesh.obj'));$active=BlenderRun $root 'active';$obsolete=BlenderRun $root 'obsolete'
+[IO.File]::AppendAllText((Join-Path $changed 'mesh.obj'),'changed')
+$zeroRef=Join-Path $OutputDirectory 'zero-latest-blender-references.json';Save $zeroRef @{schemaVersion=1;paths=@($active)}
+$zeroOptions=@{Latest=0;Age=0;References=@($zeroRef)};$preview=BlenderClean $root $zeroOptions;$r=BlenderClean $root $zeroOptions -Apply
+Need 'zero latest Blender policy retires only unreferenced unchanged completed output' ($preview.actions.Count -eq 1 -and $preview.actions[0].path -eq $obsolete -and $r.actions.Count -eq 1 -and $r.actions[0].applied -and -not(Test-Path $obsolete) -and (Test-Path $active) -and (Test-Path $changed) -and (Test-Path $donor))
+Need 'zero latest Blender policy retains changed owner dependency closure' (@($preview.retained|Where-Object {$_.reason -eq 'A Blender output changed after completion.'}).Count -eq 1 -and @($preview.retained|Where-Object {$_.reason -eq 'retained-input'}).Count -eq 1)
 $publicRoot=Directory (Join-Path $candidate ('workspace/PublicStorageContract-'+[guid]::NewGuid().ToString('N')));$run=BlenderRun $publicRoot 'ended'
 $path=& (Join-Path $candidate 'Invoke-AssetAuthoring.ps1') -Cleanup -OutputRoot $publicRoot -MaxAgeDays 1
 $r=Get-Content $path -Raw|ConvertFrom-Json
 Need 'Blender public cleanup entry needs no Blender executable or launch' ((Test-Path $run)-and $r.status -eq 'complete'-and -not $r.applied)
+$nativeCensus=(Get-Command Get-CimInstance).ScriptBlock
+try{
+ function Get-CimInstance {param($ClassName,$Filter,$Property)return @()}
+ $zeroReport=& (Join-Path $candidate 'Invoke-AssetAuthoring.ps1') -Cleanup -OutputRoot $publicRoot -KeepLatest 0
+}finally{Set-Item -LiteralPath Function:Get-CimInstance -Value $nativeCensus}
+$zeroResult=Get-Content -LiteralPath $zeroReport -Raw|ConvertFrom-Json
+Need 'Blender public cleanup entry admits zero latest with the stopped-process fixture' ($zeroResult.status -eq 'complete' -and -not $zeroResult.applied -and $zeroResult.actions.Count -eq 1 -and (Test-Path $run))
+Need 'Blender public cleanup entry rejects a negative latest count' ((Rejected {& (Join-Path $candidate 'Invoke-AssetAuthoring.ps1') -Cleanup -OutputRoot $publicRoot -KeepLatest -1}) -and (Test-Path $run))
+$project=Project 'unity-public-zero';$publicJob=Job $project 'completed'
+$zeroReport=& (Join-Path $candidate 'Invoke-UnityAssetBuild.ps1') -Cleanup -GuiProjectPath $project -KeepLatest 0
+$zeroResult=Get-Content -LiteralPath $zeroReport -Raw|ConvertFrom-Json
+Need 'Unity public cleanup entry admits zero latest without a renderer executable' ($zeroResult.status -eq 'complete' -and -not $zeroResult.applied -and $zeroResult.actions.Count -eq 2 -and (Test-Path $publicJob.job))
+Need 'Unity public cleanup entry rejects a negative latest count' ((Rejected {& (Join-Path $candidate 'Invoke-UnityAssetBuild.ps1') -Cleanup -GuiProjectPath $project -KeepLatest -1}) -and (Test-Path $publicJob.job))
+
 $project=Project 'unity-operation-lock';$job=Job $project 'pending' @() $false;$lease=HoldOperation $project
 try{
  Need 'another process cannot register a Unity consumer during cleanup lease' (RejectedAs {Register-AssetAuthoringJob -Project $project -JobDirectory (Join-Path $project '.asset-authoring-jobs/other') -AssetDirectory (Join-Path $project 'Assets/Generated/other') -ResultPath (Join-Path $project '.asset-authoring-jobs/other/result.json')} 'Another authoring operation owns this storage scope')
@@ -234,6 +475,46 @@ $r=BlenderClean $root @{Budget=1} -Apply
 Need 'unique success pointer names cannot permanently pin obsolete outputs' (@($old|Where-Object{Test-Path $_}).Count -eq 0 -and @(Get-ChildItem $root -Filter 'last*success.json' -File).Count -eq 0)
 $root=Directory (Join-Path $workbench 'BlenderPointerRetained');$run=BlenderRun $root 'current';$pointer=Join-Path $root 'last-current-success.json';Save $pointer @{status='passed';output=$run};Save $ref @{schemaVersion=1;paths=@($run)};$r=BlenderClean $root @{References=@($ref);Budget=1} -Apply
 Need 'an explicitly retained target keeps its valid success pointer' ((Test-Path $run)-and(Test-Path $pointer))
+$root=Directory (Join-Path $workbench 'PointerMissingPreview');$run=BlenderRun $root 'obsolete'
+$pointer=Join-Path $root 'last-missing-success.json';$missing=Join-Path $root 'missing'
+Save $pointer @{status='passed';output=$missing};$pointerHash=(Get-FileHash -LiteralPath $pointer -Algorithm SHA256).Hash
+$r=BlenderClean $root
+Need 'missing target pointer does not abort a dry-run cleanup' ($r.status -eq 'complete' -and $r.actions.Count -eq 1 -and $r.pointerActions.Count -eq 1 -and (Test-Path $run) -and (Test-Path $pointer) -and !$r.pointerActions[0].applied)
+Need 'stale pointer dry-run preserves a byte-identical archive' ((Get-FileHash -LiteralPath $r.pointerActions[0].archive -Algorithm SHA256).Hash -eq $pointerHash)
+$r=BlenderClean $root -Apply
+Need 'owned missing target pointer retires without recreating a target' (-not(Test-Path $pointer) -and -not(Test-Path $missing) -and -not(Test-Path $run) -and $r.pointerActions[0].applied)
+Need 'retired pointer original remains in cleanup evidence' ((Get-FileHash -LiteralPath $r.pointerActions[0].archive -Algorithm SHA256).Hash -eq $pointerHash)
+
+$root=Directory (Join-Path $workbench 'PointerExternalMissing');$run=BlenderRun $root 'obsolete'
+$outside=Join-Path $workbench 'old-output-root/no-longer-present';$pointer=Join-Path $root 'last-previous-success.json'
+Save $pointer @{status='passed';output=$outside};$r=BlenderClean $root -Apply
+Need 'missing out-of-scope target cannot block current scope cleanup' (-not(Test-Path $run) -and -not(Test-Path $pointer) -and -not(Test-Path $outside) -and $r.pointerActions.Count -eq 1)
+
+$root=Directory (Join-Path $workbench 'PointerForeignExisting');$run=BlenderRun $root 'obsolete'
+$outside=Directory (Join-Path $workbench 'OtherProducer/retained');$sentinel=Join-Path $outside 'native.bundle';[IO.File]::WriteAllBytes($sentinel,[byte[]](3,1,4,1,5))
+$sentinelHash=(Get-FileHash -LiteralPath $sentinel -Algorithm SHA256).Hash
+$pointer=Join-Path $root 'last-other-success.json';Save $pointer @{status='passed';output=$outside};$r=BlenderClean $root -Apply
+Need 'existing foreign output and its pointer are retained while unrelated output retires' ((Test-Path $pointer) -and (Test-Path $outside) -and -not(Test-Path $run) -and $r.pointerActions.Count -eq 0 -and (Get-FileHash -LiteralPath $sentinel -Algorithm SHA256).Hash -eq $sentinelHash)
+
+$root=Directory (Join-Path $workbench 'PointerReferencedMissing');$run=BlenderRun $root 'obsolete';$pointer=Join-Path $root 'last-kept-success.json'
+Save $pointer @{status='passed';output=(Join-Path $root 'missing')};Save $ref @{schemaVersion=1;paths=@($pointer)};$r=BlenderClean $root @{References=@($ref)} -Apply
+Need 'explicit pointer reference keeps a stale owned pointer' ((Test-Path $pointer) -and -not(Test-Path $run) -and $r.pointerActions.Count -eq 0)
+
+$root=Directory (Join-Path $workbench 'PointerInvalidJson');$run=BlenderRun $root 'obsolete';$pointer=Join-Path $root 'last-unknown-success.json'
+[IO.File]::WriteAllText($pointer,'{"unclosed":');$hash=(Get-FileHash -LiteralPath $pointer -Algorithm SHA256).Hash;$r=BlenderClean $root -Apply
+Need 'unknown pointer bytes are retained and do not block independent owned output' ((Test-Path $pointer) -and -not(Test-Path $run) -and (Get-FileHash -LiteralPath $pointer -Algorithm SHA256).Hash -eq $hash)
+
+$root=Directory (Join-Path $workbench 'PointerUnsafeNetwork');$run=BlenderRun $root 'obsolete';$pointer=Join-Path $root 'last-network-success.json'
+Save $pointer @{status='passed';output='\\example.invalid\share\not-an-owned-output'};$r=BlenderClean $root -Apply
+Need 'unsafe network target is never treated as deletable output' ((Test-Path $pointer) -and -not(Test-Path $run) -and $r.pointerActions.Count -eq 0)
+
+$root=Directory (Join-Path $workbench 'PointerUnknownTarget');$run=BlenderRun $root 'obsolete';$unknown=Directory (Join-Path $root 'unregistered');[IO.File]::WriteAllText((Join-Path $unknown 'keep.txt'),'keep')
+$pointer=Join-Path $root 'last-unregistered-success.json';Save $pointer @{status='passed';output=$unknown};$r=BlenderClean $root -Apply
+Need 'an existing unregistered target is preserved independently' ((Test-Path $pointer) -and (Test-Path (Join-Path $unknown 'keep.txt')) -and -not(Test-Path $run) -and $r.pointerActions.Count -eq 0)
+
+$root=Directory (Join-Path $workbench 'PointerRootTarget');$run=BlenderRun $root 'obsolete';$pointer=Join-Path $root 'last-root-success.json';Save $pointer @{status='passed';output=$root};$r=BlenderClean $root -Apply
+Need 'a pointer cannot promote the cleanup root to a deletion target' ((Test-Path $root) -and (Test-Path $pointer) -and -not(Test-Path $run) -and $r.pointerActions.Count -eq 0)
+
 $installation=Directory (Join-Path $workbench 'InstalledGame')
 [IO.File]::WriteAllBytes((Join-Path $installation 'Solasta.exe'),[byte[]](0))
 $installedInput=Join-Path (Directory (Join-Path $installation 'Data')) 'native.bundle'
@@ -364,6 +645,90 @@ $beforeDepthFailure=(Get-FileHash -LiteralPath $metadataJournal -Algorithm SHA25
 Need 'JSONL rejects excess depth before changing its existing journal' ((JsonDepthRejected {Write-AssetStorageEvent $metadataJournal (JsonDepthControl 101)}) -and (Get-FileHash -LiteralPath $metadataJournal -Algorithm SHA256).Hash -ceq $beforeDepthFailure)
 Need 'JSON depth failure leaves no owned temporary files' (@(Get-ChildItem -LiteralPath $writerRoot -File|Where-Object{$_.Name -match '\.(writing|previous)-'}).Count -eq 0)
 
+# Exercise the actual child census with mixed receipt types and process-query races.
+& {
+    $cli='C:\fixture\unity.exe';$launched=([DateTime]'2026-01-01T00:00:00Z').ToUniversalTime()
+    $first=[ordered]@{pid=101;path=$cli;startTimeUtc=$launched.AddSeconds(1).ToString('O');parentPid=100}
+    $second=[ordered]@{pid=102;path=$cli;startTimeUtc=$launched.AddSeconds(2).ToString('O');parentPid=100}
+    $script:censusRows=@();$script:censusProcesses=@{}
+    function Get-CimInstance {param($ClassName,$Filter,$Property) $script:censusRows}
+    function Get-Process {param($Id,$ErrorAction) $script:censusProcesses[[int]$Id]}
+    $knownOnly=@(Find-AssetCliChildren 100 $cli $launched @($first,$second))
+    Need 'child census retains separate OrderedDictionary identities' ($knownOnly.Count -eq 2 -and ($knownOnly.pid -join ',') -ceq '101,102')
+    $receipt=$first|ConvertTo-Json|ConvertFrom-Json
+    Need 'child census deduplicates the same identity across receipt types' (@(Find-AssetCliChildren 100 $cli $launched @($first,$receipt)).Count -eq 1)
+    $script:censusRows=@([pscustomobject]@{ProcessId=102;ExecutablePath=$cli;CreationDate=$launched.AddSeconds(2)})
+    $script:censusProcesses[102]=[pscustomobject]@{Id=102;Path=$cli;StartTime=$launched.AddSeconds(2)}
+    $late=@(Find-AssetCliChildren 100 $cli $launched @($receipt))
+    Need 'final child census merges a late companion with its earlier receipt' ($late.Count -eq 2 -and ($late.pid -join ',') -ceq '101,102')
+    Need 'child census normalizes launcher time from a local receipt' (@(Find-AssetCliChildren 100 $cli $launched.ToLocalTime() @($receipt)).Count -eq 2)
+    $reused=[ordered]@{pid=102;path=$cli;startTimeUtc=$launched.AddSeconds(1).ToString('O');parentPid=100}
+    Need 'child census distinguishes generations of the same PID' (@(Find-AssetCliChildren 100 $cli $launched @($reused)).Count -eq 2)
+    $script:censusRows[0].ExecutablePath='C:\unrelated\unity.exe'
+    Need 'child census excludes another executable' (@(Find-AssetCliChildren 100 $cli $launched).Count -eq 0)
+    $script:censusRows[0].ExecutablePath=$cli;$script:censusRows[0].CreationDate=$launched.AddSeconds(-1)
+    Need 'child census excludes processes predating the launcher' (@(Find-AssetCliChildren 100 $cli $launched).Count -eq 0)
+    $script:censusRows[0].CreationDate=$launched.AddSeconds(2);$script:censusProcesses[102].StartTime=$launched.AddSeconds(4)
+    Need 'child census rejects a PID recycled between native queries' (@(Find-AssetCliChildren 100 $cli $launched).Count -eq 0)
+    $script:censusProcesses[102].StartTime=$launched.AddSeconds(2);$script:censusProcesses[102].Path='C:\unrelated\unity.exe'
+    Need 'child census rejects an executable changed between native queries' (@(Find-AssetCliChildren 100 $cli $launched).Count -eq 0)
+    Need 'Editor discovery rejects an executable changed between native queries' ($null -eq (Find-AssetEditorChild 100 $cli $launched))
+    $script:censusProcesses[102].Path=$cli;$script:censusProcesses[102].StartTime=$launched.AddSeconds(4)
+    Need 'Editor discovery rejects a PID recycled between native queries' ($null -eq (Find-AssetEditorChild 100 $cli $launched))
+    $script:censusProcesses[102].StartTime=$launched.AddSeconds(2)
+    Need 'Editor discovery preserves its exact launcher identity and local receipt time' ((Find-AssetEditorChild 100 $cli $launched.ToLocalTime()).pid -eq 102)
+}
+
+# Execute the actual startup try/catch/finally with process boundaries stubbed.
+# This path runs on both PowerShell editions without opening an Editor.
+$startupTokens=$null;$startupErrors=$null
+$startupAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $candidate 'UnityAssetBuild/BackgroundEditor.ps1'),[ref]$startupTokens,[ref]$startupErrors)
+if($startupErrors.Count){throw 'The background Editor helper did not parse.'}
+$startupFunctions=@($startupAst.FindAll({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -ceq 'Start-AssetBackgroundEditor'},$true))
+if($startupFunctions.Count -ne 1){throw 'The background Editor startup owner is ambiguous.'}
+$startupTries=@($startupFunctions[0].Body.FindAll({param($n)$n -is [Management.Automation.Language.TryStatementAst] -and $null -ne $n.Finally -and $n.Body.Extent.Text.Contains('$hostScript=')},$true))
+if($startupTries.Count -ne 1){throw 'The actual startup cleanup boundary was not found.'}
+$startupBlock=[scriptblock]::Create($startupTries[0].Extent.Text)
+foreach($mode in @('startup-and-cleanup-fail','startup-fails-cleanup-succeeds','startup-ready')){
+ & {
+    param($StartupBlock,$Run,$Mode)
+    [void][IO.Directory]::CreateDirectory($Run)
+    $calls=[Collections.Generic.List[string]]::new()
+    $startupCause=[FormatException]::new('fixture startup failure')
+    $cleanupCause=[IO.IOException]::new('fixture cleanup failure')
+    $session=[pscustomobject]@{RunDirectory=$Run;Lease=$null;Ready=$null}
+    $returnedReady=$false;$startupError=$null;$TimeoutSeconds=5
+    $parent=[pscustomobject]@{Path='fixture-caller.exe'};$repo=$Run;$cfg=@{desktop='fixture-desktop'};$config=Join-Path $Run 'configuration.json'
+    function Get-Command {param($Name) [pscustomobject]@{ScriptBlock=[pscustomobject]@{File='fixture-host.ps1'}}}
+    function Start-VerificationBackgroundProcess {
+        param($FilePath,$WorkingDirectory,$DesktopName,$ArgumentList)
+        $calls.Add('start')
+        if($Mode -ne 'startup-ready'){throw $startupCause}
+        [IO.File]::WriteAllText((Join-Path $Run 'session.json'),'{"status":"ready"}')
+        return [pscustomobject]@{Process=[pscustomobject]@{HasExited=$false}}
+    }
+    function Stop-AssetBackgroundEditor {
+        param($Session)
+        $calls.Add('cleanup')
+        if($Mode -eq 'startup-and-cleanup-fail'){throw $cleanupCause}
+    }
+    $caught=$null;$actual=$null
+    try{$actual=. $StartupBlock}catch{$caught=$_}
+    if($Mode -eq 'startup-and-cleanup-fail'){
+        $aggregate=$caught.Exception
+        Need 'startup and cleanup failure remain in one ordered aggregate' ($aggregate -is [AggregateException] -and $aggregate.InnerExceptions.Count -eq 2 -and [object]::ReferenceEquals($aggregate.InnerExceptions[0],$startupCause) -and [object]::ReferenceEquals($aggregate.InnerExceptions[1],$cleanupCause))
+        Need 'startup and cleanup original ErrorRecords are retained' ($aggregate.Data['StartupErrorRecord'] -is [Management.Automation.ErrorRecord] -and $aggregate.Data['CleanupErrorRecord'] -is [Management.Automation.ErrorRecord] -and [object]::ReferenceEquals($aggregate.Data['StartupErrorRecord'].Exception,$startupCause) -and [object]::ReferenceEquals($aggregate.Data['CleanupErrorRecord'].Exception,$cleanupCause))
+        Need 'combined startup diagnostic includes both causes' ($aggregate.Message.Contains($startupCause.Message) -and $aggregate.Message.Contains($cleanupCause.Message))
+        Need 'failed startup cleans up exactly once after its primary error' (($calls -join ',') -ceq 'start,cleanup' -and !$returnedReady)
+    }elseif($Mode -eq 'startup-fails-cleanup-succeeds'){
+        Need 'successful cleanup preserves the original startup exception' ($null -ne $caught -and [object]::ReferenceEquals($caught.Exception,$startupCause) -and $caught.Exception -isnot [AggregateException])
+        Need 'startup-only failure cleans up exactly once' (($calls -join ',') -ceq 'start,cleanup' -and !$returnedReady)
+    }else{
+        Need 'ready startup returns its original session without failure cleanup' ($null -eq $caught -and [object]::ReferenceEquals($actual,$session) -and $returnedReady -and $session.Ready.status -ceq 'ready' -and ($calls -join ',') -ceq 'start')
+    }
+ } $startupBlock (Join-Path $workbench ('StartupErrors/'+$mode)) $mode
+}
+
 foreach($source in $sourceHashes){if((Get-FileHash -LiteralPath $source.path -Algorithm SHA256).Hash -cne $source.sha256){throw 'Candidate source changed during its contracts.'}}
 $result=[ordered]@{status=$(if(@($checks|Where-Object{-not $_.passed}).Count){'FAIL'}else{'PASS'});scope='Actual authoring storage sources in owned miniature files. No Unity/Blender/game launch; Blender process census is an external-boundary fixture.';checks=@($checks.ToArray());processQueries=$script:ProcessQueries;sourceHashes=$sourceHashes;powerShell=$PSVersionTable.PSVersion.ToString()}
 Save (Join-Path $OutputDirectory 'Result.json') $result
@@ -393,15 +758,149 @@ function Add-Check([string] $Name, [bool] $Passed, [object] $Evidence) {
     $checks.Add([pscustomobject]@{ name = $Name; passed = $Passed; evidence = $Evidence })
     if (!$Passed) { throw "Contract failed: $Name" }
 }
+function Invoke-MeshNumericInputContracts($SourceRecipe) {
+    $directory=Join-Path $jobs ('MeshInputContracts/Numeric-'+[guid]::NewGuid().ToString('N'))
+    [void][IO.Directory]::CreateDirectory((Join-Path $directory 'Data'))
+    $inputOwner=Join-Path (Split-Path -Parent $launcher) 'UnityAssetBuild/Assets/Editor/AssetBundleBuilder.cs'
+    $fixture=$SourceRecipe|ConvertTo-Json -Depth 30|ConvertFrom-Json
+    $negativeZero=[BitConverter]::ToSingle([byte[]]@(0,0,0,128),0)
+    $fixture.meshes[0].vertices[0]=$negativeZero
+    $fixture.meshes[0].blendShapes[0].frames[0].weight=$negativeZero
+    $fixture.meshes[0]|Add-Member -NotePropertyName colors -NotePropertyValue @(1,0,0,1,0,1,0,1,0,0,1,1)
+    $fixture.meshes[0].uvChannels+=@([pscustomobject]@{channel=7;dimension=4;values=@(0,0,0,1,1,0,0,1,0,1,0,1)})
+    $fixture.meshes[0]|Add-Member -NotePropertyName skin -NotePropertyValue ([pscustomobject]@{
+        bindPoses=@(1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1)
+        boneWeights=@(1,0,0,0,0.75,0.25,0,0,0.5,0.5,0,0);boneIndices=@(0,0,0,0,0,1,0,0,1,0,0,0)})
+    $binary=Join-Path $directory 'Data/mesh-numeric.bin'
+    $stream=[IO.File]::Open($binary,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+    $writer=[IO.BinaryWriter]::new($stream,[Text.UTF8Encoding]::new($false))
+    $offsets=@{}
+    function NumberList([object[]]$Values,[bool]$Integer=$false) {
+        if($null -eq $Values){$Values=@()}
+        $writer.Write([int]$Values.Count)
+        foreach($value in $Values) { if($Integer){$writer.Write([int]$value)}else{$writer.Write([single]$value)} }
+    }
+    function TextValue([string]$Value) {
+        $bytes=[Text.UTF8Encoding]::new($false,$true).GetBytes($Value)
+        $writer.Write([int]$bytes.Length);$writer.Write($bytes)
+    }
+    try {
+        $writer.Write([Text.Encoding]::ASCII.GetBytes('UBMSH001'));$writer.Write([int]1);$writer.Write([int]$fixture.meshes.Count)
+        foreach($mesh in $fixture.meshes) {
+            $offsets.name=$stream.Position+4;TextValue $mesh.name
+            $offsets.positionCount=$stream.Position;$offsets.position=$stream.Position+4
+            NumberList $mesh.vertices;NumberList $mesh.normals;NumberList $mesh.tangents
+            NumberList $(if($mesh.PSObject.Properties['colors']){$mesh.colors}else{@()})
+            $writer.Write([int]$mesh.uvChannels.Count)
+            foreach($uv in $mesh.uvChannels){$writer.Write([int]$uv.channel);$writer.Write([int]$uv.dimension);NumberList $uv.values}
+            $writer.Write([int]$mesh.subMeshes.Count)
+            foreach($submesh in $mesh.subMeshes){TextValue $submesh.topology;$offsets.indices=$stream.Position+4;NumberList $submesh.indices $true}
+            NumberList $mesh.bounds.center;NumberList $mesh.bounds.size;TextValue $mesh.indexFormat
+            $skin=if($mesh.PSObject.Properties['skin']){$mesh.skin}else{$null}
+            $writer.Write([int]$(if($skin){1}else{0}))
+            if($skin){NumberList $skin.bindPoses;NumberList $skin.boneWeights;NumberList $skin.boneIndices $true}
+            $shapes=if($mesh.PSObject.Properties['blendShapes']){@($mesh.blendShapes)}else{@()}
+            $writer.Write([int]$shapes.Count)
+            foreach($shape in $shapes){
+                TextValue $shape.name;$writer.Write([int]$shape.frames.Count)
+                foreach($frame in $shape.frames){NumberList @($frame.weight);NumberList $frame.vertices;NumberList $frame.normals;NumberList $frame.tangents}
+            }
+        }
+    } finally {$writer.Dispose();$stream.Dispose()}
+    $external=[ordered]@{schemaVersion=1;bundleName=$fixture.bundleName;numericPayload=[ordered]@{
+        format='Solasta.MeshNumeric.1';path='Data/mesh-numeric.bin';sha256=(Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant();byteLength=(Get-Item -LiteralPath $binary).Length}}
+    $json=Join-Path $directory 'mesh-recipe.json'
+    [IO.File]::WriteAllText($json,($external|ConvertTo-Json -Depth 10),[Text.UTF8Encoding]::new($false))
+    $decoded=Read-ExternalMeshRecipe $json $inputOwner
+    Add-Check 'mesh-numeric-actual-shared-decoder' ($decoded.meshes.Count -eq $fixture.meshes.Count -and $decoded.meshes[0].blendShapes.Count -eq $fixture.meshes[0].blendShapes.Count) $json
+    Add-Check 'mesh-numeric-preserves-negative-zero' (([BitConverter]::GetBytes($decoded.meshes[0].vertices[0])[3] -eq 128) -and ([BitConverter]::GetBytes($decoded.meshes[0].blendShapes[0].frames[0].weight)[3] -eq 128)) $json
+    Add-Check 'mesh-numeric-preserves-utf8-physical-name-order' ((@($decoded.meshes[0].blendShapes|ForEach-Object name)|ConvertTo-Json -Compress) -ceq (@($fixture.meshes[0].blendShapes|ForEach-Object name)|ConvertTo-Json -Compress)) $json
+    function SameFloats($Before,$After) {
+        if($Before.Count -ne $After.Count){return $false}
+        for($index=0;$index -lt $Before.Count;$index++){
+            if([BitConverter]::ToString([BitConverter]::GetBytes([single]$Before[$index])) -cne [BitConverter]::ToString([BitConverter]::GetBytes([single]$After[$index]))){return $false}
+        }
+        return $true
+    }
+    $same=$true
+    for($i=0;$i -lt $fixture.meshes.Count;$i++){
+        $a=$fixture.meshes[$i];$b=$decoded.meshes[$i]
+        foreach($field in @('vertices','normals','tangents')){$same=$same -and (SameFloats $a.$field $b.$field)}
+        $same=$same -and (SameFloats $a.colors $b.colors) -and (SameFloats $a.skin.bindPoses $b.skin.bindPoses) -and (SameFloats $a.skin.boneWeights $b.skin.boneWeights)
+        $same=$same -and (($a.skin.boneIndices -join ',') -ceq ($b.skin.boneIndices -join ','))
+        $same=$same -and (SameFloats $a.bounds.center $b.bounds.center) -and (SameFloats $a.bounds.size $b.bounds.size)
+        for($uv=0;$uv -lt $a.uvChannels.Count;$uv++){$same=$same -and (SameFloats $a.uvChannels[$uv].values $b.uvChannels[$uv].values)}
+        for($submesh=0;$submesh -lt $a.subMeshes.Count;$submesh++){$same=$same -and (($a.subMeshes[$submesh].indices -join ',') -ceq ($b.subMeshes[$submesh].indices -join ','))}
+        for($shape=0;$shape -lt $a.blendShapes.Count;$shape++){
+            for($frame=0;$frame -lt $a.blendShapes[$shape].frames.Count;$frame++){
+                $first=$a.blendShapes[$shape].frames[$frame];$second=$b.blendShapes[$shape].frames[$frame]
+                $same=$same -and (SameFloats @($first.weight) @($second.weight))
+                foreach($field in @('vertices','normals','tangents')){$same=$same -and (SameFloats $first.$field $second.$field)}
+            }
+        }
+    }
+    Add-Check 'mesh-numeric-all-source-f32-i32-frame-data' $same $json
+    $original=[IO.File]::ReadAllBytes($binary)
+    foreach($kind in @('mixed','format','hash','length','escape','absolute','ads','backslash','truncated','trailing','magic','version','mesh-count','array-count','utf8','nonfinite','index-range')){
+        $case=Join-Path $directory $kind;[void][IO.Directory]::CreateDirectory((Join-Path $case 'Data'))
+        $data=[byte[]]$original.Clone();$bad=$external|ConvertTo-Json -Depth 10|ConvertFrom-Json
+        $pattern='numeric|Inline meshes|UTF|Truncated|Unknown|index range'
+        switch($kind){
+            'mixed' {$bad|Add-Member -NotePropertyName meshes -NotePropertyValue @();$pattern='cannot be mixed'}
+            'format' {$bad.numericPayload.format='unknown';$pattern='declaration'}
+            'hash' {$bad.numericPayload.sha256='0'*64;$pattern='SHA256'}
+            'length' {$bad.numericPayload.byteLength++;$pattern='length differs'}
+            'escape' {$bad.numericPayload.path='../mesh.bin';$pattern='relative path'}
+            'absolute' {$bad.numericPayload.path='C:/mesh.bin';$pattern='relative path'}
+            'ads' {$bad.numericPayload.path='Data/mesh.bin:stream';$pattern='relative path'}
+            'backslash' {$bad.numericPayload.path='Data\mesh.bin';$pattern='relative path'}
+            'truncated' {$data=[byte[]]$data[0..($data.Length-2)];$pattern='Truncated|remaining bounded file'}
+            'trailing' {$data=[byte[]]($data+@(0));$pattern='Trailing numeric'}
+            'magic' {$data[0]=0;$pattern='magic or version'}
+            'version' {$data[8]=2;$pattern='magic or version'}
+            'mesh-count' {[Array]::Copy([BitConverter]::GetBytes([int]129),0,$data,12,4);$pattern='remaining bounded file'}
+            'array-count' {[Array]::Copy([BitConverter]::GetBytes([int]::MaxValue),0,$data,$offsets.positionCount,4);$pattern='remaining bounded file'}
+            'utf8' {$data[$offsets.name]=255;$pattern='DecoderFallbackException'}
+            'nonfinite' {[Array]::Copy([BitConverter]::GetBytes([single]::NaN),0,$data,$offsets.position,4);$pattern='numeric data'}
+            'index-range' {[Array]::Copy([BitConverter]::GetBytes([int]999),0,$data,$offsets.indices,4);$pattern='index range'}
+        }
+        $payload=Join-Path $case 'Data/mesh-numeric.bin';[IO.File]::WriteAllBytes($payload,$data)
+        if($kind -in @('truncated','trailing','magic','version','mesh-count','array-count','utf8','nonfinite','index-range')){
+            $bad.numericPayload.byteLength=$data.Length;$bad.numericPayload.sha256=(Get-FileHash -LiteralPath $payload -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+        $input=Join-Path $case 'mesh-recipe.json';[IO.File]::WriteAllText($input,($bad|ConvertTo-Json -Depth 10),[Text.UTF8Encoding]::new($false))
+        $rejected=$false;$reason=$null
+        try{Read-ExternalMeshRecipe $input $inputOwner|Out-Null}catch{$reason=$_.Exception.ToString();$rejected=$reason -match $pattern}
+        Add-Check ('mesh-numeric-reject-'+$kind) $rejected $reason
+    }
+    Add-Check 'mesh-numeric-original-payload-unchanged' ((Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant() -ceq $external.numericPayload.sha256) $binary
+    $script:meshNumericContract=[ordered]@{recipe=$external;path=$json;inputFiles=@(@{path='Data/mesh-numeric.bin';source=$binary})}
+}
+
 function Invoke-MeshBlendRecipeContracts {
     $tokens=$null;$parseErrors=$null
     $validationAst=[Management.Automation.Language.Parser]::ParseFile($launcher,[ref]$tokens,[ref]$parseErrors)
     if($parseErrors.Count){throw ($parseErrors|Out-String)}
-    foreach($name in @('Assert-RecipeFields','Test-FiniteNumber','Assert-MeshNumbers','Assert-MeshRecipe')){
+    foreach($name in @('Assert-LocalPath','Copy-MaterialInputs','Assert-RecipeFields','Test-FiniteNumber','Assert-MeshNumbers','Assert-MeshRecipe','Read-ExternalMeshRecipe')){
         $definition=@($validationAst.FindAll({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -ceq $name},$true))
         if($definition.Count -ne 1){throw 'The shared recipe validator ownership changed.'}
         Invoke-Expression $definition[0].Extent.Text
     }
+    $contractProject='C:\UnityImportContracts\Project'
+    $guiInput=[IO.Path]::Combine($contractProject,'Assets\AuthoringJobs\'+('0'*32)+'\Input')
+    foreach($inputPath in @(@{name='gui-primary';path=[IO.Path]::Combine($guiInput,'mesh-recipe.json')},@{name='gui-texture';path=[IO.Path]::Combine($guiInput,'Textures\Surface.png')},@{name='batch-primary';path=[IO.Path]::Combine($contractProject,'Assets\Input\SampleRig.fbx')})){
+        $accepted=$true;try{Assert-LocalPath $inputPath.path -UnityImport}catch{$accepted=$false}
+        Add-Check ('unity-import-normal-'+$inputPath.name) $accepted $inputPath.path
+    }
+    $boundaryRoot='C:\UnityImportContracts\'
+    $boundary=$boundaryRoot+('x'*(254-$boundaryRoot.Length))
+    $accepted=$true;try{Assert-LocalPath $boundary -UnityImport}catch{$accepted=$false}
+    Add-Check 'unity-import-meta-at-max-path' ($accepted -and ($boundary+'.meta').Length -eq 259) $boundary
+    $rejected=$false;try{Assert-LocalPath ($boundary+'x') -UnityImport}catch{$rejected=$_.Exception.Message -like '*Shorten the project/workspace path or asset relative names*'}
+    Add-Check 'unity-import-meta-over-max-path' $rejected ($boundary+'x')
+    $materialInputs=@([pscustomobject]@{path=('Textures/'+('x'*150)+'.png');source='C:\UnityImportContracts\source.png';sha256=('0'*64)})
+    $rejected=$false;try{Copy-MaterialInputs $guiInput -ValidateOnly}catch{$rejected=$_.Exception.Message -like '*Unity 2019 import path is too long*'}
+    Add-Check 'unity-import-reject-before-material-copy' ($rejected -and -not [IO.Directory]::Exists($contractProject)) $guiInput
     $mesh=[ordered]@{name='BlendIndexControl';vertices=@(0,0,0,1,0,0,0,1,0);normals=@(0,0,1,0,0,1,0,0,1);tangents=@(1,0,0,1,1,0,0,1,1,0,0,1);
         uvChannels=@(@{channel=0;dimension=2;values=@(0,0,1,0,0,1)});subMeshes=@(@{topology='Triangles';indices=@(0,1,2)});bounds=@{center=@(.5,.5,0);size=@(1,1,0)};indexFormat='UInt16';blendShapes=@()}
     $unicode=[string]([char]0x8868)+[char]0x60C5+'.'+[char]0x53E3
@@ -416,6 +915,7 @@ function Invoke-MeshBlendRecipeContracts {
     Assert-MeshRecipe $positive
     Add-Check 'mesh-preflight-physical-repeated-and-unicode-slots' ($positive.meshes[0].blendShapes.Count -eq 6 -and $positive.meshes[0].blendShapes[0].name -ceq $positive.meshes[0].blendShapes[2].name) $null
     Add-Check 'mesh-preflight-does-not-collapse-or-reorder-frame-inputs' (($positive|ConvertTo-Json -Depth 30 -Compress) -ceq $before) $null
+    Invoke-MeshNumericInputContracts $positive
     foreach($kind in @('empty-name','control-name','missing-frames','duplicate-weight','descending-weight','nan-weight','truncated-position','truncated-normal','truncated-tangent','unknown-shape-field','unknown-frame-field','invalid-index')){
         $bad=$before|ConvertFrom-Json;$shape=$bad.meshes[0].blendShapes[2]
         switch($kind){
@@ -437,14 +937,30 @@ function Invoke-MeshBlendRecipeContracts {
     }
 }
 if ($MeshesOnly) {
-    Invoke-MeshBlendRecipeContracts
+    # Keep the extracted launcher validators available for the primary recipe readback.
+    . Invoke-MeshBlendRecipeContracts
     . (Join-Path $PSScriptRoot '../UnityAssetBuild/BackgroundEditor.ps1')
     $editor=(Resolve-Path -LiteralPath $UnityPath).ProviderPath
     $cli=if ($UnityCliPath) { (Resolve-Path -LiteralPath $UnityCliPath).ProviderPath } else { Join-Path $env:LOCALAPPDATA 'Unity/bin/unity.exe' }
     $recipePath=(Resolve-Path -LiteralPath $MeshRecipePath).ProviderPath
+    if ($InstallGuiWorker) {
+        $workerSource=Join-Path (Split-Path -Parent $launcher) 'UnityAssetBuild/Assets/Editor/AssetBundleBuilder.cs'
+        $workerDestination=Join-Path $project 'Assets/Editor/AssetBundleBuilder.cs'
+        if (!(Test-Path -LiteralPath $workerDestination) -or (Get-FileHash -LiteralPath $workerDestination).Hash -ne (Get-FileHash -LiteralPath $workerSource).Hash) {
+            $null=Get-AssetProjectLock $project
+            $backup=Join-Path $jobs ('WorkerBackups/'+[guid]::NewGuid().ToString('N'))
+            [void][IO.Directory]::CreateDirectory($backup)
+            if (Test-Path -LiteralPath $workerDestination) { [IO.File]::Copy($workerDestination,(Join-Path $backup 'AssetBundleBuilder.cs'),$false) }
+            [void][IO.Directory]::CreateDirectory((Split-Path -Parent $workerDestination))
+            [IO.File]::Copy($workerSource,$workerDestination,$true)
+        }
+    }
     $sourceHash=(Get-FileHash -LiteralPath (Join-Path $project 'Assets/Editor/AssetBundleBuilder.cs') -Algorithm SHA256).Hash.ToLowerInvariant()
     $recipeHash=(Get-FileHash -LiteralPath $recipePath -Algorithm SHA256).Hash
+    $recipe=[IO.File]::ReadAllText($recipePath)|ConvertFrom-Json
+    if($recipe.PSObject.Properties['numericPayload']){$recipe=Read-ExternalMeshRecipe $recipePath (Join-Path (Split-Path -Parent $launcher) 'UnityAssetBuild/Assets/Editor/AssetBundleBuilder.cs')}
     $ownedSession=$null; $failure=$null; $completed=$false
+    $queuedJobs=[Collections.Generic.List[object]]::new()
     $resultPath=Join-Path $jobs ('contracts-meshes-'+[guid]::NewGuid().ToString('N')+'.json')
     function MeshJobIds { @(Get-ChildItem -LiteralPath $jobs -Directory | Where-Object Name -Match '^[a-f0-9]{32}$' | ForEach-Object Name) }
     function Invoke-MeshQueueContract($Recipe, [string]$Kind = 'mesh-templates', [object[]]$InputFiles = @()) {
@@ -458,13 +974,20 @@ if ($MeshesOnly) {
         }
         $copied=Join-Path $input 'mesh-recipe.json'
         [IO.File]::WriteAllText($copied,($Recipe|ConvertTo-Json -Depth 30),[Text.UTF8Encoding]::new($false))
+        $path=Join-Path $job 'Output/unity-report.json'
+        $ownership=Register-AssetAuthoringJob -Project $project -JobDirectory $job -AssetDirectory (Split-Path -Parent $input) -ResultPath $path -DependencyPath @($InputFiles|ForEach-Object source) -Session $ownedSession
+        $queued=[pscustomobject]@{ownership=$ownership;succeeded=$false;failure='The worker did not return a result.'}
+        $queuedJobs.Add($queued)
         $request=@{schemaVersion=1;jobId=$id;kind=$Kind;inputSha256=(Get-FileHash -LiteralPath $copied -Algorithm SHA256).Hash.ToLowerInvariant()}
         [IO.File]::WriteAllText((Join-Path $job 'request.writing'),($request|ConvertTo-Json))
         [IO.File]::Move((Join-Path $job 'request.writing'),(Join-Path $job 'request.json'))
-        $path=Join-Path $job 'Output/unity-report.json';$deadline=[DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+        $deadline=[DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
         while(!(Test-Path -LiteralPath $path) -and [DateTime]::UtcNow -lt $deadline){Start-Sleep -Milliseconds 250}
         if(!(Test-Path -LiteralPath $path)){throw 'The mesh contract worker did not return a report.'}
-        return @{id=$id;job=$job;path=$path;report=(Get-Content -LiteralPath $path -Raw|ConvertFrom-Json)}
+        $report=Get-Content -LiteralPath $path -Raw|ConvertFrom-Json
+        $queued.succeeded=[bool]$report.success
+        $queued.failure=$report.error
+        return @{id=$id;job=$job;path=$path;report=$report}
     }
     function Assert-MeshStages($Report, [string]$Label, [int]$Count) {
         foreach($stage in @('createdMeshes','savedMeshes','meshes')) {
@@ -486,13 +1009,22 @@ if ($MeshesOnly) {
         Add-Check 'unique-mesh-job' ($created.Count -eq 1) $created
         $reportPath=Join-Path $jobs ($created[0]+'/Output/unity-report.json')
         $report=Get-Content -LiteralPath $reportPath -Raw|ConvertFrom-Json
-        $recipe=Get-Content -LiteralPath $recipePath -Raw|ConvertFrom-Json
         Add-Check 'mesh-native-full-channel-readback' ($report.success -and $report.validationScope -eq 'mesh_templates' -and
             @($report.meshes).Count -eq @($recipe.meshes).Count -and @($report.meshes|Where-Object {!$_.exact -or !$_.boundsExact}).Count -eq 0 -and
             @($report.meshes|ForEach-Object channels|Where-Object {!$_.exact}).Count -eq 0) $reportPath
         Add-Check 'mesh-scene-state-preserved' ($report.activeScenePathBefore -eq $report.activeScenePathAfter -and
             $report.activeSceneDirtyBefore -eq $report.activeSceneDirtyAfter -and $report.sceneCountBefore -eq $report.sceneCountAfter) $reportPath
         Assert-MeshStages $report 'mesh-native' @($recipe.meshes).Count
+        $numeric=Invoke-MeshQueueContract $script:meshNumericContract.recipe 'mesh-templates' $script:meshNumericContract.inputFiles
+        Add-Check 'mesh-numeric-native-create-save-reload' $numeric.report.success $numeric.path
+        Assert-MeshStages $numeric.report 'mesh-numeric-native' 1
+        foreach($kind in @('magic','version','truncated')){
+            $bad=Get-Content -LiteralPath (Join-Path (Split-Path -Parent $script:meshNumericContract.path) ($kind+'/mesh-recipe.json')) -Raw|ConvertFrom-Json
+            $payload=Join-Path (Split-Path -Parent $script:meshNumericContract.path) ($kind+'/Data/mesh-numeric.bin')
+            $denied=Invoke-MeshQueueContract $bad 'mesh-templates' @(@{path='Data/mesh-numeric.bin';source=$payload})
+            Add-Check ('mesh-numeric-worker-reject-'+$kind) (!$denied.report.success -and $denied.report.error -and
+                !(Test-Path -LiteralPath (Join-Path $project ('Assets/AuthoringJobs/'+$denied.id+'/Generated')))) $denied.path
+        }
         $fixture=Join-Path $jobs ('MeshInputContracts/'+[guid]::NewGuid().ToString('N'))
         [void][IO.Directory]::CreateDirectory($fixture)
         $triangle=@{name='StaticTemplateControl';vertices=@(0,0,0,1,0,0,0,1,0);normals=@(0,0,1,0,0,1,0,0,1);tangents=@(1,0,0,1,1,0,0,1,1,0,0,1);
@@ -575,6 +1107,28 @@ if ($MeshesOnly) {
         Assert-MeshStages $textureJob.report 'mesh-texture-contracts' 2
         Add-Check 'mesh-texture-contracts-succeeded' ($textureJob.report.success -and @($textureJob.report.meshValidationContracts).Count -eq 10 -and
             @($textureJob.report.meshValidationContracts|Where-Object {!$_.applicable -or !$_.rejected}).Count -eq 0) $textureJob.path
+        $textureOnlyRecipe=@{schemaVersion=1;bundleName='texture_only_contract';meshes=@();textures=$textures}
+        $textureOnly=Invoke-MeshQueueContract $textureOnlyRecipe 'mesh-templates' $textureInputs
+        Add-Check 'texture-only-native-build' $textureOnly.report.success $textureOnly.path
+        foreach($stage in @('createdMeshes','savedMeshes','meshes')) {
+            Add-Check ('texture-only-zero-'+$stage) ($textureOnly.report.PSObject.Properties[$stage] -and @($textureOnly.report.$stage).Count -eq 0) $textureOnly.path
+        }
+        foreach($stage in @('createdTextures','savedTextures','textures')) {
+            $rows=@($textureOnly.report.$stage)
+            Add-Check ('texture-only-'+$stage) ($rows.Count -eq 3 -and @($rows|Where-Object {!$_.exact -or !$_.importSettingsExact}).Count -eq 0) $textureOnly.path
+        }
+        Add-Check 'texture-only-bundle-assets' (@($textureOnly.report.assetNames).Count -eq 3 -and @($textureOnly.report.assetNames|Where-Object {$_ -notmatch '/input/Textures/[^/]+\.(png|tga)$'}).Count -eq 0) $textureOnly.path
+        foreach($kind in @('empty','null-meshes','object-meshes')) {
+            $bad=($textureOnlyRecipe|ConvertTo-Json -Depth 30|ConvertFrom-Json)
+            switch($kind) {
+                'empty' {$bad.textures=@()}
+                'null-meshes' {$bad.meshes=$null}
+                'object-meshes' {$bad.meshes=[pscustomobject]@{}}
+            }
+            $negative=Invoke-MeshQueueContract $bad 'mesh-templates' $textureInputs
+            Add-Check ('texture-only-worker-reject-'+$kind) (!$negative.report.success -and $negative.report.error -and
+                !(Test-Path -LiteralPath (Join-Path $project ('Assets/AuthoringJobs/'+$negative.id+'/Generated')))) $negative.path
+        }
         foreach($kind in @('texture-name','texture-payload','texture-format','texture-mips','texture-import-type','texture-import-srgb','texture-height-conversion','texture-import-mips','texture-compression','texture-readable')) {
             $mutation=@($textureJob.report.textureValidationContracts|Where-Object kind -eq $kind)
             Add-Check ('mesh-texture-validator-reject-'+$kind) ($mutation.Count -eq 1 -and $mutation[0].rejected -and $mutation[0].rejection) $textureJob.path
@@ -636,7 +1190,7 @@ if ($MeshesOnly) {
             }
         }
         foreach ($kind in @('nonfinite','channel-length','indices','bounds','duplicate-name','path-name')) {
-            $bad=Get-Content -LiteralPath $recipePath -Raw|ConvertFrom-Json
+            $bad=Get-Content -LiteralPath $skinPath -Raw|ConvertFrom-Json
             switch($kind) {
                 'nonfinite' {$bad.meshes[0].vertices[0]=[double]::NaN}
                 'channel-length' {$bad.meshes[0].normals=@(1,0,0)}
@@ -661,20 +1215,12 @@ if ($MeshesOnly) {
             Add-Check ('legacy-preflight-'+$legacy) ($rejected -and @(MeshJobIds|Where-Object {$_ -notin $before}).Count -eq 0) $recipePath
         }
         # A direct owned queue fault proves the worker independently checks before asset creation.
-        $id=[guid]::NewGuid().ToString('N');$job=Join-Path $jobs $id;$input=Join-Path $project ('Assets/AuthoringJobs/'+$id+'/Input')
-        [void][IO.Directory]::CreateDirectory($job);[void][IO.Directory]::CreateDirectory($input)
-        [IO.File]::WriteAllText((Join-Path $job '.solasta-asset-authoring-job'),'SolastaUBAssetAuthoring:UnityJob:1')
-        $bad=Get-Content -LiteralPath $recipePath -Raw|ConvertFrom-Json;$bad.meshes[0].subMeshes[0].indices[0]=-1
-        $copied=Join-Path $input 'mesh-recipe.json';[IO.File]::WriteAllText($copied,($bad|ConvertTo-Json -Depth 20),[Text.UTF8Encoding]::new($false))
-        $request=@{schemaVersion=1;jobId=$id;kind='mesh-templates';inputSha256=(Get-FileHash -LiteralPath $copied -Algorithm SHA256).Hash.ToLowerInvariant()}
-        [IO.File]::WriteAllText((Join-Path $job 'request.writing'),($request|ConvertTo-Json));[IO.File]::Move((Join-Path $job 'request.writing'),(Join-Path $job 'request.json'))
-        $failedReport=Join-Path $job 'Output/unity-report.json';$deadline=[DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
-        while (!(Test-Path -LiteralPath $failedReport) -and [DateTime]::UtcNow -lt $deadline) {Start-Sleep -Milliseconds 250}
-        if (!(Test-Path -LiteralPath $failedReport)) {throw 'Rejected mesh input did not return a worker report.'}
-        $failed=Get-Content -LiteralPath $failedReport -Raw|ConvertFrom-Json
+        $bad=Get-Content -LiteralPath $skinPath -Raw|ConvertFrom-Json;$bad.meshes[0].subMeshes[0].indices[0]=-1
+        $denied=Invoke-MeshQueueContract $bad
+        $failed=$denied.report
         Add-Check 'mesh-worker-reject-invalid-index' (!$failed.success -and $failed.error -like '*index range*' -and
-            !(Test-Path -LiteralPath (Join-Path $project ('Assets/AuthoringJobs/'+$id+'/Generated'))) -and
-            !(Test-Path -LiteralPath (Join-Path $job ('Output/'+$recipe.bundleName)))) $failedReport
+            !(Test-Path -LiteralPath (Join-Path $project ('Assets/AuthoringJobs/'+$denied.id+'/Generated'))) -and
+            !(Test-Path -LiteralPath (Join-Path $denied.job ('Output/'+$bad.bundleName)))) $denied.path
         Add-Check 'mesh-source-unchanged' ((Get-FileHash -LiteralPath $recipePath -Algorithm SHA256).Hash -eq $recipeHash) $recipeHash
         Add-Check 'mesh-borrowed-worker-still-owned' ($null -ne (Get-AssetOwnedProcess $ownedSession.Ready.editor)) $ownedSession.Ready.editor
         $completed=$true
@@ -682,6 +1228,11 @@ if ($MeshesOnly) {
     finally {
         if($ownedSession) {
             Stop-AssetBackgroundEditor $ownedSession
+            foreach($queued in $queuedJobs) {
+                Complete-AssetAuthoringJob -Ownership $queued.ownership -Succeeded $queued.succeeded -Failure $queued.failure
+                $owner=Get-Content -LiteralPath $queued.ownership.path -Raw|ConvertFrom-Json
+                Add-Check 'mesh-queued-job-storage-completed' ($owner.state -eq 'completed' -and $owner.resultSha256 -and $owner.files.Count -gt 0) $queued.ownership.path
+            }
             $state=Get-Content -LiteralPath (Join-Path $ownedSession.RunDirectory 'session.json') -Raw|ConvertFrom-Json
             Add-Check 'mesh-normal-owned-shutdown' ($state.status -eq 'complete' -and $state.editorReleased -and !$state.forcedExit -and
                 !(Get-AssetOwnedProcess $state.editor)) $ownedSession.RunDirectory

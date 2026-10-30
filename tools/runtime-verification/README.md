@@ -16,7 +16,7 @@
 
 ## 実行前の確認
 
-1. [作業ガイド](../../.codex/PROJECT_GUIDE.md)を確認します。
+1. [正式ビルドの前提](../CustomBuildLocal/README.md)を確認します。
 2. インストール済みゲームの `Solasta.exe` を明示します。`SolastaInstallDir` も使用できます。参照用の `SolastaFiles` は起動・反映先として使用できません。
 3. ゲームを閉じます。runnerは既存の `Solasta` プロセスまたはインストール先の `Mods/UBRuntimeVerification/` があれば中断します。以前の検証が残っていた場合は証跡を確認してから復旧し、上書きしません。
 4. .NET SDK 9 以降と既存ゲーム/UMM DLL が必要です。
@@ -144,7 +144,7 @@ $gameDirectory = 'D:\Games\Solasta'
 
 ## 検証の記録
 
-実行した型・入口、入力条件、製品DLL、観測結果を`Probe.log`と`Result.json`に保存します。実ゲームでの判定と復元は[game-testの結果](../game-test/README.md#結果と復元)、実装・表示の確認基準は[作業ガイド](../../.codex/PROJECT_GUIDE.md)に従います。
+実行した型・入口、入力条件、製品DLL、観測結果を`Probe.log`と`Result.json`に保存します。実ゲームでの判定と復元は[game-testの結果](../game-test/README.md#結果と復元)を参照してください。
 
 ## 検証用ユーザーデータの隔離
 
