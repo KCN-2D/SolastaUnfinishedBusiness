@@ -1765,7 +1765,8 @@ internal static class CharacterReactionSubitemExtension
         private float _baseWidth;
         private float _baseHeight;
         private int _layoutFrames;
-        private string _signature;
+        private (bool Gamepad, float Width) _layoutInputs;
+        private bool _hasLayoutInputs;
         private bool _applied;
 
         internal void Bind(CharacterReactionItem item)
@@ -1819,11 +1820,16 @@ internal static class CharacterReactionSubitemExtension
                 return;
             }
 
-            var signature = Gui.GamepadActive + ":" + MaximumItemWidth() + ":" +
-                            string.Join("|", _captions.Select(caption => caption.Signature));
-            if (_signature != signature)
+            var inputs = (Gui.GamepadActive, MaximumItemWidth());
+            var changed = !_hasLayoutInputs || _layoutInputs != inputs;
+            foreach (var caption in _captions)
             {
-                _signature = signature;
+                changed |= caption.InputsChanged();
+            }
+            if (changed)
+            {
+                _layoutInputs = inputs;
+                _hasLayoutInputs = true;
                 _layoutFrames = 4;
             }
 
@@ -1950,6 +1956,8 @@ internal static class CharacterReactionSubitemExtension
             private readonly int _maxLines;
             private readonly float _fontSize;
             private readonly TextOverflowModes _overflow;
+            private (string Text, float FontSize, bool Visible, float Chrome) _lastInputs;
+            private bool _hasInputs;
 
             internal DecisionCaptionState(Button button, TMP_Text text, RectTransform resourceGroup)
             {
@@ -1981,8 +1989,14 @@ internal static class CharacterReactionSubitemExtension
                 }
             }
 
-            internal string Signature => _text.text + ":" + _text.fontSize + ":" +
-                Visible + ":" + MeasureChrome(_button.transform);
+            internal bool InputsChanged()
+            {
+                var inputs = (_text.text, _text.fontSize, Visible, MeasureChrome(_button.transform));
+                var changed = !_hasInputs || _lastInputs != inputs;
+                _lastInputs = inputs;
+                _hasInputs = true;
+                return changed;
+            }
 
             internal bool Visible => _button && _button.gameObject.activeSelf;
             internal float BaseWidth => _buttonWidth;
@@ -2066,20 +2080,32 @@ internal static class CharacterReactionSubitemExtension
 
                     if (parent.TryGetComponent<HorizontalLayoutGroup>(out var group) && group.enabled)
                     {
-                        var siblings = parent.Cast<Transform>().Where(sibling => sibling != child &&
-                            sibling.gameObject.activeSelf &&
-                            sibling.GetComponent<LayoutElement>() is not { ignoreLayout: true })
-                            .OfType<RectTransform>().ToArray();
-                        chrome += group.padding.horizontal + siblings.Sum(sibling =>
-                            Mathf.Max(sibling.rect.width, LayoutUtility.GetPreferredWidth(sibling))) +
-                            group.spacing * siblings.Length + IgnoredResourceWidth(parent, child);
+                        var siblingsWidth = 0f;
+                        var siblingsCount = 0;
+                        for (var index = 0; index < parent.childCount; index++)
+                        {
+                            if (parent.GetChild(index) is not RectTransform sibling || sibling == child ||
+                                !sibling.gameObject.activeSelf ||
+                                sibling.GetComponent<LayoutElement>() is { ignoreLayout: true })
+                            {
+                                continue;
+                            }
+                            siblingsWidth += Mathf.Max(sibling.rect.width, LayoutUtility.GetPreferredWidth(sibling));
+                            siblingsCount++;
+                        }
+                        chrome += group.padding.horizontal + siblingsWidth + group.spacing * siblingsCount +
+                                  IgnoredResourceWidth(parent, child);
                     }
                     else
                     {
                         // The native label wrappers may use offsets rather than a layout
                         // group. Use their captured inset, never our previous fitted width.
-                        var part = _parts.FirstOrDefault(value => value.Rect == parent);
-                        var childPart = _parts.FirstOrDefault(value => value.Rect == child);
+                        CaptionPart part = null, childPart = null;
+                        foreach (var candidate in _parts)
+                        {
+                            if (candidate.Rect == parent) part = candidate;
+                            if (candidate.Rect == child) childPart = candidate;
+                        }
                         var parentWidth = parent == _button.transform ? _buttonWidth : part?.Width ?? 0f;
                         var childWidth = childPart?.Width ?? _textWidth;
                         chrome += Mathf.Max(Mathf.Max(0f, parentWidth - childWidth),
@@ -2092,12 +2118,21 @@ internal static class CharacterReactionSubitemExtension
 
             private float IgnoredResourceWidth(Transform parent, Transform captionPart)
             {
-                if (!_resourceGroup || !_resourceGroup.gameObject.activeInHierarchy ||
-                    !_resourceGraphics.Any(graphic => graphic && graphic.enabled && graphic.gameObject.activeInHierarchy &&
-                        graphic.color.a > 0f && graphic.canvasRenderer.GetAlpha() > 0f))
+                if (!_resourceGroup || !_resourceGroup.gameObject.activeInHierarchy)
                 {
                     return 0f;
                 }
+                var visible = false;
+                foreach (var graphic in _resourceGraphics)
+                {
+                    if (graphic && graphic.enabled && graphic.gameObject.activeInHierarchy &&
+                        graphic.color.a > 0f && graphic.canvasRenderer.GetAlpha() > 0f)
+                    {
+                        visible = true;
+                        break;
+                    }
+                }
+                if (!visible) return 0f;
 
                 var branch = _resourceGroup.transform;
                 while (branch.parent && branch.parent != parent)

@@ -1,0 +1,15 @@
+{
+  "exclude": [
+    "**/__pycache__",
+    "**/node_modules",
+    "**/.venv",
+    "**/bin",
+    "**/obj",
+    "tools/asset-authoring/workspace",
+    "tools/asset-authoring/UnityAssetBuild/Library",
+    "tools/asset-authoring/UnityAssetBuild/Temp",
+    "tools/asset-authoring/UnityAssetBuild/Logs",
+    "tools/game-test/artifacts",
+    "tools/CustomBuildLocal/Output"
+  ]
+}

@@ -202,6 +202,125 @@ function Invoke-AuthoringInputValidationContracts([string]$EntryPath, [string]$O
             $null -eq $reason -and $value -ceq [IO.Path]::GetFullPath((Join-Path $inputs $case.path))}
         Add-ValidationCheck $case.name $passed @{value=$value;error=$reason}
     }
+    . (Join-Path (Split-Path -Parent $entry) 'UnityAssetBuild/BackgroundEditor.ps1')
+    $identityHash='a'*64
+    foreach($identityCase in @(
+        @{name='compiled-identity-missing';value=[pscustomobject]@{sourceSha256=$identityHash};accepted=$false},
+        @{name='compiled-identity-stale-code';value=[pscustomobject]@{sourceSha256=$identityHash;compiledSourceSha256=('b'*64)};accepted=$false},
+        @{name='compiled-identity-stale-file';value=[pscustomobject]@{sourceSha256=('b'*64);compiledSourceSha256=$identityHash};accepted=$false},
+        @{name='compiled-identity-source-not-string';value=[pscustomobject]@{sourceSha256=0;compiledSourceSha256=$identityHash};accepted=$false},
+        @{name='compiled-identity-code-not-string';value=[pscustomobject]@{sourceSha256=$identityHash;compiledSourceSha256=0};accepted=$false},
+        @{name='compiled-identity-matches';value=[pscustomobject]@{sourceSha256=$identityHash;compiledSourceSha256=$identityHash};accepted=$true}
+    )) {
+        Add-ValidationCheck $identityCase.name ((Test-AssetWorkerIdentity $identityCase.value $identityHash) -eq $identityCase.accepted) $identityCase.value
+    }
+    $identityRejected=$false
+    try{$null=Get-AssetWorkerIdentitySource 'not-a-source-hash'}catch{$identityRejected=$true}
+    Add-ValidationCheck 'compiled-identity-rejects-invalid-source-hash' $identityRejected $null
+    Add-ValidationCheck 'compiled-identity-embeds-source-hash' ((Get-AssetWorkerIdentitySource $identityHash).Contains($identityHash)) $null
+    $workerObserved=[DateTime]::Parse('2026-11-01T00:00:20Z').ToUniversalTime()
+    $workerLaunched=$workerObserved.AddSeconds(-20)
+    $workerEditor=[ordered]@{pid=12345;startTimeUtc=$workerLaunched.AddSeconds(1).ToString('o')}
+    $workerOwner='0123456789abcdef0123456789abcdef'
+    $workerProject=Join-Path $inputs 'OwnedWorkerProject'
+    $workerDesktop='AssetAuthoring_01234567'
+    $ownedWorker=[pscustomobject][ordered]@{schemaVersion=2;processId=12345;processStartedUtc=$workerEditor.startTimeUtc;
+        ownerId=$workerOwner;projectPath=$workerProject;unityVersion='2019.4.37f1';mainThread=1;nativeMainThread=23456;
+        desktopQuerySucceeded=$true;desktopReceivesInput=$false;desktop=$workerDesktop;inputDesktop='Default';
+        updatedUtc=$workerObserved.AddMilliseconds(-100).ToString('o');sourceSha256=$identityHash;compiledSourceSha256=$identityHash}
+    $ownershipCases=@(
+        @{name='owned-worker-current';set=@{};shutdown=$true;ready=$true},
+        @{name='owned-worker-stale-code';set=@{compiledSourceSha256=('b'*64)};shutdown=$true;ready=$false},
+        @{name='owned-worker-stale-source';set=@{sourceSha256=('b'*64)};shutdown=$true;ready=$false},
+        @{name='owned-worker-no-code-metadata';remove='compiledSourceSha256';shutdown=$true;ready=$false},
+        @{name='owned-worker-foreign-pid';set=@{processId=12346};shutdown=$false;ready=$false},
+        @{name='owned-worker-foreign-start';set=@{processStartedUtc=$workerLaunched.AddSeconds(3).ToString('o')};shutdown=$false;ready=$false},
+        @{name='owned-worker-start-offset-inside';set=@{processStartedUtc=$workerLaunched.AddMilliseconds(1999).ToString('o')};shutdown=$true;ready=$true},
+        @{name='owned-worker-start-offset-boundary';set=@{processStartedUtc=$workerLaunched.AddSeconds(2).ToString('o')};shutdown=$false;ready=$false},
+        @{name='owned-worker-foreign-owner';set=@{ownerId=('f'*32)};shutdown=$false;ready=$false},
+        @{name='owned-worker-foreign-project';set=@{projectPath=($workerProject+'Other')};shutdown=$false;ready=$false},
+        @{name='owned-worker-other-version';set=@{unityVersion='2019.4.36f1'};shutdown=$false;ready=$false},
+        @{name='owned-worker-version-not-string';set=@{unityVersion=2019};shutdown=$false;ready=$false},
+        @{name='owned-worker-other-schema';set=@{schemaVersion=1};shutdown=$false;ready=$false},
+        @{name='owned-worker-no-main-thread';set=@{mainThread=0};shutdown=$false;ready=$false},
+        @{name='owned-worker-no-native-thread';set=@{nativeMainThread=0};shutdown=$false;ready=$false},
+        @{name='owned-worker-pid-not-numeric';set=@{processId='12345'};shutdown=$false;ready=$false},
+        @{name='owned-worker-thread-not-numeric';set=@{nativeMainThread='23456'};shutdown=$false;ready=$false},
+        @{name='owned-worker-native-thread-overflow';set=@{nativeMainThread=4294967296L};shutdown=$false;ready=$false},
+        @{name='owned-worker-desktop-query-failed';set=@{desktopQuerySucceeded=$false};shutdown=$false;ready=$false},
+        @{name='owned-worker-desktop-query-not-bool';set=@{desktopQuerySucceeded=1};shutdown=$false;ready=$false},
+        @{name='owned-worker-input-enabled';set=@{desktopReceivesInput=$true};shutdown=$false;ready=$false},
+        @{name='owned-worker-input-flag-not-bool';set=@{desktopReceivesInput='false'};shutdown=$false;ready=$false},
+        @{name='owned-worker-foreign-desktop';set=@{desktop='OtherDesktop'};shutdown=$false;ready=$false},
+        @{name='owned-worker-active-input-desktop';set=@{inputDesktop=$workerDesktop};shutdown=$false;ready=$false},
+        @{name='owned-worker-input-desktop-empty';set=@{inputDesktop=''};shutdown=$false;ready=$false},
+        @{name='owned-worker-update-before-launch';set=@{updatedUtc=$workerLaunched.AddMilliseconds(-1).ToString('o')};shutdown=$false;ready=$false},
+        @{name='owned-worker-update-before-start';set=@{updatedUtc=$workerLaunched.AddMilliseconds(500).ToString('o')};shutdown=$false;ready=$false},
+        @{name='owned-worker-update-too-old';set=@{updatedUtc=$workerObserved.AddSeconds(-10).ToString('o')};shutdown=$false;ready=$false},
+        @{name='owned-worker-update-inside-freshness';set=@{updatedUtc=$workerObserved.AddMilliseconds(-9999).ToString('o')};shutdown=$true;ready=$true},
+        @{name='owned-worker-update-future';set=@{updatedUtc=$workerObserved.AddMilliseconds(1).ToString('o')};shutdown=$false;ready=$false},
+        @{name='owned-worker-update-invalid';set=@{updatedUtc='not-a-date'};shutdown=$false;ready=$false},
+        @{name='owned-worker-start-invalid';set=@{processStartedUtc='not-a-date'};shutdown=$false;ready=$false}
+    )
+    foreach($property in @('schemaVersion','processId','processStartedUtc','ownerId','projectPath','unityVersion',
+        'mainThread','nativeMainThread','desktopQuerySucceeded','desktopReceivesInput','desktop','inputDesktop','updatedUtc')) {
+        $ownershipCases+=@{name=('owned-worker-missing-'+$property);remove=$property;shutdown=$false;ready=$false}
+    }
+    foreach($case in $ownershipCases) {
+        $value=$ownedWorker|ConvertTo-Json -Depth 5|ConvertFrom-Json
+        if($case.ContainsKey('set')) {foreach($property in $case.set.Keys){$value.$property=$case.set[$property]}}
+        if($case.ContainsKey('remove')) {$value.PSObject.Properties.Remove($case.remove)}
+        $shutdown=$null;$failure=$null
+        try{$shutdown=Get-AssetOwnedWorkerShutdownRequest $value $workerEditor $workerOwner $workerProject $workerDesktop $workerLaunched $workerObserved}
+        catch{$failure=$_.Exception.Message}
+        $hasShutdown=$null -ne $shutdown
+        $canRunJob=$hasShutdown -and (Test-AssetWorkerIdentity $value $identityHash)
+        $exactRequest=-not $hasShutdown -or ($shutdown.Count -eq 3 -and $shutdown.ownerId -ceq $workerOwner -and
+            $shutdown.processId -eq $workerEditor.pid -and
+            ([DateTimeOffset]$shutdown.processStartedUtc).ToUniversalTime() -eq ([DateTimeOffset]$value.processStartedUtc).ToUniversalTime())
+        Add-ValidationCheck ($case.name+'-shutdown-and-ready') ($null -eq $failure -and $hasShutdown -eq $case.shutdown -and
+            $canRunJob -eq $case.ready -and $exactRequest) @{request=$shutdown;canRunJob=$canRunJob;error=$failure}
+    }
+    foreach($editorCase in @(
+        @{name='owned-worker-editor-before-launch';value=[ordered]@{pid=12345;startTimeUtc=$workerLaunched.AddSeconds(-1).ToString('o')}},
+        @{name='owned-worker-editor-missing-pid';value=[ordered]@{startTimeUtc=$workerEditor.startTimeUtc}},
+        @{name='owned-worker-editor-missing-start';value=[ordered]@{pid=12345}}
+    )) {
+        $request=Get-AssetOwnedWorkerShutdownRequest $ownedWorker $editorCase.value $workerOwner $workerProject $workerDesktop $workerLaunched $workerObserved
+        Add-ValidationCheck $editorCase.name ($null -eq $request) $request
+    }
+    $batchSecond=$mesh | ConvertTo-Json -Depth 30 | ConvertFrom-Json
+    $batchSecond.bundleName='contract_mesh_second'
+    $batchSecondPath=Join-Path $inputs 'MeshSecond.json';Save-ValidationJson $batchSecondPath $batchSecond
+    $batchDuplicatePath=Join-Path $inputs 'MeshDuplicateBundle.json';Save-ValidationJson $batchDuplicatePath $mesh
+    $batchManifest=$mesh | ConvertTo-Json -Depth 30 | ConvertFrom-Json
+    $batchManifest.bundleName='contract_mesh.manifest'
+    $batchManifestPath=Join-Path $inputs 'MeshManifestCollision.json';Save-ValidationJson $batchManifestPath $batchManifest
+    $batchReceipt=$mesh | ConvertTo-Json -Depth 30 | ConvertFrom-Json
+    $batchReceipt.bundleName='unity-report.json'
+    $batchReceiptPath=Join-Path $inputs 'MeshReceiptCollision.json';Save-ValidationJson $batchReceiptPath $batchReceipt
+    $batchRoot=$mesh | ConvertTo-Json -Depth 30 | ConvertFrom-Json
+    $batchRoot.bundleName='output'
+    $batchRootPath=Join-Path $inputs 'MeshRootCollision.json';Save-ValidationJson $batchRootPath $batchRoot
+    $batchMaximum=@()
+    for($index=0;$index -lt 16;$index++) {
+        $value=$mesh | ConvertTo-Json -Depth 30 | ConvertFrom-Json
+        $value.bundleName='contract_batch_'+$index
+        $path=Join-Path $inputs ('BatchMember'+$index+'.json');Save-ValidationJson $path $value
+        $batchMaximum+= $path
+    }
+    $batchCases=@(
+        @{name='batch-mesh-texture';paths=@($meshPath,$texturePath);dependencies=3},
+        @{name='batch-same-asset-name';paths=@($meshPath,$batchSecondPath);dependencies=2},
+        @{name='batch-maximum';paths=$batchMaximum;dependencies=16},
+        @{name='batch-duplicate-input';paths=@($meshPath,$meshPath);error='Duplicate mesh recipe inputs'},
+        @{name='batch-duplicate-bundle';paths=@($meshPath,$batchDuplicatePath);error='Duplicate mesh bundle names'},
+        @{name='batch-manifest-collision';paths=@($meshPath,$batchManifestPath);error='A mesh bundle output collides'},
+        @{name='batch-receipt-collision';paths=@($meshPath,$batchReceiptPath);error='A mesh bundle output collides'},
+        @{name='batch-root-collision';paths=@($meshPath,$batchRootPath);error='A mesh bundle output collides'},
+        @{name='batch-second-input-invalid';paths=@($meshPath,$badTexturePath);error='The mesh texture source hash differs'},
+        @{name='batch-over-limit';paths=@($batchMaximum+$meshPath);errorAny=$true}
+    )
     $before=Get-ValidationInputTree
     [IO.File]::WriteAllText((Join-Path $OutputDirectory 'InputTree.Before.json'),$before)
     foreach($case in $cases) {
@@ -226,6 +345,33 @@ function Invoke-AuthoringInputValidationContracts([string]$EntryPath, [string]$O
                     $value.inputPath -ceq $case.path -and $value.sha256 -ceq (Get-FileHash -LiteralPath $case.path -Algorithm SHA256).Hash.ToLowerInvariant() -and
                     $value.kind -ceq $case.kind -and $value.bundleName -ceq $case.bundle -and
                     $value.dependencyCount -eq $case.dependencies -and $value.colorSpace -ceq $expectedColorSpace -and $value.appsStarted -eq 0 -and $value.outputsCreated -eq 0
+            }
+            Add-ValidationCheck ($case.name+'-accepts-declaration') $accepted @{error=$failure;outputs=$observed}
+        }
+        Add-ValidationCheck ($case.name+'-inputs-unchanged') ((Get-ValidationInputTree) -ceq $before) $null
+        Add-ValidationCheck ($case.name+'-no-output-workspace') (-not (Test-Path -LiteralPath $outputs)) $outputs
+    }
+    foreach($case in $batchCases) {
+        $observed=@();$failure=$null
+        try {
+            $observed=@(& $entry -UnityPath $unity -MeshRecipePath $case.paths -ValidateOnly `
+                -WorkspaceRoot (Join-Path $outputs $case.name) -GuiProjectPath (Join-Path $outputs ($case.name+'/Project')))
+        }catch{$failure=$_.Exception.Message}
+        if($case.ContainsKey('error') -or $case.ContainsKey('errorAny')) {
+            $passed=$null -ne $failure -and ($case.ContainsKey('errorAny') -or $failure -match [regex]::Escape($case.error))
+            Add-ValidationCheck ($case.name+'-rejects-declaration') $passed @{error=$failure;outputs=$observed}
+        }else {
+            $accepted=$null -eq $failure -and $observed.Count -eq 1
+            if($accepted) {
+                $value=$observed[0]
+                $accepted=$value.status -ceq 'PASS_AUTHORING_INPUT' -and $value.kind -ceq 'mesh-batch-templates' -and
+                    $value.validationScope -ceq 'input_declaration' -and $value.sha256 -cmatch '^[a-f0-9]{64}$' -and
+                    @($value.inputs).Count -eq $case.paths.Count -and $value.dependencyCount -eq $case.dependencies -and
+                    $value.appsStarted -eq 0 -and $value.outputsCreated -eq 0
+                for($index=0;$accepted -and $index -lt $case.paths.Count;$index++) {
+                    $accepted=$value.inputs[$index].path -ceq $case.paths[$index] -and
+                        $value.inputs[$index].sha256 -ceq (Get-FileHash -LiteralPath $case.paths[$index] -Algorithm SHA256).Hash.ToLowerInvariant()
+                }
             }
             Add-ValidationCheck ($case.name+'-accepts-declaration') $accepted @{error=$failure;outputs=$observed}
         }
@@ -1048,6 +1194,16 @@ if ($MeshesOnly) {
         }
     }
     $sourceHash=(Get-FileHash -LiteralPath (Join-Path $project 'Assets/Editor/AssetBundleBuilder.cs') -Algorithm SHA256).Hash.ToLowerInvariant()
+    $identityPath=Join-Path $project 'Assets/Editor/AssetBundleBuilder.Identity.cs'
+    $identityText=Get-AssetWorkerIdentitySource $sourceHash
+    if (!(Test-Path -LiteralPath $identityPath) -or [IO.File]::ReadAllText($identityPath) -cne $identityText) {
+        if (!$InstallGuiWorker) { throw 'The compiled worker identity needs updating. Use -InstallGuiWorker.' }
+        $null=Get-AssetProjectLock $project
+        $backup=Join-Path $jobs ('WorkerBackups/'+[guid]::NewGuid().ToString('N'))
+        [void][IO.Directory]::CreateDirectory($backup)
+        if (Test-Path -LiteralPath $identityPath) { [IO.File]::Copy($identityPath,(Join-Path $backup 'AssetBundleBuilder.Identity.cs'),$false) }
+        [IO.File]::WriteAllText($identityPath,$identityText,[Text.UTF8Encoding]::new($false))
+    }
     $recipeHash=(Get-FileHash -LiteralPath $recipePath -Algorithm SHA256).Hash
     $recipe=[IO.File]::ReadAllText($recipePath)|ConvertFrom-Json
     if($recipe.PSObject.Properties['numericPayload']){$recipe=Read-ExternalMeshRecipe $recipePath (Join-Path (Split-Path -Parent $launcher) 'UnityAssetBuild/Assets/Editor/AssetBundleBuilder.cs')}
@@ -1537,7 +1693,7 @@ function Wait-ReloadedSource([string] $Hash, [DateTime] $PreviousAssemblyTime) {
         $process = Get-Process -Id $ready.processId
         if ($process.StartTime.ToUniversalTime() -ne $originalStart) { throw 'The original GUI worker process ended.' }
         $compiledAt = (Get-Item -LiteralPath $assemblyPath).LastWriteTimeUtc
-        if ($receipt.schemaVersion -eq 2 -and $receipt.sourceSha256 -eq $Hash -and $receipt.mainThread -eq $ready.mainThread -and
+        if ($receipt.schemaVersion -eq 2 -and (Test-AssetWorkerIdentity $receipt $Hash) -and $receipt.mainThread -eq $ready.mainThread -and
             $compiledAt -gt $PreviousAssemblyTime -and
             ([DateTime]::UtcNow - ([DateTime]$receipt.updatedUtc).ToUniversalTime()).TotalSeconds -lt 5) { return $compiledAt }
         Start-Sleep -Milliseconds 250
@@ -1700,17 +1856,21 @@ try {
         foreach ($iteration in 1..2) { Invoke-NativeBuild $iteration }
         foreach ($kind in @('changed-input', 'schema', 'identity', 'interrupted')) { Submit-RejectedJob $kind }
         $source = Join-Path $project 'Assets\Editor\AssetBundleBuilder.cs'
+        $identityPath = Join-Path $project 'Assets\Editor\AssetBundleBuilder.Identity.cs'
         $originalBytes = [IO.File]::ReadAllBytes($source)
+        $originalIdentityBytes = [IO.File]::ReadAllBytes($identityPath)
         $sourceHash = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()
         $assemblyTime = (Get-Item -LiteralPath (Join-Path $project 'Library\ScriptAssemblies\Assembly-CSharp-Editor.dll')).LastWriteTimeUtc
         try {
             [IO.File]::AppendAllText($source, ([Environment]::NewLine + '// Reload contract ' + [guid]::NewGuid().ToString('N') + [Environment]::NewLine))
             $changedHash = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()
+            [IO.File]::WriteAllText($identityPath, (Get-AssetWorkerIdentitySource $changedHash), [Text.UTF8Encoding]::new($false))
             $assemblyTime = Wait-ReloadedSource $changedHash $assemblyTime
             Add-Check 'changed-worker-self-reloaded' $true $changedHash
         }
         finally {
             [IO.File]::WriteAllBytes($source, $originalBytes)
+            [IO.File]::WriteAllBytes($identityPath, $originalIdentityBytes)
             $null = Wait-ReloadedSource $sourceHash $assemblyTime
             Add-Check 'original-worker-self-reloaded' $true $sourceHash
         }

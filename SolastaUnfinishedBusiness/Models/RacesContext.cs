@@ -304,13 +304,14 @@ internal static class RacesContext
         if (_characterModelsUnloading) return;
         if (_characterModelCatalog == null) _characterModelCatalogAttempted = false;
         var factory = ServiceRepository.GetService<IGraphicsCharacterFactoryService>();
-        if (factory == null) return;
-        foreach (var graphics in factory.GraphicsCharacters.ToArray()) RefreshCharacterModels(graphics);
+        if (factory != null)
+            foreach (var graphics in factory.GraphicsCharacters.ToArray()) RefreshCharacterModels(graphics);
         if (!SettingsContext.GuiModManagerInstance.EnableCustomFaces && !CharacterModelOwners.Any(owner => owner && owner.HasCatalogSources))
         {
             _characterModelCatalog?.Dispose();
             _characterModelCatalog = null;
             _characterModelCatalogAttempted = false;
+            CharacterModelPresentation.ClearUnusedDerivedData();
         }
     }
 
@@ -421,6 +422,7 @@ internal static class RacesContext
         _characterModelCatalog?.Dispose();
         _characterModelCatalog = null;
         _characterModelCatalogAttempted = false;
+        CharacterModelPresentation.ClearUnusedDerivedData();
     }
 
     private static void ReportCharacterModelError(string stage, Exception exception)
@@ -577,25 +579,29 @@ internal static class RacesContext
 
     [Serializable] private sealed class CharacterModelManifest
     {
-        public int schemaVersion;
-        public string recipeVersion;
-        public CharacterModelBundle[] bundles;
-        public CharacterModelMeshAsset[] meshes;
-        public CharacterModelMaterialAsset[] materials;
-        public CharacterModelProperty[] textureRemaps;
+        // Json.NET populates these declarations after the strict schema check.
+        public int schemaVersion = 0;
+        public string recipeVersion = null;
+        public CharacterModelBundle[] bundles = null;
+        public CharacterModelMeshAsset[] meshes = null;
+        public CharacterModelMaterialAsset[] materials = null;
+        public CharacterModelProperty[] textureRemaps = null;
     }
     [Serializable] private sealed class CharacterModelBundle
     {
-        public string file, sha256;
+        public string file = null, sha256 = null;
         [NonSerialized] internal AssetBundle Loaded;
         [NonSerialized] internal int Owners;
         [NonSerialized] internal List<CharacterModelMeshAsset> Meshes;
         [NonSerialized] internal List<CharacterModelProperty> Textures;
         [NonSerialized] internal List<CharacterModelMaterialProfile> Profiles;
+        [NonSerialized] internal LinkedListNode<CharacterModelBundle> Unused;
+        [NonSerialized] internal long StoredBytes, CachedBytes;
     }
     [Serializable] private sealed class CharacterModelMeshAsset
     {
-        public string sourceFingerprint, mode, authoredMeshAsset, authoredFingerprint, bundleFile, bindingFile, bindingSha256;
+        public string sourceFingerprint = null, mode = null, authoredMeshAsset = null, authoredFingerprint = null,
+            bundleFile = null, bindingFile = null, bindingSha256 = null;
         [NonSerialized] internal Mesh Loaded;
         [NonSerialized] internal CustomModels.SkinMeshSource.SurfaceBinding LoadedBinding;
         [NonSerialized] internal CharacterModelSurfaceLayout[] Layouts;
@@ -603,10 +609,10 @@ internal static class RacesContext
     }
     [Serializable] private sealed class CharacterModelMaterialAsset
     {
-        public string sourceFingerprint, sourceShader, bundleFile;
-        public int materialSlot;
-        public CharacterModelProperty[] properties;
-        public CharacterModelMaterialProfile authoredProfile;
+        public string sourceFingerprint = null, sourceShader = null, bundleFile = null;
+        public int materialSlot = 0;
+        public CharacterModelProperty[] properties = null;
+        public CharacterModelMaterialProfile authoredProfile = null;
         [NonSerialized] internal bool SharedTexturesAdded;
         internal bool UsesTextures
         {
@@ -620,20 +626,21 @@ internal static class RacesContext
     }
     [Serializable] private sealed class CharacterModelMaterialProfile
     {
-        public string bundleFile, materialAsset, shader;
-        public CharacterModelSurfaceLayout layout;
+        public string bundleFile = null, materialAsset = null, shader = null;
+        public CharacterModelSurfaceLayout layout = null;
         [NonSerialized] internal Material Loaded;
     }
     [Serializable] private sealed class CharacterModelSurfaceLayout
     {
-        public int sourceUv, groomUv;
-        public int[] preservedUv;
+        public int sourceUv = 0, groomUv = 0;
+        public int[] preservedUv = null;
     }
     [Serializable] private sealed class CharacterModelProperty
     {
-        public string name, kind, textureAsset, sourceTextureFingerprint, sourceShader, bundleFile;
-        public int? sourceWidth, sourceHeight;
-        public float value;
+        public string name = null, kind = null, textureAsset = null, sourceTextureFingerprint = null,
+            sourceShader = null, bundleFile = null;
+        public int? sourceWidth = null, sourceHeight = null;
+        public float value = 0f;
         [NonSerialized] internal Texture2D Loaded;
         [NonSerialized] internal CharacterModelProperty[] SourceCandidates;
         internal bool MatchesSourceDimensions(int width, int height) =>
@@ -642,12 +649,16 @@ internal static class RacesContext
 
     private sealed class CharacterModelCatalog : IDisposable
     {
+        private const long MaximumUnusedBundleBytes = 256L * 1024 * 1024;
+        private const int MaximumUnusedBundles = 24;
         private readonly string _directory;
         private readonly Dictionary<string, CharacterModelBundle> _bundles;
         private readonly Dictionary<string, CharacterModelMeshAsset> _meshes;
         private readonly Dictionary<string, CharacterModelMaterialAsset> _materials;
         private readonly Dictionary<(string Shader, string Property, string Fingerprint), CharacterModelProperty> _textureRemaps = [];
         private readonly Dictionary<string, CharacterModelProperty[]> _textureProperties = new(StringComparer.Ordinal);
+        private readonly LinkedList<CharacterModelBundle> _unusedBundles = new();
+        private long _unusedBundleBytes;
         private CharacterModelCatalog(string directory, CharacterModelManifest manifest)
         {
             _directory = directory;
@@ -854,8 +865,11 @@ internal static class RacesContext
             var path = System.IO.Path.Combine(_directory, entry.file);
             using (var stream = System.IO.File.OpenRead(path))
             using (var sha = CustomModels.CreateAssetSha256())
+            {
                 if (BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "").ToLowerInvariant() != entry.sha256)
                     throw new InvalidOperationException("A custom character model pack does not match its catalog: " + file);
+                entry.StoredBytes = stream.Length;
+            }
             entry.Loaded = AssetBundle.LoadFromFile(path);
             if (!entry.Loaded) throw new InvalidOperationException("A custom character model pack could not be loaded: " + file);
             return entry.Loaded;
@@ -1041,7 +1055,9 @@ internal static class RacesContext
         internal void RetainBundle(HashSet<string> retained, string file)
         {
             var entry = _bundles[file];
-            if (retained.Add(file)) entry.Owners++;
+            if (!retained.Add(file)) return;
+            RemoveUnusedBundle(entry);
+            entry.Owners++;
         }
         internal void ReleaseBundles(HashSet<string> retained, ISet<string> keep = null)
         {
@@ -1054,16 +1070,67 @@ internal static class RacesContext
                 if (keep?.Contains(file) == true) continue;
                 var entry = _bundles[file];
                 if (entry.Owners <= 0) throw new InvalidOperationException("A custom character model pack lease has no matching owner.");
-                if (entry.Owners == 1) UnloadBundle(entry);
                 entry.Owners--;
                 retained.Remove(file);
+                if (entry.Owners == 0 && entry.Loaded)
+                {
+                    if (_characterModelsUnloading) UnloadBundle(entry);
+                    else
+                    {
+                        entry.CachedBytes = BundleMemorySize(entry);
+                        entry.Unused = _unusedBundles.AddLast(entry);
+                        _unusedBundleBytes += entry.CachedBytes;
+                    }
+                }
             }
+            TrimUnusedBundles();
+        }
+        private static long BundleMemorySize(CharacterModelBundle entry)
+        {
+            var assets = new HashSet<UnityEngine.Object> { entry.Loaded };
+            foreach (var mesh in entry.Meshes) if (mesh.Loaded) assets.Add(mesh.Loaded);
+            foreach (var property in entry.Textures) if (property.Loaded) assets.Add(property.Loaded);
+            foreach (var profile in entry.Profiles)
+            {
+                var material = profile.Loaded;
+                if (!material) continue;
+                assets.Add(material);
+                if (!material.shader) continue;
+                assets.Add(material.shader);
+                for (var index = 0; index < material.shader.GetPropertyCount(); index++)
+                    if (material.shader.GetPropertyType(index) == UnityEngine.Rendering.ShaderPropertyType.Texture &&
+                        material.GetTexture(material.shader.GetPropertyName(index)) is { } texture && texture)
+                        assets.Add(texture);
+            }
+            return Math.Max(entry.StoredBytes, CharacterModelMemorySize(assets));
+        }
+        private void RemoveUnusedBundle(CharacterModelBundle entry)
+        {
+            if (entry.Unused == null) return;
+            _unusedBundles.Remove(entry.Unused);
+            entry.Unused = null;
+            _unusedBundleBytes -= entry.CachedBytes;
+            entry.CachedBytes = 0;
+        }
+        private void TrimUnusedBundles()
+        {
+            // A presentation lease protects its native objects. Only idle packs
+            // participate in the LRU budget when previews or culling release them.
+            while (_unusedBundles.Count > MaximumUnusedBundles || _unusedBundleBytes > MaximumUnusedBundleBytes)
+                UnloadBundle(_unusedBundles.First.Value);
         }
         private void UnloadBundle(CharacterModelBundle entry)
         {
+            if (entry.Owners != 0)
+                throw new InvalidOperationException("An active custom character model pack cannot be evicted.");
+            RemoveUnusedBundle(entry);
             if (entry.Loaded) entry.Loaded.Unload(true);
             entry.Loaded = null;
-            foreach (var mesh in entry.Meshes) mesh.Loaded = null;
+            foreach (var mesh in entry.Meshes)
+            {
+                mesh.Loaded = null;
+                mesh.LoadedBinding = null;
+            }
             foreach (var property in entry.Textures) property.Loaded = null;
             foreach (var profile in entry.Profiles) profile.Loaded = null;
         }
@@ -1110,9 +1177,23 @@ internal static class RacesContext
                     throw new InvalidOperationException("An authored character model changed a native expression frame weight.");
         }
     }
+    private static long CharacterModelMemorySize(IEnumerable<UnityEngine.Object> data) => data.Where(value => value)
+        .Distinct().Sum(value => Math.Max(0L, UnityEngine.Profiling.Profiler.GetRuntimeMemorySizeLong(value)));
+
     private sealed class CharacterModelPresentation : MonoBehaviour
     {
-        private static readonly Dictionary<string, (UnityEngine.Object[] Data, int Owners)> _derivedData = new(StringComparer.Ordinal);
+        private const long MaximumUnusedDerivedBytes = 64L * 1024 * 1024;
+        private const int MaximumUnusedDerivedEntries = 32;
+        private sealed class DerivedDataEntry(UnityEngine.Object[] data)
+        {
+            internal readonly UnityEngine.Object[] Data = data;
+            internal readonly long Bytes = CharacterModelMemorySize(data);
+            internal int Owners;
+            internal LinkedListNode<string> Unused;
+        }
+        private static readonly Dictionary<string, DerivedDataEntry> _derivedData = new(StringComparer.Ordinal);
+        private static readonly LinkedList<string> _unusedDerivedData = new();
+        private static long _unusedDerivedBytes;
         private UnityEngine.Object[] RetainDerivedData(string key, Func<UnityEngine.Object[]> create)
         {
             if (!_derivedData.TryGetValue(key, out var entry))
@@ -1123,11 +1204,40 @@ internal static class RacesContext
                     foreach (var value in data ?? []) if (value) UnityEngine.Object.Destroy(value);
                     throw new InvalidOperationException("Derived source binding construction did not return owned native data.");
                 }
-                entry = (data, 0);
+                entry = new DerivedDataEntry(data);
+                _derivedData.Add(key, entry);
             }
-            if (_derivedKeys.Add(key)) entry.Owners++;
-            _derivedData[key] = entry;
+            if (_derivedKeys.Add(key))
+            {
+                RemoveUnusedDerivedData(entry);
+                entry.Owners++;
+            }
             return entry.Data;
+        }
+        private static void RemoveUnusedDerivedData(DerivedDataEntry entry)
+        {
+            if (entry.Unused == null) return;
+            _unusedDerivedData.Remove(entry.Unused);
+            entry.Unused = null;
+            _unusedDerivedBytes -= entry.Bytes;
+        }
+        private static void DestroyUnusedDerivedData(string key)
+        {
+            var entry = _derivedData[key];
+            if (entry.Owners != 0)
+                throw new InvalidOperationException("An active derived native binding cannot be evicted.");
+            RemoveUnusedDerivedData(entry);
+            foreach (var data in entry.Data) if (data) UnityEngine.Object.Destroy(data);
+            _derivedData.Remove(key);
+        }
+        internal static void ClearUnusedDerivedData()
+        {
+            while (_unusedDerivedData.First != null) DestroyUnusedDerivedData(_unusedDerivedData.First.Value);
+        }
+        private static void TrimUnusedDerivedData()
+        {
+            while (_unusedDerivedData.Count > MaximumUnusedDerivedEntries || _unusedDerivedBytes > MaximumUnusedDerivedBytes)
+                DestroyUnusedDerivedData(_unusedDerivedData.First.Value);
         }
         private void ReleaseDerivedData()
         {
@@ -1137,12 +1247,15 @@ internal static class RacesContext
                 if (entry.Owners <= 0) throw new InvalidOperationException("A derived native binding has no active presentation owner.");
                 if (--entry.Owners == 0)
                 {
-                    foreach (var data in entry.Data) if (data) UnityEngine.Object.Destroy(data);
-                    _derivedData.Remove(key);
+                    // Cache immutable mesh/data clones, never the source graph or its
+                    // live renderer, deformer and actor ownership snapshots.
+                    entry.Unused = _unusedDerivedData.AddLast(key);
+                    _unusedDerivedBytes += entry.Bytes;
+                    if (_characterModelsUnloading) DestroyUnusedDerivedData(key);
                 }
-                else _derivedData[key] = entry;
                 _derivedKeys.Remove(key);
             }
+            TrimUnusedDerivedData();
         }
 
         private GraphicsCharacter _graphics;
@@ -1901,7 +2014,7 @@ internal static class RacesContext
             catch { _catalog.ReleaseBundles(_packs); throw; }
         }
         internal static bool SameDeclaration(CharacterModelMaterialAsset first, CharacterModelMaterialAsset second) =>
-            first.AssetBundleFile == second.AssetBundleFile &&
+            ReferenceEquals(first, second) || first.AssetBundleFile == second.AssetBundleFile &&
             (first.authoredProfile == null && second.authoredProfile == null || first.authoredProfile != null && second.authoredProfile != null &&
              first.authoredProfile.bundleFile == second.authoredProfile.bundleFile && first.authoredProfile.materialAsset == second.authoredProfile.materialAsset &&
              first.authoredProfile.shader == second.authoredProfile.shader && first.authoredProfile.layout.sourceUv == second.authoredProfile.layout.sourceUv &&

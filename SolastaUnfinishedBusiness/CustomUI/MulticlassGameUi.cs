@@ -58,7 +58,7 @@ internal static class MulticlassGameUi
         private TMP_Text _description;
         private TMP_Text _instruction;
         private string _language;
-        private string _content;
+        private (string Title, string Description, string Instruction, bool DescriptionVisible) _content;
         private float _width;
         private bool _applied;
         private bool _applying;
@@ -305,10 +305,10 @@ internal static class MulticlassGameUi
             rect.anchoredPosition += Vector2.down * (growth * (1f - rect.pivot.y));
         }
 
-        private string CurrentContent()
+        private (string Title, string Description, string Instruction, bool DescriptionVisible) CurrentContent()
         {
-            return string.Join("\n", _texts.Keys.Where(text => text).Select(text => text.text)) +
-                   (_description && _description.gameObject.activeSelf);
+            return (_title ? _title.text : null, _description ? _description.text : null,
+                _instruction ? _instruction.text : null, _description && _description.gameObject.activeSelf);
         }
 
         private void RestoreGeometry()

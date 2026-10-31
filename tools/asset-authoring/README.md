@@ -155,9 +155,9 @@ pwsh -NoProfile -File .\tools\asset-authoring\Invoke-UnityAssetBuild.ps1 `
     -GuiProjectPath '<作業用Projectのパス>' -InstallGuiWorker -StartBackgroundEditor
 ```
 
-Unity CLIは既定で`%LOCALAPPDATA%\Unity\bin\unity.exe`を使います。別の配置先は`-UnityCliPath`で指定します。既に開いているEditorを使う場合は`-StartBackgroundEditor`を外します。初回とworker更新時は`-InstallGuiWorker`で拡張を配置し、既存Editorでは`Assets > Refresh`で読み込みます。
+Unity CLIは既定で`%LOCALAPPDATA%\Unity\bin\unity.exe`を使います。別の配置先は`-UnityCliPath`で指定します。既に開いているEditorを使う場合は`-StartBackgroundEditor`を外します。初回とworker更新時は`-InstallGuiWorker`で本体とコンパイル用の識別子定義を配置し、既存Editorでは`Assets > Refresh`で読み込みます。
 
-workerの結果にはコンパイル済みコードの識別子を記録し、呼び出し側で依頼時の期待値と照合します。識別子の欠落・不一致は失敗とし、独自workerにも同じ照合を設けます。
+workerの結果にはAssemblyへ埋め込んだソース識別子を記録し、呼び出し側で依頼時の期待値と照合します。起動の受付、各パックの結果とも、識別子の欠落・不一致は失敗にします。独自workerにも同じ照合を設けます。
 
 指定したUnity Projectを基準に、FBXと生成アセットは`Assets/AuthoringJobs/<ジョブ名>/`、ジョブ・結果・AssetBundleは`.asset-authoring-jobs/<ジョブ名>/`へ保存します。Editorのメインスレッドでインポート、ビルド、再読み込みを行い、開いているシーンは変更しません。非占有起動のPID・開始時刻・デスクトップ・入力状態・正常終了は`.asset-authoring-jobs/BackgroundSessions/<識別子>/session.json`へ記録します。既存Editorを使った場合は終了せず、起動したEditorだけを終了します。失敗したジョブも保持します。
 
@@ -210,6 +210,17 @@ pwsh -NoProfile -File .\tools\asset-authoring\Invoke-UnityAssetBuild.ps1 `
 ```
 
 レシピは`schemaVersion=1`、`bundleName`、`meshes`を持ちます。各meshは一意な`name`、`vertices`、`normals`、`tangents`、`uvChannels`、`subMeshes`、`bounds`、`indexFormat`を指定します。`colors`は任意のRGBA配列です。頂点・法線は3成分、接線・色は4成分の平坦な数値配列で、使わない法線・接線は空配列にします。UVは`channel`（0〜7）、`dimension`（2・3・4）、`values`を指定します。submeshは`topology=Triangles`と`indices`、boundsは3成分ずつの`center`と`size`、indexFormatは`UInt16`または`UInt32`です。
+
+複数のレシピをまとめてビルドする場合は、`-MeshRecipePath`へ2〜16件の配列を渡します。通常は8件程度に分けて実行します。レシピごとの`bundleName`は一意にし、各入力と相対パスの参照先を別々に保存します。
+
+```powershell
+$recipes = @('<モデルAのレシピ.json>', '<モデルBのレシピ.json>')
+.\tools\asset-authoring\Invoke-UnityAssetBuild.ps1 `
+    -UnityPath 'C:\Tools\Unity\2019.4.37f1\Editor\Unity.exe' `
+    -MeshRecipePath $recipes -GuiProjectPath '<作業用Projectのパス>'
+```
+
+Unityのビルド呼び出しをまとめ、配布用bundleはレシピごとに出力します。作成・保存・再読み込みの全チャンネル検査も各bundleで行い、`unity-report.json`の`bundles`へ結果を記録します。1件だけを指定した場合の入力形式と出力は従来どおりです。
 
 大きいメッシュは、数値データを別ファイルへ出力できます。同じディレクトリに新しいレシピ名を指定すると、Textureの相対パスを引き継げます。
 

@@ -32,7 +32,11 @@ namespace SolastaAssetAuthoring
         private static double nextPoll;
         private static bool workerBusy;
         private static string loadedSourceHash;
+        private static string loadedIdentityFileHash;
+        private static string requestedReloadSignature;
+        private static int workerReloadRequests;
         internal static string SavingFolder;
+        internal static string[] SavingFolders;
 
         [Serializable]
         private sealed class Job
@@ -93,6 +97,8 @@ namespace SolastaAssetAuthoring
             public string projectPath;
             public string unityVersion;
             public string sourceSha256;
+            public string compiledSourceSha256 = ReadCompiledSourceHash();
+            public int reloadRequests;
             public string updatedUtc;
             public string desktop, inputDesktop, ownerId;
             public bool desktopQuerySucceeded, desktopReceivesInput;
@@ -102,8 +108,8 @@ namespace SolastaAssetAuthoring
         [Serializable]
         private sealed class ShutdownRequest
         {
-            public int processId;
-            public string processStartedUtc, ownerId;
+            public int processId = 0;
+            public string processStartedUtc = null, ownerId = null;
         }
 
         [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
@@ -213,10 +219,26 @@ namespace SolastaAssetAuthoring
             public int sceneCountAfter;
             public string gameValidation = "not_run";
             public string requestedColorSpace, previousColorSpace, actualColorSpace;
+            public Report[] bundles;
+            public int buildPipelineInvocations;
+            public string compiledSourceSha256 = ReadCompiledSourceHash();
+        }
+
+        private static string ReadCompiledSourceHash()
+        {
+            var hashes = typeof(AssetBundleBuilder).Assembly
+                .GetCustomAttributes(typeof(System.Reflection.AssemblyMetadataAttribute), false)
+                .Cast<System.Reflection.AssemblyMetadataAttribute>()
+                .Where(attribute => attribute.Key == "SolastaAssetAuthoring.SourceSha256")
+                .Select(attribute => attribute.Value).ToArray();
+            return hashes.Length == 1 && hashes[0] != null && Regex.IsMatch(hashes[0], "^[a-f0-9]{64}$") ? hashes[0] : null;
         }
 
         private static void ApplyColorSpace(Report report, string requested)
         {
+            Require(report.compiledSourceSha256 != null && report.compiledSourceSha256 ==
+                Sha256(Path.Combine(Application.dataPath, "Editor/AssetBundleBuilder.cs")),
+                "The compiled authoring worker identity differs from its source.");
             requested = string.IsNullOrEmpty(requested) ? "Linear" : requested;
             Require(requested == "Linear" || requested == "Gamma", "Unknown authoring color space.");
             report.requestedColorSpace = requested;
@@ -233,8 +255,10 @@ namespace SolastaAssetAuthoring
         {
             var materialJob = Environment.GetCommandLineArgs().Contains("-materialRecipe");
             var meshJob = Environment.GetCommandLineArgs().Contains("-meshRecipe");
+            var meshBatch = Environment.GetCommandLineArgs().Contains("-meshBatchRecipe");
             var colorSpace = GetArgument("-colorSpace", false);
-            var success = meshJob ? BuildMeshTemplates(GetArgument("-meshRecipe"), GetArgument("-bundleOutput"), null, null, false, colorSpace)
+            var success = meshBatch ? BuildMeshBatch(GetArgument("-meshBatchRecipe"), GetArgument("-bundleOutput"), null, null, false, colorSpace)
+                : meshJob ? BuildMeshTemplates(GetArgument("-meshRecipe"), GetArgument("-bundleOutput"), null, null, false, colorSpace)
                 : materialJob ? BuildMaterials(GetArgument("-materialRecipe"), GetArgument("-bundleOutput"), null, null, false, colorSpace)
                 : BuildValidated(GetArgument("-sampleFbx"), GetArgument("-bundleOutput"), null, null, colorSpace);
             if (!success)
@@ -421,23 +445,48 @@ namespace SolastaAssetAuthoring
 
         private static AssetBundle BuildAndReload(string output, string bundleName, string[] assets, string generatedFolder, Report report)
         {
-            Require(PlayerSettings.colorSpace.ToString() == report.requestedColorSpace &&
-                    QualitySettings.activeColorSpace.ToString() == report.requestedColorSpace,
-                    "The authoring color space changed before bundle compilation.");
-            report.actualColorSpace = QualitySettings.activeColorSpace.ToString();
-            report.stage = "build_bundle";
+            CompileBundles(output, new[] { new AssetBundleBuild { assetBundleName = bundleName, assetNames = assets } },
+                new[] { generatedFolder }, new[] { report }, report);
+            return ReloadBuiltBundle(output, bundleName, assets, report);
+        }
+
+        private static void CompileBundles(string output, AssetBundleBuild[] builds, string[] generatedFolders, Report[] reports, Report compilation)
+        {
+            Require(builds.Length > 0 && builds.Length == reports.Length && builds.Length == generatedFolders.Length &&
+                builds.Select(build => build.assetBundleName).Distinct(StringComparer.OrdinalIgnoreCase).Count() == builds.Length,
+                "The bundle compilation has missing, duplicate or unmatched declarations.");
+            var bundleNames = builds.Select(build => build.assetBundleName).ToArray();
+            var outputNames = bundleNames.Concat(bundleNames.Select(name => name + ".manifest")).ToArray();
+            var reservedNames = new[] { Path.GetFileName(output), Path.GetFileName(output) + ".manifest", "unity-report.json" };
+            Require(outputNames.Distinct(StringComparer.OrdinalIgnoreCase).Count() == outputNames.Length &&
+                !outputNames.Any(name => reservedNames.Contains(name, StringComparer.OrdinalIgnoreCase)),
+                "A bundle output collides with another bundle, its manifest or the authoring receipt.");
+            foreach (var report in reports)
+            {
+                Require(PlayerSettings.colorSpace.ToString() == report.requestedColorSpace &&
+                        QualitySettings.activeColorSpace.ToString() == report.requestedColorSpace,
+                        "The authoring color space changed before bundle compilation.");
+                report.actualColorSpace = QualitySettings.activeColorSpace.ToString(); report.stage = "build_bundle";
+            }
+            compilation.actualColorSpace = QualitySettings.activeColorSpace.ToString(); compilation.stage = "build_bundle";
             AssetBundleManifest manifest;
-            SavingFolder = generatedFolder + "/";
+            SavingFolders = generatedFolders.Select(folder => folder + "/").ToArray();
             try
             {
-                manifest = BuildPipeline.BuildAssetBundles(output,
-                    new[] { new AssetBundleBuild { assetBundleName = bundleName, assetNames = assets } },
+                compilation.buildPipelineInvocations++;
+                manifest = BuildPipeline.BuildAssetBundles(output, builds,
                     BuildAssetBundleOptions.ChunkBasedCompression | BuildAssetBundleOptions.StrictMode, BuildTarget.StandaloneWindows64);
             }
-            finally { SavingFolder = null; }
+            finally { SavingFolders = null; }
             Require(manifest != null, "BuildAssetBundles failed.");
-            Require(manifest.GetAllAssetBundles().Length == 1 && manifest.GetAllDependencies(bundleName).Length == 0,
+            Require(manifest.GetAllAssetBundles().OrderBy(name => name, StringComparer.Ordinal)
+                    .SequenceEqual(builds.Select(build => build.assetBundleName).OrderBy(name => name, StringComparer.Ordinal)) &&
+                builds.All(build => manifest.GetAllDependencies(build.assetBundleName).Length == 0),
                 "The bundle has an undeclared output or external bundle dependency.");
+        }
+
+        private static AssetBundle ReloadBuiltBundle(string output, string bundleName, string[] assets, Report report)
+        {
             report.bundlePath = Path.Combine(output, bundleName);
             Require(File.Exists(report.bundlePath), "The expected AssetBundle file was not produced.");
             report.bundleSha256 = Sha256(report.bundlePath);
@@ -632,18 +681,44 @@ namespace SolastaAssetAuthoring
                 dataSha256 = fingerprint, physicalSha256 = physical, physicalFields = fields, physicalLayoutExact = true, exact = true };
         }
 
-        private static bool BuildMeshTemplates(string input, string destination, string jobId, string expectedHash, bool validationContracts = false, string colorSpace = "Linear")
+        private sealed class PreparedMeshBuild
         {
-            var report = new Report
+            public string root, assetRoot, generated, recipePath, output;
+            public MeshRecipe recipe;
+            public TextureSpec[] textures;
+            public SourceBundleSpec[] sources;
+            public string[] paths, texturePaths;
+            public List<SourceAssetState> clones;
+            public Report report;
+            public bool validationContracts;
+            public string[] Assets { get { return paths.Concat(texturePaths).Concat(clones.Select(state => state.outputPath)).ToArray(); } }
+        }
+
+        private sealed class AdmittedMeshBuild
+        {
+            public MeshBatchEntry entry;
+            public string path;
+            public MeshRecipe recipe;
+        }
+
+        private static Report NewMeshReport(string jobId, string scope)
+        {
+            return new Report
             {
                 unityVersion = Application.unityVersion, startedUtc = DateTime.UtcNow.ToString("o"),
                 transport = jobId == null ? "batch" : "gui_worker", jobId = jobId,
-                validationScope = validationContracts ? "mesh_template_contracts" : "mesh_templates",
+                validationScope = scope,
                 processId = System.Diagnostics.Process.GetCurrentProcess().Id, mainThread = Thread.CurrentThread.ManagedThreadId,
                 activeScenePathBefore = SceneManager.GetActiveScene().path, activeSceneDirtyBefore = SceneManager.GetActiveScene().isDirty,
                 sceneCountBefore = SceneManager.sceneCount
             };
-            string reportPath = null;
+        }
+
+        private static PreparedMeshBuild PrepareMeshBuild(string input, string destination, string jobId, string expectedHash,
+            bool validationContracts, string colorSpace, Report report, out string reportPath,
+            string batchMember = null, MeshRecipe admittedRecipe = null)
+        {
+            reportPath = null;
             var sourceBundles = new List<AssetBundle>();
             try
             {
@@ -652,8 +727,8 @@ namespace SolastaAssetAuthoring
                 var marker = Path.Combine(root, ".solasta-asset-authoring-project");
                 Require(File.Exists(marker) && File.ReadAllText(marker).Trim() == ProjectMarker, "The mesh authoring project is unmarked.");
                 if (jobId != null) { RequireJob(root, jobId); }
-                var assetRoot = jobId == null ? "Assets/Input" : "Assets/AuthoringJobs/" + jobId + "/Input";
-                var generated = jobId == null ? "Assets/Generated" : "Assets/AuthoringJobs/" + jobId + "/Generated";
+                var assetRoot = (jobId == null ? "Assets/Input" : "Assets/AuthoringJobs/" + jobId + "/Input") + (batchMember == null ? "" : "/" + batchMember);
+                var generated = (jobId == null ? "Assets/Generated" : "Assets/AuthoringJobs/" + jobId + "/Generated") + (batchMember == null ? "" : "/" + batchMember);
                 var recipePath = Path.GetFullPath(input);
                 var output = Path.GetFullPath(destination);
                 Require(SamePath(recipePath, Path.Combine(root, assetRoot, "mesh-recipe.json")), "The mesh recipe is outside its owned input directory.");
@@ -667,7 +742,7 @@ namespace SolastaAssetAuthoring
                 var bytes = File.ReadAllBytes(recipePath);
                 report.inputSha256 = HashBytes(bytes);
                 Require(expectedHash == null || expectedHash == report.inputSha256, "The mesh recipe changed after submission.");
-                var recipe = MeshRecipeInput.Read(bytes, recipePath);
+                var recipe = admittedRecipe ?? MeshRecipeInput.Read(bytes, recipePath);
                 var textures = recipe.textures ?? new TextureSpec[0];
                 var sources = recipe.sourceBundles ?? new SourceBundleSpec[0];
                 ValidateTextureSpecs(textures, root, assetRoot);
@@ -684,8 +759,14 @@ namespace SolastaAssetAuthoring
                 }).ToArray();
                 Require(!AssetDatabase.IsValidFolder(generated), "Generated mesh assets already exist.");
                 var parent = generated.Substring(0, generated.LastIndexOf('/'));
+                if (batchMember != null && !AssetDatabase.IsValidFolder(parent))
+                {
+                    var owner = parent.Substring(0, parent.LastIndexOf('/'));
+                    Require(AssetDatabase.IsValidFolder(owner), "The mesh batch owner was not imported.");
+                    AssetDatabase.CreateFolder(owner, Path.GetFileName(parent));
+                }
                 Require(AssetDatabase.IsValidFolder(parent), "The mesh job parent was not imported.");
-                AssetDatabase.CreateFolder(parent, "Generated");
+                AssetDatabase.CreateFolder(parent, Path.GetFileName(generated));
                 var paths = recipe.meshes.Select(mesh => generated + "/" + mesh.name + ".asset").ToArray();
                 report.createdMeshes = new MeshValidation[recipe.meshes.Length];
                 for (var index = 0; index < recipe.meshes.Length; index++)
@@ -746,45 +827,135 @@ namespace SolastaAssetAuthoring
                 // while building and reloading the replacement bundle.
                 foreach (var sourceBundle in sourceBundles) { if (sourceBundle != null) sourceBundle.Unload(true); report.sourceBundlesReleased++; }
                 sourceBundles.Clear();
-                var bundle = BuildAndReload(output, recipe.bundleName, paths.Concat(texturePaths).Concat(clones.Select(state => state.outputPath)).ToArray(), generated, report);
-                try
+                return new PreparedMeshBuild { root = root, assetRoot = assetRoot, generated = generated, recipePath = recipePath,
+                    output = output, recipe = recipe, textures = textures, sources = sources, paths = paths,
+                    texturePaths = texturePaths, clones = clones, report = report, validationContracts = validationContracts };
+            }
+            finally
+            {
+                foreach (var sourceBundle in sourceBundles) { if (sourceBundle != null) sourceBundle.Unload(true); report.sourceBundlesReleased++; }
+            }
+        }
+
+        private static void CompleteMeshBuild(PreparedMeshBuild prepared, AssetBundle bundle)
+        {
+            var root = prepared.root; var assetRoot = prepared.assetRoot; var recipePath = prepared.recipePath;
+            var recipe = prepared.recipe; var textures = prepared.textures; var sources = prepared.sources;
+            var paths = prepared.paths; var texturePaths = prepared.texturePaths; var clones = prepared.clones;
+            var report = prepared.report; var validationContracts = prepared.validationContracts;
+            try
+            {
+                var all = bundle.LoadAllAssets();
+                Require(all.Length == recipe.meshes.Length + textures.Length + clones.Count &&
+                    all.Count(asset => asset is Mesh) == recipe.meshes.Length + clones.Count(state => state.spec.type == "Mesh") &&
+                    all.Count(asset => asset is Texture2D) == textures.Length + clones.Count(state => state.spec.type == "Texture2D"), "The mesh bundle contains unexpected assets.");
+                report.meshes = recipe.meshes.Select((spec, index) => ValidateTemplateMesh(bundle.LoadAsset<Mesh>(paths[index]), spec)).ToArray();
+                report.textures = textures.Select((spec, index) => ValidateTexture(bundle.LoadAsset<Texture2D>(texturePaths[index]), spec, texturePaths[index], report.createdTextures[index])).ToArray();
+                report.sourceAssets = clones.Select(state => ValidateSourceAsset(state, bundle.LoadAsset(state.outputPath, state.assetType))).ToArray();
+                if (validationContracts)
                 {
-                    var all = bundle.LoadAllAssets();
-                    Require(all.Length == recipe.meshes.Length + textures.Length + clones.Count &&
-                        all.Count(asset => asset is Mesh) == recipe.meshes.Length + clones.Count(state => state.spec.type == "Mesh") &&
-                        all.Count(asset => asset is Texture2D) == textures.Length + clones.Count(state => state.spec.type == "Texture2D"), "The mesh bundle contains unexpected assets.");
-                    report.meshes = recipe.meshes.Select((spec, index) => ValidateTemplateMesh(bundle.LoadAsset<Mesh>(paths[index]), spec)).ToArray();
-                    report.textures = textures.Select((spec, index) => ValidateTexture(bundle.LoadAsset<Texture2D>(texturePaths[index]), spec, texturePaths[index], report.createdTextures[index])).ToArray();
-                    report.sourceAssets = clones.Select(state => ValidateSourceAsset(state, bundle.LoadAsset(state.outputPath, state.assetType))).ToArray();
-                    if (validationContracts)
-                    {
-                        var index = Array.FindIndex(recipe.meshes, spec => spec.skin != null && spec.skin.bindPoses.Length >= 32 &&
-                            spec.blendShapes != null && spec.blendShapes.Length >= 2 && spec.blendShapes[0].frames.Length >= 2);
-                        Require(index >= 0, "The mesh validation contract requires two bones and multiple blend shapes/frames.");
-                        report.meshValidationContracts = VerifyMeshValidationContracts(bundle.LoadAsset<Mesh>(paths[index]), recipe.meshes[index]);
-                        if (textures.Length > 0)
-                            report.textureValidationContracts = VerifyTextureValidationContracts(bundle.LoadAsset<Texture2D>(texturePaths[0]), textures[0], texturePaths[0], report.createdTextures[0]);
-                    }
+                    var index = Array.FindIndex(recipe.meshes, spec => spec.skin != null && spec.skin.bindPoses.Length >= 32 &&
+                        spec.blendShapes != null && spec.blendShapes.Length >= 2 && spec.blendShapes[0].frames.Length >= 2);
+                    Require(index >= 0, "The mesh validation contract requires two bones and multiple blend shapes/frames.");
+                    report.meshValidationContracts = VerifyMeshValidationContracts(bundle.LoadAsset<Mesh>(paths[index]), recipe.meshes[index]);
+                    if (textures.Length > 0)
+                        report.textureValidationContracts = VerifyTextureValidationContracts(bundle.LoadAsset<Texture2D>(texturePaths[0]), textures[0], texturePaths[0], report.createdTextures[0]);
                 }
-                finally { bundle.Unload(true); }
-                Require(Sha256(recipePath) == report.inputSha256 && textures.All(spec => Sha256(MaterialInputPath(root, assetRoot, spec.path)) == spec.sha256) &&
-                    sources.All(spec => Sha256(InputPath(root, assetRoot, spec.path, ".bundle")) == spec.sha256), "The mesh, texture or source bundle input changed during the build.");
-                if (recipe.numericPayload != null) MeshRecipeInput.VerifyPayload(recipePath, recipe.numericPayload);
+            }
+            finally { bundle.Unload(true); }
+            Require(Sha256(recipePath) == report.inputSha256 && textures.All(spec => Sha256(MaterialInputPath(root, assetRoot, spec.path)) == spec.sha256) &&
+                sources.All(spec => Sha256(InputPath(root, assetRoot, spec.path, ".bundle")) == spec.sha256), "The mesh, texture or source bundle input changed during the build.");
+            if (recipe.numericPayload != null) MeshRecipeInput.VerifyPayload(recipePath, recipe.numericPayload);
+            report.activeScenePathAfter = SceneManager.GetActiveScene().path;
+            report.activeSceneDirtyAfter = SceneManager.GetActiveScene().isDirty;
+            report.sceneCountAfter = SceneManager.sceneCount;
+            Require(report.activeScenePathBefore == report.activeScenePathAfter && report.activeSceneDirtyBefore == report.activeSceneDirtyAfter &&
+                    report.sceneCountBefore == report.sceneCountAfter, "The mesh build changed the open scene state.");
+            report.stage = "complete"; report.success = true; report.completedUtc = DateTime.UtcNow.ToString("o");
+        }
+
+        private static bool BuildMeshTemplates(string input, string destination, string jobId, string expectedHash,
+            bool validationContracts = false, string colorSpace = "Linear")
+        {
+            var report = NewMeshReport(jobId, validationContracts ? "mesh_template_contracts" : "mesh_templates");
+            string reportPath = null;
+            try
+            {
+                var state = PrepareMeshBuild(input, destination, jobId, expectedHash, validationContracts, colorSpace, report, out reportPath);
+                var bundle = BuildAndReload(state.output, state.recipe.bundleName, state.Assets, state.generated, report);
+                CompleteMeshBuild(state, bundle);
+                WriteJson(reportPath, report); return true;
+            }
+            catch (Exception exception)
+            {
+                report.success = false; report.error = exception.ToString(); report.completedUtc = DateTime.UtcNow.ToString("o");
+                if (reportPath != null && !File.Exists(reportPath)) { WriteJson(reportPath, report); }
+                Debug.LogException(exception); return false;
+            }
+        }
+
+        private static bool BuildMeshBatch(string input, string destination, string jobId, string expectedHash,
+            bool validationContracts = false, string colorSpace = "Linear")
+        {
+            var report = NewMeshReport(jobId, "mesh_templates_batch");
+            string reportPath = null;
+            try
+            {
+                var root = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+                RejectReparsePoints(root);
+                var marker = Path.Combine(root, ".solasta-asset-authoring-project");
+                Require(File.Exists(marker) && File.ReadAllText(marker).Trim() == ProjectMarker, "The mesh authoring project is unmarked.");
+                if (jobId != null) { RequireJob(root, jobId); }
+                var assetRoot = jobId == null ? "Assets/Input" : "Assets/AuthoringJobs/" + jobId + "/Input";
+                var generated = jobId == null ? "Assets/Generated" : "Assets/AuthoringJobs/" + jobId + "/Generated";
+                var recipePath = Path.GetFullPath(input); var output = Path.GetFullPath(destination);
+                Require(SamePath(recipePath, Path.Combine(root, assetRoot, "mesh-batch.json")), "The mesh batch is outside its owned input directory.");
+                Require(SamePath(output, jobId == null ? Path.Combine(root, "BuildOutput") : Path.Combine(root, JobFolder, jobId, "Output")), "The mesh batch output is outside its isolated directory.");
+                RejectReparsePoints(recipePath); RejectReparsePoints(output);
+                Require(File.Exists(recipePath) && new FileInfo(recipePath).Length <= 16384, "The mesh batch index must be at most 16 KiB.");
+                Directory.CreateDirectory(output); reportPath = Path.Combine(output, "unity-report.json");
+                Require(!File.Exists(reportPath), "This mesh batch has already run.");
+                Require(Application.unityVersion == EditorVersion, "Unity " + EditorVersion + " is required.");
+                ApplyColorSpace(report, colorSpace);
+                var bytes = File.ReadAllBytes(recipePath); report.inputSha256 = HashBytes(bytes);
+                Require(expectedHash == null || expectedHash == report.inputSha256, "The mesh batch changed after submission.");
+                var batch = MeshRecipeInput.ReadBatch(bytes);
+                var admitted = batch.recipes.Select(entry => {
+                    var path = InputPath(root, assetRoot, entry.path, ".json");
+                    Require(Sha256(path) == entry.sha256, "A batch recipe hash differs: " + entry.path);
+                    return new AdmittedMeshBuild { entry = entry, path = path, recipe = MeshRecipeInput.ReadFile(path) };
+                }).ToArray();
+                Require(admitted.Select(item => item.recipe.bundleName).Distinct(StringComparer.OrdinalIgnoreCase).Count() == admitted.Length,
+                    "A mesh batch contains duplicate bundle names.");
+                Require(!Directory.Exists(Path.Combine(root, generated)), "Generated batch assets already exist.");
+                report.bundles = admitted.Select(item => NewMeshReport(jobId, validationContracts ? "mesh_template_contracts" : "mesh_templates")).ToArray();
+                var prepared = new List<PreparedMeshBuild>();
+                for (var index = 0; index < admitted.Length; index++)
+                {
+                    string unusedReportPath;
+                    var item = admitted[index]; var member = item.entry.path.Substring(0, item.entry.path.IndexOf('/'));
+                    prepared.Add(PrepareMeshBuild(item.path, output, jobId, item.entry.sha256, validationContracts,
+                        colorSpace, report.bundles[index], out unusedReportPath, member, item.recipe));
+                }
+                CompileBundles(output, prepared.Select(state => new AssetBundleBuild { assetBundleName = state.recipe.bundleName, assetNames = state.Assets }).ToArray(),
+                    prepared.Select(state => state.generated).ToArray(), report.bundles, report);
+                foreach (var state in prepared)
+                    CompleteMeshBuild(state, ReloadBuiltBundle(output, state.recipe.bundleName, state.Assets, state.report));
+                Require(Sha256(recipePath) == report.inputSha256, "The mesh batch index changed during compilation.");
                 report.activeScenePathAfter = SceneManager.GetActiveScene().path;
                 report.activeSceneDirtyAfter = SceneManager.GetActiveScene().isDirty;
                 report.sceneCountAfter = SceneManager.sceneCount;
                 Require(report.activeScenePathBefore == report.activeScenePathAfter && report.activeSceneDirtyBefore == report.activeSceneDirtyAfter &&
-                        report.sceneCountBefore == report.sceneCountAfter, "The mesh build changed the open scene state.");
+                    report.sceneCountBefore == report.sceneCountAfter, "The mesh batch changed the open scene state.");
                 report.stage = "complete"; report.success = true; report.completedUtc = DateTime.UtcNow.ToString("o");
                 WriteJson(reportPath, report); return true;
             }
             catch (Exception exception)
             {
-                report.error = exception.ToString(); report.completedUtc = DateTime.UtcNow.ToString("o");
+                report.success = false; report.error = exception.ToString(); report.completedUtc = DateTime.UtcNow.ToString("o");
                 if (reportPath != null && !File.Exists(reportPath)) { WriteJson(reportPath, report); }
                 Debug.LogException(exception); return false;
             }
-            finally { foreach (var bundle in sourceBundles) if (bundle != null) bundle.Unload(true); }
         }
 
         private static void ValidateMeshTextureJson(byte[] bytes) { MeshRecipeInput.ValidateJson(bytes); }
@@ -1517,8 +1688,26 @@ namespace SolastaAssetAuthoring
             var marker = Path.Combine(root, ".solasta-asset-authoring-project");
             if (Application.unityVersion != EditorVersion || !File.Exists(marker) || File.ReadAllText(marker).Trim() != ProjectMarker) { return; }
             loadedSourceHash = Sha256(Path.Combine(root, "Assets/Editor/AssetBundleBuilder.cs"));
+            loadedIdentityFileHash = IdentityFileHash(root);
             EditorApplication.update -= PollJobs;
             EditorApplication.update += PollJobs;
+        }
+
+        private static string IdentityFileHash(string root)
+        {
+            var path = Path.Combine(root, "Assets/Editor/AssetBundleBuilder.Identity.cs");
+            RejectReparsePoints(path);
+            return File.Exists(path) ? Sha256(path) : "missing";
+        }
+
+        private static void RefreshWorkerWhenIdle()
+        {
+            if (workerBusy || EditorApplication.isCompiling || EditorApplication.isUpdating || EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                EditorApplication.delayCall += RefreshWorkerWhenIdle;
+                return;
+            }
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
         }
 
         private static void PollJobs()
@@ -1532,12 +1721,9 @@ namespace SolastaAssetAuthoring
                 RejectReparsePoints(root);
                 var source = Path.Combine(root, "Assets/Editor/AssetBundleBuilder.cs");
                 RejectReparsePoints(source);
-                if (Sha256(source) != loadedSourceHash)
-                {
-                    EditorApplication.update -= PollJobs;
-                    AssetDatabase.ImportAsset("Assets/Editor/AssetBundleBuilder.cs", ImportAssetOptions.ForceSynchronousImport);
-                    return;
-                }
+                var sourceHash = Sha256(source); var identityHash = IdentityFileHash(root);
+                var filesChanged = sourceHash != loadedSourceHash || identityHash != loadedIdentityFileHash;
+                var currentIdentity = sourceHash == loadedSourceHash && loadedSourceHash == ReadCompiledSourceHash();
                 var directory = Path.Combine(root, JobFolder);
                 RejectReparsePoints(directory);
                 Directory.CreateDirectory(directory);
@@ -1548,11 +1734,26 @@ namespace SolastaAssetAuthoring
                         processId = process.Id, processStartedUtc = process.StartTime.ToUniversalTime().ToString("o"),
                         mainThread = Thread.CurrentThread.ManagedThreadId, projectPath = root,
                         unityVersion = Application.unityVersion, updatedUtc = DateTime.UtcNow.ToString("o"),
-                        sourceSha256 = loadedSourceHash
+                        sourceSha256 = loadedSourceHash, reloadRequests = workerReloadRequests
                     };
                     RecordWorkerDesktop(receipt);
                     WriteJson(Path.Combine(directory, "worker.json"), receipt);
                     if (ShutdownOwnedWorker(directory, receipt)) { return; }
+                }
+                // An old assembly can observe a new source file after an import
+                // failure. It may acknowledge owned shutdown, but cannot run jobs.
+                if (!currentIdentity || filesChanged)
+                {
+                    // File hashes request recompilation; only the assembly metadata
+                    // above can admit jobs. A failed compile gets one request for
+                    // each distinct source/identity pair while shutdown stays live.
+                    var signature = sourceHash + ":" + identityHash;
+                    if (signature != requestedReloadSignature)
+                    {
+                        requestedReloadSignature = signature; workerReloadRequests++;
+                        EditorApplication.delayCall += RefreshWorkerWhenIdle;
+                    }
+                    return;
                 }
                 foreach (var jobDirectory in Directory.GetDirectories(directory).OrderBy(path => path, StringComparer.Ordinal))
                 {
@@ -1583,8 +1784,14 @@ namespace SolastaAssetAuthoring
                         Require(job != null && job.schemaVersion == 1 && job.jobId == jobId &&
                                 job.inputSha256 != null && Regex.IsMatch(job.inputSha256, "^[a-f0-9]{64}$"), "The job request is invalid.");
                         Require(job.kind == null || job.kind == "rig" || job.kind == "materials" ||
-                                job.kind == "material-identity-contracts" || job.kind == "mesh-templates" || job.kind == "mesh-template-contracts", "Unknown authoring job kind.");
-                        if (job.kind == "mesh-templates" || job.kind == "mesh-template-contracts")
+                                job.kind == "material-identity-contracts" || job.kind == "mesh-templates" || job.kind == "mesh-template-contracts" ||
+                                job.kind == "mesh-batch-templates" || job.kind == "mesh-batch-template-contracts", "Unknown authoring job kind.");
+                        if (job.kind == "mesh-batch-templates" || job.kind == "mesh-batch-template-contracts")
+                        {
+                            BuildMeshBatch(Path.Combine(root, "Assets/AuthoringJobs", jobId, "Input/mesh-batch.json"),
+                                Path.Combine(jobDirectory, "Output"), jobId, job.inputSha256, job.kind == "mesh-batch-template-contracts", job.colorSpace);
+                        }
+                        else if (job.kind == "mesh-templates" || job.kind == "mesh-template-contracts")
                         {
                             BuildMeshTemplates(Path.Combine(root, "Assets/AuthoringJobs", jobId, "Input/mesh-recipe.json"),
                                 Path.Combine(jobDirectory, "Output"), jobId, job.inputSha256, job.kind == "mesh-template-contracts", job.colorSpace);
@@ -1793,6 +2000,9 @@ namespace SolastaAssetAuthoring
     {
         private static string[] OnWillSaveAssets(string[] paths)
         {
+            var folders = AssetBundleBuilder.SavingFolders;
+            if (folders != null)
+                return paths.Where(path => folders.Any(folder => path.StartsWith(folder, StringComparison.Ordinal))).ToArray();
             return AssetBundleBuilder.SavingFolder == null ? paths : paths.Where(path =>
                 path.StartsWith(AssetBundleBuilder.SavingFolder, StringComparison.Ordinal)).ToArray();
         }
@@ -1805,6 +2015,16 @@ namespace SolastaAssetAuthoring
 {
     public static class MeshRecipeInput
     {
+        [DataContract] public sealed class MeshBatch
+        {
+            [DataMember(IsRequired = true)] public int schemaVersion;
+            [DataMember(IsRequired = true)] public MeshBatchEntry[] recipes;
+        }
+        [DataContract] public sealed class MeshBatchEntry
+        {
+            [DataMember(IsRequired = true)] public string path;
+            [DataMember(IsRequired = true)] public string sha256;
+        }
         [DataContract] public sealed class MeshRecipe
         {
             [DataMember(IsRequired = true)] public int schemaVersion;
@@ -1984,6 +2204,42 @@ namespace SolastaAssetAuthoring
             RejectLinks(path);
             Require(new FileInfo(path).Length <= InputLimit, "The mesh recipe must be at most 64 MiB.");
             return Read(File.ReadAllBytes(path), path);
+        }
+
+        public static MeshBatch ReadBatchFile(string path)
+        {
+            RejectLinks(path);
+            Require(new FileInfo(path).Length <= 16384, "The mesh batch index must be at most 16 KiB.");
+            return ReadBatch(File.ReadAllBytes(path));
+        }
+
+        public static MeshBatch ReadBatch(byte[] bytes)
+        {
+            Require(bytes != null && bytes.Length <= 16384, "The mesh batch index must be at most 16 KiB.");
+            var document = new System.Xml.XmlDocument();
+            using (var reader = JsonReaderWriterFactory.CreateJsonReader(bytes, System.Xml.XmlDictionaryReaderQuotas.Max)) { document.Load(reader); }
+            var root = document.DocumentElement;
+            var fields = root.ChildNodes.Cast<System.Xml.XmlNode>().ToArray();
+            Require(root.GetAttribute("type") == "object" && fields.Length == 2 &&
+                fields.Count(node => node.Name == "schemaVersion") == 1 && fields.Count(node => node.Name == "recipes") == 1 &&
+                root["schemaVersion"].GetAttribute("type") == "number" && root["recipes"].GetAttribute("type") == "array",
+                "The mesh batch index has unknown, duplicate, missing or mistyped fields.");
+            foreach (System.Xml.XmlElement item in root["recipes"].ChildNodes)
+            {
+                var members = item.ChildNodes.Cast<System.Xml.XmlNode>().ToArray();
+                Require(item.GetAttribute("type") == "object" && members.Length == 2 &&
+                    members.Count(node => node.Name == "path") == 1 && members.Count(node => node.Name == "sha256") == 1 &&
+                    item["path"].GetAttribute("type") == "string" && item["sha256"].GetAttribute("type") == "string",
+                    "The mesh batch entry has unknown, duplicate, missing or mistyped fields.");
+            }
+            MeshBatch batch;
+            using (var stream = new MemoryStream(bytes)) { batch = (MeshBatch)new DataContractJsonSerializer(typeof(MeshBatch)).ReadObject(stream); }
+            Require(batch != null && batch.schemaVersion == 1 && batch.recipes != null && batch.recipes.Length >= 2 && batch.recipes.Length <= 16 &&
+                batch.recipes.All(entry => entry != null && entry.path != null && Regex.IsMatch(entry.path, "^Batch[0-9]{3}/mesh-recipe[.]json$") &&
+                    entry.sha256 != null && Regex.IsMatch(entry.sha256, "^[a-f0-9]{64}$")) &&
+                batch.recipes.Select(entry => entry.path).Distinct(StringComparer.OrdinalIgnoreCase).Count() == batch.recipes.Length,
+                "The mesh batch requires 2 to 16 distinct owned recipe paths and SHA-256 values.");
+            return batch;
         }
 
         public static MeshRecipe Read(byte[] bytes, string path)

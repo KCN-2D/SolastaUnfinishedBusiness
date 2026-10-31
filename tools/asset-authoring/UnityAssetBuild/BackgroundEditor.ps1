@@ -1,5 +1,60 @@
 param([string]$Configuration)
 
+function Get-AssetWorkerIdentitySource([string]$SourceSha256) {
+    if ($SourceSha256 -cnotmatch '^[a-f0-9]{64}$') { throw 'A lowercase SHA256 is required for the compiled worker identity.' }
+    return '[assembly: System.Reflection.AssemblyMetadata("SolastaAssetAuthoring.SourceSha256", "' + $SourceSha256 + '")]' + [Environment]::NewLine
+}
+
+function Test-AssetWorkerIdentity($Receipt, [string]$SourceSha256) {
+    if (!$Receipt -or !$Receipt.PSObject.Properties['sourceSha256'] -or
+        !$Receipt.PSObject.Properties['compiledSourceSha256'] -or $Receipt.sourceSha256 -isnot [string] -or
+        $Receipt.compiledSourceSha256 -isnot [string]) { return $false }
+    return $Receipt.sourceSha256 -ceq $SourceSha256 -and $Receipt.compiledSourceSha256 -ceq $SourceSha256
+}
+
+function Get-AssetOwnedWorkerShutdownRequest($Receipt, $EditorIdentity, [string]$OwnerId,
+    [string]$Project, [string]$Desktop, [DateTime]$LaunchedUtc, [DateTime]$ObservedUtc = [DateTime]::UtcNow) {
+    if (!$Receipt -or !$EditorIdentity -or [string]::IsNullOrEmpty($OwnerId) -or
+        [string]::IsNullOrEmpty($Project) -or [string]::IsNullOrEmpty($Desktop)) { return $null }
+    foreach ($name in @('schemaVersion','processId','processStartedUtc','ownerId','projectPath','unityVersion',
+        'mainThread','nativeMainThread','desktopQuerySucceeded','desktopReceivesInput','desktop','inputDesktop','updatedUtc')) {
+        if (!$Receipt.PSObject.Properties[$name]) { return $null }
+    }
+    foreach ($name in @('pid','startTimeUtc')) {
+        if ($EditorIdentity -is [Collections.IDictionary]) {
+            if (!$EditorIdentity.Contains($name)) { return $null }
+        }
+        elseif (!$EditorIdentity.PSObject.Properties[$name]) { return $null }
+    }
+    foreach ($name in @('schemaVersion','processId','mainThread','nativeMainThread')) {
+        if (($Receipt.$name -isnot [int] -and $Receipt.$name -isnot [long]) -or $Receipt.$name -le 0) { return $null }
+    }
+    if ($Receipt.schemaVersion -ne 2 -or $Receipt.processId -gt [int]::MaxValue -or
+        $Receipt.mainThread -gt [int]::MaxValue -or $Receipt.nativeMainThread -gt [uint32]::MaxValue -or
+        $Receipt.processId -ne $EditorIdentity.pid -or
+        $Receipt.ownerId -isnot [string] -or $Receipt.ownerId -cne $OwnerId -or
+        $Receipt.projectPath -isnot [string] -or ![string]::Equals($Receipt.projectPath,$Project,[StringComparison]::OrdinalIgnoreCase) -or
+        $Receipt.unityVersion -isnot [string] -or $Receipt.unityVersion -cne '2019.4.37f1' -or $Receipt.desktopQuerySucceeded -isnot [bool] -or
+        !$Receipt.desktopQuerySucceeded -or $Receipt.desktopReceivesInput -isnot [bool] -or $Receipt.desktopReceivesInput -or
+        $Receipt.desktop -isnot [string] -or ![string]::Equals($Receipt.desktop,$Desktop,[StringComparison]::OrdinalIgnoreCase) -or
+        $Receipt.inputDesktop -isnot [string] -or [string]::IsNullOrEmpty($Receipt.inputDesktop) -or
+        [string]::Equals($Receipt.desktop,$Receipt.inputDesktop,[StringComparison]::OrdinalIgnoreCase)) { return $null }
+    try {
+        $started = ([DateTimeOffset]$Receipt.processStartedUtc).ToUniversalTime()
+        $expectedStart = ([DateTimeOffset]$EditorIdentity.startTimeUtc).ToUniversalTime()
+        $updated = ([DateTimeOffset]$Receipt.updatedUtc).ToUniversalTime()
+        $launched = [DateTimeOffset]$LaunchedUtc.ToUniversalTime()
+        $observed = [DateTimeOffset]$ObservedUtc.ToUniversalTime()
+        if ([Math]::Abs(($started-$expectedStart).TotalSeconds) -ge 1 -or $expectedStart -lt $launched -or
+            $expectedStart -gt $observed -or $updated -lt $launched -or $updated -lt $expectedStart -or
+            $updated -gt $observed -or ($observed-$updated).TotalSeconds -ge 10) { return $null }
+    }
+    catch { return $null }
+    # Ownership permits graceful cleanup even when the compiled worker is stale.
+    # Source identity remains a separate, mandatory job-readiness condition.
+    return [ordered]@{ownerId=$OwnerId;processId=$Receipt.processId;processStartedUtc=$started.ToString('o')}
+}
+
 function ConvertTo-AssetWorkerJson($Value, [switch]$Compress) {
     # Windows PowerShell 5 can silently stringify values beyond ConvertTo-Json's depth.
     $pending=[Collections.Generic.Stack[object]]::new()
@@ -173,7 +228,7 @@ function Invoke-AssetBackgroundHost([string]$ConfigPath) {
     $desktop = Get-VerificationDesktop
     $statePath = Join-Path $cfg.run 'session.json'
     $state = [ordered]@{status='starting';ownerId=$cfg.ownerId;startedUtc=[DateTime]::UtcNow.ToString('O');desktop=$cfg.desktop;
-        wrapperPid=$PID;wrapperDesktop=$desktop;worker=$null;editor=$null;editorReleased=$false;cliReleased=$false;cliChildren=@();cliChildrenReleased=$false;forcedExit=$false;
+        wrapperPid=$PID;wrapperDesktop=$desktop;worker=$null;shutdownWorker=$null;shutdownRequest=$null;editor=$null;editorReleased=$false;cliReleased=$false;cliChildren=@();cliChildrenReleased=$false;forcedExit=$false;
         shutdownRequestedUtc=$null;shutdownExitObservedUtc=$null;shutdownForcedUtc=$null;editorExitCode=$null}
     $cli = $null
     try {
@@ -220,13 +275,14 @@ function Invoke-AssetBackgroundHost([string]$ConfigPath) {
             if ($state.editor -and (Test-Path -LiteralPath $readyPath)) {
                 try { $ready=Read-AssetWorkerJson $readyPath }
                 catch { Start-Sleep -Milliseconds 250; continue }
-                if ($ready.processId -eq $state.editor.pid -and $ready.ownerId -eq $cfg.ownerId -and
-                    $ready.sourceSha256 -eq $cfg.sourceSha256 -and $ready.projectPath -eq $cfg.project -and
-                    $ready.unityVersion -eq '2019.4.37f1' -and $ready.mainThread -gt 0 -and $ready.nativeMainThread -gt 0 -and $ready.desktopQuerySucceeded -and
-                    !$ready.desktopReceivesInput -and $ready.desktop -eq $cfg.desktop -and $ready.desktop -ne $ready.inputDesktop -and
-                    ([DateTime]$ready.updatedUtc).ToUniversalTime() -ge $launchedUtc) {
-                    if ($firstUpdate -and $firstUpdate -ne $ready.updatedUtc) { $state.worker=$ready; break }
-                    $firstUpdate=$ready.updatedUtc
+                $shutdown = Get-AssetOwnedWorkerShutdownRequest $ready $state.editor $cfg.ownerId $cfg.project $cfg.desktop $launchedUtc
+                if ($null -ne $shutdown) {
+                    $state.shutdownWorker=$ready
+                    $state.shutdownRequest=$shutdown
+                    if (Test-AssetWorkerIdentity $ready $cfg.sourceSha256) {
+                        if ($firstUpdate -and $firstUpdate -ne $ready.updatedUtc) { $state.worker=$ready; break }
+                        $firstUpdate=$ready.updatedUtc
+                    }
                 }
             }
             if ($state.editor -and !(Get-AssetOwnedProcess $state.editor)) { throw 'The owned Editor ended before its worker became ready.' }
@@ -257,10 +313,8 @@ function Invoke-AssetBackgroundHost([string]$ConfigPath) {
         if (!$state.editor -and $cli) { $state.editor=Find-AssetEditorChild $cli.Id $cfg.editor $launchedUtc }
         $owned=Get-AssetOwnedProcess $state.editor
         if ($owned) {
-            if ($state.worker) {
-                $request=[ordered]@{ownerId=$cfg.ownerId;processId=$state.worker.processId;
-                    processStartedUtc=([DateTimeOffset]$state.worker.processStartedUtc).ToUniversalTime().ToString('o')}
-                Write-AssetWorkerJson (Join-Path $cfg.project '.asset-authoring-jobs/shutdown-request.json') $request
+            if ($state.shutdownRequest) {
+                Write-AssetWorkerJson (Join-Path $cfg.project '.asset-authoring-jobs/shutdown-request.json') $state.shutdownRequest
                 $state.shutdownRequestedUtc=[DateTime]::UtcNow.ToString('O')
                 Write-AssetWorkerJson $statePath $state
             }
@@ -329,7 +383,7 @@ function Start-AssetBackgroundEditor([string]$Project, [string]$Editor, [string]
     catch { $startupError=$_; throw }
     finally {
         if (!$returnedReady) {
-            try { Stop-AssetBackgroundEditor $session }
+            try { Stop-AssetBackgroundEditor $session -AllowFailedSession:($null -ne $startupError) }
             catch {
                 if (!$startupError) { throw }
                 $failure=[AggregateException]::new(
@@ -344,7 +398,7 @@ function Start-AssetBackgroundEditor([string]$Project, [string]$Editor, [string]
     }catch{if(-not $session){$storageOperation.ReleaseMutex();$storageOperation.Dispose()};throw}
 }
 
-function Stop-AssetBackgroundEditor($Session) {
+function Stop-AssetBackgroundEditor($Session, [switch]$AllowFailedSession) {
     try {
     if (!$Session -or !$Session.Lease) { return }
     [IO.File]::WriteAllText((Join-Path $Session.RunDirectory 'release.request'),'release owned authoring worker')
@@ -378,7 +432,8 @@ function Stop-AssetBackgroundEditor($Session) {
     Write-AssetWorkerJson (Join-Path $Session.RunDirectory 'foreground.json') ([ordered]@{before=$Session.ForegroundBefore;after=$Session.ForegroundAfter})
     $Session.Lease.Dispose()
     $state=Read-AssetWorkerJson (Join-Path $Session.RunDirectory 'session.json')
-    if (!$state.editorReleased -or !$state.cliReleased -or !$state.cliChildrenReleased -or $state.forcedExit -or $state.status -ne 'complete') { throw "Background Editor did not finish a normal owned shutdown. Inspect $($Session.RunDirectory)" }
+    if (!$state.editorReleased -or !$state.cliReleased -or !$state.cliChildrenReleased -or $state.forcedExit) { throw "Background Editor did not finish a normal owned shutdown. Inspect $($Session.RunDirectory)" }
+    if ($state.status -ne 'complete' -and !($AllowFailedSession -and $state.status -eq 'failed')) { throw "Background Editor session did not complete. Inspect $($Session.RunDirectory)" }
     }finally{if($Session -and $Session.PSObject.Properties['StorageOperation'] -and $Session.StorageOperation){$Session.StorageOperation.ReleaseMutex();$Session.StorageOperation.Dispose();$Session.StorageOperation=$null}}
 }
 

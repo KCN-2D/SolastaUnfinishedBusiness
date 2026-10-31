@@ -9,7 +9,8 @@ param(
     [ValidateSet('Gamma', 'Linear')] [string] $ColorSpace = 'Linear',
     [Parameter(Mandatory = $true, ParameterSetName = 'Rig')] [string] $FbxPath,
     [Parameter(Mandatory = $true, ParameterSetName = 'Materials')] [string] $MaterialRecipePath,
-    [Parameter(Mandatory = $true, ParameterSetName = 'Meshes')] [string] $MeshRecipePath,
+    [Parameter(Mandatory = $true, ParameterSetName = 'Meshes')]
+    [ValidateCount(1, 16)] [string[]] $MeshRecipePath,
     [Parameter(ParameterSetName = 'Rig')]
     [Parameter(ParameterSetName = 'Materials')]
     [Parameter(ParameterSetName = 'Meshes')] [switch] $ValidateOnly,
@@ -296,7 +297,12 @@ try {
 $unityExe = (Resolve-Path -LiteralPath $UnityPath).ProviderPath
 $materialJob = $PSCmdlet.ParameterSetName -eq 'Materials'
 $meshJob = $PSCmdlet.ParameterSetName -eq 'Meshes'
-$sourceFile = (Resolve-Path -LiteralPath $(if ($meshJob) { $MeshRecipePath } elseif ($materialJob) { $MaterialRecipePath } else { $FbxPath })).ProviderPath
+$meshBatch = $meshJob -and $MeshRecipePath.Count -gt 1
+$sourceFiles = @($(if ($meshJob) { $MeshRecipePath } elseif ($materialJob) { $MaterialRecipePath } else { $FbxPath }) | ForEach-Object {
+    (Resolve-Path -LiteralPath $_).ProviderPath
+})
+if (@($sourceFiles | Sort-Object -Unique).Count -ne $sourceFiles.Count) { throw 'Duplicate mesh recipe inputs are not accepted.' }
+$sourceFile = $sourceFiles[0]
 if (!(Test-Path -LiteralPath $unityExe -PathType Leaf) -or [IO.Path]::GetFileName($unityExe) -ine 'Unity.exe') {
     throw '-UnityPath must identify an installed Unity.exe; this script does not install Unity.'
 }
@@ -308,8 +314,8 @@ if ([string]::IsNullOrWhiteSpace($WorkspaceRoot)) {
 }
 $workspace = [IO.Path]::GetFullPath($WorkspaceRoot)
 Assert-WorkspacePath $workspace
-Assert-LocalPath $sourceFile
-$inputName = if ($meshJob) { 'mesh-recipe.json' } elseif ($materialJob) { 'recipe.json' } else { 'SampleRig.fbx' }
+foreach ($inputSource in $sourceFiles) { Assert-LocalPath $inputSource }
+$inputName = if ($meshBatch) { 'mesh-batch.json' } elseif ($meshJob) { 'mesh-recipe.json' } elseif ($materialJob) { 'recipe.json' } else { 'SampleRig.fbx' }
 $bundleName = 'ub_authoring_sample'
 $materialInputs = @()
 if ($materialJob) {
@@ -359,50 +365,100 @@ if ($materialJob) {
     }
 }
 
-$meshInputBytes = $null
-$meshInputHash = $null
-if ($meshJob) {
-    if ([IO.Path]::GetExtension($sourceFile) -ine '.json' -or (Get-Item -LiteralPath $sourceFile).Length -gt 67108864) { throw '-MeshRecipePath must identify a JSON recipe of at most 64 MiB.' }
-    $meshInputBytes = [IO.File]::ReadAllBytes($sourceFile)
+function Read-ValidatedMeshInput([string] $Path) {
+    if ([IO.Path]::GetExtension($Path) -ine '.json' -or (Get-Item -LiteralPath $Path).Length -gt 67108864) { throw '-MeshRecipePath must identify a JSON recipe of at most 64 MiB.' }
+    $bytes = [IO.File]::ReadAllBytes($Path)
     $sha = [Security.Cryptography.SHA256]::Create()
-    try { $meshInputHash = ([BitConverter]::ToString($sha.ComputeHash($meshInputBytes))).Replace('-', '').ToLowerInvariant() }
+    try { $hash = ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant() }
     finally { $sha.Dispose() }
-    $recipe = [Text.Encoding]::UTF8.GetString($meshInputBytes).TrimStart([char]0xfeff) | ConvertFrom-Json
-    if ($recipe.PSObject.Properties['numericPayload'] -or $recipe.PSObject.Properties['sourceBundles']) {
-        $recipe = Read-ExternalMeshRecipe $sourceFile
-        if ($null -ne $recipe.numericPayload) {
-            $assetSource = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetDirectoryName($sourceFile)) $recipe.numericPayload.path))
+    $value = [Text.Encoding]::UTF8.GetString($bytes).TrimStart([char]0xfeff) | ConvertFrom-Json
+    $dependencies = @()
+    if ($value.PSObject.Properties['numericPayload'] -or $value.PSObject.Properties['sourceBundles']) {
+        $value = Read-ExternalMeshRecipe $Path
+        if ($null -ne $value.numericPayload) {
+            $assetSource = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetDirectoryName($Path)) $value.numericPayload.path))
             Assert-LocalPath $assetSource
-            $materialInputs += [pscustomobject]@{path=$recipe.numericPayload.path;source=$assetSource;sha256=$recipe.numericPayload.sha256}
+            $dependencies += [pscustomobject]@{path=$value.numericPayload.path;source=$assetSource;sha256=$value.numericPayload.sha256}
         }
     }
-    else { Assert-MeshRecipe $recipe }
-    $bundleName = $recipe.bundleName
-    if ($recipe.PSObject.Properties['textures']) {
-        foreach ($texture in $recipe.textures) {
-            $assetSource = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetDirectoryName($sourceFile)) $texture.path))
+    else { Assert-MeshRecipe $value }
+    if ($value.PSObject.Properties['textures']) {
+        foreach ($texture in $value.textures) {
+            $assetSource = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetDirectoryName($Path)) $texture.path))
             Assert-LocalPath $assetSource
             if ((Get-FileHash -LiteralPath $assetSource -Algorithm SHA256).Hash.ToLowerInvariant() -ne $texture.sha256) {
                 throw "The mesh texture source hash differs: $($texture.path)"
             }
-            $materialInputs += [pscustomobject]@{ path = $texture.path; source = $assetSource; sha256 = $texture.sha256 }
+            $dependencies += [pscustomobject]@{ path = $texture.path; source = $assetSource; sha256 = $texture.sha256 }
         }
     }
-    if ($recipe.PSObject.Properties['sourceBundles']) {
-        foreach ($sourceBundle in $recipe.sourceBundles) {
-            $assetSource = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetDirectoryName($sourceFile)) $sourceBundle.path))
+    if ($value.PSObject.Properties['sourceBundles']) {
+        foreach ($sourceBundle in $value.sourceBundles) {
+            $assetSource = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetDirectoryName($Path)) $sourceBundle.path))
             Assert-LocalPath $assetSource
             if ((Get-FileHash -LiteralPath $assetSource -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sourceBundle.sha256) {
                 throw "The source bundle hash differs: $($sourceBundle.path)"
             }
-            $materialInputs += [pscustomobject]@{path=$sourceBundle.path;source=$assetSource;sha256=$sourceBundle.sha256}
+            $dependencies += [pscustomobject]@{path=$sourceBundle.path;source=$assetSource;sha256=$sourceBundle.sha256}
         }
+    }
+    if ((Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash) { throw 'The mesh recipe changed while its input was validated.' }
+    return [pscustomobject]@{source=$Path;bytes=$bytes;sha256=$hash;recipe=$value;dependencies=$dependencies}
+}
+
+$meshInputBytes = $null
+$meshInputHash = $null
+$meshInputs = @()
+if ($meshJob) {
+    $bundleNames = @{}
+    foreach ($inputSource in $sourceFiles) {
+        $meshInput = Read-ValidatedMeshInput $inputSource
+        if ($bundleNames.ContainsKey($meshInput.recipe.bundleName)) { throw 'Duplicate mesh bundle names are not accepted in one batch.' }
+        $bundleNames[$meshInput.recipe.bundleName] = $true
+        $meshInputs += $meshInput
+    }
+    $outputNames = @{'unity-report.json'=$true}
+    $rootManifest = if ($GuiProjectPath) { 'Output' } else { 'BuildOutput' }
+    $outputNames[$rootManifest]=$true
+    $outputNames[$rootManifest+'.manifest']=$true
+    foreach ($meshInput in $meshInputs) {
+        foreach ($name in @($meshInput.recipe.bundleName, ($meshInput.recipe.bundleName+'.manifest'))) {
+            if ($outputNames.ContainsKey($name)) { throw 'A mesh bundle output collides with another bundle, its manifest or the authoring receipt.' }
+            $outputNames[$name]=$true
+        }
+    }
+    $recipe = $meshInputs[0].recipe
+    $bundleName = $recipe.bundleName
+    if ($meshBatch) {
+        $batchRecipes = @()
+        for ($index = 0; $index -lt $meshInputs.Count; $index++) {
+            $meshInput = $meshInputs[$index]
+            $prefix = 'Batch{0:D3}' -f $index
+            $relativeRecipe = $prefix + '/mesh-recipe.json'
+            $batchRecipes += [ordered]@{path=$relativeRecipe;sha256=$meshInput.sha256}
+            $materialInputs += [pscustomobject]@{path=$relativeRecipe;source=$meshInput.source;sha256=$meshInput.sha256;bytes=$meshInput.bytes}
+            foreach ($dependency in $meshInput.dependencies) {
+                $materialInputs += [pscustomobject]@{path=($prefix+'/'+$dependency.path);source=$dependency.source;sha256=$dependency.sha256}
+            }
+        }
+        $batchIndex = [ordered]@{schemaVersion=1;recipes=$batchRecipes} | ConvertTo-Json -Depth 5
+        $meshInputBytes = [Text.UTF8Encoding]::new($false).GetBytes($batchIndex)
+        $sha = [Security.Cryptography.SHA256]::Create()
+        try { $meshInputHash = ([BitConverter]::ToString($sha.ComputeHash($meshInputBytes))).Replace('-', '').ToLowerInvariant() }
+        finally { $sha.Dispose() }
+    }
+    else {
+        $meshInputBytes = $meshInputs[0].bytes
+        $meshInputHash = $meshInputs[0].sha256
+        $materialInputs += $meshInputs[0].dependencies
     }
 }
 
 function Copy-AuthoringInput([string] $Destination) {
     if ($meshJob) {
-        if ((Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant() -ne $meshInputHash) { throw 'The mesh recipe changed after its validated snapshot.' }
+        foreach ($inputSource in $meshInputs) {
+            if ((Get-FileHash -LiteralPath $inputSource.source -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputSource.sha256) { throw 'The mesh recipe changed after its validated snapshot.' }
+        }
         [IO.File]::WriteAllBytes($Destination, $meshInputBytes)
     }
     else { [IO.File]::Copy($sourceFile, $Destination, $false) }
@@ -414,18 +470,21 @@ function Copy-MaterialInputs([string] $InputDirectory, [switch] $ValidateOnly) {
         Assert-LocalPath $destination -UnityImport
         if ($ValidateOnly) { continue }
         [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($destination)) | Out-Null
-        [IO.File]::Copy($asset.source, $destination, $false)
+        if ($asset.PSObject.Properties['bytes']) { [IO.File]::WriteAllBytes($destination, $asset.bytes) }
+        else { [IO.File]::Copy($asset.source, $destination, $false) }
         if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant() -ne $asset.sha256) {
             throw 'A copied material asset differs from its source.'
         }
     }
 }
+$dependencyPaths = @(@($sourceFiles) + @($materialInputs | ForEach-Object source) | Sort-Object -Unique)
 if ($ValidateOnly) {
     [pscustomobject]@{
         status='PASS_AUTHORING_INPUT';validationScope='input_declaration';inputPath=$sourceFile
-        sha256=(Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant()
-        kind=$(if($meshJob){'mesh-templates'}elseif($materialJob){'materials'}else{'rig'})
+        sha256=$(if($meshJob){$meshInputHash}else{(Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant()})
+        kind=$(if($meshBatch){'mesh-batch-templates'}elseif($meshJob){'mesh-templates'}elseif($materialJob){'materials'}else{'rig'})
         bundleName=$bundleName;colorSpace=$ColorSpace;dependencyCount=$materialInputs.Count;appsStarted=0;outputsCreated=0
+        inputs=@($meshInputs | ForEach-Object { [pscustomobject]@{path=$_.source;sha256=$_.sha256;bundleName=$_.recipe.bundleName} })
     }
     return
 }
@@ -449,6 +508,8 @@ if ($StartBackgroundEditor -and [string]::IsNullOrWhiteSpace($GuiProjectPath)) {
 }
 $backgroundSession = $null
 . (Join-Path $template 'BackgroundEditor.ps1')
+$sourceHash = (Get-FileHash -LiteralPath (Join-Path $template 'Assets\Editor\AssetBundleBuilder.cs') -Algorithm SHA256).Hash.ToLowerInvariant()
+$identitySource = Get-AssetWorkerIdentitySource $sourceHash
 $jobOwnership=$null;$jobSucceeded=$false;$jobFailure=$null
 try {
 
@@ -465,7 +526,7 @@ if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
     if ([IO.File]::ReadAllText($versionFile) -notmatch ('(?m)^m_EditorVersion: ' + [regex]::Escape($requiredVersion) + '\s*$')) {
         throw 'The GUI project uses a different Editor version.'
     }
-    $jobKind = if ($meshJob) { 'mesh' } elseif ($materialJob) { 'material' } else { 'rig' }
+    $jobKind = if ($meshBatch) { 'mesh-batch' } elseif ($meshJob) { 'mesh' } elseif ($materialJob) { 'material' } else { 'rig' }
     $jobId = [datetime]::UtcNow.ToString('yyyyMMdd-HHmmss-fffffff', [Globalization.CultureInfo]::InvariantCulture) + '-' + $jobKind
     $runRoot = Join-Path $project ('.asset-authoring-jobs\' + $jobId)
     $inputDirectory = [IO.Path]::Combine($project, 'Assets\AuthoringJobs\' + $jobId + '\Input')
@@ -473,10 +534,13 @@ if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
     Copy-MaterialInputs $inputDirectory -ValidateOnly
     $source = Join-Path $template 'Assets\Editor\AssetBundleBuilder.cs'
     $destination = Join-Path $project 'Assets\Editor\AssetBundleBuilder.cs'
+    $identityDestination = Join-Path $project 'Assets\Editor\AssetBundleBuilder.Identity.cs'
     Assert-LocalPath $destination
-    $sourceHash = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()
+    Assert-LocalPath $identityDestination -UnityImport
     if (!(Test-Path -LiteralPath $destination -PathType Leaf) -or
-        (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sourceHash) {
+        (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sourceHash -or
+        !(Test-Path -LiteralPath $identityDestination -PathType Leaf) -or
+        [IO.File]::ReadAllText($identityDestination) -cne $identitySource) {
         if (!$InstallGuiWorker) { throw 'The GUI worker differs from the template. Use -InstallGuiWorker once, then refresh the project in the Editor.' }
         $backup = Join-Path $project ('.asset-authoring-jobs\WorkerBackups\' + [guid]::NewGuid().ToString('N'))
         Assert-LocalPath $backup
@@ -484,7 +548,11 @@ if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
         if (Test-Path -LiteralPath $destination -PathType Leaf) {
             [IO.File]::Copy($destination, (Join-Path $backup 'AssetBundleBuilder.cs'), $false)
         }
+        if (Test-Path -LiteralPath $identityDestination -PathType Leaf) {
+            [IO.File]::Copy($identityDestination, (Join-Path $backup 'AssetBundleBuilder.Identity.cs'), $false)
+        }
         [IO.File]::Copy($source, $destination, $true)
+        [IO.File]::WriteAllText($identityDestination, $identitySource, [Text.UTF8Encoding]::new($false))
         Write-Output 'GUI worker updated. If it is not loaded yet, select Assets > Refresh in the open Editor once.'
     }
     if ($StartBackgroundEditor) {
@@ -503,7 +571,7 @@ if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
                 $candidate = [IO.File]::ReadAllText($readyPath) | ConvertFrom-Json
                 $process = Get-Process -Id $candidate.processId -ErrorAction Stop
                 if ($candidate.schemaVersion -eq 2 -and $candidate.unityVersion -eq $requiredVersion -and
-                    $candidate.sourceSha256 -eq $sourceHash -and $candidate.projectPath -eq $project -and
+                    (Test-AssetWorkerIdentity $candidate $sourceHash) -and $candidate.projectPath -eq $project -and
                     [Math]::Abs(($process.StartTime.ToUniversalTime() - ([DateTime]$candidate.processStartedUtc).ToUniversalTime()).TotalSeconds) -lt 1 -and
                     $process.Path -eq $unityExe -and
                     ([DateTime]::UtcNow - ([DateTime]$candidate.updatedUtc).ToUniversalTime()).TotalSeconds -lt 10) {
@@ -525,14 +593,14 @@ if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
     $copiedInput = Join-Path $inputDirectory $inputName
     Copy-AuthoringInput $copiedInput
     Copy-MaterialInputs $inputDirectory
-    $inputHash = (Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant()
+    $inputHash = if ($meshJob) { $meshInputHash } else { (Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant() }
     if ((Get-FileHash -LiteralPath $copiedInput -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputHash) { throw 'The copied authoring input differs from the source.' }
     $bundleOutput = Join-Path $runRoot 'Output'
     $reportPath = Join-Path $bundleOutput 'unity-report.json'
     $logPath = $reportPath
     $startedUtc = [DateTime]::UtcNow
-    $jobOwnership=Register-AssetAuthoringJob -Project $project -JobDirectory $runRoot -AssetDirectory (Split-Path -Parent $inputDirectory) -ResultPath $reportPath -DependencyPath (@($sourceFile)+@($materialInputs|ForEach-Object source)) -Session $backgroundSession
-    $request = @{ schemaVersion = 1; jobId = $jobId; inputSha256 = $inputHash; colorSpace = $ColorSpace; kind = $(if ($meshJob) { 'mesh-templates' } elseif ($materialJob) { 'materials' } else { 'rig' }) } | ConvertTo-Json
+    $jobOwnership=Register-AssetAuthoringJob -Project $project -JobDirectory $runRoot -AssetDirectory (Split-Path -Parent $inputDirectory) -ResultPath $reportPath -DependencyPath $dependencyPaths -Session $backgroundSession
+    $request = @{ schemaVersion = 1; jobId = $jobId; inputSha256 = $inputHash; colorSpace = $ColorSpace; kind = $(if ($meshBatch) { 'mesh-batch-templates' } elseif ($meshJob) { 'mesh-templates' } elseif ($materialJob) { 'materials' } else { 'rig' }) } | ConvertTo-Json
     $temporaryRequest = Join-Path $runRoot 'request.writing'
     [IO.File]::WriteAllText($temporaryRequest, $request)
     [IO.File]::Move($temporaryRequest, (Join-Path $runRoot 'request.json'))
@@ -566,13 +634,14 @@ else {
         [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($destination)) | Out-Null
         [IO.File]::Copy((Join-Path $template $relative), $destination, $false)
     }
+    [IO.File]::WriteAllText((Join-Path $project 'Assets\Editor\AssetBundleBuilder.Identity.cs'), $identitySource, [Text.UTF8Encoding]::new($false))
     [IO.File]::WriteAllText((Join-Path $project '.solasta-asset-authoring-project'), $projectMarker)
     $storageOperation=Enter-AssetStorageOperation $project
     [IO.Directory]::CreateDirectory($inputDirectory) | Out-Null
     $copiedInput = Join-Path $inputDirectory $inputName
     Copy-AuthoringInput $copiedInput
     Copy-MaterialInputs $inputDirectory
-    $inputHash = (Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant()
+    $inputHash = if ($meshJob) { $meshInputHash } else { (Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant() }
     if ((Get-FileHash -LiteralPath $copiedInput -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputHash) {
         throw 'The copied authoring input does not match its source.'
     }
@@ -580,12 +649,12 @@ else {
     $reportPath = Join-Path $bundleOutput 'unity-report.json'
     $logPath = Join-Path $runRoot 'Editor.log'
     $startedUtc = [DateTime]::UtcNow
-    $jobOwnership=Register-AssetAuthoringJob -Project $project -JobDirectory $runRoot -AssetDirectory (Join-Path $project 'Assets') -ResultPath $reportPath -DependencyPath (@($sourceFile)+@($materialInputs|ForEach-Object source)) -DisposableProject
+    $jobOwnership=Register-AssetAuthoringJob -Project $project -JobDirectory $runRoot -AssetDirectory (Join-Path $project 'Assets') -ResultPath $reportPath -DependencyPath $dependencyPaths -DisposableProject
     $arguments = @(
         '-batchmode', '-nographics', '-quit', '-noUpm',
         '-projectPath', $project,
         '-executeMethod', 'SolastaAssetAuthoring.AssetBundleBuilder.Build',
-        $(if ($meshJob) { '-meshRecipe' } elseif ($materialJob) { '-materialRecipe' } else { '-sampleFbx' }), $copiedInput,
+        $(if ($meshBatch) { '-meshBatchRecipe' } elseif ($meshJob) { '-meshRecipe' } elseif ($materialJob) { '-materialRecipe' } else { '-sampleFbx' }), $copiedInput,
         '-bundleOutput', $bundleOutput,
         '-colorSpace', $ColorSpace,
         '-logFile', $logPath
@@ -605,6 +674,9 @@ if (!$report.success -or $report.stage -ne 'complete' -or $report.unityVersion -
     throw "Unity validation did not complete successfully. Inspect $reportPath and $logPath"
 }
 if ($report.inputSha256 -ne $inputHash) { throw 'The report refers to a different authoring input.' }
+if (!$report.PSObject.Properties['compiledSourceSha256'] -or $report.compiledSourceSha256 -cne $sourceHash) {
+    throw 'The report was produced by a different compiled authoring worker.'
+}
 if (!$report.PSObject.Properties['requestedColorSpace'] -or !$report.PSObject.Properties['actualColorSpace'] -or
     $report.requestedColorSpace -cne $ColorSpace -or $report.actualColorSpace -cne $ColorSpace) {
     throw 'The compiled assets use a different color space from the declared authoring target.'
@@ -613,16 +685,18 @@ if (![string]::IsNullOrWhiteSpace($GuiProjectPath) -and
     ($report.transport -ne 'gui_worker' -or $report.jobId -ne $jobId -or $report.processId -ne $ready.processId -or $report.mainThread -ne $ready.mainThread)) {
     throw 'The report does not identify the selected GUI worker job and main thread.'
 }
-$expectedBundle = Join-Path $bundleOutput $bundleName
-if ($report.bundlePath -ne $expectedBundle -or !(Test-Path -LiteralPath $expectedBundle -PathType Leaf)) {
-    throw 'The reported AssetBundle path is not the expected isolated output.'
-}
-if ((Get-FileHash -LiteralPath $expectedBundle -Algorithm SHA256).Hash.ToLowerInvariant() -ne $report.bundleSha256) {
-    throw 'The AssetBundle does not match the success report.'
-}
-if ((Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputHash -or
-    (Get-FileHash -LiteralPath $copiedInput -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputHash) {
+if ((Get-FileHash -LiteralPath $copiedInput -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputHash) {
     throw 'The source or copied authoring input changed during the build.'
+}
+if ($meshJob) {
+    foreach ($inputSource in $meshInputs) {
+        if ((Get-FileHash -LiteralPath $inputSource.source -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputSource.sha256) {
+            throw 'The source mesh recipe changed during the build.'
+        }
+    }
+}
+elseif ((Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputHash) {
+    throw 'The source authoring input changed during the build.'
 }
 foreach ($asset in $materialInputs) {
     if ((Get-FileHash -LiteralPath $asset.source -Algorithm SHA256).Hash.ToLowerInvariant() -ne $asset.sha256 -or
@@ -630,9 +704,24 @@ foreach ($asset in $materialInputs) {
         throw 'A source or copied material asset changed during the build.'
     }
 }
-if ($meshJob -and ($report.validationScope -ne 'mesh_templates' -or @($report.meshes).Count -ne @($recipe.meshes).Count -or
-    @($report.meshes | Where-Object { !$_.exact }).Count -ne 0)) { throw 'The report does not contain the requested exact mesh validation.' }
-if ($meshJob -and $recipe.PSObject.Properties['textures'] -and $recipe.textures.Count -gt 0) {
+function Assert-CompiledBundle($BuildReport, [string]$Name, [string]$Hash) {
+    $expectedBundle = Join-Path $bundleOutput $Name
+    if (!$BuildReport.success -or $BuildReport.stage -ne 'complete' -or $BuildReport.inputSha256 -cne $Hash -or
+        !$BuildReport.PSObject.Properties['compiledSourceSha256'] -or $BuildReport.compiledSourceSha256 -cne $sourceHash -or
+        $BuildReport.unityVersion -cne $requiredVersion -or $BuildReport.requestedColorSpace -cne $ColorSpace -or
+        $BuildReport.actualColorSpace -cne $ColorSpace) { throw 'The bundle report does not match its validated input or target.' }
+    if ($BuildReport.bundlePath -cne $expectedBundle -or !(Test-Path -LiteralPath $expectedBundle -PathType Leaf)) {
+        throw 'The reported AssetBundle path is not the expected isolated output.'
+    }
+    if ((Get-FileHash -LiteralPath $expectedBundle -Algorithm SHA256).Hash.ToLowerInvariant() -cne $BuildReport.bundleSha256) {
+        throw 'The AssetBundle does not match the success report.'
+    }
+}
+
+function Assert-CompiledMeshReport($report, $recipe) {
+if ($report.validationScope -ne 'mesh_templates' -or @($report.meshes).Count -ne @($recipe.meshes).Count -or
+    @($report.meshes | Where-Object { !$_.exact }).Count -ne 0) { throw 'The report does not contain the requested exact mesh validation.' }
+if ($recipe.PSObject.Properties['textures'] -and $recipe.textures.Count -gt 0) {
     foreach ($stage in @('createdTextures', 'savedTextures', 'textures')) {
         if (!$report.PSObject.Properties[$stage] -or @($report.$stage).Count -ne $recipe.textures.Count -or
             @($report.$stage | Where-Object { !$_.exact -or !$_.importSettingsExact }).Count -ne 0) {
@@ -653,7 +742,7 @@ if ($meshJob -and $recipe.PSObject.Properties['textures'] -and $recipe.textures.
         }
     }
 }
-if ($meshJob -and $recipe.PSObject.Properties['sourceBundles']) {
+if ($recipe.PSObject.Properties['sourceBundles']) {
     if ($report.sourceBundlesLoaded -ne $recipe.sourceBundles.Count -or $report.sourceBundlesReleased -ne $recipe.sourceBundles.Count) {
         throw 'The source bundle ownership was not released.'
     }
@@ -670,6 +759,20 @@ if ($meshJob -and $recipe.PSObject.Properties['sourceBundles']) {
             }
         }
     }
+}
+}
+if ($meshBatch) {
+    if ($report.validationScope -cne 'mesh_templates_batch' -or $report.buildPipelineInvocations -ne 1 -or
+        @($report.bundles).Count -ne $meshInputs.Count) { throw 'The report does not contain every requested mesh bundle in one build.' }
+    for ($index = 0; $index -lt $meshInputs.Count; $index++) {
+        $inputSource = $meshInputs[$index]
+        Assert-CompiledBundle $report.bundles[$index] $inputSource.recipe.bundleName $inputSource.sha256
+        Assert-CompiledMeshReport $report.bundles[$index] $inputSource.recipe
+    }
+}
+else {
+    Assert-CompiledBundle $report $bundleName $inputHash
+    if ($meshJob) { Assert-CompiledMeshReport $report $recipe }
 }
 if ($materialJob -and ($report.validationScope -ne 'materials' -or @($report.materials).Count -ne @($recipe.materials).Count)) {
     throw 'The report does not contain the requested material validation.'
