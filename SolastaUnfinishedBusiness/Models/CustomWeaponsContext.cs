@@ -603,8 +603,9 @@ internal static class CustomWeaponsContext
                 throw new InvalidDataException("Invalid equipment animation asset name.");
             }
             var declarations = new List<object> { model };
-            var selectors = new HashSet<(string Slot, bool Occupied, bool? Combat,
-                GraphicsCharacterDefinitions.CharacterType? Type, bool? SharesIdlePose)>();
+            var selectors = new Dictionary<(string Slot, bool Occupied, bool? Combat,
+                GraphicsCharacterDefinitions.CharacterType? Type, bool? SharesIdlePose,
+                CombatAnimationContext.OtherHandPose? Pose), HashSet<string>>();
             foreach (var variant in variants)
             {
                 var slot = Text(variant["slot"]);
@@ -638,14 +639,52 @@ internal static class CustomWeaponsContext
                     }
                     sharesIdlePose = poseSelector.Value<bool>();
                 }
-                if (!selectors.Add((slot, occupied, combat, characterType, sharesIdlePose)))
+                CombatAnimationContext.OtherHandPose? companionPose = null;
+                var companionTags = Array.Empty<string>();
+                if (variant["otherHandPose"] is { Type: not JTokenType.Null } companionSelector)
                 {
-                    throw new InvalidDataException("Duplicate equipment animation selector.");
+                    if (companionSelector.Type != JTokenType.String ||
+                        !Enum.TryParse<CombatAnimationContext.OtherHandPose>(Text(companionSelector), out var pose) ||
+                        !Enum.IsDefined(typeof(CombatAnimationContext.OtherHandPose), pose) ||
+                        (pose == CombatAnimationContext.OtherHandPose.Free) == occupied ||
+                        sharesIdlePose != (pose == CombatAnimationContext.OtherHandPose.SharedIdle))
+                    {
+                        throw new InvalidDataException("Invalid companion holding pose selector.");
+                    }
+                    companionPose = pose;
+                }
+                if (variant["otherHandAnimationTags"] is { Type: not JTokenType.Null } companionAnimationTags)
+                {
+                    if (companionAnimationTags is not JArray tags)
+                        throw new InvalidDataException("Invalid companion animation tags.");
+                    companionTags = tags.Select(Text).ToArray();
+                }
+                if ((companionPose == CombatAnimationContext.OtherHandPose.OneHandWeapon) !=
+                    (companionTags.Length > 0) ||
+                    companionTags.Distinct(StringComparer.Ordinal).Count() != companionTags.Length)
+                {
+                    throw new InvalidDataException("Invalid companion holding pose animation tags.");
+                }
+                var selector = (slot, occupied, combat, characterType, sharesIdlePose, companionPose);
+                if (selectors.TryGetValue(selector, out var previousTags))
+                {
+                    if (companionPose != CombatAnimationContext.OtherHandPose.OneHandWeapon ||
+                        previousTags.Overlaps(companionTags))
+                        throw new InvalidDataException("Overlapping equipment animation selectors.");
+                    previousTags.UnionWith(companionTags);
+                }
+                else
+                {
+                    selectors.Add(selector, new HashSet<string>(companionTags, StringComparer.Ordinal));
                 }
                 var animation = new CombatAnimationContext.WeaponAnimation(modelName,
                     Text(motion["attackBinding"]), Text(variant["attackClipPrefix"]),
                     Text(motion["idleBinding"]), Text(motion["nativeIdleClip"]), slot, false)
                     .WithOtherHandOccupied(occupied);
+                if (companionPose.HasValue)
+                {
+                    animation = animation.WithOtherHandPose(companionPose.Value, companionTags);
+                }
                 if (motion["idlePoseGroup"] is { Type: not JTokenType.Null } idlePoseGroup)
                 {
                     animation = animation.WithIdlePoseGroup(Text(idlePoseGroup));
@@ -672,8 +711,12 @@ internal static class CustomWeaponsContext
                         variant["idleVariantBinding"] is { Type: not JTokenType.Null } idleVariantBinding
                             ? Text(idleVariantBinding) : null);
                 }
-                if (motion["idleBindings"] is JArray idleBindings)
+                var idleBindingSelector = variant["idleBindings"] is { Type: not JTokenType.Null } variantIdleBindings
+                    ? variantIdleBindings : motion["idleBindings"];
+                if (idleBindingSelector is { Type: not JTokenType.Null })
                 {
+                    if (idleBindingSelector is not JArray idleBindings)
+                        throw new InvalidDataException("Invalid equipment idle bindings.");
                     animation = animation.WithIdleBindings(idleBindings.Select(Text));
                 }
                 if (variant["clipPrefixes"] is JObject prefixes)

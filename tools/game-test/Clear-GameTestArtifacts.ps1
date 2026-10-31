@@ -7,11 +7,15 @@ param(
     [ValidateRange(0,36500)][double]$MaxAgeDays=0,
     [ValidateRange(0,9223372036854775807)][long]$MaxRetainedBytes=0,
     [switch]$PruneSuperseded,
+    [switch]$ReleaseNativeUserData,
     [switch]$Apply
 )
 . (Join-Path $PSScriptRoot 'GameTest.Common.ps1')
+if ($ReleaseNativeUserData -and ($PruneSuperseded -or $MaxAgeDays -gt 0 -or $MaxRetainedBytes -gt 0)) {
+    throw 'Native user-data release is separate from run/build pruning.'
+}
 function Test-ArtifactEnvironment([string]$Path) {
-    return Test-Path -LiteralPath (Join-Path $Path 'tools/game-test/GameTest.Common.ps1') -PathType Leaf
+    return [IO.File]::Exists([IO.Path]::Combine($Path,'tools','game-test','GameTest.Common.ps1'))
 }
 if (-not $ArtifactRoot) { $ArtifactRoot=$script:GameTestArtifactRoot }
 $root=Get-GtPath $ArtifactRoot
@@ -29,22 +33,9 @@ $preserved=@($PreserveDirectory | ForEach-Object { Get-GtPath $_ })
 foreach ($path in $preserved) {
     if (-not (Test-GtWithin $path $script:GameTestArtifactRoot)) { throw 'Preserved paths must be artifact directories.' }
 }
-$referenced=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-$referenceInputs=@(foreach ($path in $ReferencePath) {
-    $manifestPath=Get-GtPath $path
-    Assert-GtFile $manifestPath
-    if (Test-GtWithin $manifestPath $script:GameTestArtifactRoot) { [void]$referenced.Add($manifestPath) }
-    $manifest=Read-GtObject $manifestPath
-    Assert-GtProperties $manifest @('schemaVersion','paths') @('schemaVersion','paths')
-    if ($manifest.schemaVersion -ne 1 -or $manifest.paths -isnot [array]) { throw 'Invalid storage reference manifest.' }
-    foreach ($entry in $manifest.paths) {
-        if ($entry -isnot [string] -or [string]::IsNullOrWhiteSpace($entry)) { throw 'Storage references must be paths.' }
-        $resolved=if ([IO.Path]::IsPathRooted($entry)) { Get-GtPath $entry } else { Get-GtPath (Join-Path (Split-Path -Parent $manifestPath) $entry) }
-        if (-not (Test-GtWithin $resolved $script:GameTestArtifactRoot)) { throw 'Storage references must identify artifact paths.' }
-        [void]$referenced.Add($resolved)
-    }
-    [ordered]@{path=$manifestPath;sha256=Get-GtHash $manifestPath}
-})
+$storageReferences=Read-GtStorageReferences $ReferencePath
+$referenced=$storageReferences.paths
+$referenceInputs=$storageReferences.inputs
 function Test-Referenced([string]$Path) {
     foreach ($entry in $referenced) {
         if ((Test-GtWithin $entry $Path) -or (Test-GtWithin $Path $entry)) { return $true }
@@ -55,46 +46,9 @@ function Assert-ArtifactGameStopped {
     $state=Get-VerificationProcessState -Name Solasta
     if (-not $state.querySucceeded -or $state.matches.Count) { throw 'Artifact deletion requires a verified stopped game.' }
 }
-function Assert-ReferencesCurrent {
-    foreach ($reference in $referenceInputs) {
-        if ((Get-GtHash $reference.path) -ne $reference.sha256) { throw 'A storage reference manifest changed during cleanup.' }
-    }
-}
-function Assert-RuntimeOwnerStopped($Cleanup) {
-    if ($null -eq $Cleanup -or $Cleanup.completed -isnot [bool] -or -not $Cleanup.completed -or
-        ($Cleanup.expectedProcessId -isnot [int] -and $Cleanup.expectedProcessId -isnot [long]) -or
-        $Cleanup.expectedProcessId -le 0 -or $Cleanup.expectedPath -isnot [string] -or
-        -not [IO.Path]::IsPathRooted($Cleanup.expectedPath)) { throw 'Runtime process ownership is incomplete.' }
-    $started=([datetime]$Cleanup.expectedStartTimeUtc).ToUniversalTime()
-    $state=Get-VerificationProcessState -Name ([IO.Path]::GetFileNameWithoutExtension($Cleanup.expectedPath))
-    if (-not $state.querySucceeded) { throw 'Runtime process ownership could not be queried.' }
-    foreach ($match in $state.matches) {
-        if ($null -eq $match.pid) { throw 'A process identity could not be read.' }
-        if ($match.pid -ne $Cleanup.expectedProcessId) { continue }
-        $errors=$match.readErrors
-        $errorCount=if ($errors -is [Collections.IDictionary]) { $errors.Count } else { @($errors.PSObject.Properties).Count }
-        if ($errorCount) { throw 'The runtime process identity could not be read.' }
-        if ([Math]::Abs((([datetime]$match.startTimeUtc).ToUniversalTime()-$started).TotalSeconds) -ge 1) { continue }
-        if ((Get-GtPath $match.path) -ne (Get-GtPath $Cleanup.expectedPath)) { throw 'The runtime process identity is inconsistent.' }
-        throw 'The runtime owner process is still active.'
-    }
-}
-function Get-RuntimeRun([string]$Path,$Result) {
-    $ownership=Read-GtObject (Join-Path $Path 'Directory.json')
-    if ($ownership.schemaVersion -ne 1 -or $ownership.layout -cne 'Runtime' -or
-        (Get-GtPath $ownership.directory) -ne (Get-GtPath $Path) -or
-        (Get-GtPath $Result.evidenceDirectory) -ne (Get-GtPath $Path)) { throw 'Runtime directory ownership does not match.' }
-    foreach ($field in @('settingsRestored','displaySettingsRestored','probeRemoved','originalNativeFilesUnchanged')) {
-        if ($Result.$field -isnot [bool] -or -not $Result.$field) { throw 'Runtime restoration is incomplete.' }
-    }
-    if ($Result.status -cnotin @('success','failed','incomplete') -or [string]::IsNullOrWhiteSpace($Result.runName) -or
-        $Result.processId -ne $Result.processCleanup.expectedProcessId) { throw 'Runtime restoration is incomplete.' }
-    Assert-RuntimeOwnerStopped $Result.processCleanup
-    $completed=([datetime]$Result.completedUtc).ToUniversalTime()
-    if ($completed -lt ([datetime]$Result.startedUtc).ToUniversalTime()) { throw 'Runtime completion precedes its start.' }
-    [pscustomobject]@{path=$Path;name=(Split-Path -Leaf $Path);caseId=('@Runtime:'+$Result.runName);completed=$completed;
-        gameDirectory=(Split-Path -Parent $Result.processCleanup.expectedPath);buildHash=$null;kind='runtime';result=$Result}
-}
+function Assert-ReferencesCurrent { Assert-GtStorageReferences $storageReferences }
+
+
 function Test-Preserved([string]$Path) {
     foreach ($item in $preserved) {
         if ((Test-GtWithin $Path $item) -or (Test-GtWithin $item $Path)) { return $true }
@@ -102,54 +56,26 @@ function Test-Preserved([string]$Path) {
     return $false
 }
 function Get-ArtifactBoundaries([string]$Path) {
-    $pending=[Collections.Generic.Stack[string]]::new()
-    $pending.Push($Path)
+    $pending=[Collections.Generic.Stack[IO.DirectoryInfo]]::new()
+    $pending.Push([IO.DirectoryInfo]::new($Path))
     while ($pending.Count) {
         $directory=$pending.Pop()
-        # A copied tool environment owns its own artifact root. Its receipts
-        # are inputs of this tree, even when the enclosing archive is unmarked.
-        if (Test-ArtifactEnvironment $directory) { continue }
-        # Grouping folders may be nested. An owned run is a boundary: its
-        # archived inputs, runtime evidence and contract fixtures are not runs.
+        if ($directory.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "Reparse point in artifact boundary: $($directory.FullName)" }
+        # Re-enumerate every time this function is called. A new consumer or
+        # a late Build.json in an existing boundary must remain observable.
+        if (Test-ArtifactEnvironment $directory.FullName) { continue }
         $boundary=$false
         foreach ($name in @('Directory.json','Transaction.json','Build.json','Result.json')) {
-            if (Test-Path -LiteralPath (Join-Path $directory $name) -PathType Leaf) { $boundary=$true; break }
+            if ([IO.File]::Exists([IO.Path]::Combine($directory.FullName,$name))) { $boundary=$true; break }
         }
-        if ($boundary) { Get-Item -LiteralPath $directory; continue }
-        foreach ($child in Get-ChildItem -LiteralPath $directory -Directory -Force) {
+        if ($boundary) { $directory; continue }
+        foreach ($child in $directory.EnumerateDirectories()) {
             if ($child.Name -eq '.native') { continue }
-            $pending.Push($child.FullName)
+            $pending.Push($child)
         }
     }
 }
-function Get-NativeUserDataCompanions([string]$Run) {
-    $nativeRoot=Get-GtPath (Join-Path $script:GameTestArtifactRoot '.native')
-    foreach ($manifest in Get-ChildItem -LiteralPath $Run -Filter 'Native-UserDataLocation.json' -File -Recurse) {
-        $location=Read-GtObject $manifest.FullName
-        if ('owner' -notin $location.PSObject.Properties.Name -or $location.owner -cnotmatch '^[a-f0-9]{32}$' -or
-            'path' -notin $location.PSObject.Properties.Name -or 'evidenceDirectory' -notin $location.PSObject.Properties.Name) {
-            throw 'Unrecognized native user-data ownership receipt was retained.'
-        }
-        $path=Get-GtPath $location.path
-        $evidence=Get-GtPath $location.evidenceDirectory
-        if ($path -ne (Get-GtPath (Join-Path $nativeRoot $location.owner)) -or
-            $evidence -ne (Get-GtPath $manifest.DirectoryName) -or -not (Test-GtWithin $evidence $Run)) {
-            throw 'Native user-data receipt does not identify its owned artifact directories.'
-        }
-        # A previous interrupted cleanup may already have removed this companion.
-        if (-not (Test-Path -LiteralPath $path)) { continue }
-        Assert-GtTree $path
-        $ownerMarker=Join-Path $path '.ub-runtime-userdata'
-        $evidenceMarker=Join-Path $path '.ub-runtime-evidence'
-        Assert-GtFile $ownerMarker
-        Assert-GtFile $evidenceMarker
-        if ([IO.File]::ReadAllText($ownerMarker).Trim() -cne $location.owner -or
-            (Get-GtPath ([IO.File]::ReadAllText($evidenceMarker).Trim())) -ne $evidence) {
-            throw 'Native user-data ownership markers do not match the evidence receipt.'
-        }
-        [pscustomobject]@{path=$path;bytes=[long]((Get-ChildItem -LiteralPath $path -File -Recurse -Force | Measure-Object Length -Sum).Sum)}
-    }
-}
+
 $lock=Enter-GtLock
 $actions=[Collections.Generic.List[object]]::new()
 $retained=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
@@ -207,7 +133,8 @@ try {
     Write-CleanupEvent ([ordered]@{event='cleanup-start';schemaVersion=1;utc=[DateTime]::UtcNow.ToString('O');applied=[bool]$Apply;policy=$policy;referenceInputs=$referenceInputs})
     $journal.Flush($true);$journalState.flushes++
     $directories=@(Get-ArtifactBoundaries $root)
-    foreach ($directory in $directories) {
+    $backupDirectories=if ($ReleaseNativeUserData) { @() } else { $directories }
+    foreach ($directory in $backupDirectories) {
         $run=$directory.FullName
         $manifest=Join-Path $run 'Transaction.json'
         if (-not (Test-Path -LiteralPath $manifest -PathType Leaf)) { continue }
@@ -236,14 +163,21 @@ try {
             $actions.Add([pscustomobject]@{ kind='retained'; path=$backup; bytes=0; applied=$false; reason=$_.Exception.Message })
         }
     }
-    if ($PruneSuperseded -or $MaxAgeDays -gt 0 -or $MaxRetainedBytes -gt 0) {
-        $references=[Text.StringBuilder]::new()
-        foreach ($folder in @('Cases','Scenarios')) {
-            foreach ($file in Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot $folder) -Recurse -File | Where-Object { $_.Extension -in @('.json','.ps1','.cs','.mjs') }) {
-                [void]$references.AppendLine([IO.File]::ReadAllText($file.FullName))
+    if ($ReleaseNativeUserData) {
+        foreach ($directory in $directories) {
+            if (-not [IO.File]::Exists((Join-Path $directory.FullName 'Result.json'))) { continue }
+            $ownsNativeData=$false
+            foreach ($location in [IO.Directory]::EnumerateFiles($directory.FullName,'Native-UserDataLocation.json',[IO.SearchOption]::AllDirectories)) { $ownsNativeData=$true;break }
+            if (-not $ownsNativeData) { continue }
+            $released=Clear-GtNativeUserData -RunDirectory $directory.FullName -ReferencePath $ReferencePath -PreserveDirectory $PreserveDirectory -Preview:(-not $Apply)
+            foreach ($entry in $released.actions) {
+                $action=[pscustomobject]@{kind='native-user-data';path=$entry.path;run=$directory.FullName;bytes=$entry.bytes;applied=$entry.applied;reason=$entry.reason}
+                $actions.Add($action);Save-CleanupReport $action
             }
         }
-        $referenceText=$references.ToString()
+    }
+    if ($PruneSuperseded -or $MaxAgeDays -gt 0 -or $MaxRetainedBytes -gt 0) {
+        $referenceText=Get-GtStorageReferenceText
         $runs=@(foreach ($directory in $directories) {
             try {
                 $resultPath=Join-Path $directory.FullName 'Result.json'
@@ -251,7 +185,7 @@ try {
                 if ((Test-Path -LiteralPath $resultPath -PathType Leaf) -and -not (Test-Path -LiteralPath $transactionPath -PathType Leaf)) {
                     $runtime=Read-GtObject $resultPath
                     if ('status' -in $runtime.PSObject.Properties.Name -and $runtime.status -cin @('success','failed','incomplete')) {
-                        Get-RuntimeRun $directory.FullName $runtime
+                        Get-GtRuntimeRun $directory.FullName $runtime
                         continue
                     }
                 }
@@ -315,7 +249,7 @@ try {
         foreach ($run in $runs) {
             if ($run.caseId -eq '@Build' -or ($MaxRetainedBytes -eq 0 -and $retentionReasons.ContainsKey($run.path))) { continue }
             try {
-                $companions=@(Get-NativeUserDataCompanions $run.path)
+                $companions=@(Get-GtNativeUserDataCompanions $run.path)
                 $companionsByRun[$run.path]=$companions
                 if (@($companions | Where-Object { (Test-Preserved $_.path) -or (Test-Referenced $_.path) }).Count) { $retentionReasons[$run.path]='preserved-native-companion' }
             } catch {
@@ -366,7 +300,7 @@ try {
             Assert-ReferencesCurrent
             if ($Run.path -eq $root -or -not (Test-GtWithin $Run.path $root)) { throw 'The cleanup report root cannot be deleted.' }
             if (Test-Path -LiteralPath (Join-Path $Run.gameDirectory 'Mods\.UBGameTestTransaction.json')) { throw 'A recovery transaction appeared during cleanup.' }
-            if ($Run.kind -eq 'runtime') { [void](Get-RuntimeRun $Run.path (Read-GtObject $Run.identityPath)) }
+            if ($Run.kind -eq 'runtime') { [void](Get-GtRuntimeRun $Run.path (Read-GtObject $Run.identityPath)) }
             elseif ($Run.kind -eq 'game-test') {
                 $transaction=Read-GtObject (Join-Path $Run.path 'Transaction.json')
                 if ($transaction.schemaVersion -ne 1 -or $transaction.state -ne 'restored' -or
@@ -418,7 +352,7 @@ try {
                 Assert-GtTree $run.path
                 $companions=@(if ($companionsByRun.ContainsKey($run.path)) { $companionsByRun[$run.path] })
                 if ((Get-GtHash $run.identityPath) -ne $run.identityHash) { throw 'A cleanup result changed during planning.' }
-                if ($run.kind -eq 'runtime') { [void](Get-RuntimeRun $run.path (Read-GtObject $run.identityPath)) }
+                if ($run.kind -eq 'runtime') { [void](Get-GtRuntimeRun $run.path (Read-GtObject $run.identityPath)) }
                 elseif ($run.kind -eq 'game-test') {
                     $transaction=Read-GtObject (Join-Path $run.path 'Transaction.json')
                     if ($transaction.schemaVersion -ne 1 -or $transaction.state -ne 'restored' -or
@@ -427,7 +361,7 @@ try {
                 if ($Apply) {
                     Assert-ArtifactGameStopped
                     if ($run.kind -ne 'build') {
-                        $verified=@(Get-NativeUserDataCompanions $run.path)
+                        $verified=@(Get-GtNativeUserDataCompanions $run.path)
                         if ($companions.Count -ne $verified.Count -or ($companions.Count -gt 0 -and
                             @(Compare-Object @($companions | ForEach-Object path) @($verified | ForEach-Object path)).Count)) { throw 'Native user-data ownership changed during planning.' }
                     }
@@ -458,7 +392,7 @@ try {
                     Save-CleanupReport $action
                     if ($Apply) {
                         Assert-RunDeletionReady $run
-                        $confirmed=@(Get-NativeUserDataCompanions $run.path)
+                        $confirmed=@(Get-GtNativeUserDataCompanions $run.path)
                         if (@($confirmed | Where-Object path -eq $companion.path).Count -ne 1) { throw 'Native user-data ownership changed before deletion.' }
                         Assert-ReferencesCurrent
                         Remove-Item -LiteralPath $companion.path -Recurse -Force;$action.applied=$true;Save-CleanupReport $action

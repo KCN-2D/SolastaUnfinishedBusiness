@@ -1,3 +1,4 @@
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
@@ -14,6 +15,17 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GraphicsCharacterPatcher
 {
+    [HarmonyPatch(typeof(GraphicsCharacter), nameof(GraphicsCharacter.RefreshRenderers))]
+    [UsedImplicitly]
+    public static class RefreshRenderers_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GraphicsCharacter __instance)
+        {
+            RacesContext.RefreshCustomFaces(__instance);
+        }
+    }
+
     [HarmonyPatch(typeof(GraphicsCharacter), nameof(GraphicsCharacter.EnableGhostEffect))]
     [UsedImplicitly]
     public static class EnableGhostEffect_Patch
@@ -61,8 +73,9 @@ public static class GraphicsCharacterPatcher
         }
 
         [UsedImplicitly]
-        public static void Prefix(GraphicsCharacter __instance, MethodBase __originalMethod, object[] __args)
+        public static void Prefix(GraphicsCharacter __instance, MethodBase __originalMethod, object[] __args, out object __state)
         {
+            __state = null;
             if (__originalMethod.Name == nameof(GraphicsCharacter.SetupAfterEquipment))
             {
                 CivilianAnimationContext.RefreshCivilianEquipment(__instance);
@@ -74,7 +87,7 @@ public static class GraphicsCharacterPatcher
 
             if (__originalMethod.Name is nameof(GraphicsCharacter.RebindAnimator) or "ResetAnimatorState")
             {
-                RacesContext.ReleaseBodyShape(__instance);
+                __state = RacesContext.SuspendCustomFaces(__instance);
                 CombatAnimationContext.ForgetActionAnimation(__instance);
             }
         }
@@ -100,11 +113,20 @@ public static class GraphicsCharacterPatcher
                 CombatAnimationContext.RefreshEquipmentPresentation(__instance);
             }
 
-            if (__originalMethod.Name is nameof(GraphicsCharacter.RebindAnimator) or "ResetAnimatorState" or
-                nameof(GraphicsCharacter.SetupAfterEquipment))
+            if (__originalMethod.Name == nameof(GraphicsCharacter.SetupAfterEquipment))
             {
+                RacesContext.RefreshCustomFaces(__instance);
                 RacesContext.RefreshBodyShape(__instance);
             }
+        }
+
+        [UsedImplicitly]
+        public static Exception Finalizer(GraphicsCharacter __instance, MethodBase __originalMethod, object __state,
+            Exception __exception)
+        {
+            if (__originalMethod.Name is nameof(GraphicsCharacter.RebindAnimator) or "ResetAnimatorState")
+                RacesContext.ResumeCustomFaces(__instance, __state, __exception != null);
+            return __exception;
         }
     }
 
@@ -117,6 +139,7 @@ public static class GraphicsCharacterPatcher
         {
             CombatAnimationContext.ReleaseEquipmentPresentation(__instance);
             RacesContext.ReleaseBodyShape(__instance);
+            RacesContext.ReleaseCustomFaces(__instance);
             CivilianAnimationContext.ForgetCivilianReaction(__instance);
             CombatAnimationContext.ForgetActionAnimation(__instance);
         }

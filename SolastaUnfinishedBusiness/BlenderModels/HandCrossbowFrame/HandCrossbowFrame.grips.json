@@ -46,10 +46,19 @@
     "variants": [
       {
         "slot": "MainHandSlot",
+        "otherHandPose": "Free",
+        "companionId": "Free",
+        "reuseSourceCompanionId": "",
         "attackClipPrefix": "HandCrossbow_Right_Free_Attack_Carry_",
         "clipVariantBinding": "Crossbow_Attack",
         "idleClipPrefix": "HandCrossbow_Right_Free_Carry_",
         "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
         "clipPrefixes": {
           "Crossbow_Idle": "HandCrossbow_Right_Free_Aim_",
           "Crossbow_In": "HandCrossbow_Right_Free_In_",
@@ -63,10 +72,19 @@
       },
       {
         "slot": "MainHandSlot",
+        "otherHandPose": "Free",
+        "companionId": "Free",
+        "reuseSourceCompanionId": "",
         "attackClipPrefix": "HandCrossbow_Right_Free_Attack_Aim_",
         "clipVariantBinding": "Crossbow_Attack",
         "idleClipPrefix": "HandCrossbow_Right_Free_Aim_",
         "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
         "clipPrefixes": {
           "Crossbow_Idle": "HandCrossbow_Right_Free_Aim_",
           "Crossbow_In": "HandCrossbow_Right_Free_In_",
@@ -75,18 +93,33 @@
         "otherHandOccupied": false,
         "requiresFreeOtherHand": false,
         "inCombat": true,
+        "otherHandSharesIdlePose": false,
         "supportsSecondaryIdle": false
       },
       {
         "slot": "MainHandSlot",
-        "attackClipPrefix": "HandCrossbow_Right_Occupied_Attack_Carry_",
+        "otherHandPose": "OneHandWeapon",
+        "companionId": "OneHandWeapon",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Right_OneHandWeapon_Attack_Carry_",
         "clipVariantBinding": "Crossbow_Attack",
-        "idleClipPrefix": "HandCrossbow_Right_Occupied_Carry_",
+        "idleClipPrefix": "HandCrossbow_Right_OneHandWeapon_Carry_",
         "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [
+          "ShortSword",
+          "Mace",
+          "Dagger",
+          "Rapier"
+        ],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
         "clipPrefixes": {
-          "Crossbow_Idle": "HandCrossbow_Right_Occupied_Aim_",
-          "Crossbow_In": "HandCrossbow_Right_Occupied_In_",
-          "Crossbow_Out": "HandCrossbow_Right_Occupied_Out_"
+          "Crossbow_Idle": "HandCrossbow_Right_OneHandWeapon_Aim_",
+          "Crossbow_In": "HandCrossbow_Right_OneHandWeapon_In_",
+          "Crossbow_Out": "HandCrossbow_Right_OneHandWeapon_Out_"
         },
         "otherHandOccupied": true,
         "requiresFreeOtherHand": false,
@@ -96,26 +129,154 @@
       },
       {
         "slot": "MainHandSlot",
-        "attackClipPrefix": "HandCrossbow_Right_Occupied_Attack_Aim_",
+        "otherHandPose": "OneHandWeapon",
+        "companionId": "OneHandWeapon",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Right_OneHandWeapon_Attack_Aim_",
         "clipVariantBinding": "Crossbow_Attack",
-        "idleClipPrefix": "HandCrossbow_Right_Occupied_Aim_",
+        "idleClipPrefix": "HandCrossbow_Right_OneHandWeapon_Aim_",
         "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [
+          "ShortSword",
+          "Mace",
+          "Dagger",
+          "Rapier"
+        ],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
         "clipPrefixes": {
-          "Crossbow_Idle": "HandCrossbow_Right_Occupied_Aim_",
-          "Crossbow_In": "HandCrossbow_Right_Occupied_In_",
-          "Crossbow_Out": "HandCrossbow_Right_Occupied_Out_"
+          "Crossbow_Idle": "HandCrossbow_Right_OneHandWeapon_Aim_",
+          "Crossbow_In": "HandCrossbow_Right_OneHandWeapon_In_",
+          "Crossbow_Out": "HandCrossbow_Right_OneHandWeapon_Out_"
         },
         "otherHandOccupied": true,
         "requiresFreeOtherHand": false,
         "inCombat": true,
+        "otherHandSharesIdlePose": false,
+        "supportsSecondaryIdle": false
+      },
+      {
+        "slot": "MainHandSlot",
+        "otherHandPose": "Shield",
+        "companionId": "Shield",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Right_Shield_Attack_Carry_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Right_Shield_Carry_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Right_Shield_Aim_",
+          "Crossbow_In": "HandCrossbow_Right_Shield_In_",
+          "Crossbow_Out": "HandCrossbow_Right_Shield_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": false,
+        "otherHandSharesIdlePose": false,
+        "supportsSecondaryIdle": false
+      },
+      {
+        "slot": "MainHandSlot",
+        "otherHandPose": "Shield",
+        "companionId": "Shield",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Right_Shield_Attack_Aim_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Right_Shield_Aim_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Right_Shield_Aim_",
+          "Crossbow_In": "HandCrossbow_Right_Shield_In_",
+          "Crossbow_Out": "HandCrossbow_Right_Shield_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": true,
+        "otherHandSharesIdlePose": false,
+        "supportsSecondaryIdle": false
+      },
+      {
+        "slot": "MainHandSlot",
+        "otherHandPose": "SharedIdle",
+        "companionId": "SharedIdle",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Right_SharedIdle_Attack_Carry_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Right_SharedIdle_Carry_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Right_SharedIdle_Aim_",
+          "Crossbow_In": "HandCrossbow_Right_SharedIdle_In_",
+          "Crossbow_Out": "HandCrossbow_Right_SharedIdle_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": false,
+        "otherHandSharesIdlePose": true,
+        "supportsSecondaryIdle": false
+      },
+      {
+        "slot": "MainHandSlot",
+        "otherHandPose": "SharedIdle",
+        "companionId": "SharedIdle",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Right_SharedIdle_Attack_Aim_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Right_SharedIdle_Aim_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Right_SharedIdle_Aim_",
+          "Crossbow_In": "HandCrossbow_Right_SharedIdle_In_",
+          "Crossbow_Out": "HandCrossbow_Right_SharedIdle_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": true,
+        "otherHandSharesIdlePose": true,
         "supportsSecondaryIdle": false
       },
       {
         "slot": "OffHandSlot",
+        "otherHandPose": "Free",
+        "companionId": "Free",
+        "reuseSourceCompanionId": "",
         "attackClipPrefix": "HandCrossbow_Left_Free_Attack_Carry_",
         "clipVariantBinding": "Crossbow_Attack",
         "idleClipPrefix": "HandCrossbow_Left_Free_Carry_",
         "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
         "clipPrefixes": {
           "Crossbow_Idle": "HandCrossbow_Left_Free_Aim_",
           "Crossbow_In": "HandCrossbow_Left_Free_In_",
@@ -129,10 +290,19 @@
       },
       {
         "slot": "OffHandSlot",
+        "otherHandPose": "Free",
+        "companionId": "Free",
+        "reuseSourceCompanionId": "",
         "attackClipPrefix": "HandCrossbow_Left_Free_Attack_Aim_",
         "clipVariantBinding": "Crossbow_Attack",
         "idleClipPrefix": "HandCrossbow_Left_Free_Aim_",
         "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
         "clipPrefixes": {
           "Crossbow_Idle": "HandCrossbow_Left_Free_Aim_",
           "Crossbow_In": "HandCrossbow_Left_Free_In_",
@@ -141,6 +311,7 @@
         "otherHandOccupied": false,
         "requiresFreeOtherHand": false,
         "inCombat": true,
+        "otherHandSharesIdlePose": false,
         "supportsSecondaryIdle": false,
         "attackEntries": {
           "0H_idle": "HandCrossbow_Left_Free_Attack_From_Unarmed_"
@@ -148,14 +319,28 @@
       },
       {
         "slot": "OffHandSlot",
-        "attackClipPrefix": "HandCrossbow_Left_Occupied_Attack_Carry_",
+        "otherHandPose": "OneHandWeapon",
+        "companionId": "OneHandWeapon",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Left_OneHandWeapon_Attack_Carry_",
         "clipVariantBinding": "Crossbow_Attack",
-        "idleClipPrefix": "HandCrossbow_Left_Occupied_Carry_",
+        "idleClipPrefix": "HandCrossbow_Left_OneHandWeapon_Carry_",
         "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [
+          "ShortSword",
+          "Mace",
+          "Dagger",
+          "Rapier"
+        ],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
         "clipPrefixes": {
-          "Crossbow_Idle": "HandCrossbow_Left_Occupied_Aim_",
-          "Crossbow_In": "HandCrossbow_Left_Occupied_In_",
-          "Crossbow_Out": "HandCrossbow_Left_Occupied_Out_"
+          "Crossbow_Idle": "HandCrossbow_Left_OneHandWeapon_Aim_",
+          "Crossbow_In": "HandCrossbow_Left_OneHandWeapon_In_",
+          "Crossbow_Out": "HandCrossbow_Left_OneHandWeapon_Out_"
         },
         "otherHandOccupied": true,
         "requiresFreeOtherHand": false,
@@ -163,65 +348,617 @@
         "otherHandSharesIdlePose": false,
         "supportsSecondaryIdle": true,
         "attackEntries": {
-          "Idle": "HandCrossbow_Left_Occupied_Attack_NativeCarry_"
+          "Idle": "HandCrossbow_Left_OneHandWeapon_Attack_NativeCarry_"
         }
       },
       {
         "slot": "OffHandSlot",
-        "attackClipPrefix": "HandCrossbow_Left_Occupied_Attack_Aim_",
+        "otherHandPose": "OneHandWeapon",
+        "companionId": "OneHandWeapon",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Left_OneHandWeapon_Attack_Aim_",
         "clipVariantBinding": "Crossbow_Attack",
-        "idleClipPrefix": "HandCrossbow_Left_Occupied_Aim_",
+        "idleClipPrefix": "HandCrossbow_Left_OneHandWeapon_Aim_",
         "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [
+          "ShortSword",
+          "Mace",
+          "Dagger",
+          "Rapier"
+        ],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
         "clipPrefixes": {
-          "Crossbow_Idle": "HandCrossbow_Left_Occupied_Aim_",
-          "Crossbow_In": "HandCrossbow_Left_Occupied_In_",
-          "Crossbow_Out": "HandCrossbow_Left_Occupied_Out_"
+          "Crossbow_Idle": "HandCrossbow_Left_OneHandWeapon_Aim_",
+          "Crossbow_In": "HandCrossbow_Left_OneHandWeapon_In_",
+          "Crossbow_Out": "HandCrossbow_Left_OneHandWeapon_Out_"
         },
         "otherHandOccupied": true,
         "requiresFreeOtherHand": false,
         "inCombat": true,
+        "otherHandSharesIdlePose": false,
         "supportsSecondaryIdle": false,
         "attackEntries": {
-          "HandCrossbow_Right_Occupied_Aim_120": "HandCrossbow_Left_Occupied_Attack_From_MainAim_",
-          "1H_idle": "HandCrossbow_Left_Occupied_Attack_From_OneHand_",
-          "HandCrossbow_Right_Occupied_Aim_130": "HandCrossbow_Left_Occupied_Attack_From_MainAim_"
+          "1H_idle": "HandCrossbow_Left_OneHandWeapon_Attack_From_OneHand_"
+        }
+      },
+      {
+        "slot": "OffHandSlot",
+        "otherHandPose": "Shield",
+        "companionId": "Shield",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Left_Shield_Attack_Carry_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Left_Shield_Carry_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Left_Shield_Aim_",
+          "Crossbow_In": "HandCrossbow_Left_Shield_In_",
+          "Crossbow_Out": "HandCrossbow_Left_Shield_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": false,
+        "otherHandSharesIdlePose": false,
+        "supportsSecondaryIdle": true,
+        "attackEntries": {
+          "Idle": "HandCrossbow_Left_Shield_Attack_NativeCarry_"
+        }
+      },
+      {
+        "slot": "OffHandSlot",
+        "otherHandPose": "Shield",
+        "companionId": "Shield",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Left_Shield_Attack_Aim_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Left_Shield_Aim_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Left_Shield_Aim_",
+          "Crossbow_In": "HandCrossbow_Left_Shield_In_",
+          "Crossbow_Out": "HandCrossbow_Left_Shield_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": true,
+        "otherHandSharesIdlePose": false,
+        "supportsSecondaryIdle": false,
+        "attackEntries": {
+          "1H_S_idle": "HandCrossbow_Left_Shield_Attack_From_OneHand_"
+        }
+      },
+      {
+        "slot": "OffHandSlot",
+        "otherHandPose": "SharedIdle",
+        "companionId": "SharedIdle",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Left_SharedIdle_Attack_Carry_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Left_SharedIdle_Carry_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Left_SharedIdle_Aim_",
+          "Crossbow_In": "HandCrossbow_Left_SharedIdle_In_",
+          "Crossbow_Out": "HandCrossbow_Left_SharedIdle_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": false,
+        "otherHandSharesIdlePose": true,
+        "supportsSecondaryIdle": true
+      },
+      {
+        "slot": "OffHandSlot",
+        "otherHandPose": "SharedIdle",
+        "companionId": "SharedIdle",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Left_SharedIdle_Attack_Aim_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Left_SharedIdle_Aim_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Left_SharedIdle_Aim_",
+          "Crossbow_In": "HandCrossbow_Left_SharedIdle_In_",
+          "Crossbow_Out": "HandCrossbow_Left_SharedIdle_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": true,
+        "otherHandSharesIdlePose": true,
+        "supportsSecondaryIdle": false,
+        "attackEntries": {
+          "HandCrossbow_Right_SharedIdle_Aim_120": "HandCrossbow_Left_SharedIdle_Attack_From_MainAim_",
+          "HandCrossbow_Right_SharedIdle_Aim_130": "HandCrossbow_Left_SharedIdle_Attack_From_MainAim_"
         }
       },
       {
         "slot": "MainHandSlot",
-        "attackClipPrefix": "HandCrossbow_Right_Occupied_Dual_Attack_Carry_",
+        "otherHandPose": "OneHandWeapon",
+        "companionId": "NativeThrown",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Right_NativeThrown_Attack_Carry_",
         "clipVariantBinding": "Crossbow_Attack",
-        "idleClipPrefix": "HandCrossbow_Right_Occupied_Dual_Carry_",
+        "idleClipPrefix": "HandCrossbow_Right_NativeThrown_Carry_",
         "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [
+          "Javelin"
+        ],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
         "clipPrefixes": {
-          "Crossbow_Idle": "HandCrossbow_Right_Occupied_Aim_",
-          "Crossbow_In": "HandCrossbow_Right_Occupied_Dual_In_",
-          "Crossbow_Out": "HandCrossbow_Right_Occupied_Dual_Out_"
+          "Crossbow_Idle": "HandCrossbow_Right_NativeThrown_Aim_",
+          "Crossbow_In": "HandCrossbow_Right_NativeThrown_In_",
+          "Crossbow_Out": "HandCrossbow_Right_NativeThrown_Out_"
         },
         "otherHandOccupied": true,
         "requiresFreeOtherHand": false,
         "inCombat": false,
-        "otherHandSharesIdlePose": true,
+        "otherHandSharesIdlePose": false,
+        "supportsSecondaryIdle": false
+      },
+      {
+        "slot": "MainHandSlot",
+        "otherHandPose": "OneHandWeapon",
+        "companionId": "NativeThrown",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Right_NativeThrown_Attack_Aim_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Right_NativeThrown_Aim_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [
+          "Javelin"
+        ],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Right_NativeThrown_Aim_",
+          "Crossbow_In": "HandCrossbow_Right_NativeThrown_In_",
+          "Crossbow_Out": "HandCrossbow_Right_NativeThrown_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": true,
+        "otherHandSharesIdlePose": false,
+        "supportsSecondaryIdle": false
+      },
+      {
+        "slot": "MainHandSlot",
+        "otherHandPose": "OneHandWeapon",
+        "companionId": "NativePole",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Right_NativePole_Attack_Carry_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Right_NativePole_Carry_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [
+          "Spear"
+        ],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster",
+          "2H_idle"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Right_NativePole_Aim_",
+          "Crossbow_In": "HandCrossbow_Right_NativePole_In_",
+          "Crossbow_Out": "HandCrossbow_Right_NativePole_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": false,
+        "otherHandSharesIdlePose": false,
+        "supportsSecondaryIdle": false
+      },
+      {
+        "slot": "MainHandSlot",
+        "otherHandPose": "OneHandWeapon",
+        "companionId": "NativePole",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Right_NativePole_Attack_Aim_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Right_NativePole_Aim_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [
+          "Spear"
+        ],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster",
+          "2H_idle"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Right_NativePole_Aim_",
+          "Crossbow_In": "HandCrossbow_Right_NativePole_In_",
+          "Crossbow_Out": "HandCrossbow_Right_NativePole_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": true,
+        "otherHandSharesIdlePose": false,
         "supportsSecondaryIdle": false
       },
       {
         "slot": "OffHandSlot",
-        "attackClipPrefix": "HandCrossbow_Left_Occupied_Dual_Attack_Carry_",
+        "otherHandPose": "OneHandWeapon",
+        "companionId": "NativeThrown",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Left_NativeThrown_Attack_Carry_",
         "clipVariantBinding": "Crossbow_Attack",
-        "idleClipPrefix": "HandCrossbow_Left_Occupied_Dual_Carry_",
+        "idleClipPrefix": "HandCrossbow_Left_NativeThrown_Carry_",
         "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [
+          "Javelin"
+        ],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
         "clipPrefixes": {
-          "Crossbow_Idle": "HandCrossbow_Left_Occupied_Aim_",
-          "Crossbow_In": "HandCrossbow_Left_Occupied_Dual_In_",
-          "Crossbow_Out": "HandCrossbow_Left_Occupied_Dual_Out_"
+          "Crossbow_Idle": "HandCrossbow_Left_NativeThrown_Aim_",
+          "Crossbow_In": "HandCrossbow_Left_NativeThrown_In_",
+          "Crossbow_Out": "HandCrossbow_Left_NativeThrown_Out_"
         },
         "otherHandOccupied": true,
         "requiresFreeOtherHand": false,
         "inCombat": false,
-        "otherHandSharesIdlePose": true,
+        "otherHandSharesIdlePose": false,
         "supportsSecondaryIdle": true,
         "attackEntries": {
-          "Idle": "HandCrossbow_Left_Occupied_Attack_NativeCarry_"
+          "Idle": "HandCrossbow_Left_NativeThrown_Attack_NativeCarry_"
+        }
+      },
+      {
+        "slot": "OffHandSlot",
+        "otherHandPose": "OneHandWeapon",
+        "companionId": "NativeThrown",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Left_NativeThrown_Attack_Aim_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Left_NativeThrown_Aim_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [
+          "Javelin"
+        ],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Left_NativeThrown_Aim_",
+          "Crossbow_In": "HandCrossbow_Left_NativeThrown_In_",
+          "Crossbow_Out": "HandCrossbow_Left_NativeThrown_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": true,
+        "otherHandSharesIdlePose": false,
+        "supportsSecondaryIdle": false,
+        "attackEntries": {
+          "1H_Javelin_Idle": "HandCrossbow_Left_NativeThrown_Attack_From_OneHand_"
+        }
+      },
+      {
+        "slot": "OffHandSlot",
+        "otherHandPose": "OneHandWeapon",
+        "companionId": "NativePole",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Left_NativePole_Attack_Carry_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Left_NativePole_Carry_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [
+          "Spear"
+        ],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster",
+          "2H_idle"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Left_NativePole_Aim_",
+          "Crossbow_In": "HandCrossbow_Left_NativePole_In_",
+          "Crossbow_Out": "HandCrossbow_Left_NativePole_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": false,
+        "otherHandSharesIdlePose": false,
+        "supportsSecondaryIdle": true,
+        "attackEntries": {
+          "Idle": "HandCrossbow_Left_NativePole_Attack_NativeCarry_"
+        }
+      },
+      {
+        "slot": "OffHandSlot",
+        "otherHandPose": "OneHandWeapon",
+        "companionId": "NativePole",
+        "reuseSourceCompanionId": "",
+        "attackClipPrefix": "HandCrossbow_Left_NativePole_Attack_Aim_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Left_NativePole_Aim_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [
+          "Spear"
+        ],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster",
+          "2H_idle"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Left_NativePole_Aim_",
+          "Crossbow_In": "HandCrossbow_Left_NativePole_In_",
+          "Crossbow_Out": "HandCrossbow_Left_NativePole_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": true,
+        "otherHandSharesIdlePose": false,
+        "supportsSecondaryIdle": true,
+        "attackEntries": {
+          "2H_idle": "HandCrossbow_Left_NativePole_Attack_From_OneHand_"
+        }
+      },
+      {
+        "slot": "MainHandSlot",
+        "otherHandPose": "NativeLayer",
+        "companionId": "NativeLightSource",
+        "reuseSourceCompanionId": "Free",
+        "attackClipPrefix": "HandCrossbow_Right_Free_Attack_Carry_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Right_Free_Carry_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Right_Free_Aim_",
+          "Crossbow_In": "HandCrossbow_Right_Free_In_",
+          "Crossbow_Out": "HandCrossbow_Right_Free_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": false,
+        "otherHandSharesIdlePose": false,
+        "supportsSecondaryIdle": false
+      },
+      {
+        "slot": "MainHandSlot",
+        "otherHandPose": "OneHandWeapon",
+        "companionId": "NativeUnarmedEquipment",
+        "reuseSourceCompanionId": "Free",
+        "attackClipPrefix": "HandCrossbow_Right_Free_Attack_Carry_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Right_Free_Carry_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [
+          "NoWeapon"
+        ],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Right_Free_Aim_",
+          "Crossbow_In": "HandCrossbow_Right_Free_In_",
+          "Crossbow_Out": "HandCrossbow_Right_Free_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": false,
+        "otherHandSharesIdlePose": false,
+        "supportsSecondaryIdle": false
+      },
+      {
+        "slot": "MainHandSlot",
+        "otherHandPose": "NativeLayer",
+        "companionId": "NativeLightSource",
+        "reuseSourceCompanionId": "Free",
+        "attackClipPrefix": "HandCrossbow_Right_Free_Attack_Aim_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Right_Free_Aim_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Right_Free_Aim_",
+          "Crossbow_In": "HandCrossbow_Right_Free_In_",
+          "Crossbow_Out": "HandCrossbow_Right_Free_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": true,
+        "otherHandSharesIdlePose": false,
+        "supportsSecondaryIdle": false
+      },
+      {
+        "slot": "MainHandSlot",
+        "otherHandPose": "OneHandWeapon",
+        "companionId": "NativeUnarmedEquipment",
+        "reuseSourceCompanionId": "Free",
+        "attackClipPrefix": "HandCrossbow_Right_Free_Attack_Aim_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Right_Free_Aim_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [
+          "NoWeapon"
+        ],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Right_Free_Aim_",
+          "Crossbow_In": "HandCrossbow_Right_Free_In_",
+          "Crossbow_Out": "HandCrossbow_Right_Free_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": true,
+        "otherHandSharesIdlePose": false,
+        "supportsSecondaryIdle": false
+      },
+      {
+        "slot": "OffHandSlot",
+        "otherHandPose": "NativeLayer",
+        "companionId": "NativeLightSource",
+        "reuseSourceCompanionId": "Free",
+        "attackClipPrefix": "HandCrossbow_Left_Free_Attack_Carry_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Left_Free_Carry_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Left_Free_Aim_",
+          "Crossbow_In": "HandCrossbow_Left_Free_In_",
+          "Crossbow_Out": "HandCrossbow_Left_Free_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": false,
+        "otherHandSharesIdlePose": false,
+        "supportsSecondaryIdle": false
+      },
+      {
+        "slot": "OffHandSlot",
+        "otherHandPose": "OneHandWeapon",
+        "companionId": "NativeUnarmedEquipment",
+        "reuseSourceCompanionId": "Free",
+        "attackClipPrefix": "HandCrossbow_Left_Free_Attack_Carry_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Left_Free_Carry_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [
+          "NoWeapon"
+        ],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Left_Free_Aim_",
+          "Crossbow_In": "HandCrossbow_Left_Free_In_",
+          "Crossbow_Out": "HandCrossbow_Left_Free_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": false,
+        "otherHandSharesIdlePose": false,
+        "supportsSecondaryIdle": false
+      },
+      {
+        "slot": "OffHandSlot",
+        "otherHandPose": "NativeLayer",
+        "companionId": "NativeLightSource",
+        "reuseSourceCompanionId": "Free",
+        "attackClipPrefix": "HandCrossbow_Left_Free_Attack_Aim_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Left_Free_Aim_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Left_Free_Aim_",
+          "Crossbow_In": "HandCrossbow_Left_Free_In_",
+          "Crossbow_Out": "HandCrossbow_Left_Free_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": true,
+        "otherHandSharesIdlePose": false,
+        "supportsSecondaryIdle": false,
+        "attackEntries": {
+          "0H_idle": "HandCrossbow_Left_Free_Attack_From_Unarmed_"
+        }
+      },
+      {
+        "slot": "OffHandSlot",
+        "otherHandPose": "OneHandWeapon",
+        "companionId": "NativeUnarmedEquipment",
+        "reuseSourceCompanionId": "Free",
+        "attackClipPrefix": "HandCrossbow_Left_Free_Attack_Aim_",
+        "clipVariantBinding": "Crossbow_Attack",
+        "idleClipPrefix": "HandCrossbow_Left_Free_Aim_",
+        "idleVariantBinding": "Crossbow_Attack",
+        "otherHandAnimationTags": [
+          "NoWeapon"
+        ],
+        "idleBindings": [
+          "Idle",
+          "Idle_Fighter",
+          "Idle_Caster"
+        ],
+        "clipPrefixes": {
+          "Crossbow_Idle": "HandCrossbow_Left_Free_Aim_",
+          "Crossbow_In": "HandCrossbow_Left_Free_In_",
+          "Crossbow_Out": "HandCrossbow_Left_Free_Out_"
+        },
+        "otherHandOccupied": true,
+        "requiresFreeOtherHand": false,
+        "inCombat": true,
+        "otherHandSharesIdlePose": false,
+        "supportsSecondaryIdle": false,
+        "attackEntries": {
+          "0H_idle": "HandCrossbow_Left_Free_Attack_From_Unarmed_"
         }
       }
     ]

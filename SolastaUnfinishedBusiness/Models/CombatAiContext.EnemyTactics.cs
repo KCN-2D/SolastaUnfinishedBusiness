@@ -7771,8 +7771,16 @@ internal static partial class CombatAiContext
         ActionModifier modifier, RulesetAttackMode attackMode, RulesetEffect effect,
         out RollOutcome outcome, out int successDelta, out bool automaticHit)
     {
-        outcome = action.AttackRollOutcome;
+        outcome = action?.AttackRollOutcome ?? RollOutcome.Failure;
         successDelta = 0;
+        automaticHit = false;
+        var attackingCharacter = attacker?.RulesetCharacter;
+        var defendingCharacter = defender?.RulesetCharacter;
+        if (action == null || attackingCharacter == null || defendingCharacter == null)
+        {
+            return false;
+        }
+
         // An explicit hit changes the result without replacing its original die.
         // AC defenses cannot evade it, while damage defenses still apply to that hit.
         automaticHit = attackMode?.AutomaticHit == true ||
@@ -7780,13 +7788,15 @@ internal static partial class CombatAiContext
 
         if (!automaticHit)
         {
-            if (action.AttackRoll <= 0 || attackMode == null && effect == null)
+            if (action.AttackRoll <= 0 || attackMode == null && effect == null ||
+                !defendingCharacter.TryGetAttribute(AttributeDefinitions.ArmorClass, out var armorClass) ||
+                armorClass == null)
             {
                 return false;
             }
 
             // Earlier reactions may have changed AC while the action still caches its initial outcome.
-            var evaluation = attacker.RulesetCharacter.ComputeAttackOutcome(defender.RulesetCharacter,
+            var evaluation = attackingCharacter.ComputeAttackOutcome(defendingCharacter,
                 attackMode?.SourceDefinition ?? effect?.GetEffectSource(), action.AttackRoll,
                 attackMode?.ToHitBonus ?? effect.MagicAttackBonus, modifier?.AttackRollModifier ?? 0);
             outcome = evaluation.Outcome;

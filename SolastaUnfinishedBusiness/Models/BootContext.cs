@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
@@ -342,6 +343,9 @@ internal static class BootContext
 
         CustomUI.Sprites.ApplyDefinitionSprites();
 
+        DatabaseHelper.RestoreDefinitionArchive<FeatureDefinition>(
+            "SolastaUnfinishedBusiness.Definitions.Archives.FeatureDefinitions.v1.json");
+
         // Recache all gui collections
         GuiWrapperContext.Recache();
 
@@ -359,6 +363,8 @@ internal static class BootContext
 
         // Enable mod before optional diagnostics parse user-authored data.
         enable();
+
+        RacesContext.SwitchCustomFaces();
 
         if (CoroutineHost)
         {

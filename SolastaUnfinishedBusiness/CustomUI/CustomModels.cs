@@ -4,11 +4,14 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Security.Cryptography;
 using JetBrains.Annotations;
+using Microsoft.Win32.SafeHandles;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -579,13 +582,31 @@ public static class CustomModels
         private static readonly FieldInfo SourceMesh = DeformerType?.GetField("sharedMesh", Fields);
         private static readonly FieldInfo RuntimeMesh = DeformerType?.GetField("mesh", Fields);
         private static readonly FieldInfo SkinRenderer = DeformerType?.GetField("skinMeshRenderer", Fields);
+        private static readonly FieldInfo OriginalBones = DeformerType?.GetField("originalBones", Fields);
+        private static readonly FieldInfo RuntimeBones = DeformerType?.GetField("boneList", Fields);
+        private static readonly FieldInfo SourceTargetObject = DeformerType?.BaseType?.GetField("targetObject", Fields);
+        private static readonly PropertyInfo ClothStatus = ClothType?.GetProperty("Status", Fields);
+        private static readonly PropertyInfo ClothInitStarted = ClothStatus?.PropertyType.GetProperty("IsInitStart", Fields);
+
+        private static Renderer ResolveNativeRenderer(Component owner, object native)
+        {
+            if (!owner || native == null) return null;
+            if (TargetRenderer.GetValue(owner) is Renderer declared) return declared;
+            return (SourceTargetObject?.GetValue(native) as GameObject)?.GetComponent<Renderer>();
+        }
+        private static SkinnedMeshRenderer ResolveTarget(Component owner, object native) =>
+            ResolveNativeRenderer(owner, native) as SkinnedMeshRenderer;
+
+        private readonly SkinnedMeshRenderer _resolvedTarget = deformer == null ? renderer : ResolveTarget(cloth, deformer);
+        private readonly GameObject _targetObject = deformer == null ? null : SourceTargetObject?.GetValue(deformer) as GameObject;
 
         internal Mesh Original { get; } = original;
         internal Component ClothOwner => cloth;
         internal object ClothDeformer => deformer;
         internal Mesh CurrentRuntimeMesh => deformer == null ? null : RuntimeMesh.GetValue(deformer) as Mesh;
         internal bool OwnerCurrent => deformer == null || cloth &&
-            (TargetRenderer.GetValue(cloth) as Renderer) == renderer &&
+            (TargetRenderer.GetValue(cloth) is Renderer declared ? declared == renderer :
+                _resolvedTarget == renderer && (SourceTargetObject.GetValue(deformer) as GameObject) == _targetObject) &&
             ReferenceEquals(Deformer.GetValue(cloth), deformer) &&
             (SourceMesh.GetValue(deformer) as Mesh) == Original &&
             (SkinRenderer.GetValue(deformer) is not SkinnedMeshRenderer target || target == renderer);
@@ -604,17 +625,1021 @@ public static class CustomModels
                    actual.blendShapeCount == Original.blendShapeCount;
         }
 
-        internal bool TrySetClothSourceMesh(Mesh replacement)
+        internal bool MatchesBones(Transform[] expected)
         {
-            if (!replacement || deformer == null || !OwnerCurrent || !AcceptsCurrentMesh() ||
-                replacement.vertexCount != Original.vertexCount ||
-                replacement.subMeshCount != Original.subMeshCount)
-            {
+            if (!renderer || expected == null || !OwnerCurrent) return false;
+            var actual = renderer.bones;
+            if (deformer == null) return expected.SequenceEqual(actual);
+            if (!AcceptsCurrentMesh()) return false;
+            var nativeBones = OriginalBones?.GetValue(deformer) as Transform[];
+            var runtimeBones = RuntimeBones?.GetValue(deformer) as Transform[];
+            // Before native Init there is no runtime clone or added virtual bone yet.
+            if (nativeBones is not { Length: > 0 } && runtimeBones is not { Length: > 0 } &&
+                !CurrentRuntimeMesh && renderer.sharedMesh == Original &&
+                ClothStatus?.GetValue(cloth) is { } status && ClothInitStarted?.GetValue(status) is false)
+                return expected.SequenceEqual(actual);
+            if (nativeBones == null || runtimeBones == null ||
+                runtimeBones.Length != nativeBones.Length + 1 || runtimeBones[nativeBones.Length] != renderer.transform)
                 return false;
+            // Magica switches its renderer between the source binding and the same binding plus its virtual bone.
+            for (var index = 0; index < nativeBones.Length; index++)
+                if (runtimeBones[index] != nativeBones[index]) return false;
+            return (expected.SequenceEqual(nativeBones) || expected.SequenceEqual(runtimeBones)) &&
+                (renderer.sharedMesh == Original && actual.SequenceEqual(nativeBones) ||
+                 renderer.sharedMesh == CurrentRuntimeMesh && actual.SequenceEqual(runtimeBones));
+        }
+
+        // One transition owns every native consumer of the changed render surfaces.
+        internal sealed class SurfaceVertex(int anchor, Vector3 offset, Vector3 normal, Vector3 tangent, bool native)
+        {
+            internal readonly int Anchor = anchor;
+            internal readonly Vector3 Offset = offset, Normal = normal, Tangent = tangent;
+            internal readonly bool Native = native;
+        }
+        internal sealed class SurfaceBinding(string fingerprint, Matrix4x4 rendererToPrefab,
+            Vector4[] sourceTangents, SurfaceVertex[] vertices)
+        {
+            internal readonly string Fingerprint = fingerprint;
+            internal readonly Matrix4x4 RendererToPrefab = rendererToPrefab;
+            internal readonly Vector4[] SourceTangents = sourceTangents;
+            internal readonly SurfaceVertex[] Vertices = vertices;
+        }
+        internal static SourceGraph PrepareMeshes(GraphicsCharacter graphics,
+            IReadOnlyDictionary<SkinnedMeshRenderer, (SkinMeshSource Source, Mesh Mesh)> changes) =>
+            PrepareMeshes(graphics, changes, null, null);
+        internal static SourceGraph PrepareMeshes(GraphicsCharacter graphics,
+            IReadOnlyDictionary<SkinnedMeshRenderer, (SkinMeshSource Source, Mesh Mesh)> changes,
+            IReadOnlyDictionary<SkinnedMeshRenderer, SurfaceBinding> bindings,
+            Func<string, Func<UnityEngine.Object[]>, UnityEngine.Object[]> retainData)
+        {
+            return new SourceGraph(graphics, changes, bindings, retainData);
+        }
+
+        internal sealed class SourceGraph
+        {
+            private static readonly Type CoreType = Type.GetType("MagicaCloth.CoreComponent, MagicaCloth", false);
+            private static readonly Type VirtualType = Type.GetType("MagicaCloth.MagicaVirtualDeformer, MagicaCloth", false);
+            private static readonly Type ClothBaseType = Type.GetType("MagicaCloth.BaseCloth, MagicaCloth", false);
+            private static readonly Type ManagerType = Type.GetType("MagicaCloth.MagicaPhysicsManager, MagicaCloth", false);
+            private readonly GraphicsCharacter _graphics;
+            private readonly Dictionary<SkinnedMeshRenderer, (SkinMeshSource Source, Mesh Mesh)> _changes;
+            private readonly List<NativeOwner> _owners = [];
+            private readonly List<NativeData> _data = [];
+            private readonly List<NativeSkin> _skins = [];
+            private readonly Dictionary<SkinnedMeshRenderer, SkinMeshSource> _installed = [];
+            private bool _applied, _started;
+
+            private sealed class NativeOwner(Component component, object deformer, int order)
+            {
+                internal readonly Component Component = component;
+                internal readonly object Deformer = deformer;
+                internal readonly int Order = order;
+                internal readonly object BoundDeformer = Optional(component, "Deformer");
+                internal readonly Component[] Children = order == 1
+                    ? ((IEnumerable)Get(deformer, "renderDeformerList")).Cast<Component>().ToArray() : [];
+                internal readonly Component Parent = order == 0 ? Optional(component, "virtualDeformer") as Component : null;
+                internal readonly Renderer Target = order == 2 ? ResolveNativeRenderer(component, deformer) : null;
+                internal readonly bool Initialized = Flag(Get(component, "Status"), "IsInitComplete");
+                internal readonly bool UserEnabled = (bool)Get(Get(component, "Status"), "userEnable");
+                internal readonly bool DeformerUserEnabled = deformer == null || (bool)Get(Get(deformer, "Status"), "userEnable");
+                internal readonly bool DeformerEnabled = deformer == null || (bool)Get(Get(deformer, "Status"), "enable");
+                internal readonly int Hash = (int)Get(component, "dataHash");
+                internal readonly int Version = (int)Get(component, "dataVersion");
+                internal readonly int VerificationResult = Convert.ToInt32(Invoke(component, "VerifyData"));
+                internal readonly object ClothData = Optional(component, "ClothData");
+                internal readonly object ClothSelection = Optional(component, "ClothSelection");
+                internal readonly Dictionary<string, object> ClothDataIdentity = Optional(component, "ClothData") is { } clothData
+                    ? SaveFields(clothData, "dataHash", "dataVersion") : [];
+                internal readonly Dictionary<string, object> ClothSelectionIdentity = Optional(component, "ClothSelection") is { } selection
+                    ? SaveFields(selection, "dataHash", "dataVersion") : [];
+                internal readonly int? DeformerHash = deformer == null ? null : (int)Get(deformer, "dataHash");
+                internal readonly int? DeformerVersion = deformer == null ? null : (int)Get(deformer, "dataVersion");
+                internal readonly Dictionary<string, object> Verification = SaveFields(component,
+                    "deformerHash", "deformerVersion", "virtualDeformerHash", "virtualDeformerVersion",
+                    "clothDataHash", "clothDataVersion", "clothSelectionHash", "clothSelectionVersion",
+                    "clothParamDataHashList", "meshDataHash", "meshDataVersion", "springDataHash", "springDataVersion");
+                internal readonly Dictionary<string, object> DeformerVerification = deformer == null ? [] :
+                    SaveFields(deformer, "renderDeformerHashList", "renderDeformerVersion");
+            }
+            private sealed class NativeData(object deformer, UnityEngine.Object original, UnityEngine.Object replacement)
+            {
+                internal readonly object Deformer = deformer;
+                internal readonly UnityEngine.Object Original = original;
+                internal readonly UnityEngine.Object Replacement = replacement;
+                internal readonly Dictionary<string, object> OriginalIdentity = SaveFields(original, "dataHash", "dataVersion");
+            }
+            private sealed class NativeSkin(Renderer renderer, Mesh original, Mesh replacement, object deformer)
+            {
+                internal readonly Renderer Renderer = renderer;
+                internal readonly Mesh Original = original;
+                internal readonly Mesh Replacement = replacement;
+                internal readonly object Deformer = deformer;
+                internal readonly Transform[] Bones = renderer is SkinnedMeshRenderer skin ? skin.bones : [];
+                internal bool Superseded;
+                internal float[] Weights = Enumerable.Range(0, original.blendShapeCount)
+                    .Select(index => renderer is SkinnedMeshRenderer skin ? skin.GetBlendShapeWeight(index) : 0f).ToArray();
             }
 
-            SourceMesh.SetValue(deformer, replacement);
-            return ReferenceEquals(SourceMesh.GetValue(deformer), replacement);
+            internal IReadOnlyDictionary<SkinnedMeshRenderer, SkinMeshSource> Installed => _installed;
+            internal bool IsApplied => _applied;
+
+            internal SourceGraph(GraphicsCharacter graphics,
+                IReadOnlyDictionary<SkinnedMeshRenderer, (SkinMeshSource Source, Mesh Mesh)> changes,
+                IReadOnlyDictionary<SkinnedMeshRenderer, SurfaceBinding> bindings,
+                Func<string, Func<UnityEngine.Object[]>, UnityEngine.Object[]> retainData)
+            {
+                _graphics = graphics;
+                _changes = changes.ToDictionary(pair => pair.Key, pair => pair.Value);
+                foreach (var pair in _changes)
+                    if (!pair.Key || !pair.Value.Mesh || pair.Value.Source == null ||
+                        !pair.Value.Source.OwnerCurrent || !pair.Value.Source.AcceptsCurrentMesh())
+                        throw new InvalidOperationException("A source changed before the skin transition was prepared.");
+                if (_changes.Values.Any(change => change.Source.ClothOwner))
+                {
+                    if (CoreType == null || VirtualType == null || ClothBaseType == null || ManagerType == null)
+                        throw new InvalidOperationException("The native cloth owner contract is unavailable.");
+                    var all = graphics.GetComponentsInChildren(CoreType, true).Cast<Component>().ToList();
+                    var selected = _changes.Values.Where(change => change.Source.ClothOwner)
+                        .Select(change => change.Source.ClothOwner).ToList();
+                    bool added;
+                    do
+                    {
+                        added = false;
+                        foreach (var component in all)
+                        {
+                            var deformer = Optional(component, "Deformer");
+                            var children = VirtualType.IsInstanceOfType(component)
+                                ? ((IEnumerable)Get(deformer, "renderDeformerList")).Cast<Component>().ToArray() : [];
+                            var parent = ClothBaseType.IsInstanceOfType(component)
+                                ? Optional(component, "virtualDeformer") as Component : null;
+                            if (selected.Contains(component))
+                            {
+                                foreach (var linked in children.Concat(parent ? new[] { parent } : []))
+                                {
+                                    if (!linked || !all.Contains(linked))
+                                        throw new InvalidOperationException("A native cloth relation leaves the graphics owner's hierarchy.");
+                                    if (!selected.Contains(linked)) { selected.Add(linked); added = true; }
+                                }
+                            }
+                            else if (children.Any(selected.Contains) || parent && selected.Contains(parent))
+                            {
+                                selected.Add(component); added = true;
+                            }
+                        }
+                    } while (added);
+                    foreach (var component in selected)
+                    {
+                        var deformer = Optional(component, "Deformer");
+                        var order = ClothBaseType.IsInstanceOfType(component) ? 0 : VirtualType.IsInstanceOfType(component) ? 1 : 2;
+                        if (Flag(Get(component, "Status"), "IsInitError"))
+                            throw new InvalidOperationException("An invalid native cloth owner cannot be replaced as an ordinary skin.");
+                        _owners.Add(new NativeOwner(component, order == 0 ? null : deformer, order));
+                        if (order == 2)
+                        {
+                            var renderer = ResolveNativeRenderer(component, deformer);
+                            if (!renderer) throw new InvalidOperationException("The native render owner has not resolved its target.");
+                            var original = SourceMesh.GetValue(deformer) as Mesh;
+                            if (!original) throw new InvalidOperationException("A native render owner lost its immutable source mesh.");
+                            var replacement = renderer is SkinnedMeshRenderer skin && _changes.TryGetValue(skin, out var change) ? change.Mesh : original;
+                            _skins.Add(new NativeSkin(renderer, original, replacement, deformer));
+                        }
+                    }
+                }
+                foreach (var pair in _changes.Where(pair => !pair.Value.Source.ClothOwner))
+                    _skins.Add(new NativeSkin(pair.Key, pair.Value.Source.Original, pair.Value.Mesh, null));
+                if (bindings != null && bindings.Count != 0)
+                {
+                    if (retainData == null)
+                        throw new InvalidOperationException("A derived source binding requires its catalog owner.");
+                    PrepareBindings(bindings, retainData);
+                }
+                foreach (var skin in _skins.Where(skin => skin.Deformer != null && skin.Original != skin.Replacement &&
+                             !_data.Any(data => ReferenceEquals(data.Deformer, skin.Deformer))))
+                    if (skin.Original.vertexCount != skin.Replacement.vertexCount ||
+                        skin.Original.subMeshCount != skin.Replacement.subMeshCount ||
+                        !skin.Original.boneWeights.SequenceEqual(skin.Replacement.boneWeights) ||
+                        Enumerable.Range(0, skin.Original.subMeshCount).Any(index =>
+                            !skin.Original.GetIndices(index).SequenceEqual(skin.Replacement.GetIndices(index))))
+                        throw new InvalidOperationException("A source transition changed native cloth topology or skin binding without its matching native mesh-data binding.");
+                ValidateRelations();
+                ValidateProspectiveData();
+            }
+
+            private void PrepareBindings(IReadOnlyDictionary<SkinnedMeshRenderer, SurfaceBinding> bindings,
+                Func<string, Func<UnityEngine.Object[]>, UnityEngine.Object[]> retainData)
+            {
+                foreach (var pair in bindings)
+                {
+                    if (!_changes.TryGetValue(pair.Key, out var change) || pair.Value == null ||
+                        pair.Value.Vertices.Length != change.Mesh.vertexCount ||
+                        pair.Value.SourceTangents.Length != change.Source.Original.vertexCount)
+                        throw new InvalidOperationException("An authored source attachment does not match its render source.");
+                    ValidateBinding(change.Source.Original, change.Mesh, pair.Value, change.Source.ClothOwner);
+                }
+                foreach (var owner in _owners.Where(owner => owner.Order == 1))
+                {
+                    var children = owner.Children;
+                    var changed = children.Select((component, index) => (component, index,
+                            skin: _skins.Single(skin => ReferenceEquals(skin.Deformer, Get(component, "Deformer")))))
+                        .Where(row => row.skin.Renderer is SkinnedMeshRenderer skin && bindings.ContainsKey(skin)).ToArray();
+                    if (changed.Length == 0) continue;
+                    var original = Get(owner.Deformer, "MeshData") as UnityEngine.Object;
+                    var originalHash = HashNativeData(original);
+                    var key = originalHash + ":" + string.Join(":", children.Select(child =>
+                        HashNativeData(Get(Get(child, "Deformer"), "MeshData")))) + ":" + string.Join(":", changed.Select(row =>
+                        row.index + ":" + bindings[(SkinnedMeshRenderer)row.skin.Renderer].Fingerprint));
+                    var derived = retainData(key, () =>
+                    {
+                        var created = new List<UnityEngine.Object>();
+                        try
+                        {
+                            var virtualData = CreateNativeData(original);
+                            created.Add(virtualData);
+                            var oldChildren = (IList)Get(original, "childDataList");
+                            var childData = (IList)Activator.CreateInstance(oldChildren.GetType());
+                            foreach (var child in oldChildren) childData.Add(child);
+                            Put(virtualData, "childDataList", childData);
+                            foreach (var row in changed)
+                            {
+                                var binding = bindings[(SkinnedMeshRenderer)row.skin.Renderer];
+                                var sourceData = Get(row.skin.Deformer, "MeshData") as UnityEngine.Object;
+                                var renderData = CreateNativeData(sourceData);
+                                created.Add(renderData);
+                                RebuildRenderData(renderData, row.skin.Replacement);
+                                var prediction = typeof(object).GetMethod("MemberwiseClone", Fields).Invoke(row.skin.Deformer, null);
+                                SourceMesh.SetValue(prediction, row.skin.Replacement);
+                                Put(prediction, "MeshData", renderData);
+                                var child = RebuildChildData(childData[row.index], binding,
+                                    (Vector3)Get(renderData, "baseScale"), (int)Get(virtualData, "vertexCount"));
+                                Put(child, "childDataHash", (int)Invoke(prediction, "GetDataHash"));
+                                childData[row.index] = child;
+                            }
+                            Invoke(virtualData, "CreateVerifyData");
+                            if (HashNativeData(original) != originalHash)
+                                throw new InvalidOperationException("Derived native binding construction modified its immutable source.");
+                            return created.ToArray();
+                        }
+                        catch
+                        {
+                            foreach (var data in created) if (data) UnityEngine.Object.Destroy(data);
+                            throw;
+                        }
+                    });
+                    if (derived.Length != changed.Length + 1)
+                        throw new InvalidOperationException("The retained native binding has a different child layout.");
+                    _data.Add(new NativeData(owner.Deformer, original, derived[0]));
+                    for (var index = 0; index < changed.Length; index++)
+                    {
+                        var native = changed[index].skin.Deformer;
+                        _data.Add(new NativeData(native, Get(native, "MeshData") as UnityEngine.Object, derived[index + 1]));
+                    }
+                }
+            }
+
+            private static void ValidateBinding(Mesh original, Mesh authored, SurfaceBinding binding, bool nativeCloth)
+            {
+                var sourceCounts = original.GetBonesPerVertex(); var sourceWeights = original.GetAllBoneWeights();
+                var targetCounts = authored.GetBonesPerVertex(); var targetWeights = authored.GetAllBoneWeights();
+                if (sourceCounts.Length != original.vertexCount || targetCounts.Length != binding.Vertices.Length)
+                    throw new InvalidOperationException("An authored source skin has incomplete per-vertex influence counts.");
+                var sourceStarts = new int[sourceCounts.Length];
+                for (var index = 1; index < sourceStarts.Length; index++) sourceStarts[index] = sourceStarts[index - 1] + sourceCounts[index - 1];
+                var targetOffset = 0;
+                for (var index = 0; index < binding.Vertices.Length; index++)
+                {
+                    var anchor = binding.Vertices[index].Anchor;
+                    if (anchor < 0 || anchor >= sourceCounts.Length)
+                        throw new InvalidOperationException("An authored source attachment has no native skin anchor.");
+                    if (sourceCounts[anchor] != targetCounts[index] || sourceStarts[anchor] > sourceWeights.Length - sourceCounts[anchor] ||
+                        targetOffset > targetWeights.Length - targetCounts[index])
+                        throw new InvalidOperationException("An authored source attachment changed native skin binding correspondence.");
+                    for (var influence = 0; influence < sourceCounts[anchor]; influence++)
+                        if (!sourceWeights[sourceStarts[anchor] + influence].Equals(targetWeights[targetOffset + influence]))
+                            throw new InvalidOperationException("An authored source attachment changed a native skin weight or its order.");
+                    targetOffset += targetCounts[index];
+                }
+                if (targetOffset != targetWeights.Length) throw new InvalidOperationException("An authored source skin binding has unused influences.");
+                if (nativeCloth)
+                {
+                    // New surfaces use the native worker basis; unchanged native vertices keep their original frame.
+                    var tangents = authored.tangents;
+                    if (tangents.Length != authored.vertexCount)
+                        throw new InvalidOperationException("An authored cloth attachment has incomplete tangent frames.");
+                    for (var index = 0; index < tangents.Length; index++)
+                        if (binding.Vertices[index].Native
+                                ? !tangents[index].Equals(binding.SourceTangents[binding.Vertices[index].Anchor])
+                                : tangents[index].w != -1f)
+                            throw new InvalidOperationException("An authored cloth attachment changed its owned or native tangent frame.");
+                }
+            }
+
+            private static void RebuildRenderData(UnityEngine.Object data, Mesh replacement)
+            {
+                foreach (var name in new[] { "vertexInfoList", "vertexWeightList", "uvList", "lineList", "triangleList",
+                             "vertexToTriangleInfoList", "vertexToTriangleIndexList", "childDataList" })
+                    if (Optional(data, name) is IList { Count: > 0 })
+                        throw new InvalidOperationException("The native render-data layout has unsupported embedded binding channels.");
+                Put(data, "vertexCount", replacement.vertexCount);
+                Put(data, "triangleCount", replacement.triangles.Length / 3);
+                var hashType = data.GetType().Assembly.GetType("MagicaCloth.DataHashExtensions", true);
+                var hashMethod = hashType.GetMethod("GetVectorDataHash", BindingFlags.Public | BindingFlags.Static,
+                    null, new[] { typeof(Vector3) }, null) ?? throw new MissingMethodException(hashType.FullName, "GetVectorDataHash");
+                Put(data, "vertexHashList", replacement.vertices.Select(point => (ulong)hashMethod.Invoke(null, new object[] { point })).ToArray());
+                Invoke(data, "CreateVerifyData");
+            }
+
+            private static object RebuildChildData(object original, SurfaceBinding binding, Vector3 nativeScale, int parentCount)
+            {
+                var sourceInfo = (uint[])Get(original, "vertexInfoList");
+                var sourceWeights = (Array)Get(original, "vertexWeightList");
+                var sourceParents = (int[])Get(original, "parentIndexList");
+                var info = new uint[binding.Vertices.Length];
+                var parents = new int[info.Length];
+                var weights = new List<object>();
+                var matrix = binding.RendererToPrefab;
+                var lengths = new Vector3(((Vector3)matrix.GetColumn(0)).magnitude,
+                    ((Vector3)matrix.GetColumn(1)).magnitude, ((Vector3)matrix.GetColumn(2)).magnitude);
+                var ratios = new Vector3(Mathf.Abs(nativeScale.x) / lengths.x,
+                    Mathf.Abs(nativeScale.y) / lengths.y, Mathf.Abs(nativeScale.z) / lengths.z);
+                var metric = (ratios.x + ratios.y + ratios.z) / 3f;
+                if (!Finite(metric) || metric <= 0f ||
+                    Mathf.Max(Mathf.Abs(ratios.x - metric), Mathf.Max(Mathf.Abs(ratios.y - metric), Mathf.Abs(ratios.z - metric))) > metric * 0.00001f)
+                    throw new InvalidOperationException("Native and authored source binding metric scales disagree.");
+                var determinant = Vector3.Dot(Vector3.Cross((Vector3)matrix.GetColumn(0), (Vector3)matrix.GetColumn(1)),
+                    (Vector3)matrix.GetColumn(2));
+                if (!Finite(determinant) || determinant == 0f) throw new InvalidOperationException("A native binding has a singular source frame.");
+                for (var index = 0; index < info.Length; index++)
+                {
+                    var vertex = binding.Vertices[index];
+                    if (vertex.Anchor < 0 || vertex.Anchor >= sourceInfo.Length || vertex.Anchor >= sourceParents.Length)
+                        throw new InvalidOperationException("An authored source attachment references a missing native vertex.");
+                    var packed = sourceInfo[vertex.Anchor];
+                    var count = (int)(packed >> 28); var start = (int)(packed & 0x0fffffff);
+                    if (start > sourceWeights.Length - count || weights.Count > 0x0fffffff)
+                        throw new InvalidOperationException("A native source weight span is out of range.");
+                    info[index] = (uint)(count << 28) | (uint)weights.Count;
+                    parents[index] = sourceParents[vertex.Anchor];
+                    for (var offset = 0; offset < count; offset++)
+                    {
+                        var weight = sourceWeights.GetValue(start + offset);
+                        var factor = (float)Get(weight, "weight");
+                        var parent = (int)Get(weight, "parentIndex");
+                        if (!Finite(factor) || factor < 0f || factor > 1f || parent < 0 || parent >= parentCount ||
+                            !Finite((Vector3)Get(weight, "localPos")) || !Finite((Vector3)Get(weight, "localNor")) ||
+                            !Finite((Vector3)Get(weight, "localTan")))
+                            throw new InvalidOperationException("A native source binding has an invalid parent or nonfinite channel.");
+                        if (!vertex.Native)
+                        {
+                            var normal = ((Vector3)Get(weight, "localNor")).normalized;
+                            var tangent = (Vector3)Get(weight, "localTan");
+                            tangent = (tangent - normal * Vector3.Dot(normal, tangent)).normalized;
+                            var handedness = binding.SourceTangents[vertex.Anchor].w;
+                            if (handedness is not (-1f or 1f)) throw new InvalidOperationException("A native source tangent has invalid handedness.");
+                            var bitangent = Vector3.Cross(normal, tangent) * handedness;
+                            if (normal.sqrMagnitude < 0.99f || tangent.sqrMagnitude < 0.99f)
+                                throw new InvalidOperationException("A native parent binding has a singular surface frame.");
+                            Vector3 Transfer(Vector3 value) => tangent * value.x + bitangent * value.y + normal * value.z;
+                            if (!vertex.Offset.Equals(Vector3.zero))
+                                Put(weight, "localPos", (Vector3)Get(weight, "localPos") + Transfer(vertex.Offset) * metric);
+                            Put(weight, "localNor", Transfer(vertex.Normal).normalized);
+                            Put(weight, "localTan", Transfer(vertex.Tangent).normalized);
+                        }
+                        weights.Add(weight);
+                    }
+                }
+                var result = Activator.CreateInstance(original.GetType());
+                var typedWeights = Array.CreateInstance(sourceWeights.GetType().GetElementType(), weights.Count);
+                for (var index = 0; index < weights.Count; index++) typedWeights.SetValue(weights[index], index);
+                Put(result, "vertexCount", info.Length); Put(result, "vertexInfoList", info);
+                Put(result, "vertexWeightList", typedWeights); Put(result, "parentIndexList", parents);
+                return result;
+            }
+
+            private static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
+            private static bool Finite(Vector3 value) => Finite(value.x) && Finite(value.y) && Finite(value.z);
+            private static UnityEngine.Object CreateNativeData(UnityEngine.Object original)
+            {
+                var result = ScriptableObject.CreateInstance(original.GetType());
+                try
+                {
+                    // Native runtime initialization only reads these immutable channels. Replaced child arrays are new.
+                    foreach (var field in NativeDataFields(original.GetType())) field.SetValue(result, field.GetValue(original));
+                    return result;
+                }
+                catch { UnityEngine.Object.Destroy(result); throw; }
+            }
+            private static IEnumerable<FieldInfo> NativeDataFields(Type type)
+            {
+                for (; type != null && type != typeof(UnityEngine.Object); type = type.BaseType)
+                    foreach (var field in type.GetFields(Fields | BindingFlags.DeclaredOnly).Where(field => !field.IsStatic &&
+                                 !field.IsNotSerialized && (field.IsPublic || field.IsDefined(typeof(SerializeField), false)))
+                                 .OrderBy(field => field.Name, StringComparer.Ordinal))
+                        yield return field;
+            }
+            private static readonly Dictionary<Type, Action<BinaryWriter, object>> NativeDataWriters = new();
+
+            private static string HashNativeData(object data)
+            {
+                using var hash = CreateAssetSha256();
+                using var crypto = new CryptoStream(Stream.Null, hash, CryptoStreamMode.Write);
+                using var stream = new BufferedStream(crypto, 65536);
+                using var writer = new BinaryWriter(stream, System.Text.Encoding.UTF8, true);
+                WriteNativeData(writer, data); writer.Flush(); stream.Flush(); crypto.FlushFinalBlock();
+                return BitConverter.ToString(hash.Hash).Replace("-", "");
+            }
+            private static void WriteNativeData(BinaryWriter writer, object value)
+            {
+                if (value == null) { writer.Write(false); return; }
+                var type = value.GetType();
+                Action<BinaryWriter, object> write;
+                lock (NativeDataWriters)
+                {
+                    if (!NativeDataWriters.TryGetValue(type, out write))
+                        NativeDataWriters.Add(type, write = CreateNativeDataWriter(type));
+                }
+                write(writer, value);
+            }
+            private static void WriteNativeDataItems(BinaryWriter writer, IList items)
+            {
+                writer.Write(items.Count);
+                foreach (var item in items) WriteNativeData(writer, item);
+            }
+            private static Action<BinaryWriter, object> CreateNativeDataWriter(Type type)
+            {
+                var writerParameter = Expression.Parameter(typeof(BinaryWriter), "writer");
+                var argument = Expression.Parameter(typeof(object), "value");
+                var dispatch = typeof(SourceGraph).GetMethod(nameof(WriteNativeData), BindingFlags.Static | BindingFlags.NonPublic);
+                var itemsDispatch = typeof(SourceGraph).GetMethod(nameof(WriteNativeDataItems), BindingFlags.Static | BindingFlags.NonPublic);
+                return Expression.Lambda<Action<BinaryWriter, object>>(Build(Expression.Convert(argument, type), true), writerParameter, argument).Compile();
+                Expression Build(Expression value, bool runtimeType = false)
+                {
+                    var type = value.Type;
+                    if (Nullable.GetUnderlyingType(type) != null)
+                        return Expression.IfThenElse(Expression.Property(value, "HasValue"),
+                            Build(Expression.Property(value, "Value")), Call(Expression.Constant(false)));
+                    // Reference fields dispatch by actual type, including covariant arrays and derived data.
+                    if (!runtimeType && !type.IsValueType)
+                        return Expression.Call(dispatch, writerParameter, Expression.Convert(value, typeof(object)));
+                    var body = new List<Expression> { CallBytes(Header(type)) };
+                    if (type == typeof(bool) || type == typeof(int) || type == typeof(uint) || type == typeof(ulong))
+                        body.Add(Call(value));
+                    else if (type == typeof(float))
+                    {
+                        var finite = Expression.AndAlso(Expression.Not(Expression.Call(typeof(float), nameof(float.IsNaN), null, value)),
+                            Expression.Not(Expression.Call(typeof(float), nameof(float.IsInfinity), null, value)));
+                        body.Add(Expression.IfThen(Expression.Not(finite), Error("A native source binding has a nonfinite scalar.")));
+                        body.Add(Call(value));
+                    }
+                    else if (type == typeof(Vector2) || type == typeof(Vector3))
+                    {
+                        body.Add(Call(Expression.Field(value, "x"))); body.Add(Call(Expression.Field(value, "y")));
+                        if (type == typeof(Vector3)) body.Add(Call(Expression.Field(value, "z")));
+                    }
+                    else if (type.IsArray && type == type.GetElementType().MakeArrayType() ||
+                             type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
+                    {
+                        var index = Expression.Variable(typeof(int), "index");
+                        var stop = Expression.Label();
+                        var count = type.IsArray ? (Expression)Expression.ArrayLength(value) : Expression.Property(value, "Count");
+                        var item = type.IsArray ? (Expression)Expression.ArrayIndex(value, index) : Expression.Property(value, "Item", index);
+                        body.Add(Call(count));
+                        body.Add(Expression.Block(new[] { index }, Expression.Assign(index, Expression.Constant(0)),
+                            Expression.Loop(Expression.IfThenElse(Expression.LessThan(index, count),
+                                Expression.Block(Build(item), Expression.PostIncrementAssign(index), Expression.Empty()), Expression.Break(stop)), stop)));
+                    }
+                    else if (typeof(IList).IsAssignableFrom(type))
+                    {
+                        body.Add(Expression.Call(itemsDispatch, writerParameter, Expression.Convert(value, typeof(IList))));
+                    }
+                    else if (type.Assembly == DeformerType.Assembly)
+                    {
+                        foreach (var field in NativeDataFields(type))
+                        {
+                            body.Add(CallBytes(Encode(field.DeclaringType.FullName + ":" + field.Name)));
+                            body.Add(Build(Expression.Field(value, field)));
+                        }
+                    }
+                    else body.Add(Error("Unsupported native binding fingerprint channel: " + type.FullName));
+                    body.Add(Expression.Empty());
+                    return Expression.Block(body);
+                }
+                Expression Call(Expression value) => Expression.Call(writerParameter,
+                    typeof(BinaryWriter).GetMethod(nameof(BinaryWriter.Write), new[] { value.Type }), value);
+                Expression CallBytes(byte[] value) => Call(Expression.Constant(value));
+                Expression Error(string message) => Expression.Throw(Expression.New(
+                    typeof(InvalidOperationException).GetConstructor(new[] { typeof(string) }), Expression.Constant(message)));
+                byte[] Header(Type type)
+                {
+                    using var encoded = new MemoryStream();
+                    using var text = new BinaryWriter(encoded, System.Text.Encoding.UTF8, true);
+                    text.Write(true); text.Write(type.FullName); text.Flush();
+                    return encoded.ToArray();
+                }
+                byte[] Encode(string value)
+                {
+                    using var encoded = new MemoryStream();
+                    using var text = new BinaryWriter(encoded, System.Text.Encoding.UTF8, true);
+                    text.Write(value); text.Flush();
+                    return encoded.ToArray();
+                }
+            }
+
+            // Insert only in existing SkinMeshSource.SourceGraph. Caller completes native jobs and
+            // validates collisions within the prospective batch before native registration.
+            private static void ValidateNativeSharedBindings(object managerMesh, UnityEngine.Object prospectiveVirtualData)
+            {
+                if (managerMesh == null || !prospectiveVirtualData)
+                    throw new ArgumentNullException(nameof(prospectiveVirtualData));
+                var uid = (int)Get(prospectiveVirtualData, "SaveDataHash");
+                if (uid == 0 || (int)Invoke(prospectiveVirtualData, "GetDataHash") != uid)
+                    throw new InvalidOperationException("Prospective native mesh data has no current native verification identity.");
+                var virtualIds = (IDictionary)Get(managerMesh, "sharedVirtualMeshIdToIndexDict");
+                var childIds = (IDictionary)Get(managerMesh, "sharedChildMeshIdToSharedVirtualMeshIndexDict");
+                var valueFields = new Dictionary<Type, FieldInfo[]>();
+                int? parentIndex = virtualIds.Contains(uid) ? (int)virtualIds[uid] : null;
+                if (parentIndex.HasValue)
+                {
+                    var info = NativeBindingItem(Get(managerMesh, "sharedVirtualMeshInfoList"), parentIndex.Value);
+                    if ((int)Get(info, "uid") != uid || (int)Get(info, "useCount") <= 0)
+                        throw new InvalidOperationException("The native shared virtual identity has no live matching owner.");
+                    MatchNativeBindingChunk(managerMesh, info, "vertexChunk", "sharedVirtualVertexInfoList", (Array)Get(prospectiveVirtualData, "vertexInfoList"), valueFields);
+                    MatchNativeBindingChunk(managerMesh, info, "weightChunk", "sharedVirtualWeightList", (Array)Get(prospectiveVirtualData, "vertexWeightList"), valueFields);
+                    MatchNativeOptionalBindingChunk(managerMesh, info, "vertexChunk", "sharedVirtualUvList", Optional(prospectiveVirtualData, "uvList") as Array, valueFields);
+                    MatchNativeOptionalBindingChunk(managerMesh, info, "triangleChunk", "sharedVirtualTriangleList", Optional(prospectiveVirtualData, "triangleList") as Array, valueFields);
+                    MatchNativeOptionalBindingChunk(managerMesh, info, "vertexChunk", "sharedVirtualVertexToTriangleInfoList", Optional(prospectiveVirtualData, "vertexToTriangleInfoList") as Array, valueFields);
+                    MatchNativeOptionalBindingChunk(managerMesh, info, "vertexToTriangleChunk", "sharedVirtualVertexToTriangleIndexList", Optional(prospectiveVirtualData, "vertexToTriangleIndexList") as Array, valueFields);
+                }
+                var children = (IList)Get(prospectiveVirtualData, "childDataList");
+                for (var index = 0; index < children.Count; index++)
+                {
+                    var childUid = unchecked((long)uid << ((16 + index) & 63));
+                    if (!childIds.Contains(childUid)) continue;
+                    var info = NativeBindingItem(Get(managerMesh, "sharedChildMeshInfoList"), (int)childIds[childUid]);
+                    if ((long)Get(info, "cuid") != childUid || (int)Get(info, "meshUseCount") <= 0 ||
+                        !parentIndex.HasValue || (int)Get(info, "sharedVirtualMeshIndex") != parentIndex.Value)
+                        throw new InvalidOperationException("A shared native child identity belongs to another virtual source.");
+                    var child = children[index];
+                    MatchNativeBindingChunk(managerMesh, info, "vertexChunk", "sharedChildVertexInfoList", (Array)Get(child, "vertexInfoList"), valueFields);
+                    MatchNativeBindingChunk(managerMesh, info, "weightChunk", "sharedChildWeightList", (Array)Get(child, "vertexWeightList"), valueFields);
+                }
+            }
+            private static object NativeBindingItem(object values, int index)
+            {
+                if (index < 0 || index >= (int)Get(values, "Length"))
+                    throw new InvalidOperationException("A native shared binding references an invalid runtime slot.");
+                return values.GetType().GetProperty("Item", Fields)?.GetValue(values, new object[] { index }) ??
+                    throw new MissingMemberException(values.GetType().FullName, "Item");
+            }
+            private static void MatchNativeOptionalBindingChunk(object managerMesh, object info, string chunkName,
+                string arrayName, Array expected, Dictionary<Type, FieldInfo[]> valueFields)
+            {
+                // Native SetShared* copies these optional inputs only when nonempty.
+                if (expected is { Length: > 0 }) MatchNativeBindingChunk(managerMesh, info, chunkName, arrayName, expected, valueFields);
+            }
+            private static void MatchNativeBindingChunk(object managerMesh, object info, string chunkName,
+                string arrayName, Array expected, Dictionary<Type, FieldInfo[]> valueFields)
+            {
+                var chunk = Get(info, chunkName); var values = Get(managerMesh, arrayName);
+                var start = (int)Get(chunk, "startIndex"); var length = (int)Get(chunk, "dataLength");
+                if (expected == null || expected.Rank != 1 || expected.Length != length || start < 0 ||
+                    start > (int)Get(values, "Length") - length)
+                    throw new InvalidOperationException("A native shared binding chunk has incompatible dimensions: " + arrayName);
+                for (var index = 0; index < length; index++)
+                    if (!SameNativeBindingValue(expected.GetValue(index), NativeBindingItem(values, start + index), valueFields))
+                        throw new InvalidOperationException("A native shared identity has different binding content: " + arrayName);
+            }
+            private static bool SameNativeBindingValue(object expected, object actual, Dictionary<Type, FieldInfo[]> valueFields)
+            {
+                if (expected == null || actual == null) return expected == null && actual == null;
+                if (expected is float a && actual is float b)
+                {
+                    if (float.IsNaN(a) || float.IsInfinity(a) || float.IsNaN(b) || float.IsInfinity(b))
+                        throw new InvalidOperationException("Native shared binding contains a nonfinite scalar.");
+                    return BitConverter.DoubleToInt64Bits(a) == BitConverter.DoubleToInt64Bits(b);
+                }
+                if (expected is Vector2 uv)
+                    return SameNativeBindingValue(uv.x, Get(actual, "x"), valueFields) && SameNativeBindingValue(uv.y, Get(actual, "y"), valueFields);
+                var type = expected.GetType();
+                if (type != actual.GetType()) return false;
+                if (type.IsPrimitive || type.IsEnum) return expected.Equals(actual);
+                if (!type.IsValueType) throw new InvalidOperationException("Native shared binding has an unsupported reference value.");
+                if (!valueFields.TryGetValue(type, out var fields))
+                    valueFields.Add(type, fields = type.GetFields(Fields));
+                if (fields.Length == 0) throw new InvalidOperationException("Native shared binding has no inspectable value fields.");
+                foreach (var field in fields)
+                    if (!SameNativeBindingValue(field.GetValue(expected), field.GetValue(actual), valueFields)) return false;
+                return true;
+            }
+
+            private void ValidateProspectiveData()
+            {
+                object FutureData(object deformer) => _data.FirstOrDefault(data => ReferenceEquals(data.Deformer, deformer))?.Replacement ?? Get(deformer, "MeshData");
+                foreach (var owner in _owners.Where(owner => owner.Order == 1))
+                {
+                    var children = ((IEnumerable)Get(owner.Deformer, "renderDeformerList")).Cast<Component>().ToArray();
+                    var virtualData = FutureData(owner.Deformer);
+                    var childData = (IList)Get(virtualData, "childDataList");
+                    if (children.Length != childData.Count)
+                        throw new InvalidOperationException("Prepared native mesh data changed child order or count.");
+                    for (var index = 0; index < children.Length; index++)
+                    {
+                        var render = Get(children[index], "Deformer");
+                        var skin = _skins.Single(item => ReferenceEquals(item.Deformer, render));
+                        if ((int)Get(childData[index], "vertexCount") != skin.Replacement.vertexCount ||
+                            (int)Get(FutureData(render), "vertexCount") != skin.Replacement.vertexCount)
+                            throw new InvalidOperationException("Prepared render and child bindings differ from the replacement topology.");
+                    }
+                }
+                foreach (var skin in _skins)
+                {
+                    if (skin.Replacement.blendShapeCount < skin.Original.blendShapeCount)
+                        throw new InvalidOperationException("A skin transition removed an existing expression.");
+                    for (var shape = 0; shape < skin.Original.blendShapeCount; shape++)
+                    {
+                        if (skin.Original.GetBlendShapeName(shape) != skin.Replacement.GetBlendShapeName(shape) ||
+                            skin.Original.GetBlendShapeFrameCount(shape) != skin.Replacement.GetBlendShapeFrameCount(shape))
+                            throw new InvalidOperationException("A skin transition changed an existing expression layout.");
+                        for (var frame = 0; frame < skin.Original.GetBlendShapeFrameCount(shape); frame++)
+                            if (skin.Original.GetBlendShapeFrameWeight(shape, frame) != skin.Replacement.GetBlendShapeFrameWeight(shape, frame))
+                                throw new InvalidOperationException("A skin transition changed an existing expression frame weight.");
+                    }
+                }
+            }
+
+            private void ValidateRelations(bool? installed = null)
+            {
+                foreach (var owner in _owners.Where(owner => owner.Order == 1 && owner.Component))
+                {
+                    var children = ((IEnumerable)Get(owner.Deformer, "renderDeformerList")).Cast<Component>().ToArray();
+                    var hashes = (IList)Get(owner.Deformer, "renderDeformerHashList");
+                    var data = Get(owner.Deformer, "MeshData");
+                    var childData = (IList)Get(data, "childDataList");
+                    if (children.Length != hashes.Count || children.Length != childData.Count)
+                        throw new InvalidOperationException("Native child order, declarations and data disagree.");
+                    for (var index = 0; index < children.Length; index++)
+                    {
+                        var render = Get(children[index], "Deformer");
+                        var source = SourceMesh.GetValue(render) as Mesh;
+                        // ChildData's hash belongs to MeshData verification, not the render component identity.
+                        if (!source || (int)hashes[index] != (int)Get(children[index], "SaveDataHash") ||
+                            (int)Get(childData[index], "vertexCount") != source.vertexCount)
+                            throw new InvalidOperationException("A native child binding differs from its declared render source.");
+                    }
+                }
+                if (installed.HasValue)
+                    foreach (var owner in _owners)
+                        if (owner.Component)
+                        {
+                            var result = Convert.ToInt32(Invoke(owner.Component, "VerifyData"));
+                            var expected = installed.Value ? 0 : owner.VerificationResult;
+                            if (result != expected)
+                                throw new InvalidOperationException($"The native cloth graph did not verify for {owner.Component.GetType().FullName} ({owner.Component.name}): {result}; expected {expected}.");
+                        }
+            }
+
+            private void ValidatePreparedSharedBindings()
+            {
+                var virtualData = _owners.Where(owner => owner.Order == 1).Select(owner =>
+                        _data.SingleOrDefault(data => ReferenceEquals(data.Deformer, owner.Deformer))?.Replacement)
+                    .Where(data => data).ToArray();
+                var parents = new Dictionary<int, string>();
+                var children = new Dictionary<long, (int Parent, string Content)>();
+                foreach (var data in virtualData)
+                {
+                    var uid = (int)Get(data, "SaveDataHash"); var content = HashNativeData(data);
+                    if (parents.TryGetValue(uid, out var previous) && previous != content)
+                        throw new InvalidOperationException("Prepared native virtual sources have the same identity and different content.");
+                    parents[uid] = content;
+                    var rows = (IList)Get(data, "childDataList");
+                    for (var index = 0; index < rows.Count; index++)
+                    {
+                        var childUid = unchecked((long)uid << ((16 + index) & 63));
+                        var childContent = HashNativeData(new[] { Get(rows[index], "vertexInfoList"), Get(rows[index], "vertexWeightList") });
+                        if (children.TryGetValue(childUid, out var child) && (child.Parent != uid || child.Content != childContent))
+                            throw new InvalidOperationException("Prepared native child sources have conflicting shared identities.");
+                        children[childUid] = (uid, childContent);
+                    }
+                }
+                if (virtualData.Length == 0 || !(bool)InvokeStatic(ManagerType, "IsInstance")) return;
+                var managerMesh = Get(GetStatic(ManagerType, "Instance"), "Mesh");
+                foreach (var data in virtualData) ValidateNativeSharedBindings(managerMesh, data);
+            }
+
+            internal bool CanReapply()
+            {
+                if (_started || _applied || !_graphics || _skins.Any(skin => !skin.Renderer || !skin.Original || !skin.Replacement ||
+                    skin.Renderer is SkinnedMeshRenderer renderer && !renderer.bones.SequenceEqual(skin.Bones)) ||
+                    _owners.Any(owner => !owner.Component) || _data.Any(data => !data.Original || !data.Replacement)) return false;
+                try
+                {
+                    ValidateRestoredState();
+                    ValidateRelations(false);
+                    foreach (var data in _data) ValidateSavedFields(data.Original, data.OriginalIdentity);
+                    foreach (var owner in _owners)
+                    {
+                        var status = Get(owner.Component, "Status");
+                        if (Flag(status, "IsInitComplete") != owner.Initialized ||
+                            (bool)Get(status, "userEnable") != owner.UserEnabled) return false;
+                        if (owner.Deformer == null) continue;
+                        status = Get(owner.Deformer, "Status");
+                        if ((bool)Get(status, "userEnable") != owner.DeformerUserEnabled ||
+                            (bool)Get(status, "enable") != owner.DeformerEnabled) return false;
+                    }
+                    return true;
+                }
+                catch (InvalidOperationException) { return false; }
+            }
+
+            internal void Apply(bool restart = true)
+            {
+                if (_started) throw new InvalidOperationException("The native skin source is already in a transition.");
+                ValidateSources(false);
+                _installed.Clear();
+                foreach (var skin in _skins)
+                    if (skin.Renderer is SkinnedMeshRenderer renderer && renderer && renderer.sharedMesh)
+                        skin.Weights = Enumerable.Range(0, renderer.sharedMesh.blendShapeCount)
+                            .Select(renderer.GetBlendShapeWeight).ToArray();
+                if (_data.Count != 0)
+                {
+                    CompleteJobs();
+                    ValidatePreparedSharedBindings();
+                }
+                try
+                {
+                    _started = true;
+                    CompleteJobs(); DisposeOwners();
+                    foreach (var data in _data) Put(data.Deformer, "MeshData", data.Replacement);
+                    foreach (var skin in _skins)
+                    {
+                        if (skin.Deformer != null) SourceMesh.SetValue(skin.Deformer, skin.Replacement);
+                        SetMesh(skin.Renderer, skin.Replacement);
+                    }
+                    if (_data.Count != 0) CreateVerification();
+                    ValidateRelations();
+                    if (restart) InitOwners();
+                    RestoreWeights(true);
+                    ValidateRelations(true);
+                    var current = Capture(_graphics, _changes.Keys);
+                    if (current == null || _changes.Any(pair => !current.TryGetValue(pair.Key, out var value) ||
+                        value.Original != pair.Value.Mesh || !value.OwnerCurrent || !value.AcceptsCurrentMesh()))
+                        throw new InvalidOperationException("The changed skin source was not retained by its native owner.");
+                    foreach (var pair in current) _installed.Add(pair.Key, pair.Value);
+                    _applied = true;
+                }
+                catch (Exception failure)
+                {
+                    try { ValidateSources(true); RestoreCore(true); _started = false; }
+                    catch (Exception rollback) { throw new AggregateException("Native skin transition and rollback failed.", failure, rollback); }
+                    throw;
+                }
+            }
+
+            internal void Restore(bool restart)
+            {
+                if (!_started) return;
+                ValidateSources(true);
+                if (_applied)
+                    foreach (var skin in _skins)
+                        if (skin.Renderer is SkinnedMeshRenderer renderer && renderer && renderer.sharedMesh)
+                            skin.Weights = Enumerable.Range(0, renderer.sharedMesh.blendShapeCount)
+                                .Select(renderer.GetBlendShapeWeight).ToArray();
+                _applied = false;
+                RestoreCore(restart); _applied = _started = false;
+            }
+            private void RestoreCore(bool restart)
+            {
+                CompleteJobs(); DisposeOwners();
+                foreach (var data in _data) Put(data.Deformer, "MeshData", data.Original);
+                foreach (var skin in _skins)
+                {
+                    if (skin.Deformer != null) SourceMesh.SetValue(skin.Deformer, skin.Original);
+                    if (skin.Renderer && !skin.Superseded) SetMesh(skin.Renderer, skin.Original);
+                }
+                foreach (var owner in _owners.Where(_ => _data.Count != 0))
+                {
+                    if (!owner.Component) continue;
+                    Put(owner.Component, "dataHash", owner.Hash); Put(owner.Component, "dataVersion", owner.Version);
+                    RestoreFields(owner.Component, owner.Verification);
+                    if (owner.Deformer == null) continue;
+                    Put(owner.Deformer, "dataHash", owner.DeformerHash.Value); Put(owner.Deformer, "dataVersion", owner.DeformerVersion.Value);
+                    RestoreFields(owner.Deformer, owner.DeformerVerification);
+                }
+                if (restart) InitOwners();
+                RestoreWeights(false);
+                ValidateRestoredState();
+                ValidateRelations(false);
+            }
+            private void ValidateRestoredState()
+            {
+                ValidateSources(false);
+                foreach (var owner in _owners)
+                {
+                    if (!owner.Component) continue;
+                    if ((int)Get(owner.Component, "dataHash") != owner.Hash ||
+                        (int)Get(owner.Component, "dataVersion") != owner.Version ||
+                        !ReferenceEquals(Optional(owner.Component, "ClothData"), owner.ClothData) ||
+                        !ReferenceEquals(Optional(owner.Component, "ClothSelection"), owner.ClothSelection))
+                        throw new InvalidOperationException("The native cloth data owner or verification identity was not restored.");
+                    ValidateSavedFields(owner.Component, owner.Verification);
+                    if (owner.ClothData != null) ValidateSavedFields(owner.ClothData, owner.ClothDataIdentity);
+                    if (owner.ClothSelection != null) ValidateSavedFields(owner.ClothSelection, owner.ClothSelectionIdentity);
+                    if (owner.Deformer == null) continue;
+                    if ((int)Get(owner.Deformer, "dataHash") != owner.DeformerHash.Value ||
+                        (int)Get(owner.Deformer, "dataVersion") != owner.DeformerVersion.Value)
+                        throw new InvalidOperationException("The native deformer verification identity was not restored.");
+                    ValidateSavedFields(owner.Deformer, owner.DeformerVerification);
+                }
+            }
+            private void DisposeOwners()
+            {
+                foreach (var owner in _owners.OrderBy(owner => owner.Order))
+                    if (owner.Component && (owner.Initialized || Flag(Get(owner.Component, "Status"), "IsInitStart")))
+                    {
+                        Invoke(owner.Component, "SetUserEnable", false);
+                        if (owner.Deformer != null) Invoke(owner.Deformer, "OnDisable");
+                    }
+                foreach (var owner in _owners.OrderBy(owner => owner.Order))
+                    if (owner.Component && (owner.Initialized || Flag(Get(owner.Component, "Status"), "IsInitStart")))
+                        Invoke(owner.Component, "TacticalDispose");
+                foreach (var owner in _owners.Where(owner => owner.Order == 1))
+                    ((IList)Get(owner.Deformer, "sharedChildMeshIndexList")).Clear();
+            }
+            private void InitOwners()
+            {
+                foreach (var owner in _owners.OrderByDescending(owner => owner.Order))
+                {
+                    if (!owner.Component || !owner.Initialized) continue;
+                    var status = Get(owner.Component, "Status");
+                    if (Flag(status, "IsDispose")) Invoke(status, "SetDispose", false);
+                    Invoke(owner.Component, "SetUserEnable", false);
+                    Invoke(owner.Component, "Init");
+                    if (!Flag(Get(owner.Component, "Status"), "IsInitSuccess"))
+                        throw new InvalidOperationException("The native cloth owner did not reinitialize.");
+                }
+                foreach (var owner in _owners.Where(owner => owner.Component && owner.Initialized && owner.Deformer != null))
+                {
+                    var status = Get(owner.Deformer, "Status");
+                    Invoke(status, "SetUserEnable", false);
+                    Invoke(status, "UpdateStatus");
+                }
+                foreach (var owner in _owners.OrderBy(owner => owner.Order))
+                    if (owner.Component && owner.Initialized) Invoke(owner.Component, "SetUserEnable", owner.UserEnabled);
+                foreach (var owner in _owners.OrderBy(owner => owner.Order))
+                    if (owner.Component && owner.Initialized && owner.Deformer != null)
+                    {
+                        var status = Get(owner.Deformer, "Status");
+                        Invoke(status, "SetEnable", owner.DeformerEnabled);
+                        Invoke(status, "SetUserEnable", owner.DeformerUserEnabled);
+                        Invoke(status, "UpdateStatus");
+                    }
+            }
+            private void CreateVerification()
+            {
+                foreach (var owner in _owners.OrderByDescending(owner => owner.Order))
+                {
+                    if (owner.Deformer != null) Invoke(owner.Deformer, "CreateVerifyData");
+                    Invoke(owner.Component, "CreateVerifyData");
+                }
+            }
+            private void RestoreWeights(bool installed)
+            {
+                foreach (var skin in _skins)
+                {
+                    if (skin.Superseded || skin.Renderer is not SkinnedMeshRenderer renderer || !renderer) continue;
+                    var mesh = installed ? skin.Replacement : skin.Original;
+                    for (var index = 0; index < Math.Min(skin.Weights.Length, mesh.blendShapeCount); index++)
+                        renderer.SetBlendShapeWeight(index, skin.Weights[index]);
+                }
+            }
+            private void CompleteJobs()
+            {
+                if (_owners.Count == 0 || !(bool)InvokeStatic(ManagerType, "IsInstance")) return;
+                var manager = GetStatic(ManagerType, "Instance");
+                Invoke(Get(manager, "Compute"), "CompleteJob");
+            }
+
+            private void ValidateSources(bool installed)
+            {
+                foreach (var owner in _owners)
+                {
+                    if (!owner.Component) continue;
+                    if (!ReferenceEquals(Optional(owner.Component, "Deformer"), owner.BoundDeformer) ||
+                        owner.Order == 0 && !ReferenceEquals(Optional(owner.Component, "virtualDeformer"), owner.Parent) ||
+                        owner.Order == 2 && ResolveNativeRenderer(owner.Component, owner.Deformer) != owner.Target)
+                        throw new InvalidOperationException("A different native owner generation prevents skin restoration.");
+                    if (owner.Order != 1) continue;
+                    var children = ((IEnumerable)Get(owner.Deformer, "renderDeformerList")).Cast<Component>().ToArray();
+                    if (children.Length != owner.Children.Length ||
+                        children.Where((child, index) => !ReferenceEquals(child, owner.Children[index])).Any())
+                        throw new InvalidOperationException("A different native child order prevents skin restoration.");
+                }
+                foreach (var skin in _skins)
+                {
+                    if (!skin.Renderer) continue;
+                    var expected = installed ? skin.Replacement : skin.Original;
+                    var source = skin.Deformer == null ? CurrentMesh(skin.Renderer) : SourceMesh.GetValue(skin.Deformer) as Mesh;
+                    if (_started && skin.Deformer == null && source != skin.Replacement)
+                    {
+                        // A newer ordinary-skin owner keeps its mesh and weights.
+                        skin.Superseded = true;
+                        continue;
+                    }
+                    if (source != expected && (_applied || source != skin.Original))
+                        throw new InvalidOperationException("A different source owns a renderer in this skin transition.");
+                    if (skin.Deformer == null) continue;
+                    var draw = CurrentMesh(skin.Renderer);
+                    if (draw != source && draw != RuntimeMesh.GetValue(skin.Deformer) as Mesh)
+                        throw new InvalidOperationException("A different owner replaced the native render binding.");
+                }
+                foreach (var data in _data)
+                {
+                    var expected = installed ? data.Replacement : data.Original;
+                    var actual = Get(data.Deformer, "MeshData");
+                    if (!ReferenceEquals(actual, expected) && (_applied || !ReferenceEquals(actual, data.Original)))
+                        throw new InvalidOperationException("A different native data owner prevents skin restoration.");
+                }
+            }
+            private static Mesh CurrentMesh(Renderer renderer) => renderer is SkinnedMeshRenderer skin
+                ? skin.sharedMesh : renderer.GetComponent<MeshFilter>()?.sharedMesh;
+            private static void SetMesh(Renderer renderer, Mesh mesh)
+            {
+                if (renderer is SkinnedMeshRenderer skin) skin.sharedMesh = mesh;
+                else if (renderer.GetComponent<MeshFilter>() is { } filter) filter.sharedMesh = mesh;
+                else throw new InvalidOperationException("The native render target has no mesh binding.");
+            }
+            private static bool Flag(object value, string name) => (bool)Get(value, name);
+            private static Dictionary<string, object> SaveFields(object value, params string[] names)
+            {
+                var result = new Dictionary<string, object>();
+                foreach (var name in names)
+                {
+                    var field = NativeField(value.GetType(), name);
+                    if (field == null) continue;
+                    result.Add(name, field.GetValue(value) is IList list ? list.Cast<object>().ToArray() : field.GetValue(value));
+                }
+                return result;
+            }
+            private static void RestoreFields(object value, Dictionary<string, object> saved)
+            {
+                foreach (var pair in saved)
+                {
+                    var field = NativeField(value.GetType(), pair.Key);
+                    if (field.GetValue(value) is IList list && pair.Value is object[] entries)
+                    { list.Clear(); foreach (var entry in entries) list.Add(entry); }
+                    else field.SetValue(value, pair.Value);
+                }
+            }
+            private static void ValidateSavedFields(object value, Dictionary<string, object> saved)
+            {
+                foreach (var pair in saved)
+                {
+                    var actual = NativeField(value.GetType(), pair.Key).GetValue(value);
+                    var equal = actual is IList list && pair.Value is object[] entries
+                        ? list.Cast<object>().SequenceEqual(entries) : Equals(actual, pair.Value);
+                    if (!equal)
+                        throw new InvalidOperationException($"Native verification field {value.GetType().FullName}.{pair.Key} was not restored.");
+                }
+            }
+            private static FieldInfo NativeField(Type type, string name)
+            {
+                for (; type != null; type = type.BaseType)
+                    if (type.GetField(name, Fields | BindingFlags.DeclaredOnly) is { } field) return field;
+                return null;
+            }
+            private static object Optional(object value, string name)
+            {
+                if (value == null) return null;
+                if (NativeField(value.GetType(), name) is { } field) return field.GetValue(value);
+                return value.GetType().GetProperty(name, Fields)?.GetValue(value, null);
+            }
+            private static object Get(object value, string name) => Optional(value, name) ??
+                throw new MissingMemberException(value?.GetType().FullName, name);
+            private static void Put(object value, string name, object entry)
+            {
+                if (NativeField(value.GetType(), name) is { } field) field.SetValue(value, entry);
+                else (value.GetType().GetProperty(name, Fields) ?? throw new MissingMemberException(value.GetType().FullName, name)).SetValue(value, entry, null);
+            }
+            private static object Invoke(object value, string name, params object[] args)
+            {
+                for (var type = value.GetType(); type != null; type = type.BaseType)
+                    if (type.GetMethods(Fields | BindingFlags.DeclaredOnly).FirstOrDefault(method => method.Name == name &&
+                        method.GetParameters().Length == args.Length) is { } method) return method.Invoke(value, args);
+                throw new MissingMethodException(value.GetType().FullName, name);
+            }
+            private static object InvokeStatic(Type type, string name)
+            {
+                for (; type != null; type = type.BaseType)
+                    if (type.GetMethod(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly) is { } method)
+                        return method.Invoke(null, null);
+                throw new MissingMethodException(name);
+            }
+            private static object GetStatic(Type type, string name)
+            {
+                for (; type != null; type = type.BaseType)
+                    if (type.GetProperty(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly) is { } property)
+                        return property.GetValue(null, null);
+                throw new MissingMemberException(name);
+            }
         }
 
         internal static Dictionary<SkinnedMeshRenderer, SkinMeshSource> Capture(GraphicsCharacter graphics,
@@ -627,19 +1652,25 @@ public static class CustomModels
                 return result;
             }
             if (TargetRenderer == null || Deformer == null || SourceMesh == null || RuntimeMesh == null ||
-                SkinRenderer == null)
+                SkinRenderer == null || SourceTargetObject == null)
             {
                 return null;
             }
             var found = new HashSet<SkinnedMeshRenderer>();
             foreach (var component in graphics.GetComponentsInChildren(ClothType, true))
             {
-                if (!component || TargetRenderer.GetValue(component) is not SkinnedMeshRenderer target ||
-                    !result.ContainsKey(target))
+                if (!component) continue;
+                var source = Deformer.GetValue(component);
+                var nativeRenderer = ResolveNativeRenderer(component, source);
+                if (nativeRenderer && nativeRenderer is not SkinnedMeshRenderer) continue;
+                var target = nativeRenderer as SkinnedMeshRenderer;
+                if (!target)
                 {
-                    continue;
+                    // An unresolved native cloth relation is not evidence of an ordinary skin.
+                    return null;
                 }
-                if (!found.Add(target) || Deformer.GetValue(component) is not { } source ||
+                if (!result.ContainsKey(target)) continue;
+                if (!found.Add(target) || source == null ||
                     !DeformerType.IsInstanceOfType(source) || SourceMesh.GetValue(source) is not Mesh mesh || !mesh)
                 {
                     return null;
@@ -2862,6 +3893,147 @@ public static class CustomModels
 
     #region Blender Model Loader
 
+    internal static SHA256 CreateAssetSha256() => Environment.OSVersion.Platform == PlatformID.Win32NT
+        ? new WindowsAssetSha256()
+        : SHA256.Create();
+
+    private sealed class WindowsAssetSha256 : SHA256
+    {
+        private AlgorithmHandle _algorithm;
+        private HashHandle _hash;
+
+        internal WindowsAssetSha256()
+        {
+            HashSizeValue = 256;
+            try
+            {
+                Check(BCryptOpenAlgorithmProvider(out _algorithm, "SHA256", null, 0));
+                Initialize();
+            }
+            catch
+            {
+                _algorithm?.Dispose();
+                throw;
+            }
+        }
+
+        public override void Initialize()
+        {
+            if (_algorithm == null || _algorithm.IsClosed)
+                throw new ObjectDisposedException(nameof(WindowsAssetSha256));
+            _hash?.Dispose();
+            _hash = null;
+            HashHandle next = null;
+            try
+            {
+                Check(BCryptCreateHash(_algorithm, out next, IntPtr.Zero, 0, IntPtr.Zero, 0, 0));
+                next.RetainAlgorithm(_algorithm);
+                _hash = next;
+            }
+            catch
+            {
+                next?.Dispose();
+                throw;
+            }
+        }
+
+        protected override void HashCore(byte[] array, int offset, int count)
+        {
+            if (array == null) throw new ArgumentNullException(nameof(array));
+            if (offset < 0 || count < 0 || offset > array.Length - count)
+                throw new ArgumentOutOfRangeException();
+            if (count == 0) return;
+            var pinned = GCHandle.Alloc(array, GCHandleType.Pinned);
+            try
+            {
+                Check(BCryptHashData(_hash, IntPtr.Add(pinned.AddrOfPinnedObject(), offset), count, 0));
+            }
+            finally
+            {
+                pinned.Free();
+            }
+        }
+
+        protected override byte[] HashFinal()
+        {
+            var result = new byte[32];
+            Check(BCryptFinishHash(_hash, result, result.Length, 0));
+            return result;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _hash?.Dispose();
+                _hash = null;
+                _algorithm?.Dispose();
+                _algorithm = null;
+            }
+            base.Dispose(disposing);
+        }
+
+        private static void Check(int status)
+        {
+            if (status < 0) throw new CryptographicException(status);
+        }
+
+        private sealed class AlgorithmHandle : SafeHandleZeroOrMinusOneIsInvalid
+        {
+            private AlgorithmHandle() : base(true) { }
+            protected override bool ReleaseHandle() => BCryptCloseAlgorithmProvider(handle, 0) >= 0;
+        }
+
+        private sealed class HashHandle : SafeHandleZeroOrMinusOneIsInvalid
+        {
+            private AlgorithmHandle _parent;
+            private HashHandle() : base(true) { }
+
+            internal void RetainAlgorithm(AlgorithmHandle algorithm)
+            {
+                var retained = false;
+                try
+                {
+                    algorithm.DangerousAddRef(ref retained);
+                    _parent = algorithm;
+                }
+                catch
+                {
+                    if (retained) algorithm.DangerousRelease();
+                    throw;
+                }
+            }
+
+            protected override bool ReleaseHandle()
+            {
+                try
+                {
+                    return BCryptDestroyHash(handle) >= 0;
+                }
+                finally
+                {
+                    _parent?.DangerousRelease();
+                    _parent = null;
+                }
+            }
+        }
+
+        [DllImport("bcrypt.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+        private static extern int BCryptOpenAlgorithmProvider(out AlgorithmHandle algorithm, string name,
+            string implementation, int flags);
+        [DllImport("bcrypt.dll", ExactSpelling = true)]
+        private static extern int BCryptCloseAlgorithmProvider(IntPtr algorithm, int flags);
+        [DllImport("bcrypt.dll", ExactSpelling = true)]
+        private static extern int BCryptCreateHash(AlgorithmHandle algorithm, out HashHandle hash, IntPtr state,
+            int stateLength, IntPtr secret, int secretLength, int flags);
+        [DllImport("bcrypt.dll", ExactSpelling = true)]
+        private static extern int BCryptHashData(HashHandle hash, IntPtr data, int count, int flags);
+        [DllImport("bcrypt.dll", ExactSpelling = true)]
+        private static extern int BCryptFinishHash(HashHandle hash, [Out] byte[] output, int count, int flags);
+        [DllImport("bcrypt.dll", ExactSpelling = true)]
+        private static extern int BCryptDestroyHash(IntPtr hash);
+    }
+
     internal sealed class BlenderModelLoader : MonoBehaviour
     {
         private static readonly int Alpha = Shader.PropertyToID("_Alpha");
@@ -3008,26 +4180,90 @@ public static class CustomModels
             return (WieldedGrip[])declarations.Clone();
         }
 
+        private static (string File, string Hash)[] ReadAssetPacks(string name, string kind, string directory)
+        {
+            if (string.IsNullOrWhiteSpace(name) || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+                name != Path.GetFileName(name) || name is "." or "..")
+                throw new InvalidDataException("Invalid asset library name.");
+            var manifest = Path.Combine(directory, name + "." + kind + ".json");
+            if (!File.Exists(manifest)) return new[] { (name + "." + kind + ".bundle", (string)null) };
+            using var text = File.OpenText(manifest);
+            using var reader = new JsonTextReader(text)
+                { DateParseHandling = DateParseHandling.None, FloatParseHandling = FloatParseHandling.Double };
+            var data = JObject.Load(reader,
+                new JsonLoadSettings { DuplicatePropertyNameHandling = DuplicatePropertyNameHandling.Error });
+            if (reader.Read() || data["schemaVersion"]?.Type != JTokenType.Integer ||
+                (long?)data["schemaVersion"] != 1 || data["packs"] is not JArray packs || packs.Count == 0)
+                throw new InvalidDataException("Invalid asset library manifest.");
+            var names = new List<(string File, string Hash)>();
+            var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var token in packs)
+            {
+                if (token is not JObject pack || pack["file"]?.Type != JTokenType.String ||
+                    pack["sha256"]?.Type != JTokenType.String)
+                    throw new InvalidDataException("Invalid asset library pack.");
+                var file = pack["file"].Value<string>();
+                var hash = pack["sha256"].Value<string>();
+                if (string.IsNullOrWhiteSpace(file) || file.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+                    file != Path.GetFileName(file) ||
+                    file.IndexOf('/') >= 0 || file.IndexOf('\\') >= 0 ||
+                    !file.EndsWith("." + kind + ".bundle", StringComparison.Ordinal) || !files.Add(file) ||
+                    hash.Length != 64 || hash.Any(character => !Uri.IsHexDigit(character)))
+                    throw new InvalidDataException("Invalid asset library packs.");
+                names.Add((file, hash));
+            }
+            return names.ToArray();
+        }
+
         private T[] LoadAssets<T>(string name, string kind, Dictionary<string, T[]> cache) where T : UnityEngine.Object
         {
-            if (cache.TryGetValue(name, out var assets))
+            if (cache.TryGetValue(name, out var cached)) return cached;
+            var bundles = new List<AssetBundle>();
+            T[] assets;
+            try
             {
-                return assets;
+                var directory = Path.Combine(Main.ModFolder, "BlenderModels", name);
+                var names = ReadAssetPacks(name, kind, directory);
+                var result = new List<T>();
+                var assetNames = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var pack in names)
+                {
+                    var path = Path.Combine(directory, pack.File);
+                    if (pack.Hash != null)
+                    {
+                        using var algorithm = CreateAssetSha256();
+                        using var stream = File.OpenRead(path);
+                        var actualHash = BitConverter.ToString(algorithm.ComputeHash(stream)).Replace("-", "");
+                        if (!string.Equals(actualHash, pack.Hash, StringComparison.OrdinalIgnoreCase))
+                            throw new InvalidDataException("Asset pack hash mismatch: " + path);
+                    }
+                    var bundle = File.Exists(path) ? AssetBundle.LoadFromFile(path) : null;
+                    if (!bundle) throw new InvalidDataException("Failed to load asset pack: " + path);
+                    bundles.Add(bundle);
+                    var loaded = bundle.LoadAllAssets<T>();
+                    if (loaded.Length == 0) throw new InvalidDataException("Empty asset pack: " + path);
+                    foreach (var asset in loaded)
+                    {
+                        if (!asset || string.IsNullOrWhiteSpace(asset.name) || !assetNames.Add(asset.name))
+                            throw new InvalidDataException("Duplicate or invalid library asset: " + path);
+                        result.Add(asset);
+                    }
+                }
+                assets = result.ToArray();
+                _assetBundles.AddRange(bundles);
+                bundles.Clear();
             }
-
-            var path = Path.Combine(Main.ModFolder, "BlenderModels", name, name + "." + kind + ".bundle");
-            var bundle = File.Exists(path) ? AssetBundle.LoadFromFile(path) : null;
-            if (!bundle)
+            catch (Exception exception) when (exception is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or
+                ArgumentException or InvalidOperationException or OverflowException or InvalidCastException)
             {
-                Main.Error($"Failed to load {kind} bundle {path}");
+                Main.Error($"Failed to load {kind} library {name}: {exception.Message}");
                 assets = [];
             }
-            else
+            finally
             {
-                _assetBundles.Add(bundle);
-                assets = bundle.LoadAllAssets<T>();
+                foreach (var bundle in bundles)
+                    if (bundle) bundle.Unload(true);
             }
-
             cache[name] = assets;
             return assets;
         }
@@ -3529,7 +4765,7 @@ public static class CustomModels
                 Main.Error($"Failed to read material file {pathMtlFile}");
                 return false;
             }
-            using (var algorithm = SHA256.Create())
+            using (var algorithm = CreateAssetSha256())
             {
                 objFile.ObjectSourceSha256 = BitConverter.ToString(algorithm.ComputeHash(objectSource)).Replace("-", "");
                 objFile.MaterialSourceSha256 = BitConverter.ToString(algorithm.ComputeHash(materialSource)).Replace("-", "");

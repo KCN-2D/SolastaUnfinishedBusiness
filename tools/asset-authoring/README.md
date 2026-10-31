@@ -220,6 +220,13 @@ python .\tools\asset-authoring\UnityAssetBuild\mesh_recipe_codec.py `
 
 出力レシピは`meshes`の代わりに`numericPayload`の形式名・相対パス・SHA256・byteLengthを持ちます。JSONと数値ファイルはそれぞれ64MiB以下です。数値ファイルはlittle-endianのbinary32/int32とUTF8名を使い、頂点・骨格・表情の物理順序とビット列を保持します。
 
+surface bindingは、元の識別・行列・頂点対応をbinary32とgzipで保存できます。
+
+```powershell
+python .\tools\asset-authoring\UnityAssetBuild\mesh_recipe_codec.py --surface-binding `
+    --input '<binding.json>' --output '<model.binding.bytes>'
+```
+
 骨格データは任意の`skin`に、`bindPoses`（骨ごとにUnityの`Matrix4x4[i]`順、列優先の16成分）、`boneWeights`（頂点ごとに降順の4成分、合計1）、`boneIndices`（頂点ごとに4成分、bindPoses内の骨番号）を指定します。`blendShapes`は物理index順の配列で、各要素に`name`と`frames`を指定します。同名のチャンネルも分離して保持し、名前で検索した際の最初のindexを照合します。各frameは昇順の`weight`と、頂点ごとに3成分の変位配列`vertices`・`normals`・`tangents`を持ちます。
 
 同じbundleへTexture2Dを含める場合は、レシピ直下に任意の`textures`配列を指定します。各要素は`name`、レシピからの相対`path`、小文字の`sha256`、真偽値の`normalMap`・`sRGB`・`mipmaps`を持ちます。PNG / JPG / JPEG / TGAに対応し、`name`は拡張子を除いたファイル名と一致させます。名前とパスは一意にします。たとえば法線画像は`{"name":"SurfaceNormal","path":"Textures/SurfaceNormal.png","sha256":"<64桁のハッシュ>","normalMap":true,"sRGB":false,"mipmaps":true}`と宣言します。
@@ -228,11 +235,17 @@ python .\tools\asset-authoring\UnityAssetBuild\mesh_recipe_codec.py `
 
 テクスチャのみのbundleは`meshes=[]`と1件以上の`textures`で作成します。
 
+既存bundleのMesh・Texture2Dを再梱包するには、同じレシピの`sourceBundles`に相対`path`、`sha256`、`assets`を指定します。各assetの`asset`は元bundle内の完全パス、`type`は`Mesh`または`Texture2D`、`name`は出力名です。`meshes`・`textures`との併用もできます。選んだassetを複製して保存し、全数値チャンネルのビット列、表情チャンネルの物理順序・範囲、テクスチャの圧縮形式・全mipを保存後と再梱包後に照合します。出力名以外のデータは保持し、未選択のassetは収録しません。元bundleのハッシュと、全出力名・入力パスの重複も検査します。
+
+```json
+{"schemaVersion":1,"bundleName":"model.bundle","meshes":[],"sourceBundles":[{"path":"Source/Model.bundle","sha256":"<64桁のハッシュ>","assets":[{"asset":"assets/generated/original.asset","type":"Mesh","name":"Model"}]}]}
+```
+
 Blenderで既存の頂点法線を設定する場合は、共通関数`set_mesh_custom_normals(mesh, normals)`を使います。頂点ごとの3成分配列を渡すと、スムーズ表示を設定してから法線を適用します。
 
 RGBAの各チャンネルに材質データを保存するPNGは、共通関数`write_packed_rgba(path, width, height, rgba)`で出力できます。`rgba`には下の行から並べたRGBA8の`bytes`を渡します。色空間の変換は呼び出し側で行い、関数は渡された値を保持して保存します。
 
-`normalMap=true`はUnityのNormalMapとして取り込み、ハイト画像からの変換を無効にします。法線画像の`sRGB`は`false`にします。取込時は通常圧縮、Crunch無効、宣言したmipmap設定を使い、圧縮データの照合のためRead/Writeを有効にします。作成時、保存したasset、bundle再読み込み後の取込設定、名称、寸法、graphicsFormat、mip数、圧縮済み生データのハッシュを照合します。
+`normalMap=true`はUnityのNormalMapとして取り込み、ハイト画像からの変換を無効にします。法線画像の`sRGB`は`false`にします。取込時は通常圧縮、宣言したmipmap設定を使い、圧縮データの照合のためRead/Writeを有効にします。任意の`crunchedCompression`は真偽値、`compressionQuality`は0〜100の整数です。省略時はCrunch無効・品質50になり、`"crunchedCompression":true,"compressionQuality":100`で高品質のCrunch圧縮を指定できます。作成時、保存したasset、bundle再読み込み後の取込設定、名称、寸法、TextureFormat・graphicsFormat、mip数、圧縮済み生データのハッシュを照合します。
 
 非有限値、不正な配列長・indices・bounds、重複名・UV、骨番号・ウェイト・frame順の不整合を拒否します。作成直後、保存したasset、AssetBundle再読み込み後に全チャンネルのfloat32ビット列、UV次元、indices、submesh、bounds、名称、骨格・blendshape全frameを照合します。契約テストに`-MeshesOnly -MeshRecipePath '<メッシュレシピ.json>'`を渡すと、指定レシピと共通の骨格付き複数frame fixtureのビルド、不正入力の拒否を確認します。
 

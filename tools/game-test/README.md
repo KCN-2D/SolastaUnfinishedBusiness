@@ -222,7 +222,9 @@ $evidence = '.\tools\game-test\artifacts'
 
 終了・復元を確認できた個別Runtime実行も対象です。結果と入力ハッシュを整理レポートへ保存し、所有する検証用データと実行証跡を先に撤去してから、参照されなくなったビルドを整理します。
 
-検証用の設定・出力を保存した `artifacts/.native/` は、対応する実行証跡と一緒に保持します。古い実行を整理するときだけ、`Native-UserDataLocation.json` と両所有マーカーが一致する直下の所有フォルダも対象にします。不一致やreparse pointがある場合は両方を保持します。作業用保存先を `-PreserveDirectory` に指定した場合も、対応する実行証跡を保持します。
+`Invoke-GameTest.ps1`は`PASS`で終了し復元できた実行の`artifacts/.native/`を解放し、`NativeUserDataRelease.json`に記録します。保存が必要な実行は`-KeepNativeUserData`、制作入力として再利用するパスは`-StorageReferencePath '<参照JSON>'`で指定します。`Saves/Characters`に出力がある場合や、所有・復元・停止を確認できない場合は保持します。
+
+既存の検証用データを個別に整理するには、`Clear-GameTestArtifacts.ps1 -ArtifactRoot $evidence -ReleaseNativeUserData -ReferencePath '<参照JSON>'`で候補を確認し、`-Apply`を付けます。
 
 比較用などの証跡は `-PreserveDirectory` に配列で指定します。指定したフォルダとその配下はバックアップも含めて保持します。`tools/game-test/Cases/`・`tools/game-test/Scenarios/` から名前を参照される実行フォルダ、復元未完了の実行、未解決の配置マーカーがあるゲームの証跡、未知のバックアップファイルも保持します。対象は `tools/game-test/artifacts/` 配下に限り、reparse pointを含むツリーの整理は拒否します。
 

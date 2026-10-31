@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk" InitialTargets="CheckEnvironmentVars">
+<Project Sdk="Microsoft.NET.Sdk" InitialTargets="CheckEnvironmentVars">
 
   <PropertyGroup>
     <LangVersion>13</LangVersion>
@@ -285,6 +285,10 @@
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Definitions/Archives/*.json" />
   </ItemGroup>
 
   <ItemGroup>

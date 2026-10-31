@@ -17,7 +17,9 @@ param(
     [string]$ScenarioValidator,
     [Nullable[bool]]$ScenarioObservation=$null,
     [Nullable[bool]]$ScenarioSaveScenario=$null,
-    [string[]]$ScenarioReferencePath=@()
+    [string[]]$ScenarioReferencePath=@(),
+    [string[]]$StorageReferencePath=@(),
+    [switch]$KeepNativeUserData
 )
 . (Join-Path $PSScriptRoot 'GameTest.Common.ps1')
 . (Join-Path $script:GameTestRepo 'tools\runtime-verification\NativeDisplaySettings.ps1')
@@ -285,36 +287,47 @@ finally {
     }
     $result['completedUtc']=[datetime]::UtcNow.ToString('O')
     Write-GtJson (Join-Path $run 'Result.json') $result
-    if ($null -ne $operationLock) { $operationLock.ReleaseMutex(); $operationLock.Dispose() }
-}
-if (-not $ValidateOnly -and $result.runtimeResult -and (Test-Path -LiteralPath $result.runtimeResult)) {
-    $result['nativeVerificationStatus']=$result.status
     try {
-        $reviewPath=Join-Path $PSScriptRoot 'Review-PresentationEvidence.ps1'
-        $reviewSource=@($result.toolSources | Where-Object { $_.path -eq $reviewPath })
-        if ($reviewSource.Count -ne 1 -or (Get-GtHash $reviewPath) -ne $reviewSource[0].sha256) {
-            throw 'Presentation review source differs from the recorded test tools.'
+        if (-not $ValidateOnly -and $result.runtimeResult -and (Test-Path -LiteralPath $result.runtimeResult)) {
+            $result['nativeVerificationStatus']=$result.status
+            try {
+                $reviewPath=Join-Path $PSScriptRoot 'Review-PresentationEvidence.ps1'
+                $reviewSource=@($result.toolSources | Where-Object { $_.path -eq $reviewPath })
+                if ($reviewSource.Count -ne 1 -or (Get-GtHash $reviewPath) -ne $reviewSource[0].sha256) {
+                    throw 'Presentation review source differs from the recorded test tools.'
+                }
+                $review=& $reviewPath `
+                    -EvidencePath (Split-Path -Parent $result.runtimeResult) `
+                    -OutputDirectory (Join-Path $run 'PresentationReview')
+                if ((Get-GtHash $reviewPath) -ne $reviewSource[0].sha256) {
+                    throw 'Presentation review source changed during review.'
+                }
+                $result['presentationReview']=$review
+                if ($review.status -eq 'FAIL' -and $result.status -eq 'PASS') {
+                    $result.status='FAIL'
+                    $result.reason='Presentation evidence contains a failed check. See PresentationReview.'
+                } elseif ($review.status -eq 'NOT_RECORDED' -and $result.status -eq 'PASS') {
+                    $result.status='BLOCKED'
+                    $result.reason='Required presentation evidence is missing. See PresentationReview.'
+                }
+            }
+            catch {
+                $result['presentationReview']=[ordered]@{status='ERROR';reason=$_.Exception.Message}
+                if ($result.status -eq 'PASS') { $result.status='ERROR'; $result.reason='Presentation review failed: ' + $_.Exception.Message }
+            }
+            Write-GtJson (Join-Path $run 'Result.json') $result
         }
-        $review=& $reviewPath `
-            -EvidencePath (Split-Path -Parent $result.runtimeResult) `
-            -OutputDirectory (Join-Path $run 'PresentationReview')
-        if ((Get-GtHash $reviewPath) -ne $reviewSource[0].sha256) {
-            throw 'Presentation review source changed during review.'
+        if (-not $ValidateOnly -and $result.runtimeResult -and $result.restored -and $result.status -eq 'PASS') {
+            try {
+                $release=Clear-GtNativeUserData -RunDirectory $run -ReferencePath $StorageReferencePath -Keep:$KeepNativeUserData
+                if ($release.status -eq 'RETAINED') { Write-Warning ('Native user data retained: '+$release.reason) }
+            } catch {
+                Write-Warning ('Native data release did not complete: '+$_.Exception.Message)
+            }
         }
-        $result['presentationReview']=$review
-        if ($review.status -eq 'FAIL' -and $result.status -eq 'PASS') {
-            $result.status='FAIL'
-            $result.reason='Presentation evidence contains a failed check. See PresentationReview.'
-        } elseif ($review.status -eq 'NOT_RECORDED' -and $result.status -eq 'PASS') {
-            $result.status='BLOCKED'
-            $result.reason='Required presentation evidence is missing. See PresentationReview.'
-        }
+    } finally {
+        if ($null -ne $operationLock) { $operationLock.ReleaseMutex(); $operationLock.Dispose() }
     }
-    catch {
-        $result['presentationReview']=[ordered]@{status='ERROR';reason=$_.Exception.Message}
-        if ($result.status -eq 'PASS') { $result.status='ERROR'; $result.reason='Presentation review failed: ' + $_.Exception.Message }
-    }
-    Write-GtJson (Join-Path $run 'Result.json') $result
 }
 Write-Host "$($result.status): $($result.reason)"
 Write-Host "Evidence: $run"

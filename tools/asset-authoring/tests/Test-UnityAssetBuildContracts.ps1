@@ -99,6 +99,51 @@ function Invoke-AuthoringInputValidationContracts([string]$EntryPath, [string]$O
     $badTexturePath=Join-Path $inputs 'TextureHash.json';Save-ValidationJson $badTexturePath $badTexture
     $badMaterial=$material|ConvertTo-Json -Depth 30|ConvertFrom-Json;$badMaterial.assets[0].sha256='0'*64
     $badMaterialPath=Join-Path $inputs 'MaterialHash.json';Save-ValidationJson $badMaterialPath $badMaterial
+    $compressionCases=@(
+        @{name='compression-defaults';fields=@{crunchedCompression=$false;compressionQuality=50}},
+        @{name='compression-crunch-high';fields=@{crunchedCompression=$true;compressionQuality=100}},
+        @{name='compression-crunch-low';fields=@{crunchedCompression=$true;compressionQuality=0}},
+        @{name='compression-quality-negative';fields=@{compressionQuality=-1};reject=$true},
+        @{name='compression-quality-above-range';fields=@{compressionQuality=101};reject=$true},
+        @{name='compression-quality-fraction';fields=@{compressionQuality=50.5};reject=$true},
+        @{name='compression-quality-string';fields=@{compressionQuality='100'};reject=$true},
+        @{name='compression-quality-null';fields=@{compressionQuality=$null};reject=$true},
+        @{name='compression-crunch-string';fields=@{crunchedCompression='true'};reject=$true},
+        @{name='compression-crunch-null';fields=@{crunchedCompression=$null};reject=$true}
+    )
+    $compressionInputs=@()
+    foreach($variant in $compressionCases) {
+        $value=$texture|ConvertTo-Json -Depth 30|ConvertFrom-Json
+        foreach($field in $variant.fields.Keys){$value.textures[0]|Add-Member -NotePropertyName $field -NotePropertyValue $variant.fields[$field]}
+        $path=Join-Path $inputs ($variant.name+'.json');Save-ValidationJson $path $value
+        $case=@{name=$variant.name;parameter='MeshRecipePath';path=$path;kind='mesh-templates';bundle='contract_texture';dependencies=1}
+        if($variant.ContainsKey('reject')){$case.error='Texture compressionQuality must be an integer from 0 to 100 and crunchedCompression must be boolean.'}
+        $compressionInputs+=,$case
+    }
+    $bundleSource=Join-Path $inputs 'Source.bundle';[IO.File]::WriteAllBytes($bundleSource,[byte[]]@(1,2,3,4))
+    $bundleSourceHash=(Get-FileHash -LiteralPath $bundleSource -Algorithm SHA256).Hash.ToLowerInvariant()
+    $sourceRecipe=[ordered]@{schemaVersion=1;bundleName='contract_source';meshes=@();textures=@();sourceBundles=@(@{
+        path='Source.bundle';sha256=$bundleSourceHash;assets=@(@{asset='assets/input/original.asset';type='Mesh';name='RepackedMesh'})})}
+    $sourceVariants=@(
+        @{name='source-clone';modify={param($value)}},
+        @{name='source-mixed';modify={param($value)$value.meshes=$mesh.meshes;$value.textures=$texture.textures};dependencies=2},
+        @{name='source-hash';modify={param($value)$value.sourceBundles[0].sha256='0'*64};error='The source bundle hash differs'},
+        @{name='source-path-escape';modify={param($value)$value.sourceBundles[0].path='../Source.bundle'};error='Invalid or duplicate source bundle'},
+        @{name='source-empty-assets';modify={param($value)$value.sourceBundles[0].assets=@()};error='Invalid or duplicate source bundle'},
+        @{name='source-unsupported-type';modify={param($value)$value.sourceBundles[0].assets[0].type='Material'};error='Invalid, duplicate or unsupported source asset'},
+        @{name='source-duplicate-selector';modify={param($value)$other=$value.sourceBundles[0].assets[0]|ConvertTo-Json|ConvertFrom-Json;$other.name='Other';$value.sourceBundles[0].assets+=@($other)};error='Invalid, duplicate or unsupported source asset'},
+        @{name='source-name-collision';modify={param($value)$value.meshes=$mesh.meshes;$value.sourceBundles[0].assets[0].name='Triangle'};error='output names must be unique'},
+        @{name='source-selector-escape';modify={param($value)$value.sourceBundles[0].assets[0].asset='../original.asset'};error='Invalid, duplicate or unsupported source asset'}
+    )
+    $sourceInputs=@()
+    foreach($variant in $sourceVariants) {
+        $value=$sourceRecipe|ConvertTo-Json -Depth 30|ConvertFrom-Json;& $variant.modify $value
+        $path=Join-Path $inputs ($variant.name+'.json');Save-ValidationJson $path $value
+        $case=@{name=$variant.name;parameter='MeshRecipePath';path=$path;kind='mesh-templates';bundle='contract_source';dependencies=1}
+        if($variant.ContainsKey('dependencies')){$case.dependencies=$variant.dependencies}
+        if($variant.ContainsKey('error')){$case.error=$variant.error}
+        $sourceInputs+=,$case
+    }
     $cases=@(
         @{name='mesh';parameter='MeshRecipePath';path=$meshPath;kind='mesh-templates';bundle='contract_mesh';dependencies=0;colorSpace='Gamma'},
         @{name='texture-only';parameter='MeshRecipePath';path=$texturePath;kind='mesh-templates';bundle='contract_texture';dependencies=1},
@@ -109,7 +154,54 @@ function Invoke-AuthoringInputValidationContracts([string]$EntryPath, [string]$O
         @{name='material-hash';parameter='MaterialRecipePath';path=$badMaterialPath;error='The material source hash differs'},
         @{name='uv-array';parameter='MeshRecipePath';path=$badUvPath;error='Invalid mesh UV length'},
         @{name='empty-executable-version-trap';parameter='MeshRecipePath';path=$meshPath;error='executable file version is not 2019.4.37';withoutValidate=$true}
-    )
+    )+$compressionInputs+$sourceInputs
+    $inputOwner=Join-Path (Split-Path -Parent $entry) 'UnityAssetBuild/Assets/Editor/AssetBundleBuilder.cs'
+    $entryTokens=$null;$entryErrors=$null
+    $entryAst=[Management.Automation.Language.Parser]::ParseFile($entry,[ref]$entryTokens,[ref]$entryErrors)
+    if($entryErrors.Count){throw 'The authoring entry did not parse.'}
+    $readInput=@($entryAst.FindAll({param($node)$node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'Read-ExternalMeshRecipe'},$true))
+    if($readInput.Count -ne 1){throw 'The shared mesh input reader was not found.'}
+    . ([scriptblock]::Create($readInput[0].Extent.Text))
+    foreach($case in @(@{name='compression-omitted';path=$texturePath})+$compressionInputs) {
+        $rejected=$false;$decoded=$null
+        try{$decoded=Read-ExternalMeshRecipe $case.path $inputOwner}catch{$rejected=$true}
+        if($case.ContainsKey('error')){Add-ValidationCheck ($case.name+'-typed-reader-rejects') $rejected $null}
+        else {
+            $expected=Get-Content -LiteralPath $case.path -Raw|ConvertFrom-Json
+            $spec=$expected.textures[0]
+            $crunch=$spec.PSObject.Properties['crunchedCompression'] -and $spec.crunchedCompression
+            $quality=if($spec.PSObject.Properties['compressionQuality']){$spec.compressionQuality}else{50}
+            Add-ValidationCheck ($case.name+'-typed-reader-preserves') (!$rejected -and $null -ne $decoded -and
+                $decoded.textures[0].crunchedCompression -eq $crunch -and
+                $(if($null -eq $decoded.textures[0].compressionQuality){50}else{$decoded.textures[0].compressionQuality}) -eq $quality) $null
+        }
+    }
+    foreach($case in $sourceInputs) {
+        $decoded=$null;$reason=$null
+        try{$decoded=Read-ExternalMeshRecipe $case.path $inputOwner}catch{$reason=$_.Exception.ToString()}
+        if($case.ContainsKey('error') -and $case.name -cne 'source-hash') {
+            Add-ValidationCheck ($case.name+'-typed-reader-rejects') ($null -ne $reason -and $reason -match [regex]::Escape($case.error)) $reason
+        } else {
+            Add-ValidationCheck ($case.name+'-typed-reader-preserves') ($null -eq $reason -and $decoded.sourceBundles.Count -eq 1 -and
+                $decoded.sourceBundles[0].assets[0].asset -ceq 'assets/input/original.asset' -and
+                $decoded.sourceBundles[0].assets[0].name -ceq 'RepackedMesh') $reason
+        }
+    }
+    $codec=(Read-ExternalMeshRecipe $sourceInputs[0].path $inputOwner).GetType().DeclaringType
+    foreach($case in @(
+        @{name='source-resolver-bundle';owner='.';path='Source.bundle';extensions=@('.bundle')},
+        @{name='source-resolver-image';owner='.';path='Pixel.png';extensions=@('.png')},
+        @{name='source-resolver-wrong-extension';owner='.';path='Source.bundle';extensions=@('.png');error='Unsupported authoring input extension'},
+        @{name='source-resolver-escape';owner='.';path='../Source.bundle';extensions=@('.bundle');error='Invalid authoring input path'},
+        @{name='source-resolver-missing';owner='.';path='Missing.bundle';extensions=@('.bundle');error='The authoring input is missing'},
+        @{name='source-resolver-owner';owner='..';path='Source.bundle';extensions=@('.bundle');error='The authoring input owner escaped'}
+    )) {
+        $value=$null;$reason=$null
+        try{$value=$codec::InputPath($inputs,$case.owner,$case.path,[string[]]$case.extensions)}catch{$reason=$_.Exception.ToString()}
+        $passed=if($case.ContainsKey('error')){$null -ne $reason -and $reason -match [regex]::Escape($case.error)}else{
+            $null -eq $reason -and $value -ceq [IO.Path]::GetFullPath((Join-Path $inputs $case.path))}
+        Add-ValidationCheck $case.name $passed @{value=$value;error=$reason}
+    }
     $before=Get-ValidationInputTree
     [IO.File]::WriteAllText((Join-Path $OutputDirectory 'InputTree.Before.json'),$before)
     foreach($case in $cases) {
@@ -1129,7 +1221,7 @@ if ($MeshesOnly) {
             Add-Check ('texture-only-worker-reject-'+$kind) (!$negative.report.success -and $negative.report.error -and
                 !(Test-Path -LiteralPath (Join-Path $project ('Assets/AuthoringJobs/'+$negative.id+'/Generated')))) $negative.path
         }
-        foreach($kind in @('texture-name','texture-payload','texture-format','texture-mips','texture-import-type','texture-import-srgb','texture-height-conversion','texture-import-mips','texture-compression','texture-readable')) {
+        foreach($kind in @('texture-name','texture-payload','texture-format','texture-mips','texture-import-type','texture-import-srgb','texture-height-conversion','texture-import-mips','texture-compression','texture-crunch','texture-quality','texture-readable')) {
             $mutation=@($textureJob.report.textureValidationContracts|Where-Object kind -eq $kind)
             Add-Check ('mesh-texture-validator-reject-'+$kind) ($mutation.Count -eq 1 -and $mutation[0].rejected -and $mutation[0].rejection) $textureJob.path
         }

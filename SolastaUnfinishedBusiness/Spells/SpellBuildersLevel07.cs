@@ -657,7 +657,7 @@ internal static partial class SpellBuilders
                 .Where(x =>
                     x.Side == defender.Side &&
                     x.CanReact() &&
-                    x.IsWithinRange(defender, 18) &&
+                    MetamagicContext.IsWithinReactionTriggerRange(x, _rescueTheDying, defender) &&
                     x.CanSeeTarget(defender) &&
                     x.RulesetCharacter.UsableSpells.Contains(_rescueTheDying) &&
                     x.RulesetCharacter.AreSpellComponentsValid(_rescueTheDying))
@@ -666,7 +666,9 @@ internal static partial class SpellBuilders
             foreach (var contender in contenders)
             {
                 yield return contender
-                    .MyReactToCastSpell(_rescueTheDying, defender, waiter, battleManager: battleManager);
+                    .MyReactToCastSpell(_rescueTheDying, defender, waiter, battleManager: battleManager,
+                        reactionStillValid: () =>
+                            MetamagicContext.IsWithinReactionTriggerRange(contender, _rescueTheDying, defender));
             }
         }
 

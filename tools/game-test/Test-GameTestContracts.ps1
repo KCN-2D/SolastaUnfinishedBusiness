@@ -1570,6 +1570,137 @@ function Get-VerificationProcessState {
             (Test-Path -LiteralPath $backup) -and (Get-GtHash $backup) -eq $backupHash -and (Test-Path -LiteralPath $run) -and (Test-Path -LiteralPath $build))
         Clear-StorageQueryMutation
 
+
+        # Native data is transient; the restored evidence and its source freeze remain owned.
+        function New-StorageReleaseOwner([string]$Name) {
+            $outer=New-StorageRun ('native-release-'+$Name) 'restored' 'native-release-contract' 0
+            $inner=New-StorageRuntime (Join-Path $outer 'Runtime') 'owned-run' 0
+            $companion=New-StorageNativeCompanion $outer -Bytes 4096
+            $result=Read-GtObject (Join-Path $outer 'Result.json')
+            $result|Add-Member -NotePropertyMembers @{status='PASS';evidenceDirectory=$outer;displaySettingsRestored=$true;originalSavePreserved=$true;runtimeResult=(Join-Path $inner 'Result.json')}
+            Write-GtJson (Join-Path $outer 'Result.json') $result
+            [IO.File]::WriteAllText((Join-Path $outer 'source-input.txt'),'owned immutable input')
+            Write-GtJson (Join-Path $outer 'SourceFreeze.json') @{schemaVersion=1;files=@(@{path=(Join-Path $outer 'source-input.txt');sha256=(Get-GtHash (Join-Path $outer 'source-input.txt'))})}
+            return [pscustomobject]@{run=$outer;runtime=$inner;native=$companion;resultHash=(Get-GtHash (Join-Path $outer 'Result.json'));
+                runtimeHash=(Get-GtHash (Join-Path $inner 'Result.json'));sourceHash=(Get-GtHash (Join-Path $outer 'SourceFreeze.json'))}
+        }
+        $release=New-StorageReleaseOwner 'completed'
+        $provenance=Join-Path $Directory 'NativeReleaseProvenance.json'
+        Write-GtJson $provenance @{schemaVersion=1;paths=@($release.run)}
+        $preview=Clear-GtNativeUserData -RunDirectory $release.run -ReferencePath @($provenance) -Preview
+        Add-StorageCheck 'native release preview preserves data and creates no receipt or journal' ($preview.status -ceq 'PREVIEW' -and
+            (Test-Path -LiteralPath $release.native.path) -and -not(Test-Path -LiteralPath (Join-Path $release.run 'NativeUserDataRelease.json')) -and
+            -not(Test-Path -LiteralPath (Join-Path $release.run 'NativeUserDataRelease.jsonl')))
+        $released=Clear-GtNativeUserData -RunDirectory $release.run -ReferencePath @($provenance)
+        $releaseReceipt=Read-GtObject (Join-Path $release.run 'NativeUserDataRelease.json')
+        $releaseEvents=@(Get-Content -LiteralPath (Join-Path $release.run 'NativeUserDataRelease.jsonl')|ForEach-Object{$_|ConvertFrom-Json})
+        $releaseEventNames=@($releaseEvents|ForEach-Object event)
+        Add-StorageCheck 'completed provenance retains immutable evidence while transient native data releases durably' ($released.status -ceq 'RELEASED' -and
+            $releaseReceipt.status -ceq 'RELEASED' -and -not(Test-Path -LiteralPath $release.native.path) -and
+            (Get-GtHash (Join-Path $release.run 'Result.json')) -ceq $release.resultHash -and
+            (Get-GtHash (Join-Path $release.runtime 'Result.json')) -ceq $release.runtimeHash -and
+            (Get-GtHash (Join-Path $release.run 'SourceFreeze.json')) -ceq $release.sourceHash -and
+            [array]::IndexOf($releaseEventNames,'action-planned') -ge 0 -and
+            [array]::IndexOf($releaseEventNames,'action-complete') -gt [array]::IndexOf($releaseEventNames,'action-planned') -and
+            $releaseEventNames[-1] -ceq 'release-completed')
+        $again=Clear-GtNativeUserData -RunDirectory $release.run
+        Add-StorageCheck 'native data release is idempotent after its evidence owner remains' ($again.status -ceq 'ALREADY_RELEASED' -and
+            $again.actions.Count -eq 0 -and (Test-Path -LiteralPath (Join-Path $release.run 'SourceFreeze.json')) -and
+            (Get-GtHash (Join-Path $release.run 'Result.json')) -ceq $release.resultHash)
+
+        $keptNative=$true
+        foreach($mode in @('reference','preserve','keep')) {
+            $release=New-StorageReleaseOwner $mode
+            $parameters=@{RunDirectory=$release.run}
+            if($mode -eq 'reference') {
+                $reference=Join-Path $Directory 'NativeReleaseReferences.json'
+                Write-GtJson $reference @{schemaVersion=1;paths=@((Join-Path $release.native.path 'UserPreferences.xml'))}
+                $parameters.ReferencePath=@($reference)
+            } elseif($mode -eq 'preserve') {$parameters.PreserveDirectory=@($release.native.path)} else {$parameters.Keep=$true}
+            $held=Clear-GtNativeUserData @parameters
+            $keptNative=$keptNative -and $held.status -ceq 'RETAINED' -and (Test-Path -LiteralPath $release.native.path) -and
+                @($held.actions|Where-Object reason -eq 'explicit-native-data-reference').Count -eq 1
+        }
+        Add-StorageCheck 'explicit native file references preserve roots and explicit keep retain native data' $keptNative
+
+        $keptOutput=$true
+        foreach($folder in @('Saves','Characters')) {
+            $release=New-StorageReleaseOwner ('output-'+$folder)
+            $produced=Join-Path $release.native.path ($folder+'/nested/owned.bin')
+            [void][IO.Directory]::CreateDirectory((Split-Path -Parent $produced))
+            [IO.File]::WriteAllBytes($produced,[byte[]](1,2,3))
+            $hash=Get-GtHash $produced
+            $held=Clear-GtNativeUserData -RunDirectory $release.run
+            $keptOutput=$keptOutput -and $held.status -ceq 'RETAINED' -and (Test-Path -LiteralPath $produced) -and
+                (Get-GtHash $produced) -ceq $hash -and @($held.actions|Where-Object reason -eq 'unexported-native-output').Count -eq 1
+        }
+        Add-StorageCheck 'unexported saves and characters preserve their exact native bytes' $keptOutput
+
+        $keptUnrestored=$true
+        foreach($fault in @('outer','inner','owner')) {
+            $release=New-StorageReleaseOwner ('incomplete-'+$fault)
+            if($fault -eq 'outer') {
+                $transaction=Read-GtObject (Join-Path $release.run 'Transaction.json');$transaction.state='deployed'
+                Write-GtJson (Join-Path $release.run 'Transaction.json') $transaction
+            } elseif($fault -eq 'inner') {Set-StorageRuntimeResult $release.runtime {$args[0].settingsRestored=$false}}
+            else {[IO.File]::WriteAllText((Join-Path $release.native.path '.ub-runtime-userdata'),'different-owner')}
+            $held=Clear-GtNativeUserData -RunDirectory $release.run
+            $keptUnrestored=$keptUnrestored -and $held.status -ceq 'RETAINED' -and (Test-Path -LiteralPath $release.native.path) -and
+                -not[string]::IsNullOrWhiteSpace($held.reason)
+        }
+        Add-StorageCheck 'incomplete outer or inner restoration and invalid native owners retain data' $keptUnrestored
+
+        $keptRunning=$true
+        foreach($mode in @('active','query-failed')) {
+            $release=New-StorageReleaseOwner ('process-'+$mode)
+            if($mode -eq 'active') {Write-GtJson $processFixture @{querySucceeded=$true;matches=@(@{pid=4318;startTimeUtc='2020-01-01T00:00:00Z';path=(Join-Path $game 'Solasta.exe');readErrors=@{}})}}
+            else {Write-GtJson $processFixture @{querySucceeded=$false;matches=@()}}
+            try {
+                $held=Clear-GtNativeUserData -RunDirectory $release.run
+                $keptRunning=$keptRunning -and $held.status -ceq 'RETAINED' -and (Test-Path -LiteralPath $release.native.path)
+            } finally {Remove-Item -LiteralPath $processFixture -ErrorAction SilentlyContinue}
+        }
+        Add-StorageCheck 'active and unqueryable native owners retain their data' $keptRunning
+
+        $release=New-StorageReleaseOwner 'multiple-companions'
+        $secondRuntime=New-StorageRuntime (Join-Path $release.run 'Runtime') 'second-owned-run' 0
+        $secondNative=New-StorageNativeCompanion $secondRuntime -Bytes 4096 -DirectRuntime
+        Set-StorageRuntimeResult $secondRuntime {$args[0].displaySettingsRestored=$false}
+        $secondBytes=Join-Path $secondNative.path 'UserPreferences.xml'
+        $secondHash=Get-GtHash $secondBytes
+        $held=Clear-GtNativeUserData -RunDirectory $release.run
+        Add-StorageCheck 'each native companion requires its own restored runtime result' ($held.status -ceq 'RETAINED' -and
+            (Test-Path -LiteralPath $secondBytes) -and (Get-GtHash $secondBytes) -ceq $secondHash -and
+            (Get-GtHash (Join-Path $release.run 'Result.json')) -ceq $release.resultHash)
+
+        $release=New-StorageReleaseOwner 'late-reference'
+        $reference=Join-Path $Directory 'NativeReleaseLateReferences.json'
+        Write-GtJson $reference @{schemaVersion=1;paths=@()}
+        Set-StorageQueryMutation $reference @{schemaVersion=1;paths=@($release.native.path)} 3
+        try {
+            $held=Clear-GtNativeUserData -RunDirectory $release.run -ReferencePath @($reference)
+            $changed=Read-GtObject $reference
+            Add-StorageCheck 'a reference changing after the initial snapshot prevents native release' ($held.status -ceq 'RETAINED' -and
+                $release.native.path -in $changed.paths -and (Test-Path -LiteralPath $release.native.path) -and
+                (Get-GtHash (Join-Path $release.run 'Result.json')) -ceq $release.resultHash)
+        } finally {Clear-StorageQueryMutation}
+        $release=New-StorageReleaseOwner 'late-consumer'
+        $lateConsumer=Join-Path $tool 'Cases/LateNativeConsumer.json'
+        Set-StorageQueryMutation $lateConsumer @{nativeInput=$release.native.owner} 3
+        try {
+            $held=Clear-GtNativeUserData -RunDirectory $release.run
+            Add-StorageCheck 'a new case consumer is re-read before native data release' ($held.status -ceq 'RETAINED' -and
+                (Test-Path -LiteralPath $lateConsumer) -and (Test-Path -LiteralPath $release.native.path))
+        } finally {Clear-StorageQueryMutation;if(Test-Path -LiteralPath $lateConsumer){Remove-Item -LiteralPath $lateConsumer}}
+        $release=New-StorageReleaseOwner 'late-owner'
+        $ownerMarker=Join-Path $release.native.path '.ub-runtime-userdata'
+        Set-StorageQueryMutation $ownerMarker 'changed-at-final-process-query' 3 -Raw
+        try {
+            $held=Clear-GtNativeUserData -RunDirectory $release.run
+            Add-StorageCheck 'the native marker is checked after the final process query' ($held.status -ceq 'RETAINED' -and
+                (Test-Path -LiteralPath $release.native.path) -and [IO.File]::ReadAllText($ownerMarker) -ceq 'changed-at-final-process-query')
+        } finally {Clear-StorageQueryMutation}
+
         $journalArtifactRoot=$script:GameTestArtifactRoot
         $journalContracts=Invoke-StorageJournalContracts $Sources (Join-Path $Directory 'Journal')
         Add-StorageCheck 'nested journal fixtures restore the outer artifact scope' ($script:GameTestArtifactRoot -ceq $journalArtifactRoot)

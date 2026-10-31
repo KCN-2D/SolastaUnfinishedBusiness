@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -67,6 +67,125 @@ internal abstract class DefinitionBuilder
         }
 
         DefinitionNames.Add(definitionName, (definitionTypeName, true));
+    }
+
+    internal static void RegisterDefinition(BaseDefinition definition, bool assertIfDuplicate = true)
+    {
+        // Get all base types for the target definition.  The definition needs to be added to all matching databases.
+        // e.g. ConditionAffinityBlindnessImmunity is added to dbs: FeatureDefinitionConditionAffinity, FeatureDefinitionAffinity, FeatureDefinition
+        var types = GetBaseTypes(definition.GetType());
+        var addedToAnyDB = false;
+
+        foreach (var type in types)
+        {
+            if (LocalAddToDB(type))
+            {
+                addedToAnyDB = true;
+            }
+        }
+
+        if (!addedToAnyDB)
+        {
+            throw new SolastaUnfinishedBusinessException(
+                $"Unable to locate any database(s) matching definition type='{definition.GetType().FullName}', name='{definition.name}', guid='{definition.GUID}'.");
+        }
+
+        DefinitionNames.TryAdd(definition.Name, (definition.GetType().Name, true));
+
+#if DEBUG
+        LogDefinition($"Added to db: name={definition.Name}, guid={definition.GUID}");
+#endif
+
+        bool LocalAddToDB(Type type)
+        {
+            // attempt to get database matching the target type
+            var getDatabaseMethodInfoGeneric = GetDatabaseMethodInfo.MakeGenericMethod(type);
+            var db = getDatabaseMethodInfoGeneric.Invoke(null, null);
+
+            if (db == null)
+            {
+                return false;
+            }
+
+            var dbType = db.GetType();
+
+            if (assertIfDuplicate)
+            {
+                if (DBHasElement(definition.name))
+                {
+                    throw new SolastaUnfinishedBusinessException(
+                        $"The definition with name '{definition.name}' already exists in database '{type.Name}' by name.");
+                }
+
+                if (DBHasElementByGuid(definition.GUID))
+                {
+                    throw new SolastaUnfinishedBusinessException(
+                        $"The definition with name '{definition.name}' and guid '{definition.GUID}' already exists in database '{type.Name}' by GUID.");
+                }
+            }
+
+            var methodInfo = dbType.GetMethod("Add");
+
+            if (methodInfo == null)
+            {
+                throw new SolastaUnfinishedBusinessException(
+                    $"Could not locate the 'Add' method for {dbType.FullName}.");
+            }
+
+            methodInfo.Invoke(db, [definition]);
+
+            return true;
+
+            bool DBHasElement(string name)
+            {
+                var hasElementMethodInfo = dbType.GetMethod("HasElement");
+
+                if (hasElementMethodInfo == null)
+                {
+                    throw new SolastaUnfinishedBusinessException(
+                        $"Could not locate the 'HasElement' method for {dbType.FullName}.");
+                }
+
+                return (bool)hasElementMethodInfo.Invoke(db, [name, true]);
+            }
+
+            bool DBHasElementByGuid(string guid)
+            {
+                var hasElementByGuidMethodInfo = dbType.GetMethod("HasElementByGuid") ??
+                                                 throw new SolastaUnfinishedBusinessException(
+                                                     $"Could not locate the 'HasElementByGuid' method for {dbType.FullName}.");
+
+                return (bool)hasElementByGuidMethodInfo.Invoke(db, [guid]);
+            }
+        }
+
+        // Get list of base types down to but not including BaseDefinition.
+        IEnumerable<Type> GetBaseTypes(Type t)
+        {
+            if (t.BaseType != typeof(object) && t != typeof(BaseDefinition))
+            {
+                return Enumerable.Repeat(t, 1).Concat(GetBaseTypes(t.BaseType));
+            }
+
+            return [];
+        }
+    }
+
+    internal static void ValidateDefinitionRegistration(IEnumerable<BaseDefinition> definitions)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var definition in definitions)
+        {
+            if (!definition || string.IsNullOrWhiteSpace(definition.Name) || !Guid.TryParse(definition.GUID, out _))
+                throw new SolastaUnfinishedBusinessException("Invalid definition registration identity.");
+            if (!names.Add(definition.Name) ||
+                DefinitionNames.ContainsKey(definition.Name) &&
+                !DiagnosticsContext.KnownDuplicateDefinitionNames.Contains(definition.Name))
+                throw new SolastaUnfinishedBusinessException("Definition registration name is already reserved: " + definition.Name);
+            if (SolastaUnfinishedBusiness.Api.DatabaseHelper.FindDefinition(
+                    SolastaUnfinishedBusiness.Api.DatabaseHelper.DefinitionIdentity(definition)))
+                throw new SolastaUnfinishedBusinessException("Definition registration identity is already registered.");
+        }
     }
 
     private static Dictionary<string, (string typeName, bool isCeDef)> GetAllDefinitionNames()
@@ -159,104 +278,9 @@ internal abstract class DefinitionBuilder<TDefinition> : DefinitionBuilder, IDef
 
         Validate();
 
-        // Get all base types for the target definition.  The definition needs to be added to all matching databases.
-        // e.g. ConditionAffinityBlindnessImmunity is added to dbs: FeatureDefinitionConditionAffinity, FeatureDefinitionAffinity, FeatureDefinition
-        var types = GetBaseTypes(Definition.GetType());
-        var addedToAnyDB = false;
-
-        foreach (var type in types)
-        {
-            if (LocalAddToDB(type))
-            {
-                addedToAnyDB = true;
-            }
-        }
-
-        if (!addedToAnyDB)
-        {
-            throw new SolastaUnfinishedBusinessException(
-                $"Unable to locate any database(s) matching definition type='{Definition.GetType().FullName}', name='{Definition.name}', guid='{Definition.GUID}'.");
-        }
-
-#if DEBUG
-        LogDefinition($"Added to db: name={Definition.Name}, guid={Definition.GUID}");
-#endif
+        RegisterDefinition(Definition, assertIfDuplicate);
 
         return Definition;
-
-        bool LocalAddToDB(Type type)
-        {
-            // attempt to get database matching the target type
-            var getDatabaseMethodInfoGeneric = GetDatabaseMethodInfo.MakeGenericMethod(type);
-            var db = getDatabaseMethodInfoGeneric.Invoke(null, null);
-
-            if (db == null)
-            {
-                return false;
-            }
-
-            var dbType = db.GetType();
-
-            if (assertIfDuplicate)
-            {
-                if (DBHasElement(Definition.name))
-                {
-                    throw new SolastaUnfinishedBusinessException(
-                        $"The definition with name '{Definition.name}' already exists in database '{type.Name}' by name.");
-                }
-
-                if (DBHasElementByGuid(Definition.GUID))
-                {
-                    throw new SolastaUnfinishedBusinessException(
-                        $"The definition with name '{Definition.name}' and guid '{Definition.GUID}' already exists in database '{type.Name}' by GUID.");
-                }
-            }
-
-            var methodInfo = dbType.GetMethod("Add");
-
-            if (methodInfo == null)
-            {
-                throw new SolastaUnfinishedBusinessException(
-                    $"Could not locate the 'Add' method for {dbType.FullName}.");
-            }
-
-            methodInfo.Invoke(db, [Definition]);
-
-            return true;
-
-            bool DBHasElement(string name)
-            {
-                var hasElementMethodInfo = dbType.GetMethod("HasElement");
-
-                if (hasElementMethodInfo == null)
-                {
-                    throw new SolastaUnfinishedBusinessException(
-                        $"Could not locate the 'HasElement' method for {dbType.FullName}.");
-                }
-
-                return (bool)hasElementMethodInfo.Invoke(db, [name, true]);
-            }
-
-            bool DBHasElementByGuid(string guid)
-            {
-                var hasElementByGuidMethodInfo = dbType.GetMethod("HasElementByGuid") ??
-                                                 throw new SolastaUnfinishedBusinessException(
-                                                     $"Could not locate the 'HasElementByGuid' method for {dbType.FullName}.");
-
-                return (bool)hasElementByGuidMethodInfo.Invoke(db, [guid]);
-            }
-        }
-
-        // Get list of base types down to but not including BaseDefinition.  
-        IEnumerable<Type> GetBaseTypes(Type t)
-        {
-            if (t.BaseType != typeof(object) && t != typeof(BaseDefinition))
-            {
-                return Enumerable.Repeat(t, 1).Concat(GetBaseTypes(t.BaseType));
-            }
-
-            return [];
-        }
 
         void VerifyGuiPresentation()
         {

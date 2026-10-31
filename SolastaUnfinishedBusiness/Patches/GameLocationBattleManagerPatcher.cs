@@ -79,7 +79,7 @@ public static class GameLocationBattleManagerPatcher
                 "GameLocationBattleManager.HandleSpellCast.MoveNext");
 
             code = PatchCounterspellSelfTargeting(code, iterator);
-            return MetamagicContext.PatchReactionSpellRangeChecks(PatchCounterspellTargetSides(code, iterator), iterator);
+            return PatchCounterspellTargetSides(code, iterator);
         }
 
         private static IEnumerable<CodeInstruction> PatchCounterspellSelfTargeting(
@@ -316,7 +316,7 @@ public static class GameLocationBattleManagerPatcher
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             var iterator = TargetMethod();
-            var code = MetamagicContext.PatchReactionSpellRangeChecks(instructions, iterator, "damagedCharacter").ToList();
+            var code = instructions.ToList();
             var targetSide = AccessTools.PropertyGetter(typeof(EffectDescription), nameof(EffectDescription.TargetSide));
             var spellDescription = AccessTools.PropertyGetter(typeof(SpellDefinition), nameof(SpellDefinition.EffectDescription));
             var indices = Enumerable.Range(2, Math.Max(0, code.Count - 2))

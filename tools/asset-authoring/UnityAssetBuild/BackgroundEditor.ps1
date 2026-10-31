@@ -58,6 +58,41 @@ function Write-AssetWorkerJson([string]$Path, $Value) {
     }finally{foreach($owned in @($temporary,$previous)){if([IO.File]::Exists($owned)){[IO.File]::Delete($owned)}}}
 }
 
+function Read-AssetWorkerJson([string]$Path,[switch]$IncludeHash) {
+    for($attempt=0;;$attempt++){
+        $stream=$null;$copy=$null
+        try{
+            # Atomic publication replaces the directory entry while an earlier
+            # complete snapshot can still be read through its open handle.
+            $stream=[IO.File]::Open($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,
+                ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+            $copy=[IO.MemoryStream]::new();$stream.CopyTo($copy);$bytes=$copy.ToArray()
+            break
+        }catch{
+            $cause=$_.Exception.GetBaseException();$code=$cause.HResult -band 0xffff
+            $publishing=$false
+            if($cause -is [IO.FileNotFoundException]){
+                $publishing=[IO.File]::Exists($Path)
+                $directory=[IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($Path))
+                if(-not $publishing -and [IO.Directory]::Exists($directory)){
+                    $name=[IO.Path]::GetFileName($Path)
+                    $publishing=@([IO.Directory]::EnumerateFiles($directory,($name+'.writing-*'))).Count -gt 0 -or
+                        @([IO.Directory]::EnumerateFiles($directory,($name+'.previous-*'))).Count -gt 0
+                }
+            }
+            if($cause -isnot [IO.IOException] -or ($code -notin @(32,33) -and -not $publishing) -or $attempt -ge 40){
+                throw [IO.IOException]::new("Unable to read authoring JSON '$Path'.",$cause)
+            }
+            Start-Sleep -Milliseconds 25
+        }finally{if($copy){$copy.Dispose()};if($stream){$stream.Dispose()}}
+    }
+    $value=[Text.Encoding]::UTF8.GetString($bytes).TrimStart([char]0xFEFF)|ConvertFrom-Json -ErrorAction Stop
+    if(-not $IncludeHash){return $value}
+    $sha=[Security.Cryptography.SHA256]::Create()
+    try{$hash=([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-','')}finally{$sha.Dispose()}
+    return [pscustomobject]@{value=$value;sha256=$hash}
+}
+
 function Get-AssetOwnedProcess($Identity) {
     if (!$Identity) { return $null }
     try { $process = Get-Process -Id $Identity.pid -ErrorAction Stop }
@@ -82,15 +117,19 @@ function Get-AssetProjectLock([string]$Project) {
         $stream=[IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::None)
         return [ordered]@{path=$path;state='unlocked';observedUtc=[DateTime]::UtcNow.ToString('O')}
     }
-    catch [IO.FileNotFoundException] { return [ordered]@{path=$path;state='absent';observedUtc=[DateTime]::UtcNow.ToString('O')} }
-    catch [IO.DirectoryNotFoundException] { return [ordered]@{path=$path;state='absent';observedUtc=[DateTime]::UtcNow.ToString('O')} }
-    catch [IO.IOException] {
-        if (($_.Exception.HResult -band 65535) -in @(32,33)) {
-            throw 'The selected project is already open (native UnityLockfile is locked). No CLI request was sent.'
+    catch {
+        $failure=$_.Exception.GetBaseException()
+        if($failure -is [IO.FileNotFoundException] -or $failure -is [IO.DirectoryNotFoundException]) {
+            return [ordered]@{path=$path;state='absent';observedUtc=[DateTime]::UtcNow.ToString('O')}
         }
-        throw "The native Unity project lock state is unknown. No CLI request was sent. $($_.Exception.Message)"
+        if($failure -is [IO.IOException]) {
+            if(($failure.HResult -band 65535) -in @(32,33)) {
+                throw 'The selected project is already open (native UnityLockfile is locked). No CLI request was sent.'
+            }
+            throw "The native Unity project lock state is unknown. No CLI request was sent. $($failure.Message)"
+        }
+        throw "The native Unity project lock cannot be read. No CLI request was sent. $($failure.Message)"
     }
-    catch { throw "The native Unity project lock cannot be read. No CLI request was sent. $($_.Exception.Message)" }
     finally { if ($stream) { $stream.Dispose() } }
 }
 
@@ -129,7 +168,7 @@ function Find-AssetCliChildren([int]$CliPid, [string]$Cli, [DateTime]$LaunchedUt
 
 function Invoke-AssetBackgroundHost([string]$ConfigPath) {
     $ErrorActionPreference = 'Stop'
-    $cfg = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+    $cfg = Read-AssetWorkerJson $ConfigPath
     . (Join-Path $cfg.repoRoot 'tools/runtime-verification/WindowsDesktop.ps1')
     $desktop = Get-VerificationDesktop
     $statePath = Join-Path $cfg.run 'session.json'
@@ -179,7 +218,7 @@ function Invoke-AssetBackgroundHost([string]$ConfigPath) {
             }
             $readyPath=Join-Path $cfg.project '.asset-authoring-jobs/worker.json'
             if ($state.editor -and (Test-Path -LiteralPath $readyPath)) {
-                try { $ready=Get-Content -LiteralPath $readyPath -Raw | ConvertFrom-Json }
+                try { $ready=Read-AssetWorkerJson $readyPath }
                 catch { Start-Sleep -Milliseconds 250; continue }
                 if ($ready.processId -eq $state.editor.pid -and $ready.ownerId -eq $cfg.ownerId -and
                     $ready.sourceSha256 -eq $cfg.sourceSha256 -and $ready.projectPath -eq $cfg.project -and
@@ -256,7 +295,7 @@ function Start-AssetBackgroundEditor([string]$Project, [string]$Editor, [string]
     $lockObservation=Get-AssetProjectLock $Project
     $existing=Join-Path $Project '.asset-authoring-jobs/worker.json'
     if (Test-Path -LiteralPath $existing) {
-        $ready=Get-Content -LiteralPath $existing -Raw | ConvertFrom-Json
+        $ready=Read-AssetWorkerJson $existing
         $identity=[pscustomobject]@{pid=$ready.processId;path=$Editor;startTimeUtc=$ready.processStartedUtc}
         if (Get-AssetOwnedProcess $identity) { throw 'The selected project already has a running Editor. Reuse its worker without -StartBackgroundEditor.' }
     }
@@ -279,7 +318,7 @@ function Start-AssetBackgroundEditor([string]$Project, [string]$Editor, [string]
         while ([DateTime]::UtcNow -lt $deadline -and !$session.Lease.Process.HasExited) {
             $path=Join-Path $run 'session.json'
             if (Test-Path -LiteralPath $path) {
-                $state=Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+                $state=Read-AssetWorkerJson $path
                 if ($state.status -eq 'ready') { $session.Ready=$state; $returnedReady=$true; return $session }
                 if ($state.status -eq 'failed') { throw "Background Editor startup failed. Inspect $path" }
             }
@@ -312,8 +351,8 @@ function Stop-AssetBackgroundEditor($Session) {
     if (!$Session.Lease.Process.WaitForExit(60000)) {
         $path=Join-Path $Session.RunDirectory 'session.json'
         if (Test-Path -LiteralPath $path) {
-            $state=Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
-            $cfg=Get-Content -LiteralPath (Join-Path $Session.RunDirectory 'configuration.json') -Raw | ConvertFrom-Json
+            $state=Read-AssetWorkerJson $path
+            $cfg=Read-AssetWorkerJson (Join-Path $Session.RunDirectory 'configuration.json')
             $ownedCli=Get-AssetOwnedProcess $state.cli
             if ($ownedCli) { $ownedCli.Kill(); [void]$ownedCli.WaitForExit(10000) }
             if (!$state.editor -and $state.cli) { $state.editor=Find-AssetEditorChild $state.cli.pid $cfg.editor ([DateTime]$state.cli.startTimeUtc) }
@@ -338,7 +377,7 @@ function Stop-AssetBackgroundEditor($Session) {
     $Session.ForegroundAfter=[UBVerification.DesktopReader]::ReadForeground()
     Write-AssetWorkerJson (Join-Path $Session.RunDirectory 'foreground.json') ([ordered]@{before=$Session.ForegroundBefore;after=$Session.ForegroundAfter})
     $Session.Lease.Dispose()
-    $state=Get-Content -LiteralPath (Join-Path $Session.RunDirectory 'session.json') -Raw | ConvertFrom-Json
+    $state=Read-AssetWorkerJson (Join-Path $Session.RunDirectory 'session.json')
     if (!$state.editorReleased -or !$state.cliReleased -or !$state.cliChildrenReleased -or $state.forcedExit -or $state.status -ne 'complete') { throw "Background Editor did not finish a normal owned shutdown. Inspect $($Session.RunDirectory)" }
     }finally{if($Session -and $Session.PSObject.Properties['StorageOperation'] -and $Session.StorageOperation){$Session.StorageOperation.ReleaseMutex();$Session.StorageOperation.Dispose();$Session.StorageOperation=$null}}
 }
@@ -366,10 +405,8 @@ function Test-AssetStorageWithin([string]$Path,[string]$Parent) {
     return $Path.Equals($Parent,[StringComparison]::OrdinalIgnoreCase) -or $Path.StartsWith($Parent.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)
 }
 function Read-AssetStorageJson([string]$Path,[switch]$ReadOnlyReference) {
-    $resolved=Get-AssetStoragePath $Path -ReadOnlyReference:$ReadOnlyReference;$bytes=[IO.File]::ReadAllBytes($resolved)
-    $sha=[Security.Cryptography.SHA256]::Create()
-    try{$hash=([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-','')}finally{$sha.Dispose()}
-    return [pscustomobject]@{value=([Text.Encoding]::UTF8.GetString($bytes).TrimStart([char]0xFEFF)|ConvertFrom-Json);sha256=$hash}
+    $resolved=Get-AssetStoragePath $Path -ReadOnlyReference:$ReadOnlyReference
+    return Read-AssetWorkerJson $resolved -IncludeHash
 }
 function Get-AssetStorageProject([string]$Project) {
     $projectPath=Get-AssetStoragePath $Project
@@ -472,7 +509,7 @@ function Register-AssetAuthoringJob {
     [void](Assert-AssetStorageOwner ([pscustomobject]$data) $path)
     if([IO.Directory]::Exists($context.jobs)){
         foreach($other in Get-ChildItem -LiteralPath $context.jobs -Filter storage-owner.json -File -Recurse){
-            $claim=[IO.File]::ReadAllText($other.FullName)|ConvertFrom-Json
+            $claim=Read-AssetWorkerJson $other.FullName
             [void](Assert-AssetStorageOwner $claim $other.FullName)
             if((Test-AssetStorageWithin $assets $claim.assetDirectory)-or(Test-AssetStorageWithin $claim.assetDirectory $assets)-or
                 (Test-AssetStorageWithin $job $claim.jobDirectory)-or(Test-AssetStorageWithin $claim.jobDirectory $job)){throw 'Authoring output is already owned by another job.'}
@@ -489,14 +526,14 @@ function Complete-AssetAuthoringJob {
     try{
 
     $path=Get-AssetStoragePath $Ownership.path
-    $data=[IO.File]::ReadAllText($path)|ConvertFrom-Json
+    $data=Read-AssetWorkerJson $path
     if ($data.schemaVersion -ne 1 -or $data.ownerId -cne $Ownership.ownerId -or $data.state -cne 'running') { throw 'Authoring ownership does not match its completion.' }
     $context=Assert-AssetStorageOwner $data $path
     if ($data.sessionDirectory) {
         $sessionDirectory=Get-AssetStoragePath $data.sessionDirectory
         if(-not(Test-AssetStorageWithin $sessionDirectory (Join-Path $context.jobs 'BackgroundSessions'))){throw 'The session is outside the authoring project.'}
         $sessionPath=Join-Path $sessionDirectory 'session.json'
-        $session=[IO.File]::ReadAllText($sessionPath)|ConvertFrom-Json
+        $session=Read-AssetWorkerJson $sessionPath
         foreach ($identity in @($session.editor,$session.cli)+@($session.cliChildren)) {
             if ($identity -and (Get-AssetOwnedProcess $identity)) { throw 'The authoring session still owns a live process.' }
         }
@@ -609,7 +646,7 @@ function Clear-AssetAuthoringJobs {
                     elseif($job -eq $context.jobs -or -not(Test-AssetStorageWithin $job $context.jobs) -or $file.DirectoryName -ne $job){throw 'Invalid job directory ownership.'}
                     if(-not(Test-AssetStorageWithin $assets $context.assets)-or ($assets -eq $context.assets -and -not $data.disposableProject)-or(Test-AssetStorageWithin $assets (Join-Path $context.assets 'Editor'))){throw 'Invalid generated asset ownership.'}
                     $hard=if($data.state -cne 'completed' -or -not $data.completedUtc){'incomplete'}else{$null}
-                    if($data.sessionDirectory){$state=[IO.File]::ReadAllText((Join-Path (Get-AssetStoragePath $data.sessionDirectory) 'session.json'))|ConvertFrom-Json;foreach($identity in @($state.editor,$state.cli)+@($state.cliChildren)){if($identity-and(Test-AssetStorageProcess $identity $processSnapshot)){throw 'The authoring worker remains active.'}}}
+                    if($data.sessionDirectory){$state=Read-AssetWorkerJson (Join-Path (Get-AssetStoragePath $data.sessionDirectory) 'session.json');foreach($identity in @($state.editor,$state.cli)+@($state.cliChildren)){if($identity-and(Test-AssetStorageProcess $identity $processSnapshot)){throw 'The authoring worker remains active.'}}}
                     $dependencies=@($data.dependencies);if($data.sessionDirectory){$dependencies+= $data.sessionDirectory}
                     $roles=@([pscustomobject]@{kind='job';path=$file.FullName;roots=@($job);dependencies=$dependencies})
                     if(-not $data.disposableProject -and ([IO.Directory]::Exists($assets)-or[IO.File]::Exists($assets+'.meta'))){
@@ -642,8 +679,8 @@ function Clear-AssetAuthoringJobs {
                 $statePath=Join-Path $sessionDirectory.FullName 'session.json'
                 try{
                     [void](Get-AssetStoragePath $statePath)
-                    $state=[IO.File]::ReadAllText($statePath)|ConvertFrom-Json
-                    $configuration=[IO.File]::ReadAllText((Join-Path $sessionDirectory.FullName 'configuration.json'))|ConvertFrom-Json
+                    $state=Read-AssetWorkerJson $statePath
+                    $configuration=Read-AssetWorkerJson (Join-Path $sessionDirectory.FullName 'configuration.json')
                     if($sessionDirectory.Name -cnotmatch '^[a-f0-9]{32}$' -or $state.ownerId -cne $sessionDirectory.Name -or
                         $configuration.ownerId -cne $state.ownerId -or $configuration.project -ne $context.project){throw 'Unknown background session ownership.'}
                     $hard=if(-not $state.editorReleased -or -not $state.cliReleased -or -not $state.cliChildrenReleased){'incomplete-session'}else{$null}

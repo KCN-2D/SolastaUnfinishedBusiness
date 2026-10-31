@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "packs": [
+    {
+      "file": "HandCrossbowCurrentMotion.animations.bundle",
+      "sha256": "355F29315286EF39A33AFEDBDBCF32177DB8ACF7D41C7706DC5CBB8E66B6506D"
+    },
+    {
+      "file": "HandCrossbowCurrentMotionCompanion.animations.bundle",
+      "sha256": "AB8C5F4117001BFC6A3DB91872D916FF92B7412D778930DA45E858F7551FCAD5"
+    }
+  ]
+}

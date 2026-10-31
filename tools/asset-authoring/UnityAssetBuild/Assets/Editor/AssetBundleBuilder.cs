@@ -197,6 +197,8 @@ namespace SolastaAssetAuthoring
             public MeshValidation[] createdMeshes, savedMeshes;
             public MeshValidationContract[] meshValidationContracts;
             public TextureValidation[] createdTextures, savedTextures, textures;
+            public SourceAssetValidation[] createdSourceAssets, savedSourceAssets, sourceAssets;
+            public int sourceBundlesLoaded, sourceBundlesReleased;
             public MeshValidationContract[] textureValidationContracts;
             public MaterialIdentityContract[] identityContracts;
             public string transport;
@@ -434,6 +436,8 @@ namespace SolastaAssetAuthoring
             }
             finally { SavingFolder = null; }
             Require(manifest != null, "BuildAssetBundles failed.");
+            Require(manifest.GetAllAssetBundles().Length == 1 && manifest.GetAllDependencies(bundleName).Length == 0,
+                "The bundle has an undeclared output or external bundle dependency.");
             report.bundlePath = Path.Combine(output, bundleName);
             Require(File.Exists(report.bundlePath), "The expected AssetBundle file was not produced.");
             report.bundleSha256 = Sha256(report.bundlePath);
@@ -454,8 +458,8 @@ namespace SolastaAssetAuthoring
 
         [Serializable] private sealed class TextureValidation
         {
-            public string name, path, inputSha256, graphicsFormat, rawSha256, compression;
-            public int width, height, mipCount, rawBytes;
+            public string name, path, inputSha256, graphicsFormat, textureFormat, rawSha256, compression;
+            public int width, height, mipCount, rawBytes, compressionQuality;
             public bool normalMap, sRGB, mipmaps, heightConversion, readable, crunched, exact, importSettingsExact;
         }
         [Serializable] private sealed class MeshChannelValidation
@@ -493,6 +497,141 @@ namespace SolastaAssetAuthoring
             public bool rejected, applicable = true;
         }
 
+        [Serializable] private sealed class SourceAssetValidation
+        {
+            public string sourcePath, sourceSha256, asset, sourceName, name, type, dataSha256, physicalSha256;
+            public bool exact, physicalLayoutExact;
+            public string[] physicalFields;
+        }
+        private sealed class SourceAssetState
+        {
+            public Type assetType;
+            public SourceBundleSpec bundle;
+            public SourceAssetSpec spec;
+            public string sourceName, outputPath, dataSha256, physicalSha256;
+            public string[] physicalFields;
+        }
+
+        private static string SourceAssetDataHash(Object asset)
+        {
+            using (var hash = SHA256.Create())
+            using (var stream = new CryptoStream(Stream.Null, hash, CryptoStreamMode.Write))
+            using (var writer = new BinaryWriter(stream))
+            {
+                var mesh = asset as Mesh;
+                if (mesh != null)
+                {
+                    Require(mesh.isReadable, "The source mesh has no readable channel data.");
+                    writer.Write("Mesh"); writer.Write(mesh.vertexCount); writer.Write((int)mesh.indexFormat);
+                    var descriptors = mesh.GetVertexAttributes(); writer.Write(descriptors.Length);
+                    foreach (var descriptor in descriptors)
+                    { writer.Write((int)descriptor.attribute); writer.Write((int)descriptor.format); writer.Write(descriptor.dimension); writer.Write(descriptor.stream); }
+                    Action<Vector3[]> vector3 = values => { writer.Write(values.Length); foreach (var value in values) { writer.Write(value.x); writer.Write(value.y); writer.Write(value.z); } };
+                    vector3(mesh.vertices); vector3(mesh.normals);
+                    var tangents = mesh.tangents; writer.Write(tangents.Length);
+                    foreach (var value in tangents) { writer.Write(value.x); writer.Write(value.y); writer.Write(value.z); writer.Write(value.w); }
+                    var colors = mesh.colors; writer.Write(colors.Length);
+                    foreach (var value in colors) { writer.Write(value.r); writer.Write(value.g); writer.Write(value.b); writer.Write(value.a); }
+                    for (var channel = 0; channel < 8; channel++)
+                    {
+                        var values = new List<Vector4>(); mesh.GetUVs(channel, values); writer.Write(values.Count);
+                        foreach (var value in values) { writer.Write(value.x); writer.Write(value.y); writer.Write(value.z); writer.Write(value.w); }
+                    }
+                    var poses = mesh.bindposes; writer.Write(poses.Length);
+                    foreach (var pose in poses) for (var i = 0; i < 16; i++) writer.Write(pose[i]);
+                    var weights = mesh.boneWeights; writer.Write(weights.Length);
+                    foreach (var value in weights)
+                    { writer.Write(value.weight0); writer.Write(value.weight1); writer.Write(value.weight2); writer.Write(value.weight3);
+                        writer.Write(value.boneIndex0); writer.Write(value.boneIndex1); writer.Write(value.boneIndex2); writer.Write(value.boneIndex3); }
+                    writer.Write(mesh.subMeshCount);
+                    for (var submesh = 0; submesh < mesh.subMeshCount; submesh++)
+                    { writer.Write((int)mesh.GetTopology(submesh)); writer.Write(mesh.GetBaseVertex(submesh));
+                        var indices = mesh.GetIndices(submesh); writer.Write(indices.Length); foreach (var index in indices) writer.Write(index); }
+                    var bounds = mesh.bounds;
+                    vector3(new[] { bounds.center, bounds.size }); writer.Write(mesh.blendShapeCount);
+                    var vertices = new Vector3[mesh.vertexCount]; var normals = new Vector3[mesh.vertexCount]; var deltas = new Vector3[mesh.vertexCount];
+                    for (var shape = 0; shape < mesh.blendShapeCount; shape++)
+                    {
+                        var name = mesh.GetBlendShapeName(shape); writer.Write(name); writer.Write(mesh.GetBlendShapeIndex(name));
+                        var frames = mesh.GetBlendShapeFrameCount(shape); writer.Write(frames);
+                        for (var frame = 0; frame < frames; frame++)
+                        {
+                            writer.Write(mesh.GetBlendShapeFrameWeight(shape, frame));
+                            Array.Clear(vertices, 0, vertices.Length); Array.Clear(normals, 0, normals.Length); Array.Clear(deltas, 0, deltas.Length);
+                            mesh.GetBlendShapeFrameVertices(shape, frame, vertices, normals, deltas);
+                            vector3(vertices); vector3(normals); vector3(deltas);
+                        }
+                    }
+                }
+                else
+                {
+                    var texture = asset as Texture2D;
+                    Require(texture != null && texture.isReadable, "The source texture has no readable mip data.");
+                    writer.Write("Texture2D"); writer.Write(texture.width); writer.Write(texture.height); writer.Write(texture.mipmapCount);
+                    writer.Write((int)texture.format); writer.Write(texture.graphicsFormat.ToString());
+                    writer.Write((int)texture.filterMode); writer.Write(texture.anisoLevel); writer.Write(texture.mipMapBias);
+                    writer.Write((int)texture.wrapModeU); writer.Write((int)texture.wrapModeV); writer.Write((int)texture.wrapModeW);
+                    var bytes = texture.GetRawTextureData(); writer.Write(bytes.Length); writer.Write(bytes);
+                }
+                writer.Flush(); stream.FlushFinalBlock(); return BitConverter.ToString(hash.Hash).Replace("-", "").ToLowerInvariant();
+            }
+        }
+
+        private static string SourcePhysicalLayoutHash(Object asset, out string[] fields)
+        {
+            var recorded = new List<string>();
+            using (var hash = SHA256.Create())
+            using (var stream = new CryptoStream(Stream.Null, hash, CryptoStreamMode.Write))
+            using (var writer = new BinaryWriter(stream))
+            using (var serialized = new SerializedObject(asset))
+            {
+                if (asset is Mesh)
+                {
+                    var channels = MeshShapeChannels(serialized); recorded.Add(channels.propertyPath); writer.Write(channels.arraySize);
+                    for (var index = 0; index < channels.arraySize; index++)
+                    {
+                        var channel = channels.GetArrayElementAtIndex(index);
+                        writer.Write(channel.FindPropertyRelative("name").stringValue);
+                        foreach (var field in new[] { "nameHash", "frameIndex", "frameCount" })
+                            writer.Write(channel.FindPropertyRelative(field).longValue);
+                    }
+                    var shapes = serialized.FindProperty("m_Shapes.shapes");
+                    Require(shapes != null && shapes.isArray, "The source mesh physical frame layout is unavailable.");
+                    recorded.Add(shapes.propertyPath); writer.Write(shapes.arraySize);
+                    for (var index = 0; index < shapes.arraySize; index++)
+                    {
+                        var shape = shapes.GetArrayElementAtIndex(index);
+                        foreach (var field in new[] { "firstVertex", "vertexCount" }) writer.Write(shape.FindPropertyRelative(field).longValue);
+                        foreach (var field in new[] { "hasNormals", "hasTangents" }) writer.Write(shape.FindPropertyRelative(field).boolValue);
+                    }
+                }
+                else foreach (var name in new[] { "m_ColorSpace", "m_LightmapFormat", "m_StreamingMipmaps", "m_StreamingMipmapsPriority", "m_IgnoreMasterTextureLimit", "m_ForcedFallbackFormat", "m_DownscaleFallback" })
+                {
+                    var property = serialized.FindProperty(name); writer.Write(name); writer.Write(property != null);
+                    if (property == null) continue;
+                    recorded.Add(name);
+                    if (property.propertyType == SerializedPropertyType.Boolean) writer.Write(property.boolValue);
+                    else { Require(property.propertyType == SerializedPropertyType.Integer, "Unsupported source texture layout field: " + name); writer.Write(property.longValue); }
+                }
+                fields = recorded.ToArray(); writer.Flush(); stream.FlushFinalBlock();
+                return BitConverter.ToString(hash.Hash).Replace("-", "").ToLowerInvariant();
+            }
+        }
+
+        private static SourceAssetValidation ValidateSourceAsset(SourceAssetState state, Object actual)
+        {
+            Require(actual != null && actual.name == state.spec.name && actual.GetType() == state.assetType,
+                "The cloned source asset identity/type changed.");
+            var fingerprint = SourceAssetDataHash(actual);
+            Require(fingerprint == state.dataSha256, "The cloned source numeric bits or texture mip payload changed: " + state.spec.name);
+            string[] fields;
+            var physical = SourcePhysicalLayoutHash(actual, out fields);
+            Require(physical == state.physicalSha256 && fields.SequenceEqual(state.physicalFields), "The cloned source physical frame layout or texture metadata changed: " + state.spec.name);
+            return new SourceAssetValidation { sourcePath = state.bundle.path, sourceSha256 = state.bundle.sha256,
+                asset = state.spec.asset, sourceName = state.sourceName, name = state.spec.name, type = state.spec.type,
+                dataSha256 = fingerprint, physicalSha256 = physical, physicalFields = fields, physicalLayoutExact = true, exact = true };
+        }
+
         private static bool BuildMeshTemplates(string input, string destination, string jobId, string expectedHash, bool validationContracts = false, string colorSpace = "Linear")
         {
             var report = new Report
@@ -505,6 +644,7 @@ namespace SolastaAssetAuthoring
                 sceneCountBefore = SceneManager.sceneCount
             };
             string reportPath = null;
+            var sourceBundles = new List<AssetBundle>();
             try
             {
                 var root = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
@@ -529,9 +669,11 @@ namespace SolastaAssetAuthoring
                 Require(expectedHash == null || expectedHash == report.inputSha256, "The mesh recipe changed after submission.");
                 var recipe = MeshRecipeInput.Read(bytes, recipePath);
                 var textures = recipe.textures ?? new TextureSpec[0];
+                var sources = recipe.sourceBundles ?? new SourceBundleSpec[0];
                 ValidateTextureSpecs(textures, root, assetRoot);
                 report.inputAssets = textures.Select(spec => new InputAsset { path = spec.path, sha256 = spec.sha256 })
-                    .Concat(recipe.numericPayload == null ? new InputAsset[0] : new[] { new InputAsset { path = recipe.numericPayload.path, sha256 = recipe.numericPayload.sha256 } }).ToArray();
+                    .Concat(recipe.numericPayload == null ? new InputAsset[0] : new[] { new InputAsset { path = recipe.numericPayload.path, sha256 = recipe.numericPayload.sha256 } })
+                    .Concat(sources.Select(spec => new InputAsset { path = spec.path, sha256 = spec.sha256 })).ToArray();
                 Require(Sha256(recipePath) == report.inputSha256, "The mesh input changed during validation.");
                 report.stage = "create_assets";
                 AssetDatabase.ImportAsset(assetRoot, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ImportRecursive);
@@ -552,6 +694,34 @@ namespace SolastaAssetAuthoring
                     try { report.createdMeshes[index] = ValidateTemplateMesh(mesh, recipe.meshes[index]); AssetDatabase.CreateAsset(mesh, paths[index]); }
                     finally { if (mesh != null && !EditorUtility.IsPersistent(mesh)) { Object.DestroyImmediate(mesh); } }
                 }
+                var clones = new List<SourceAssetState>(); var created = new List<SourceAssetValidation>();
+                foreach (var spec in sources)
+                {
+                    var sourcePath = InputPath(root, assetRoot, spec.path, ".bundle");
+                    Require(Sha256(sourcePath) == spec.sha256, "The source bundle input hash differs: " + spec.path);
+                    var sourceBundle = AssetBundle.LoadFromFile(sourcePath);
+                    Require(sourceBundle != null, "The declared source bundle did not load: " + spec.path); sourceBundles.Add(sourceBundle); report.sourceBundlesLoaded++;
+                    var available = sourceBundle.GetAllAssetNames();
+                    foreach (var selected in spec.assets)
+                    {
+                        Require(available.Count(name => string.Equals(name, selected.asset, StringComparison.Ordinal)) == 1,
+                            "The source asset selector is missing or ambiguous: " + selected.asset);
+                        var type = selected.type == "Mesh" ? typeof(Mesh) : typeof(Texture2D);
+                        var original = sourceBundle.LoadAsset(selected.asset, type);
+                        Require(original != null && original.GetType() == type, "The source asset type differs: " + selected.asset);
+                        var state = new SourceAssetState { assetType = type, sourceName = original.name, bundle = spec, spec = selected,
+                            outputPath = generated + "/" + selected.name + ".asset", dataSha256 = SourceAssetDataHash(original) };
+                        state.physicalSha256 = SourcePhysicalLayoutHash(original, out state.physicalFields);
+                        Object clone = null;
+                        try
+                        {
+                            clone = Object.Instantiate(original); clone.name = selected.name;
+                            created.Add(ValidateSourceAsset(state, clone)); AssetDatabase.CreateAsset(clone, state.outputPath); clones.Add(state);
+                        }
+                        finally { if (clone != null && !EditorUtility.IsPersistent(clone)) Object.DestroyImmediate(clone); }
+                    }
+                }
+                report.createdSourceAssets = created.ToArray();
                 SavingFolder = generated + "/";
                 try { AssetDatabase.SaveAssets(); }
                 finally { SavingFolder = null; }
@@ -565,17 +735,23 @@ namespace SolastaAssetAuthoring
                 }
                 report.savedTextures = textures.Select((spec, index) => {
                     Resources.UnloadAsset(AssetDatabase.LoadAssetAtPath<Texture2D>(texturePaths[index]));
-                    AssetDatabase.ImportAsset(texturePaths[index], ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
                     return ValidateTexture(AssetDatabase.LoadAssetAtPath<Texture2D>(texturePaths[index]), spec, texturePaths[index], report.createdTextures[index]);
                 }).ToArray();
-                var bundle = BuildAndReload(output, recipe.bundleName, paths.Concat(texturePaths).ToArray(), generated, report);
+                report.savedSourceAssets = clones.Select(state => {
+                    Resources.UnloadAsset(AssetDatabase.LoadAssetAtPath(state.outputPath, state.assetType));
+                    AssetDatabase.ImportAsset(state.outputPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+                    return ValidateSourceAsset(state, AssetDatabase.LoadAssetAtPath(state.outputPath, state.assetType));
+                }).ToArray();
+                var bundle = BuildAndReload(output, recipe.bundleName, paths.Concat(texturePaths).Concat(clones.Select(state => state.outputPath)).ToArray(), generated, report);
                 try
                 {
                     var all = bundle.LoadAllAssets();
-                    Require(all.Length == recipe.meshes.Length + textures.Length && all.Count(asset => asset is Mesh) == recipe.meshes.Length &&
-                        all.Count(asset => asset is Texture2D) == textures.Length, "The mesh bundle contains unexpected assets.");
+                    Require(all.Length == recipe.meshes.Length + textures.Length + clones.Count &&
+                        all.Count(asset => asset is Mesh) == recipe.meshes.Length + clones.Count(state => state.spec.type == "Mesh") &&
+                        all.Count(asset => asset is Texture2D) == textures.Length + clones.Count(state => state.spec.type == "Texture2D"), "The mesh bundle contains unexpected assets.");
                     report.meshes = recipe.meshes.Select((spec, index) => ValidateTemplateMesh(bundle.LoadAsset<Mesh>(paths[index]), spec)).ToArray();
                     report.textures = textures.Select((spec, index) => ValidateTexture(bundle.LoadAsset<Texture2D>(texturePaths[index]), spec, texturePaths[index], report.createdTextures[index])).ToArray();
+                    report.sourceAssets = clones.Select(state => ValidateSourceAsset(state, bundle.LoadAsset(state.outputPath, state.assetType))).ToArray();
                     if (validationContracts)
                     {
                         var index = Array.FindIndex(recipe.meshes, spec => spec.skin != null && spec.skin.bindPoses.Length >= 32 &&
@@ -587,13 +763,16 @@ namespace SolastaAssetAuthoring
                     }
                 }
                 finally { bundle.Unload(true); }
-                Require(Sha256(recipePath) == report.inputSha256 && textures.All(spec => Sha256(MaterialInputPath(root, assetRoot, spec.path)) == spec.sha256), "The mesh or texture input changed during the build.");
+                Require(Sha256(recipePath) == report.inputSha256 && textures.All(spec => Sha256(MaterialInputPath(root, assetRoot, spec.path)) == spec.sha256) &&
+                    sources.All(spec => Sha256(InputPath(root, assetRoot, spec.path, ".bundle")) == spec.sha256), "The mesh, texture or source bundle input changed during the build.");
                 if (recipe.numericPayload != null) MeshRecipeInput.VerifyPayload(recipePath, recipe.numericPayload);
                 report.activeScenePathAfter = SceneManager.GetActiveScene().path;
                 report.activeSceneDirtyAfter = SceneManager.GetActiveScene().isDirty;
                 report.sceneCountAfter = SceneManager.sceneCount;
                 Require(report.activeScenePathBefore == report.activeScenePathAfter && report.activeSceneDirtyBefore == report.activeSceneDirtyAfter &&
                         report.sceneCountBefore == report.sceneCountAfter, "The mesh build changed the open scene state.");
+                foreach (var sourceBundle in sourceBundles) { if (sourceBundle != null) sourceBundle.Unload(true); report.sourceBundlesReleased++; }
+                sourceBundles.Clear();
                 report.stage = "complete"; report.success = true; report.completedUtc = DateTime.UtcNow.ToString("o");
                 WriteJson(reportPath, report); return true;
             }
@@ -603,6 +782,7 @@ namespace SolastaAssetAuthoring
                 if (reportPath != null && !File.Exists(reportPath)) { WriteJson(reportPath, report); }
                 Debug.LogException(exception); return false;
             }
+            finally { foreach (var bundle in sourceBundles) if (bundle != null) bundle.Unload(true); }
         }
 
         private static void ValidateMeshTextureJson(byte[] bytes) { MeshRecipeInput.ValidateJson(bytes); }
@@ -633,8 +813,8 @@ namespace SolastaAssetAuthoring
             importer.mipmapEnabled = spec.mipmaps;
             importer.npotScale = TextureImporterNPOTScale.None;
             importer.textureCompression = TextureImporterCompression.Compressed;
-            importer.crunchedCompression = false;
-            importer.compressionQuality = 50;
+            importer.crunchedCompression = spec.crunchedCompression;
+            importer.compressionQuality = spec.compressionQuality ?? 50;
             // The reload contract reads the compressed CPU payload, including every mip.
             importer.isReadable = true;
             importer.SaveAndReimport();
@@ -646,20 +826,23 @@ namespace SolastaAssetAuthoring
             Require(texture != null && importer != null && texture.name == spec.name && texture.isReadable && texture.width > 0 && texture.height > 0,
                 "The texture identity, readable payload or dimensions changed: " + spec.name);
             var value = new TextureValidation { name = texture.name, path = spec.path, inputSha256 = spec.sha256,
-                width = texture.width, height = texture.height, mipCount = texture.mipmapCount, graphicsFormat = texture.graphicsFormat.ToString(),
+                width = texture.width, height = texture.height, mipCount = texture.mipmapCount, graphicsFormat = texture.graphicsFormat.ToString(), textureFormat = texture.format.ToString(),
                 normalMap = importer.textureType == TextureImporterType.NormalMap, sRGB = importer.sRGBTexture, mipmaps = importer.mipmapEnabled,
-                heightConversion = importer.convertToNormalmap, readable = importer.isReadable, compression = importer.textureCompression.ToString(), crunched = importer.crunchedCompression };
+                heightConversion = importer.convertToNormalmap, readable = importer.isReadable, compression = importer.textureCompression.ToString(),
+                crunched = importer.crunchedCompression, compressionQuality = importer.compressionQuality };
             value.importSettingsExact = importer.textureType == (spec.normalMap ? TextureImporterType.NormalMap : TextureImporterType.Default) &&
                 importer.textureShape == TextureImporterShape.Texture2D && value.sRGB == spec.sRGB && value.mipmaps == spec.mipmaps &&
-                !value.heightConversion && value.readable && !value.crunched && importer.textureCompression == TextureImporterCompression.Compressed &&
-                importer.compressionQuality == 50 && importer.npotScale == TextureImporterNPOTScale.None;
+                !value.heightConversion && value.readable && value.crunched == spec.crunchedCompression && importer.textureCompression == TextureImporterCompression.Compressed &&
+                value.compressionQuality == (spec.compressionQuality ?? 50) && importer.npotScale == TextureImporterNPOTScale.None;
             Require(value.importSettingsExact, "The declared texture import settings changed: " + spec.name);
+            Require(!spec.crunchedCompression || texture.format == TextureFormat.DXT1Crunched || texture.format == TextureFormat.DXT5Crunched,
+                "The requested desktop Crunch format was not produced: " + spec.name);
             var raw = texture.GetRawTextureData();
             value.rawBytes = raw.Length; value.rawSha256 = HashBytes(raw);
             var mipCount = spec.mipmaps ? 1 + (int)Math.Floor(Math.Log(Math.Max(texture.width, texture.height), 2d)) : 1;
             Require(raw.Length > 0 && value.mipCount == mipCount, "The texture mip chain/payload changed: " + spec.name);
             value.exact = expected == null || value.name == expected.name && value.path == expected.path && value.width == expected.width &&
-                value.height == expected.height && value.mipCount == expected.mipCount && value.graphicsFormat == expected.graphicsFormat &&
+                value.height == expected.height && value.mipCount == expected.mipCount && value.graphicsFormat == expected.graphicsFormat && value.textureFormat == expected.textureFormat &&
                 value.rawBytes == expected.rawBytes && value.rawSha256 == expected.rawSha256;
             Require(value.exact, "The texture compressed payload/format changed: " + spec.name);
             return value;
@@ -669,7 +852,7 @@ namespace SolastaAssetAuthoring
         {
             var contracts = new List<MeshValidationContract>();
             foreach (var kind in new[] { "texture-name", "texture-payload", "texture-format", "texture-mips", "texture-import-type", "texture-import-srgb",
-                "texture-height-conversion", "texture-import-mips", "texture-compression", "texture-readable" })
+                "texture-height-conversion", "texture-import-mips", "texture-compression", "texture-crunch", "texture-quality", "texture-readable" })
             {
                 if (kind == "texture-mips" && source.width == 1 && source.height == 1) continue;
                 Texture2D clone = null;
@@ -688,6 +871,8 @@ namespace SolastaAssetAuthoring
                         case "texture-height-conversion": importer.convertToNormalmap = true; break;
                         case "texture-import-mips": importer.mipmapEnabled = !spec.mipmaps; break;
                         case "texture-compression": importer.textureCompression = TextureImporterCompression.Uncompressed; break;
+                        case "texture-crunch": importer.crunchedCompression = !spec.crunchedCompression; break;
+                        case "texture-quality": importer.compressionQuality = (spec.compressionQuality ?? 50) == 100 ? 99 : 100; break;
                         case "texture-readable": importer.isReadable = false; break;
                     }
                     var contract = new MeshValidationContract { kind = kind };
@@ -1201,13 +1386,7 @@ namespace SolastaAssetAuthoring
 
         private static string MaterialInputPath(string root, string assetRoot, string relative)
         {
-            Require(!string.IsNullOrEmpty(relative) && Regex.IsMatch(relative, "^[A-Za-z0-9_./-]+$") && !Path.IsPathRooted(relative) &&
-                    relative.Split('/').All(segment => segment != "" && segment != "." && segment != ".."), "Invalid material input path.");
-            Require(new[] { ".shader", ".cginc", ".hlsl", ".png", ".jpg", ".jpeg", ".tga" }.Contains(Path.GetExtension(relative)), "Unsupported material input extension.");
-            var path = Path.Combine(root, assetRoot, relative);
-            RejectReparsePoints(path);
-            Require(File.Exists(path), "The material input is missing: " + relative);
-            return path;
+            return InputPath(root, assetRoot, relative, ".shader", ".cginc", ".hlsl", ".png", ".jpg", ".jpeg", ".tga");
         }
 
         private static MaterialValidation ValidateMaterial(Material material, MaterialSpec spec, string assetRoot,
@@ -1591,6 +1770,19 @@ namespace SolastaAssetAuthoring
             [DataMember] public MeshSpec[] meshes;
             [DataMember] public TextureSpec[] textures;
             [DataMember] public NumericPayload numericPayload;
+            [DataMember] public SourceBundleSpec[] sourceBundles;
+        }
+        [DataContract] public sealed class SourceBundleSpec
+        {
+            [DataMember(IsRequired = true)] public string path;
+            [DataMember(IsRequired = true)] public string sha256;
+            [DataMember(IsRequired = true)] public SourceAssetSpec[] assets;
+        }
+        [DataContract] public sealed class SourceAssetSpec
+        {
+            [DataMember(IsRequired = true)] public string asset;
+            [DataMember(IsRequired = true)] public string type;
+            [DataMember(IsRequired = true)] public string name;
         }
         [DataContract] public sealed class TextureSpec
         {
@@ -1600,6 +1792,8 @@ namespace SolastaAssetAuthoring
             [DataMember(IsRequired = true)] public bool normalMap;
             [DataMember(IsRequired = true)] public bool sRGB;
             [DataMember(IsRequired = true)] public bool mipmaps;
+            [DataMember] public bool crunchedCompression;
+            [DataMember(EmitDefaultValue = false)] public int? compressionQuality;
         }
         [DataContract] public sealed class MeshBounds
         {
@@ -1676,7 +1870,7 @@ namespace SolastaAssetAuthoring
             using (var reader = JsonReaderWriterFactory.CreateJsonReader(bytes, System.Xml.XmlDictionaryReaderQuotas.Max)) { document.Load(reader); }
             var root = document.DocumentElement;
             var fields = root.ChildNodes.Cast<System.Xml.XmlNode>().ToArray();
-            Require(fields.All(node => new[] { "schemaVersion", "bundleName", "meshes", "textures", "numericPayload" }.Contains(node.Name)) &&
+            Require(fields.All(node => new[] { "schemaVersion", "bundleName", "meshes", "textures", "numericPayload", "sourceBundles" }.Contains(node.Name)) &&
                     fields.Select(node => node.Name).Distinct().Count() == fields.Length, "Unknown or duplicate mesh recipe field.");
             var payload = root["numericPayload"];
             if (payload != null)
@@ -1694,6 +1888,28 @@ namespace SolastaAssetAuthoring
                         "Invalid numeric payload byte length.");
             }
             else Require(root["meshes"] != null && root["meshes"].GetAttribute("type") == "array", "The inline mesh list must be a JSON array.");
+            var sources = root["sourceBundles"];
+            if (sources != null)
+            {
+                Require(sources.GetAttribute("type") == "array", "The source bundle list must be a JSON array.");
+                foreach (System.Xml.XmlElement source in sources.ChildNodes)
+                {
+                    var members = source.ChildNodes.Cast<System.Xml.XmlNode>().ToArray();
+                    var names = new[] { "path", "sha256", "assets" };
+                    Require(source.GetAttribute("type") == "object" && members.Length == names.Length && names.All(name => members.Count(node => node.Name == name) == 1),
+                        "Unknown, duplicate or missing source bundle field.");
+                    Require(source["path"].GetAttribute("type") == "string" && source["sha256"].GetAttribute("type") == "string" && source["assets"].GetAttribute("type") == "array",
+                        "Invalid source bundle JSON type.");
+                    foreach (System.Xml.XmlElement asset in source["assets"].ChildNodes)
+                    {
+                        var values = asset.ChildNodes.Cast<System.Xml.XmlNode>().ToArray();
+                        var keys = new[] { "asset", "type", "name" };
+                        Require(asset.GetAttribute("type") == "object" && values.Length == keys.Length &&
+                                keys.All(name => values.Count(node => node.Name == name && ((System.Xml.XmlElement)node).GetAttribute("type") == "string") == 1),
+                            "Unknown, duplicate, missing or mistyped source asset field.");
+                    }
+                }
+            }
             var list = root["textures"];
             if (list == null) return;
             Require(list.GetAttribute("type") == "array", "The mesh texture list must be a JSON array.");
@@ -1701,11 +1917,23 @@ namespace SolastaAssetAuthoring
             {
                 var members = texture.ChildNodes.Cast<System.Xml.XmlNode>().ToArray();
                 var names = new[] { "name", "path", "sha256", "normalMap", "sRGB", "mipmaps" };
-                Require(texture.GetAttribute("type") == "object" && members.Length == names.Length && names.All(name => members.Count(node => node.Name == name) == 1),
+                var optional = new[] { "crunchedCompression", "compressionQuality" };
+                Require(texture.GetAttribute("type") == "object" && names.All(name => members.Count(node => node.Name == name) == 1) &&
+                        members.All(node => names.Contains(node.Name) || optional.Contains(node.Name)) && members.Select(node => node.Name).Distinct().Count() == members.Length,
                         "Unknown, duplicate or missing mesh texture field.");
                 foreach (var name in names)
                     Require(texture[name].GetAttribute("type") == (new[] { "normalMap", "sRGB", "mipmaps" }.Contains(name) ? "boolean" : "string"),
                             "Invalid JSON type for texture " + name);
+                if (texture["crunchedCompression"] != null)
+                    Require(texture["crunchedCompression"].GetAttribute("type") == "boolean", "Invalid JSON type for texture crunchedCompression.");
+                if (texture["compressionQuality"] != null)
+                {
+                    int quality;
+                    Require(texture["compressionQuality"].GetAttribute("type") == "number" &&
+                            int.TryParse(texture["compressionQuality"].InnerText, System.Globalization.NumberStyles.None,
+                                System.Globalization.CultureInfo.InvariantCulture, out quality) && quality >= 0 && quality <= 100,
+                        "Texture compressionQuality must be an integer from 0 to 100.");
+                }
             }
         }
 
@@ -1741,9 +1969,48 @@ namespace SolastaAssetAuthoring
                         texture.path.Split('/').All(part => part.Length > 0 && part != "." && part != "..") &&
                         new[] { ".png", ".jpg", ".jpeg", ".tga" }.Contains(Path.GetExtension(texture.path)) &&
                         Path.GetFileNameWithoutExtension(texture.path) == texture.name && !(texture.normalMap && texture.sRGB) &&
-                        texture.sha256 != null && Regex.IsMatch(texture.sha256, "^[a-f0-9]{64}$"), "Invalid mesh texture path, hash or import flags.");
-            Require(recipe.meshes.Length > 0 || recipe.textures.Length > 0, "The mesh recipe must contain a mesh or texture.");
+                        texture.sha256 != null && Regex.IsMatch(texture.sha256, "^[a-f0-9]{64}$") &&
+                        (!texture.compressionQuality.HasValue || texture.compressionQuality.Value >= 0 && texture.compressionQuality.Value <= 100),
+                        "Invalid mesh texture path, hash or import flags.");
+            recipe.sourceBundles = recipe.sourceBundles ?? new SourceBundleSpec[0];
+            Require(recipe.sourceBundles.Length <= 128 && recipe.sourceBundles.All(source => source != null &&
+                    SafeRelativePath(source.path) && source.path.EndsWith(".bundle", StringComparison.Ordinal) &&
+                    source.sha256 != null && Regex.IsMatch(source.sha256, "^[a-f0-9]{64}$") && source.assets != null && source.assets.Length > 0 && source.assets.Length <= 128) &&
+                    recipe.sourceBundles.Select(source => source.path).Distinct(StringComparer.OrdinalIgnoreCase).Count() == recipe.sourceBundles.Length,
+                "Invalid or duplicate source bundle path, hash or asset list.");
+            var selected = recipe.sourceBundles.SelectMany(source => source.assets).ToArray();
+            Require(selected.Length <= 128 && selected.All(asset => asset != null && (asset.type == "Mesh" || asset.type == "Texture2D") &&
+                    SafeRelativePath(asset.asset) && asset.name != null && Regex.IsMatch(asset.name, "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$")) &&
+                    recipe.sourceBundles.All(source => source.assets.Select(asset => asset.asset).Distinct(StringComparer.OrdinalIgnoreCase).Count() == source.assets.Length),
+                "Invalid, duplicate or unsupported source asset declaration.");
+            var outputNames = recipe.meshes.Select(mesh => mesh.name).Concat(recipe.textures.Select(texture => texture.name)).Concat(selected.Select(asset => asset.name)).ToArray();
+            Require(outputNames.Distinct(StringComparer.OrdinalIgnoreCase).Count() == outputNames.Length,
+                "Mesh, texture and source asset output names must be unique.");
+            var inputPaths = recipe.textures.Select(texture => texture.path).Concat(recipe.sourceBundles.Select(source => source.path)).ToArray();
+            Require(inputPaths.Distinct(StringComparer.OrdinalIgnoreCase).Count() == inputPaths.Length, "Authoring input paths must be unique.");
+            Require(recipe.meshes.Length > 0 || recipe.textures.Length > 0 || selected.Length > 0, "The mesh recipe must contain a mesh or texture.");
             return recipe;
+        }
+
+        private static bool SafeRelativePath(string path)
+        {
+            return path != null && Regex.IsMatch(path, "^[A-Za-z0-9_./-]+$") && !path.StartsWith("/", StringComparison.Ordinal) &&
+                path.Split('/').All(part => part.Length > 0 && part != "." && part != "..");
+        }
+
+        public static string InputPath(string root, string assetRoot, string relative, params string[] extensions)
+        {
+            Require(SafeRelativePath(relative), "Invalid authoring input path.");
+            Require(extensions != null && extensions.Contains(Path.GetExtension(relative)), "Unsupported authoring input extension.");
+            var project = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar);
+            var owner = Path.GetFullPath(Path.Combine(project, assetRoot)).TrimEnd(Path.DirectorySeparatorChar);
+            Require(owner == project || owner.StartsWith(project + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase),
+                "The authoring input owner escaped its project.");
+            var path = Path.GetFullPath(Path.Combine(owner, relative));
+            Require(path.StartsWith(owner + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase), "The authoring input escaped its owner.");
+            RejectLinks(path);
+            Require(File.Exists(path), "The authoring input is missing: " + relative);
+            return path;
         }
 
         public static string PayloadPath(string recipePath, NumericPayload payload)

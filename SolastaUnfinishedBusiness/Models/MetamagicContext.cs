@@ -499,7 +499,12 @@ internal static class MetamagicContext
         }
     }
 
-    internal static int GetReactionSpellRange(SpellDefinition spell, GameLocationCharacter caster)
+    internal static bool IsWithinReactionTriggerRange(
+        GameLocationCharacter caster, SpellDefinition spell, GameLocationCharacter triggeringCharacter) =>
+        triggeringCharacter != null &&
+        caster.IsWithinRange(triggeringCharacter, GetSpellRange(spell.EffectDescription));
+
+    internal static int GetReactionSpellTargetRange(SpellDefinition spell, GameLocationCharacter caster)
     {
         var range = GetSpellRange(spell.EffectDescription);
         var ruleCaster = caster?.RulesetCharacter;
@@ -529,7 +534,7 @@ internal static class MetamagicContext
 
     internal static bool CanReachReactionSpellTarget(
         GameLocationCharacter caster, SpellDefinition spell, GameLocationCharacter target) =>
-        target != null && caster.IsWithinRange(target, GetReactionSpellRange(spell, caster));
+        target != null && caster.IsWithinRange(target, GetReactionSpellTargetRange(spell, caster));
 
     internal static bool CanAttackWithReactionMetamagic(
         GameLocationBattleManager battle, BattleDefinitions.AttackEvaluationParams attackParams, bool readiedAttack)
@@ -571,55 +576,6 @@ internal static class MetamagicContext
             }
         }
         return false;
-    }
-
-    internal static IEnumerable<CodeInstruction> PatchReactionSpellRangeChecks(
-        IEnumerable<CodeInstruction> instructions, MethodBase iterator, string casterFieldName = null)
-    {
-        var code = instructions.ToList();
-        var spellDescription = AccessTools.PropertyGetter(typeof(SpellDefinition), nameof(SpellDefinition.EffectDescription));
-        var rangeParameter = AccessTools.PropertyGetter(typeof(EffectDescription), nameof(EffectDescription.RangeParameter));
-        var getCharacter = AccessTools.PropertyGetter(typeof(GameLocationCharacter), nameof(GameLocationCharacter.RulesetCharacter));
-        var replacement = AccessTools.Method(typeof(MetamagicContext), nameof(GetReactionSpellRange));
-        CodeInstruction casterLoad = null;
-        var casterField = casterFieldName == null ? null : AccessTools.Field(iterator.DeclaringType, casterFieldName);
-        var patched = 0;
-        for (var index = 0; index < code.Count; index++)
-        {
-            if (casterField == null && code[index].operand is MethodInfo { Name: nameof(RulesetCharacter.CanCastCounterSpell) })
-            {
-                for (var previous = index - 1; previous >= Math.Max(1, index - 8); previous--)
-                {
-                    if (Equals(code[previous].operand, getCharacter))
-                    {
-                        casterLoad = code[previous - 1];
-                        break;
-                    }
-                }
-            }
-            if (index == 0 || !Equals(code[index].operand, rangeParameter) ||
-                !Equals(code[index - 1].operand, spellDescription) || casterLoad == null && casterField == null)
-            {
-                continue;
-            }
-
-            // Only spell ranges are replaced; power counters and spell identification keep their native rules.
-            code[index - 1].opcode = casterField == null ? casterLoad.opcode : OpCodes.Ldarg_0;
-            code[index - 1].operand = casterField == null ? casterLoad.operand : null;
-            if (casterField != null)
-            {
-                code.Insert(index, new CodeInstruction(OpCodes.Ldfld, casterField));
-                index++;
-            }
-            code[index].opcode = OpCodes.Call;
-            code[index].operand = replacement;
-            patched++;
-        }
-        if (patched != 1)
-        {
-            Main.Error($"Expected one reaction spell range check in {iterator.DeclaringType?.FullName}, found {patched}.");
-        }
-        return code;
     }
 
     private sealed class SelectionFlow(RulesetEffectSpell spell, Action back = null)

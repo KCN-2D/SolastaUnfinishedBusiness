@@ -484,7 +484,8 @@ public static class GameLocationCharacterExtensions
         GameLocationCharacter waiter,
         Action<CharacterActionParams> reactionValidated = null,
         GameLocationBattleManager battleManager = null,
-        string reactionDescription = null)
+        string reactionDescription = null,
+        Func<bool> reactionStillValid = null)
     {
         if (!TryGetReactionServices(out var actionService, out var implementationService, out battleManager,
                 battleManager))
@@ -495,7 +496,7 @@ public static class GameLocationCharacterExtensions
         var ruleCaster = caster.RulesetCharacter;
         var slotLevel = ruleCaster.GetLowestSlotLevelAndRepertoireToCastSpell(spell, out var repertoire);
 
-        if (slotLevel < spell.SpellLevel || repertoire == null ||
+        if (slotLevel < spell.SpellLevel || repertoire == null || reactionStillValid?.Invoke() == false ||
             !MetamagicContext.CanReachReactionSpellTarget(caster, spell, target) ||
             !LightingAndObscurementContext.IsMagicEffectValidIfHeavilyObscuredOrInNaturalDarkness(caster, spell, target))
         {
@@ -515,9 +516,20 @@ public static class GameLocationCharacterExtensions
         };
         var count = actionService.PendingReactionRequestGroups.Count;
 
-        actionService.ReactToSpendSpellSlot(reactionParams);
-
-        yield return battleManager.WaitForReactions(waiter, actionService, count);
+        ReactionRequestCallback.SetValidation(reactionParams, reactionStillValid);
+        try
+        {
+            actionService.ReactToSpendSpellSlot(reactionParams);
+            yield return battleManager.WaitForReactions(waiter, actionService, count);
+        }
+        finally
+        {
+            ReactionRequestCallback.SetValidation(reactionParams, null);
+            if (!reactionParams.ReactionValidated)
+            {
+                reactionParams.RulesetEffect.Terminate(false);
+            }
+        }
 
         if (reactionParams.ReactionValidated)
         {

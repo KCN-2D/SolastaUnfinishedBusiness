@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -19,6 +19,19 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GraphicsCharacterFactoryManagerPatcher
 {
+    [HarmonyPatch(typeof(GraphicsCharacterFactoryManager), nameof(GraphicsCharacterFactoryManager.DestroyBodyPart))]
+    [UsedImplicitly]
+    public static class DestroyBodyPart_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix([HarmonyArgument(0)] GraphicsCharacter graphicsCharacter,
+            [HarmonyArgument(1)] GraphicsCharacterDefinitions.BodyPart part)
+        {
+            RacesContext.ReleaseBodyShape(graphicsCharacter);
+            RacesContext.ReleaseCustomFacesForBodyPart(graphicsCharacter, part);
+        }
+    }
+
     [HarmonyPatch(typeof(GraphicsCharacterFactoryManager),
         nameof(GraphicsCharacterFactoryManager.RefreshMorphotypeParameters))]
     [UsedImplicitly]
@@ -31,6 +44,12 @@ public static class GraphicsCharacterFactoryManagerPatcher
         {
             return category != MorphotypeElementDefinition.ElementCategory.Musculature ||
                    RacesContext.ApplyBodyShape(graphicsCharacter);
+        }
+
+        [UsedImplicitly]
+        public static void Postfix([HarmonyArgument(0)] GraphicsCharacter graphicsCharacter)
+        {
+            RacesContext.RefreshCustomFaceMaterials(graphicsCharacter);
         }
     }
 

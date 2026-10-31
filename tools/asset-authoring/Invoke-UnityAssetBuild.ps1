@@ -240,7 +240,7 @@ function Assert-MeshRecipe($Recipe) {
         if ($Recipe.textures -isnot [array] -or $Recipe.textures.Count -gt 128) { throw 'Invalid mesh texture list.' }
         $textureNames = @{}; $texturePaths = @{}
         foreach ($texture in $Recipe.textures) {
-            Assert-RecipeFields $texture @('name', 'path', 'sha256', 'normalMap', 'sRGB', 'mipmaps')
+            Assert-RecipeFields $texture @('name', 'path', 'sha256', 'normalMap', 'sRGB', 'mipmaps') @('crunchedCompression', 'compressionQuality')
             if ($texture.name -isnot [string] -or $texture.name -cnotmatch '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$' -or
                 $texture.path -isnot [string] -or $texture.path -cnotmatch '^[A-Za-z0-9_./-]+$' -or $texture.path.StartsWith('/') -or
                 @($texture.path.Split('/') | Where-Object { $_ -in @('', '.', '..') }).Count -ne 0 -or
@@ -250,6 +250,12 @@ function Assert-MeshRecipe($Recipe) {
                 $texture.normalMap -isnot [bool] -or $texture.sRGB -isnot [bool] -or $texture.mipmaps -isnot [bool] -or
                 ($texture.normalMap -and $texture.sRGB) -or $textureNames.ContainsKey($texture.name) -or $texturePaths.ContainsKey($texture.path)) {
                 throw 'Invalid or duplicate mesh texture name, path, hash or import settings.'
+            }
+            if (($texture.PSObject.Properties['crunchedCompression'] -and $texture.crunchedCompression -isnot [bool]) -or
+                ($texture.PSObject.Properties['compressionQuality'] -and
+                    ($texture.compressionQuality -isnot [int] -and $texture.compressionQuality -isnot [long] -or
+                     $texture.compressionQuality -lt 0 -or $texture.compressionQuality -gt 100))) {
+                throw 'Texture compressionQuality must be an integer from 0 to 100 and crunchedCompression must be boolean.'
             }
             $textureNames[$texture.name] = $true; $texturePaths[$texture.path] = $true
         }
@@ -362,11 +368,13 @@ if ($meshJob) {
     try { $meshInputHash = ([BitConverter]::ToString($sha.ComputeHash($meshInputBytes))).Replace('-', '').ToLowerInvariant() }
     finally { $sha.Dispose() }
     $recipe = [Text.Encoding]::UTF8.GetString($meshInputBytes).TrimStart([char]0xfeff) | ConvertFrom-Json
-    if ($recipe.PSObject.Properties['numericPayload']) {
+    if ($recipe.PSObject.Properties['numericPayload'] -or $recipe.PSObject.Properties['sourceBundles']) {
         $recipe = Read-ExternalMeshRecipe $sourceFile
-        $assetSource = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetDirectoryName($sourceFile)) $recipe.numericPayload.path))
-        Assert-LocalPath $assetSource
-        $materialInputs += [pscustomobject]@{path=$recipe.numericPayload.path;source=$assetSource;sha256=$recipe.numericPayload.sha256}
+        if ($null -ne $recipe.numericPayload) {
+            $assetSource = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetDirectoryName($sourceFile)) $recipe.numericPayload.path))
+            Assert-LocalPath $assetSource
+            $materialInputs += [pscustomobject]@{path=$recipe.numericPayload.path;source=$assetSource;sha256=$recipe.numericPayload.sha256}
+        }
     }
     else { Assert-MeshRecipe $recipe }
     $bundleName = $recipe.bundleName
@@ -378,6 +386,16 @@ if ($meshJob) {
                 throw "The mesh texture source hash differs: $($texture.path)"
             }
             $materialInputs += [pscustomobject]@{ path = $texture.path; source = $assetSource; sha256 = $texture.sha256 }
+        }
+    }
+    if ($recipe.PSObject.Properties['sourceBundles']) {
+        foreach ($sourceBundle in $recipe.sourceBundles) {
+            $assetSource = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetDirectoryName($sourceFile)) $sourceBundle.path))
+            Assert-LocalPath $assetSource
+            if ((Get-FileHash -LiteralPath $assetSource -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sourceBundle.sha256) {
+                throw "The source bundle hash differs: $($sourceBundle.path)"
+            }
+            $materialInputs += [pscustomobject]@{path=$sourceBundle.path;source=$assetSource;sha256=$sourceBundle.sha256}
         }
     }
 }
@@ -622,11 +640,33 @@ if ($meshJob -and $recipe.PSObject.Properties['textures'] -and $recipe.textures.
         }
         for ($index = 0; $index -lt $recipe.textures.Count; $index++) {
             $row = $report.$stage[$index]; $spec = $recipe.textures[$index]; $created = $report.createdTextures[$index]
+            $expectedCrunch = $spec.PSObject.Properties['crunchedCompression'] -and $spec.crunchedCompression
+            $expectedQuality = if ($spec.PSObject.Properties['compressionQuality'] -and $null -ne $spec.compressionQuality) { $spec.compressionQuality } else { 50 }
             if ($row.name -cne $spec.name -or $row.path -cne $spec.path -or $row.inputSha256 -cne $spec.sha256 -or
                 $row.normalMap -ne $spec.normalMap -or $row.sRGB -ne $spec.sRGB -or $row.mipmaps -ne $spec.mipmaps -or
+                $row.crunched -ne $expectedCrunch -or $row.compressionQuality -ne $expectedQuality -or
                 $row.rawSha256 -cne $created.rawSha256 -or $row.graphicsFormat -cne $created.graphicsFormat -or
+                $row.textureFormat -cne $created.textureFormat -or $row.rawBytes -ne $created.rawBytes -or
                 $row.width -ne $created.width -or $row.height -ne $created.height -or $row.mipCount -ne $created.mipCount) {
                 throw 'The texture report identity, import settings or raw payload changed.'
+            }
+        }
+    }
+}
+if ($meshJob -and $recipe.PSObject.Properties['sourceBundles']) {
+    if ($report.sourceBundlesLoaded -ne $recipe.sourceBundles.Count -or $report.sourceBundlesReleased -ne $recipe.sourceBundles.Count) {
+        throw 'The source bundle ownership was not released.'
+    }
+    $selected = @($recipe.sourceBundles | ForEach-Object { $sourceBundle = $_; $_.assets | ForEach-Object { [pscustomobject]@{bundle=$sourceBundle;asset=$_} } })
+    foreach ($stage in @('createdSourceAssets','savedSourceAssets','sourceAssets')) {
+        if (!$report.PSObject.Properties[$stage] -or @($report.$stage).Count -ne $selected.Count) { throw 'The source clone report count differs.' }
+        for ($index = 0; $index -lt $selected.Count; $index++) {
+            $row = $report.$stage[$index]; $spec = $selected[$index]; $created = $report.createdSourceAssets[$index]
+            if (!$row.exact -or !$row.physicalLayoutExact -or @($row.physicalFields).Count -eq 0 -or
+                $row.sourcePath -cne $spec.bundle.path -or $row.sourceSha256 -cne $spec.bundle.sha256 -or
+                $row.asset -cne $spec.asset.asset -or $row.name -cne $spec.asset.name -or $row.type -cne $spec.asset.type -or
+                $row.sourceName -cne $created.sourceName -or $row.dataSha256 -cne $created.dataSha256 -or $row.physicalSha256 -cne $created.physicalSha256) {
+                throw 'The source clone physical data, identity or numeric fingerprint changed.'
             }
         }
     }

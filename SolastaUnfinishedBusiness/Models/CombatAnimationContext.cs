@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.CustomUI;
+using SolastaUnfinishedBusiness.Validators;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
@@ -23,6 +24,15 @@ internal static class CombatAnimationContext
     private static readonly Dictionary<Animator, MovementReactionState> MovementReactionStates = [];
     private static readonly Dictionary<GraphicsCharacter, EquipmentAttackState> EquipmentAttackStates = [];
     private static readonly HashSet<EquipmentPresentation> EquipmentPresentations = [];
+
+    internal enum OtherHandPose
+    {
+        Free,
+        OneHandWeapon,
+        Shield,
+        SharedIdle,
+        NativeLayer
+    }
 
     internal sealed class WeaponAnimation(string modelName, string attackBinding, string attackClipPrefix,
         string idleBinding, string nativeIdleClip, string slot, bool requiresFreeOtherHand)
@@ -49,6 +59,8 @@ internal static class CombatAnimationContext
         internal string IdlePoseGroup { get; private set; }
         internal bool? OtherHandSharesIdlePose { get; private set; }
         internal bool SupportsSecondaryIdle { get; private set; }
+        internal OtherHandPose? CompanionPose { get; private set; }
+        internal IReadOnlyList<string> OtherHandAnimationTags { get; private set; } = Array.Empty<string>();
 
         private WeaponAnimation Copy() => new(ModelName, AttackBinding, AttackClipPrefix, IdleBinding,
             NativeIdleClip, Slot, RequiresFreeOtherHand)
@@ -56,6 +68,7 @@ internal static class CombatAnimationContext
             OtherHandOccupied = OtherHandOccupied, InCombat = InCombat, CharacterType = CharacterType,
             IdlePoseGroup = IdlePoseGroup, OtherHandSharesIdlePose = OtherHandSharesIdlePose,
             SupportsSecondaryIdle = SupportsSecondaryIdle,
+            CompanionPose = CompanionPose, OtherHandAnimationTags = OtherHandAnimationTags,
             IdleClipPrefix = IdleClipPrefix,
             IdleVariantBinding = IdleVariantBinding, IdleBindings = IdleBindings,
             ClipPrefixes = ClipPrefixes, ClipVariantBinding = ClipVariantBinding, AttackEntries = AttackEntries
@@ -65,6 +78,21 @@ internal static class CombatAnimationContext
         {
             var copy = Copy();
             copy.OtherHandOccupied = occupied;
+            return copy;
+        }
+
+        internal WeaponAnimation WithOtherHandPose(OtherHandPose pose, IEnumerable<string> animationTags = null)
+        {
+            var tags = animationTags?.ToArray() ?? Array.Empty<string>();
+            if (!Enum.IsDefined(typeof(OtherHandPose), pose) || tags.Any(string.IsNullOrWhiteSpace) ||
+                tags.Distinct(StringComparer.Ordinal).Count() != tags.Length ||
+                (pose == OtherHandPose.OneHandWeapon) != (tags.Length > 0))
+            {
+                throw new ArgumentException("Invalid companion holding pose.", nameof(animationTags));
+            }
+            var copy = Copy();
+            copy.CompanionPose = pose;
+            copy.OtherHandAnimationTags = Array.AsReadOnly(tags);
             return copy;
         }
 
@@ -280,17 +308,39 @@ internal static class CombatAnimationContext
                 ? EquipmentDefinitions.SlotTypeOffHand
                 : EquipmentDefinitions.SlotTypeMainHand;
             var occupied = character.WieldedRulesetItems.TryGetValue(otherSlot, out var other) && other != null;
+            var otherDefinition = occupied ? other.ItemDefinition : null;
+            var otherIsShield = otherDefinition != null && ValidatorsWeapon.IsShield(otherDefinition);
+            var otherHasNativeLayer = otherDefinition is { IsLightSourceItem: true, IsWeapon: false };
+            var otherAnimationTag = GetCompanionAnimationTag(otherDefinition);
+            string previousPoseGroup = null;
+            var previousSharesPose = false;
+            var hasPreviousPoseGroup = false;
             foreach (var animation in CustomModels.GetWieldedItemFeatures<WeaponAnimation>(definition))
             {
-                if (MatchesEquipmentSelector(animation, slot, occupied, inCombat, character.CharacterType) &&
-                    (!animation.OtherHandSharesIdlePose.HasValue ||
-                     animation.OtherHandSharesIdlePose.Value ==
-                     (occupied && SharesIdlePose(animation, other.ItemDefinition, otherSlot, inCombat,
-                         character.CharacterType))) &&
-                    (activeAction || !nativePrimaryIdle || animation.SupportsSecondaryIdle))
+                if (!MatchesEquipmentSelector(animation, slot, occupied, inCombat, character.CharacterType) ||
+                    !activeAction && nativePrimaryIdle && !animation.SupportsSecondaryIdle)
                 {
-                    return animation;
+                    continue;
                 }
+                var sharesPose = false;
+                if (occupied && animation.IdlePoseGroup != null)
+                {
+                    if (!hasPreviousPoseGroup || previousPoseGroup != animation.IdlePoseGroup)
+                    {
+                        previousPoseGroup = animation.IdlePoseGroup;
+                        previousSharesPose = SharesIdlePose(animation, otherDefinition, otherSlot, inCombat,
+                            character.CharacterType);
+                        hasPreviousPoseGroup = true;
+                    }
+                    sharesPose = previousSharesPose;
+                }
+                if (animation.OtherHandSharesIdlePose.HasValue &&
+                    animation.OtherHandSharesIdlePose.Value != sharesPose ||
+                    !MatchesCompanionPose(animation, occupied, otherIsShield, sharesPose, otherHasNativeLayer, otherAnimationTag))
+                {
+                    continue;
+                }
+                return animation;
             }
             if (!activeAction && index == 0)
             {
@@ -309,6 +359,35 @@ internal static class CombatAnimationContext
         (!animation.OtherHandOccupied.HasValue || animation.OtherHandOccupied.Value == occupied) &&
         (!animation.InCombat.HasValue || animation.InCombat.Value == inCombat) &&
         (!animation.CharacterType.HasValue || animation.CharacterType.Value == characterType);
+
+    private static bool MatchesCompanionPose(WeaponAnimation animation, bool occupied, bool shield,
+        bool sharesPose, bool nativeLayer, string animationTag)
+    {
+        if (!animation.CompanionPose.HasValue)
+        {
+            return true;
+        }
+        var pose = !occupied ? OtherHandPose.Free : sharesPose ? OtherHandPose.SharedIdle :
+            shield ? OtherHandPose.Shield : nativeLayer ? OtherHandPose.NativeLayer : OtherHandPose.OneHandWeapon;
+        return animation.CompanionPose.Value == pose &&
+               (pose != OtherHandPose.OneHandWeapon || animationTag != null &&
+                   animation.OtherHandAnimationTags.Contains(animationTag, StringComparer.Ordinal));
+    }
+
+    private static string GetCompanionAnimationTag(ItemDefinition definition)
+    {
+        if (definition is not { IsWeapon: true } ||
+            definition.WeaponDescription.WeaponTags.Contains(TagsDefinitions.WeaponTagTwoHanded))
+        {
+            return null;
+        }
+        var description = definition.WeaponDescription;
+        var tag = description.WeaponTypeDefinition.AnimationTag;
+        return description.WeaponTags.Contains(TagsDefinitions.WeaponTagVersatile) &&
+               AnimationDefinitions.VersatileWeaponTypesTable.TryGetValue(tag, out var oneHanded)
+            ? oneHanded
+            : tag;
+    }
 
     private static bool SharesIdlePose(WeaponAnimation animation, ItemDefinition other, string otherSlot,
         bool inCombat, GraphicsCharacterDefinitions.CharacterType characterType)

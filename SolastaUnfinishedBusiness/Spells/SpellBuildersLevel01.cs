@@ -2974,7 +2974,7 @@ internal static partial class SpellBuilders
                 !helper.CanReact() ||
                 !rulesetHelper.UsableSpells.Contains(spell) ||
                 !rulesetHelper.AreSpellComponentsValid(spell) ||
-                !MetamagicContext.CanReachReactionSpellTarget(helper, spell, triggeringCreature) ||
+                !MetamagicContext.IsWithinReactionTriggerRange(helper, spell, triggeringCreature) ||
                 !helper.CanSeeTarget(triggeringCreature))
             {
                 return false;
@@ -3004,7 +3004,9 @@ internal static partial class SpellBuilders
                     triggeringCreature,
                     waiter,
                     battleManager: battleManager,
-                    reactionDescription: reactionDescription);
+                    reactionDescription: reactionDescription,
+                    reactionStillValid: () =>
+                        MetamagicContext.IsWithinReactionTriggerRange(helper, spell, triggeringCreature));
 
                 if (!pending.CastCompleted)
                 {

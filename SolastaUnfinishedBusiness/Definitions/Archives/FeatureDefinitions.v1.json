@@ -1,0 +1,2557 @@
+{
+  "schemaVersion": 1,
+  "rootType": "FeatureDefinition",
+  "nativeModuleVersionId": "14069e07-76c4-43f6-af77-ee3eeee86525",
+  "definitions": [
+    {
+      "identity": {
+        "type": "FeatureDefinitionAttributeModifier",
+        "name": "AttributeModifierBackgroundASI_BackgroundDevoted_Constitution_2",
+        "guid": "0060a1bc-8a2c-51ab-bcea-fd78f6d110bf"
+      },
+      "state": {
+        "type": "FeatureDefinitionAttributeModifier",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&NoContentTitle",
+              "GuiPresentation/hidden": true,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&NoContentTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "0060a1bc-8a2c-51ab-bcea-fd78f6d110bf",
+          "FeatureDefinitionAttributeModifier/minimum1": false,
+          "FeatureDefinitionAttributeModifier/modifiedAttribute": "Constitution",
+          "FeatureDefinitionAttributeModifier/modifierAbilityScore": "Constitution",
+          "FeatureDefinitionAttributeModifier/modifierOperation": 1,
+          "FeatureDefinitionAttributeModifier/modifierValue": 2,
+          "FeatureDefinitionAttributeModifier/situationalContext": 0,
+          "FeatureDefinitionAttributeModifier/useBonusFromCaster": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackgroundASI_BackgroundDevoted_Intelligence",
+        "guid": "0692d500-449b-54d9-bff3-a1da7b239e68"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&NoContentTitle",
+              "GuiPresentation/hidden": true,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&NoContentTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "0692d500-449b-54d9-bff3-a1da7b239e68",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 0,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "Constitution",
+            "Wisdom"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackgroundFeat_FeatMagicInitiateSorcerer",
+        "guid": "06cd6d85-5717-58ac-9dc1-20de5a3c4bf4"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&NoContentTitle",
+              "GuiPresentation/hidden": true,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&NoContentTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "06cd6d85-5717-58ac-9dc1-20de5a3c4bf4",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 2,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "FeatMagicInitiateSorcerer"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionFeatureSet",
+        "name": "FeatureSetBackgroundASI_BackgroundDevoted_Constitution",
+        "guid": "07d48d92-05be-557a-bbc9-4dbdaf9b3be4"
+      },
+      "state": {
+        "type": "FeatureDefinitionFeatureSet",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "CONを+2し、INTかWISのどちらかを+1します。",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "+2 CON、+1 INT/WIS",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "07d48d92-05be-557a-bbc9-4dbdaf9b3be4",
+          "FeatureDefinitionFeatureSet/ancestryDamageTypeMap": [],
+          "FeatureDefinitionFeatureSet/ancestryType": 0,
+          "FeatureDefinitionFeatureSet/defaultSelection": 0,
+          "FeatureDefinitionFeatureSet/enumerateInDescription": false,
+          "FeatureDefinitionFeatureSet/featureSet": [
+            {
+              "reference": {
+                "type": "FeatureDefinitionAttributeModifier",
+                "name": "AttributeModifierBackgroundASI_BackgroundDevoted_Constitution_2",
+                "guid": "0060a1bc-8a2c-51ab-bcea-fd78f6d110bf"
+              }
+            },
+            {
+              "reference": {
+                "type": "FeatureDefinitionPointPool",
+                "name": "PointPoolBackgroundASI_BackgroundDevoted_Constitution",
+                "guid": "e7752662-aff3-51d1-914e-462a582fab68"
+              }
+            }
+          ],
+          "FeatureDefinitionFeatureSet/hasRacialAffinity": false,
+          "FeatureDefinitionFeatureSet/mode": 1,
+          "FeatureDefinitionFeatureSet/uniqueChoices": false
+        }
+      },
+      "behaviors": [
+        {
+          "kind": "formatted-definition-text",
+          "title": {
+            "kind": "Translation",
+            "term": "Feature/&FeatureSetBackgroundASI2Plus1Title",
+            "value": null,
+            "definition": null,
+            "arguments": [
+              {
+                "kind": "Literal",
+                "term": null,
+                "value": "CON",
+                "definition": null,
+                "arguments": []
+              },
+              {
+                "kind": "Literal",
+                "term": null,
+                "value": "INT",
+                "definition": null,
+                "arguments": []
+              },
+              {
+                "kind": "Literal",
+                "term": null,
+                "value": "WIS",
+                "definition": null,
+                "arguments": []
+              }
+            ]
+          },
+          "description": {
+            "kind": "Translation",
+            "term": "Feature/&FeatureSetBackgroundASI2Plus1Description",
+            "value": null,
+            "definition": null,
+            "arguments": [
+              {
+                "kind": "Literal",
+                "term": null,
+                "value": "CON",
+                "definition": null,
+                "arguments": []
+              },
+              {
+                "kind": "Literal",
+                "term": null,
+                "value": "INT",
+                "definition": null,
+                "arguments": []
+              },
+              {
+                "kind": "Literal",
+                "term": null,
+                "value": "WIS",
+                "definition": null,
+                "arguments": []
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionAttributeModifier",
+        "name": "AttributeModifierBackgroundASI_Spy_Constitution_2",
+        "guid": "08837db4-1dcc-5abd-9a2e-517f323d1d0f"
+      },
+      "state": {
+        "type": "FeatureDefinitionAttributeModifier",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&NoContentTitle",
+              "GuiPresentation/hidden": true,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&NoContentTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "08837db4-1dcc-5abd-9a2e-517f323d1d0f",
+          "FeatureDefinitionAttributeModifier/minimum1": false,
+          "FeatureDefinitionAttributeModifier/modifiedAttribute": "Constitution",
+          "FeatureDefinitionAttributeModifier/modifierAbilityScore": "Constitution",
+          "FeatureDefinitionAttributeModifier/modifierOperation": 1,
+          "FeatureDefinitionAttributeModifier/modifierValue": 2,
+          "FeatureDefinitionAttributeModifier/situationalContext": 0,
+          "FeatureDefinitionAttributeModifier/useBonusFromCaster": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackgroundFeat_FeatMagicInitiateWarlock",
+        "guid": "0b5cdb18-256b-5355-9a34-ffc6efc47e4c"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&NoContentTitle",
+              "GuiPresentation/hidden": true,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&NoContentTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "0b5cdb18-256b-5355-9a34-ffc6efc47e4c",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 2,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "FeatMagicInitiateWarlock"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackground2024_BackgroundMilitia_Tool",
+        "guid": "0d1473cd-7ad5-53d8-a296-019a4d30c619"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&Background2024ToolDescription",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&Background2024ToolTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "0d1473cd-7ad5-53d8-a296-019a4d30c619",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 7,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "GamingSetDiceType",
+            "HerbalismKitType"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackground2024_Lowlife_Tool",
+        "guid": "1366cc65-3a17-5679-a01f-50c134fb7d57"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&Background2024ToolDescription",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&Background2024ToolTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "1366cc65-3a17-5679-a01f-50c134fb7d57",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 7,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "PoisonersKitType",
+            "ThievesToolsType"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackground2024_Academic_Tool",
+        "guid": "204e2207-5e9c-5602-89b7-51028d13a2d1"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&Background2024ToolDescription",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&Background2024ToolTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "204e2207-5e9c-5602-89b7-51028d13a2d1",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 7,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "EnchantingToolType",
+            "ScrollKitType"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackground2024_BackgroundTroublemaker_Tool",
+        "guid": "2256a52c-0362-5610-9850-b79940d7760a"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&Background2024ToolDescription",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&Background2024ToolTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "2256a52c-0362-5610-9850-b79940d7760a",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 7,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "GamingSetDiceType",
+            "ThievesToolsType"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionAttributeModifier",
+        "name": "AttributeModifierBackgroundASI_BackgroundDevoted_Intelligence_1",
+        "guid": "26479b2a-0de7-5269-adfc-eb0ba4304f75"
+      },
+      "state": {
+        "type": "FeatureDefinitionAttributeModifier",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&NoContentTitle",
+              "GuiPresentation/hidden": true,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&NoContentTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "26479b2a-0de7-5269-adfc-eb0ba4304f75",
+          "FeatureDefinitionAttributeModifier/minimum1": false,
+          "FeatureDefinitionAttributeModifier/modifiedAttribute": "Intelligence",
+          "FeatureDefinitionAttributeModifier/modifierAbilityScore": "Constitution",
+          "FeatureDefinitionAttributeModifier/modifierOperation": 1,
+          "FeatureDefinitionAttributeModifier/modifierValue": 1,
+          "FeatureDefinitionAttributeModifier/situationalContext": 0,
+          "FeatureDefinitionAttributeModifier/useBonusFromCaster": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionFeatureSet",
+        "name": "FeatureSetBackgroundASI_Spy_Constitution",
+        "guid": "270ee75f-7ba6-561d-8654-7b025c51e771"
+      },
+      "state": {
+        "type": "FeatureDefinitionFeatureSet",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "CONを+2し、DEXかCHAのどちらかを+1します。",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "+2 CON、+1 DEX/CHA",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "270ee75f-7ba6-561d-8654-7b025c51e771",
+          "FeatureDefinitionFeatureSet/ancestryDamageTypeMap": [],
+          "FeatureDefinitionFeatureSet/ancestryType": 0,
+          "FeatureDefinitionFeatureSet/defaultSelection": 0,
+          "FeatureDefinitionFeatureSet/enumerateInDescription": false,
+          "FeatureDefinitionFeatureSet/featureSet": [
+            {
+              "reference": {
+                "type": "FeatureDefinitionAttributeModifier",
+                "name": "AttributeModifierBackgroundASI_Spy_Constitution_2",
+                "guid": "08837db4-1dcc-5abd-9a2e-517f323d1d0f"
+              }
+            },
+            {
+              "reference": {
+                "type": "FeatureDefinitionPointPool",
+                "name": "PointPoolBackgroundASI_Spy_Constitution",
+                "guid": "86a5e9df-af3e-514f-a0e7-2201770e0612"
+              }
+            }
+          ],
+          "FeatureDefinitionFeatureSet/hasRacialAffinity": false,
+          "FeatureDefinitionFeatureSet/mode": 1,
+          "FeatureDefinitionFeatureSet/uniqueChoices": false
+        }
+      },
+      "behaviors": [
+        {
+          "kind": "formatted-definition-text",
+          "title": {
+            "kind": "Translation",
+            "term": "Feature/&FeatureSetBackgroundASI2Plus1Title",
+            "value": null,
+            "definition": null,
+            "arguments": [
+              {
+                "kind": "Literal",
+                "term": null,
+                "value": "CON",
+                "definition": null,
+                "arguments": []
+              },
+              {
+                "kind": "Literal",
+                "term": null,
+                "value": "DEX",
+                "definition": null,
+                "arguments": []
+              },
+              {
+                "kind": "Literal",
+                "term": null,
+                "value": "CHA",
+                "definition": null,
+                "arguments": []
+              }
+            ]
+          },
+          "description": {
+            "kind": "Translation",
+            "term": "Feature/&FeatureSetBackgroundASI2Plus1Description",
+            "value": null,
+            "definition": null,
+            "arguments": [
+              {
+                "kind": "Literal",
+                "term": null,
+                "value": "CON",
+                "definition": null,
+                "arguments": []
+              },
+              {
+                "kind": "Literal",
+                "term": null,
+                "value": "DEX",
+                "definition": null,
+                "arguments": []
+              },
+              {
+                "kind": "Literal",
+                "term": null,
+                "value": "CHA",
+                "definition": null,
+                "arguments": []
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolHumanOriginFeatSkilled",
+        "guid": "37066281-9972-5009-a078-2c86d2cdacec"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&PointPoolSkilledDescription",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&PointPoolSkilledTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "37066281-9972-5009-a078-2c86d2cdacec",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 3,
+          "FeatureDefinitionPointPool/poolType": 1,
+          "FeatureDefinitionPointPool/restrictedChoices": [],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackground2024_Aristocrat_Tool",
+        "guid": "4eea9604-2123-5c97-b648-0b402cee7f80"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&Background2024ToolDescription",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&Background2024ToolTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "4eea9604-2123-5c97-b648-0b402cee7f80",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 7,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "GamingSetDiceType",
+            "MusicalInstrumentLyreType"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionAttributeModifier",
+        "name": "AttributeModifierBackgroundASI_BackgroundDevoted_Intelligence_2",
+        "guid": "4f5b5fec-9049-5518-97ff-995489b4ff59"
+      },
+      "state": {
+        "type": "FeatureDefinitionAttributeModifier",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&NoContentTitle",
+              "GuiPresentation/hidden": true,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&NoContentTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "4f5b5fec-9049-5518-97ff-995489b4ff59",
+          "FeatureDefinitionAttributeModifier/minimum1": false,
+          "FeatureDefinitionAttributeModifier/modifiedAttribute": "Intelligence",
+          "FeatureDefinitionAttributeModifier/modifierAbilityScore": "Constitution",
+          "FeatureDefinitionAttributeModifier/modifierOperation": 1,
+          "FeatureDefinitionAttributeModifier/modifierValue": 2,
+          "FeatureDefinitionAttributeModifier/situationalContext": 0,
+          "FeatureDefinitionAttributeModifier/useBonusFromCaster": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinition",
+        "name": "FeatureBackgroundFeatDisplay_FeatMagicInitiateWarlock",
+        "guid": "5037f165-f725-5e38-8ac1-6472a4e34b03"
+      },
+      "state": {
+        "type": "FeatureDefinition",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "魔法のたしなみ［ウォーロック］を得ます。",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&BackgroundBonusFeatTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "5037f165-f725-5e38-8ac1-6472a4e34b03"
+        }
+      },
+      "behaviors": [
+        {
+          "kind": "formatted-definition-text",
+          "title": null,
+          "description": {
+            "kind": "Translation",
+            "term": "Feature/&OriginFeatGainDescription",
+            "value": null,
+            "definition": null,
+            "arguments": [
+              {
+                "kind": "DefinitionTitle",
+                "term": null,
+                "value": null,
+                "definition": {
+                  "type": "FeatDefinition",
+                  "name": "FeatMagicInitiateWarlock",
+                  "guid": "71d4c33c-052c-5122-a4bb-c0ae6cdbe57d"
+                },
+                "arguments": []
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackground2024_Philosopher_Tool",
+        "guid": "578c4311-83a5-52df-9488-4810147e5092"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&Background2024ToolDescription",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&Background2024ToolTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "578c4311-83a5-52df-9488-4810147e5092",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 7,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "EnchantingToolType",
+            "MusicalInstrumentLyreType"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackground2024_Lawkeeper_Tool",
+        "guid": "5b762ec5-a89a-5c14-a2ad-0ed26d3f3581"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&Background2024ToolDescription",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&Background2024ToolTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "5b762ec5-a89a-5c14-a2ad-0ed26d3f3581",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 7,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "ArtisanToolSmithToolsType",
+            "ScrollKitType"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinition",
+        "name": "FeatureBackgroundFeatDisplay_FeatMagicInitiateBard",
+        "guid": "72890adc-f8b1-55a2-9e00-06c8238dc1cb"
+      },
+      "state": {
+        "type": "FeatureDefinition",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "魔法のたしなみ［バード］を得ます。",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&BackgroundBonusFeatTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "72890adc-f8b1-55a2-9e00-06c8238dc1cb"
+        }
+      },
+      "behaviors": [
+        {
+          "kind": "formatted-definition-text",
+          "title": null,
+          "description": {
+            "kind": "Translation",
+            "term": "Feature/&OriginFeatGainDescription",
+            "value": null,
+            "definition": null,
+            "arguments": [
+              {
+                "kind": "DefinitionTitle",
+                "term": null,
+                "value": null,
+                "definition": {
+                  "type": "FeatDefinition",
+                  "name": "FeatMagicInitiateBard",
+                  "guid": "595486bc-8b72-5071-b525-36734d7bbf94"
+                },
+                "arguments": []
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionAttributeModifier",
+        "name": "AttributeModifierBackgroundASI_BackgroundDevoted_Constitution_1",
+        "guid": "72a020cc-cf1d-5bcd-8a98-04356079c046"
+      },
+      "state": {
+        "type": "FeatureDefinitionAttributeModifier",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&NoContentTitle",
+              "GuiPresentation/hidden": true,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&NoContentTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "72a020cc-cf1d-5bcd-8a98-04356079c046",
+          "FeatureDefinitionAttributeModifier/minimum1": false,
+          "FeatureDefinitionAttributeModifier/modifiedAttribute": "Constitution",
+          "FeatureDefinitionAttributeModifier/modifierAbilityScore": "Constitution",
+          "FeatureDefinitionAttributeModifier/modifierOperation": 1,
+          "FeatureDefinitionAttributeModifier/modifierValue": 1,
+          "FeatureDefinitionAttributeModifier/situationalContext": 0,
+          "FeatureDefinitionAttributeModifier/useBonusFromCaster": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackground2024_Spy_Tool",
+        "guid": "783d2cc6-df5d-5433-8cb9-4163ee5d71eb"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&Background2024ToolDescription",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&Background2024ToolTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "783d2cc6-df5d-5433-8cb9-4163ee5d71eb",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 7,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "DisguiseKitType",
+            "ThievesToolsType"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackground2024_Occultist_Background_Tool",
+        "guid": "84f2a2fd-eb6d-5f3e-8ba4-a09ac6daec1c"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&Background2024ToolDescription",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&Background2024ToolTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "84f2a2fd-eb6d-5f3e-8ba4-a09ac6daec1c",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 7,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "EnchantingToolType",
+            "PoisonersKitType"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackgroundASI_Spy_Constitution",
+        "guid": "86a5e9df-af3e-514f-a0e7-2201770e0612"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&NoContentTitle",
+              "GuiPresentation/hidden": true,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&NoContentTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "86a5e9df-af3e-514f-a0e7-2201770e0612",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 0,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "Charisma",
+            "Dexterity"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackgroundFeatSkilled",
+        "guid": "8c2654e5-2d02-5d9c-b15c-ada5d1c63c9a"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&NoContentTitle",
+              "GuiPresentation/hidden": true,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&NoContentTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "8c2654e5-2d02-5d9c-b15c-ada5d1c63c9a",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 3,
+          "FeatureDefinitionPointPool/poolType": 1,
+          "FeatureDefinitionPointPool/restrictedChoices": [],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackground2024_Wanderer_Tool",
+        "guid": "a019b386-a5d1-5f90-921f-07bfdf6725c7"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&Background2024ToolDescription",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&Background2024ToolTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "a019b386-a5d1-5f90-921f-07bfdf6725c7",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 7,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "HerbalismKitType",
+            "PoisonersKitType"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinition",
+        "name": "FeatureSkilledDisplay",
+        "guid": "aad39f52-be99-5c12-b077-5a1c84a74852"
+      },
+      "state": {
+        "type": "FeatureDefinition",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&PointPoolSkilledDescription",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&PointPoolSkilledTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "aad39f52-be99-5c12-b077-5a1c84a74852"
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionFeatureSet",
+        "name": "FeatureSetHumanOriginFeat2024_FeatMagicInitiateWarlock",
+        "guid": "ac394233-2925-591d-bcde-117564dcd17c"
+      },
+      "state": {
+        "type": "FeatureDefinitionFeatureSet",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "ウォーロックの呪文リストから選んだ初級呪文を2つ修得します。さらに、その同じリストから1レベル呪文を1つ修得します。この特技によって、その呪文を最低レベルで1回発動することができます。この方法で再び発動するには、大休憩を終える必要があります。",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "魔法のたしなみ［ウォーロック］",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "ac394233-2925-591d-bcde-117564dcd17c",
+          "FeatureDefinitionFeatureSet/ancestryDamageTypeMap": [],
+          "FeatureDefinitionFeatureSet/ancestryType": 0,
+          "FeatureDefinitionFeatureSet/defaultSelection": 0,
+          "FeatureDefinitionFeatureSet/enumerateInDescription": false,
+          "FeatureDefinitionFeatureSet/featureSet": [],
+          "FeatureDefinitionFeatureSet/hasRacialAffinity": false,
+          "FeatureDefinitionFeatureSet/mode": 1,
+          "FeatureDefinitionFeatureSet/uniqueChoices": false
+        }
+      },
+      "behaviors": [
+        {
+          "kind": "formatted-definition-text",
+          "title": {
+            "kind": "DefinitionTitle",
+            "term": null,
+            "value": null,
+            "definition": {
+              "type": "FeatDefinition",
+              "name": "FeatMagicInitiateWarlock",
+              "guid": "71d4c33c-052c-5122-a4bb-c0ae6cdbe57d"
+            },
+            "arguments": []
+          },
+          "description": {
+            "kind": "DefinitionDescription",
+            "term": null,
+            "value": null,
+            "definition": {
+              "type": "FeatDefinition",
+              "name": "FeatMagicInitiateWarlock",
+              "guid": "71d4c33c-052c-5122-a4bb-c0ae6cdbe57d"
+            },
+            "arguments": []
+          }
+        }
+      ]
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionFeatureSet",
+        "name": "FeatureSetHumanOriginFeat2024_FeatMagicInitiateSorcerer",
+        "guid": "af4801c2-7221-5b77-964e-5644d3d12726"
+      },
+      "state": {
+        "type": "FeatureDefinitionFeatureSet",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "ソーサラーの呪文リストから選んだ初級呪文を2つ修得します。さらに、その同じリストから1レベル呪文を1つ修得します。この特技によって、その呪文を最低レベルで1回発動することができます。この方法で再び発動するには、大休憩を終える必要があります。",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "魔法のたしなみ［ソーサラー］",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "af4801c2-7221-5b77-964e-5644d3d12726",
+          "FeatureDefinitionFeatureSet/ancestryDamageTypeMap": [],
+          "FeatureDefinitionFeatureSet/ancestryType": 0,
+          "FeatureDefinitionFeatureSet/defaultSelection": 0,
+          "FeatureDefinitionFeatureSet/enumerateInDescription": false,
+          "FeatureDefinitionFeatureSet/featureSet": [],
+          "FeatureDefinitionFeatureSet/hasRacialAffinity": false,
+          "FeatureDefinitionFeatureSet/mode": 1,
+          "FeatureDefinitionFeatureSet/uniqueChoices": false
+        }
+      },
+      "behaviors": [
+        {
+          "kind": "formatted-definition-text",
+          "title": {
+            "kind": "DefinitionTitle",
+            "term": null,
+            "value": null,
+            "definition": {
+              "type": "FeatDefinition",
+              "name": "FeatMagicInitiateSorcerer",
+              "guid": "5a211c30-4d42-5d0c-b3fc-de852165f349"
+            },
+            "arguments": []
+          },
+          "description": {
+            "kind": "DefinitionDescription",
+            "term": null,
+            "value": null,
+            "definition": {
+              "type": "FeatDefinition",
+              "name": "FeatMagicInitiateSorcerer",
+              "guid": "5a211c30-4d42-5d0c-b3fc-de852165f349"
+            },
+            "arguments": []
+          }
+        }
+      ]
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackgroundFeat_FeatMagicInitiateBard",
+        "guid": "b38d8885-45ba-52e8-9bb0-dae9fcf735d4"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&NoContentTitle",
+              "GuiPresentation/hidden": true,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&NoContentTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "b38d8885-45ba-52e8-9bb0-dae9fcf735d4",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 2,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "FeatMagicInitiateBard"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionFeatureSet",
+        "name": "FeatureSetBackgroundASI_BackgroundDevoted_Intelligence",
+        "guid": "b97294ac-51bb-5d7c-9d66-c4376878a3f4"
+      },
+      "state": {
+        "type": "FeatureDefinitionFeatureSet",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "INTを+2し、CONかWISのどちらかを+1します。",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "+2 INT、+1 CON/WIS",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "b97294ac-51bb-5d7c-9d66-c4376878a3f4",
+          "FeatureDefinitionFeatureSet/ancestryDamageTypeMap": [],
+          "FeatureDefinitionFeatureSet/ancestryType": 0,
+          "FeatureDefinitionFeatureSet/defaultSelection": 0,
+          "FeatureDefinitionFeatureSet/enumerateInDescription": false,
+          "FeatureDefinitionFeatureSet/featureSet": [
+            {
+              "reference": {
+                "type": "FeatureDefinitionAttributeModifier",
+                "name": "AttributeModifierBackgroundASI_BackgroundDevoted_Intelligence_2",
+                "guid": "4f5b5fec-9049-5518-97ff-995489b4ff59"
+              }
+            },
+            {
+              "reference": {
+                "type": "FeatureDefinitionPointPool",
+                "name": "PointPoolBackgroundASI_BackgroundDevoted_Intelligence",
+                "guid": "0692d500-449b-54d9-bff3-a1da7b239e68"
+              }
+            }
+          ],
+          "FeatureDefinitionFeatureSet/hasRacialAffinity": false,
+          "FeatureDefinitionFeatureSet/mode": 1,
+          "FeatureDefinitionFeatureSet/uniqueChoices": false
+        }
+      },
+      "behaviors": [
+        {
+          "kind": "formatted-definition-text",
+          "title": {
+            "kind": "Translation",
+            "term": "Feature/&FeatureSetBackgroundASI2Plus1Title",
+            "value": null,
+            "definition": null,
+            "arguments": [
+              {
+                "kind": "Literal",
+                "term": null,
+                "value": "INT",
+                "definition": null,
+                "arguments": []
+              },
+              {
+                "kind": "Literal",
+                "term": null,
+                "value": "CON",
+                "definition": null,
+                "arguments": []
+              },
+              {
+                "kind": "Literal",
+                "term": null,
+                "value": "WIS",
+                "definition": null,
+                "arguments": []
+              }
+            ]
+          },
+          "description": {
+            "kind": "Translation",
+            "term": "Feature/&FeatureSetBackgroundASI2Plus1Description",
+            "value": null,
+            "definition": null,
+            "arguments": [
+              {
+                "kind": "Literal",
+                "term": null,
+                "value": "INT",
+                "definition": null,
+                "arguments": []
+              },
+              {
+                "kind": "Literal",
+                "term": null,
+                "value": "CON",
+                "definition": null,
+                "arguments": []
+              },
+              {
+                "kind": "Literal",
+                "term": null,
+                "value": "WIS",
+                "definition": null,
+                "arguments": []
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackground2024_Artist_Background_Tool",
+        "guid": "c2b440fd-c74e-5e84-994e-5fda67be5a54"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&Background2024ToolDescription",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&Background2024ToolTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "c2b440fd-c74e-5e84-994e-5fda67be5a54",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 7,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "ArtisanToolSmithToolsType",
+            "DisguiseKitType"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackground2024_Acolyte_Tool",
+        "guid": "c99cb456-e029-5eb8-8861-dd15b39b5686"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&Background2024ToolDescription",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&Background2024ToolTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "c99cb456-e029-5eb8-8861-dd15b39b5686",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 7,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "MusicalInstrumentLyreType",
+            "ScrollKitType"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackground2024_BackgroundDevoted_Tool",
+        "guid": "cfd99f0d-462b-583e-ac24-9aac897ce15d"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&Background2024ToolDescription",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&Background2024ToolTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "cfd99f0d-462b-583e-ac24-9aac897ce15d",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 7,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "GamingSetDiceType",
+            "ScrollKitType"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackground2024_Aescetic_Background_Tool",
+        "guid": "d22d0d1b-3a65-5d29-92ce-911d459125dd"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&Background2024ToolDescription",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&Background2024ToolTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "d22d0d1b-3a65-5d29-92ce-911d459125dd",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 7,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "HerbalismKitType",
+            "ScrollKitType"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackground2024_SellSword_Tool",
+        "guid": "d868705b-fffc-56be-bf27-81030b51659c"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&Background2024ToolDescription",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&Background2024ToolTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "d868705b-fffc-56be-bf27-81030b51659c",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 7,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "ArtisanToolSmithToolsType",
+            "GamingSetDiceType"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackground2024_BackgroundFarmer_Tool",
+        "guid": "d93e1db5-d9c9-506b-a0ee-761374933b4d"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&Background2024ToolDescription",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&Background2024ToolTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "d93e1db5-d9c9-506b-a0ee-761374933b4d",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 7,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "ArtisanToolSmithToolsType",
+            "HerbalismKitType"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionAttributeModifier",
+        "name": "AttributeModifierBackgroundASI_Spy_Constitution_1",
+        "guid": "e6b3973b-555a-53ef-b582-2be9288f1977"
+      },
+      "state": {
+        "type": "FeatureDefinitionAttributeModifier",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&NoContentTitle",
+              "GuiPresentation/hidden": true,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&NoContentTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "e6b3973b-555a-53ef-b582-2be9288f1977",
+          "FeatureDefinitionAttributeModifier/minimum1": false,
+          "FeatureDefinitionAttributeModifier/modifiedAttribute": "Constitution",
+          "FeatureDefinitionAttributeModifier/modifierAbilityScore": "Constitution",
+          "FeatureDefinitionAttributeModifier/modifierOperation": 1,
+          "FeatureDefinitionAttributeModifier/modifierValue": 1,
+          "FeatureDefinitionAttributeModifier/situationalContext": 0,
+          "FeatureDefinitionAttributeModifier/useBonusFromCaster": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionPointPool",
+        "name": "PointPoolBackgroundASI_BackgroundDevoted_Constitution",
+        "guid": "e7752662-aff3-51d1-914e-462a582fab68"
+      },
+      "state": {
+        "type": "FeatureDefinitionPointPool",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "Feature/&NoContentTitle",
+              "GuiPresentation/hidden": true,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&NoContentTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "e7752662-aff3-51d1-914e-462a582fab68",
+          "FeatureDefinitionPointPool/extraSpellsTag": "",
+          "FeatureDefinitionPointPool/maxSpellLevel": 9,
+          "FeatureDefinitionPointPool/minSpellLevel": 0,
+          "FeatureDefinitionPointPool/poolAmount": 1,
+          "FeatureDefinitionPointPool/poolType": 0,
+          "FeatureDefinitionPointPool/restrictedChoices": [
+            "Intelligence",
+            "Wisdom"
+          ],
+          "FeatureDefinitionPointPool/ritualOnly": false,
+          "FeatureDefinitionPointPool/spellListOverride": null,
+          "FeatureDefinitionPointPool/uniqueChoices": false
+        }
+      },
+      "behaviors": []
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinition",
+        "name": "FeatureBackgroundFeatDisplay_FeatMagicInitiateSorcerer",
+        "guid": "f5de3e29-d092-51d1-8d35-ba592d1a6064"
+      },
+      "state": {
+        "type": "FeatureDefinition",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "魔法のたしなみ［ソーサラー］を得ます。",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "Feature/&BackgroundBonusFeatTitle",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "f5de3e29-d092-51d1-8d35-ba592d1a6064"
+        }
+      },
+      "behaviors": [
+        {
+          "kind": "formatted-definition-text",
+          "title": null,
+          "description": {
+            "kind": "Translation",
+            "term": "Feature/&OriginFeatGainDescription",
+            "value": null,
+            "definition": null,
+            "arguments": [
+              {
+                "kind": "DefinitionTitle",
+                "term": null,
+                "value": null,
+                "definition": {
+                  "type": "FeatDefinition",
+                  "name": "FeatMagicInitiateSorcerer",
+                  "guid": "5a211c30-4d42-5d0c-b3fc-de852165f349"
+                },
+                "arguments": []
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "identity": {
+        "type": "FeatureDefinitionFeatureSet",
+        "name": "FeatureSetHumanOriginFeat2024_FeatMagicInitiateBard",
+        "guid": "f649e29e-8f86-54b7-ae02-ca37c54ab245"
+      },
+      "state": {
+        "type": "FeatureDefinitionFeatureSet",
+        "fields": {
+          "BaseDefinition/contentCopyright": 4,
+          "BaseDefinition/contentPack": 9999,
+          "BaseDefinition/guiPresentation": {
+            "type": "GuiPresentation",
+            "fields": {
+              "GuiPresentation/color": {
+                "type": "UnityEngine.Color",
+                "fields": {
+                  "UnityEngine.Color/a": 1.0,
+                  "UnityEngine.Color/b": 1.0,
+                  "UnityEngine.Color/g": 1.0,
+                  "UnityEngine.Color/r": 1.0
+                }
+              },
+              "GuiPresentation/description": "バードの呪文リストから選んだ初級呪文を2つ修得します。さらに、その同じリストから1レベル呪文を1つ修得します。この特技によって、その呪文を最低レベルで1回発動することができます。この方法で再び発動するには、大休憩を終える必要があります。",
+              "GuiPresentation/hidden": false,
+              "GuiPresentation/sortOrder": 0,
+              "GuiPresentation/spriteReference": {
+                "type": "UnityEngine.AddressableAssets.AssetReferenceSprite",
+                "fields": {
+                  "UnityEngine.AddressableAssets.AssetReference/m_AssetGUID": "",
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectName": null,
+                  "UnityEngine.AddressableAssets.AssetReference/m_SubObjectType": null
+                }
+              },
+              "GuiPresentation/symbolChar": "221E",
+              "GuiPresentation/title": "魔法のたしなみ［バード］",
+              "GuiPresentation/unusedInSolastaCOTM": false,
+              "GuiPresentation/usedInValleyDLC": false
+            }
+          },
+          "BaseDefinition/guid": "f649e29e-8f86-54b7-ae02-ca37c54ab245",
+          "FeatureDefinitionFeatureSet/ancestryDamageTypeMap": [],
+          "FeatureDefinitionFeatureSet/ancestryType": 0,
+          "FeatureDefinitionFeatureSet/defaultSelection": 0,
+          "FeatureDefinitionFeatureSet/enumerateInDescription": false,
+          "FeatureDefinitionFeatureSet/featureSet": [],
+          "FeatureDefinitionFeatureSet/hasRacialAffinity": false,
+          "FeatureDefinitionFeatureSet/mode": 1,
+          "FeatureDefinitionFeatureSet/uniqueChoices": false
+        }
+      },
+      "behaviors": [
+        {
+          "kind": "formatted-definition-text",
+          "title": {
+            "kind": "DefinitionTitle",
+            "term": null,
+            "value": null,
+            "definition": {
+              "type": "FeatDefinition",
+              "name": "FeatMagicInitiateBard",
+              "guid": "595486bc-8b72-5071-b525-36734d7bbf94"
+            },
+            "arguments": []
+          },
+          "description": {
+            "kind": "DefinitionDescription",
+            "term": null,
+            "value": null,
+            "definition": {
+              "type": "FeatDefinition",
+              "name": "FeatMagicInitiateBard",
+              "guid": "595486bc-8b72-5071-b525-36734d7bbf94"
+            },
+            "arguments": []
+          }
+        }
+      ]
+    }
+  ]
+}
