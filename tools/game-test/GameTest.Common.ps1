@@ -252,11 +252,12 @@ function Copy-GtFile([string] $Source, [string] $Destination, [string] $Expected
     if ($expected -ne (Get-GtHash $Destination)) { throw "Copy verification failed: $Destination" }
 }
 
-function Read-GtObject([string] $Path) { Assert-GtFile $Path; return [IO.File]::ReadAllText($Path) | ConvertFrom-Json }
+function Read-GtObject([string] $Path) { Assert-GtFile $Path; $value=[IO.File]::ReadAllText($Path) | ConvertFrom-Json; return $value }
 
 function Assert-GtProperties([object] $Object, [string[]] $Allowed, [string[]] $Required) {
-    foreach ($property in $Object.PSObject.Properties.Name) { if ($property -notin $Allowed) { throw "Unknown JSON property: $property" } }
-    foreach ($property in $Required) { if ($property -notin $Object.PSObject.Properties.Name) { throw "Missing JSON property: $property" } }
+    $properties=@($Object.PSObject.Properties | ForEach-Object { $_.Name })
+    foreach ($property in $properties) { if ($property -notin $Allowed) { throw "Unknown JSON property: $property" } }
+    foreach ($property in $Required) { if ($property -notin $properties) { throw "Missing JSON property: $property" } }
 }
 
 function Get-GtAdapter(
@@ -299,9 +300,10 @@ function Get-GtAdapter(
 }
 
 function Assert-GtInitialSetup([object] $Case, [bool] $SaveScenario) {
-    if ('setup' -notin $Case.initialState.PSObject.Properties.Name -or $null -eq $Case.initialState.setup) { return }
+    $property=$Case.initialState.PSObject.Properties['setup']
+    if ($null -eq $property -or $null -eq $property.Value) { return }
     if (-not $SaveScenario) { throw 'Initial setup requires a saved-game adapter.' }
-    $setup=$Case.initialState.setup
+    $setup=$property.Value
     Assert-GtProperties $setup @('kind','actorSource','actorIndex','powerName','positionOffset','expectedGuestCount') @('kind','actorIndex','powerName','positionOffset','expectedGuestCount')
     if ($setup.kind -ne 'use-power') { throw 'Initial setup kind must be use-power.' }
     if ('actorSource' -notin $setup.PSObject.Properties.Name) { $setup | Add-Member -NotePropertyName actorSource -NotePropertyValue 'party' }
@@ -409,6 +411,195 @@ function Assert-GtRuntimeOwnerStopped($Cleanup) {
         if ((Get-GtPath $match.path) -ne (Get-GtPath $Cleanup.expectedPath)) { throw 'The runtime process identity is inconsistent.' }
         throw 'The runtime owner process is still active.'
     }
+}
+
+function Get-GtInputValidationEvidence([string]$Path,$Result) {
+    $run=Get-GtPath $Path
+    Assert-GtTree $run
+    $ownership=Read-GtObject (Join-Path $run 'Directory.json')
+    if($ownership.schemaVersion -eq 1 -and $ownership.layout -ceq 'Runtime') {
+        foreach($field in @('validationOnly','startupOnly','compilationSucceeded','processId','settingsRestored','displaySettingsRestored','probeRemoved','runName','evidenceDirectory','startedUtc','completedUtc','expectedUb','runnerSources')) {
+            if($field -notin $Result.PSObject.Properties.Name){throw "Missing runtime validation field: $field"}
+        }
+        if((Get-GtPath $ownership.directory) -ne $run -or (Get-GtPath $Result.evidenceDirectory) -ne $run -or
+            $Result.status -cne 'incomplete' -or $Result.validationOnly -isnot [bool] -or -not $Result.validationOnly -or
+            $Result.startupOnly -isnot [bool] -or $Result.startupOnly -or
+            $Result.compilationSucceeded -isnot [bool] -or -not $Result.compilationSucceeded -or $null -ne $Result.processId -or
+            [string]::IsNullOrWhiteSpace($Result.runName) -or $ownership.requestedName -cne $Result.runName) {throw 'Runtime validation ownership is incomplete.'}
+        foreach($field in @('settingsRestored','displaySettingsRestored','probeRemoved')) {
+            if($Result.$field -isnot [bool] -or -not $Result.$field){throw 'Runtime validation did not finish without external changes.'}
+        }
+        foreach($field in @('processCleanup','processStartedUtc','settingsBackups','nativeUserDataIsolation','originalNativeFilesUnchanged')) {
+            if($field -in $Result.PSObject.Properties.Name){throw 'Runtime validation contains execution evidence.'}
+        }
+        foreach($name in @('Transaction.json','Backup','SettingsBackup','Runtime','Error.log','Runtime-ProcessCleanup.json','HarnessResult.json','Probe.log','Runtime-Player.log','Native-Player.log','Native-OriginalFiles-Before.json','Native-OriginalFiles-After.json','Native-UserDataLocation.json','Native-UserData.json')) {
+            if(Test-Path -LiteralPath (Join-Path $run $name)){throw 'Runtime validation has execution or failure evidence.'}
+        }
+        $started=ConvertTo-GtUtcDate $Result.startedUtc;$completed=ConvertTo-GtUtcDate $Result.completedUtc
+        if($completed -lt $started){throw 'Runtime validation completion precedes its start.'}
+        $installed=Get-GtPath $Result.expectedUb.location
+        $game=Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $installed))
+        if($installed -ne (Get-GtPath (Join-Path $game 'Mods/SolastaUnfinishedBusiness/SolastaUnfinishedBusiness.dll'))){throw 'Runtime validation has no installed game owner.'}
+        $files=[Collections.Generic.List[object]]::new()
+        foreach($name in @('Directory.json','Result.json','Compile.log')){$file=Join-Path $run $name;Assert-GtFile $file;$files.Add([pscustomobject]@{path=$file;sha256=Get-GtHash $file})}
+        return [pscustomobject]@{run=$run;layout='Runtime';gameDirectory=$game;caseId=('@Runtime:'+$Result.runName);completed=$completed;files=$files.ToArray()}
+    }
+    if($ownership.schemaVersion -ne 1 -or $ownership.layout -cne 'GameTest' -or
+        (Get-GtPath $ownership.directory) -ne $run -or (Get-GtPath $Result.evidenceDirectory) -ne $run -or
+        $Result.schemaVersion -ne 1 -or $Result.status -cnotin @('BLOCKED','VALIDATED') -or
+        $Result.restored -isnot [bool] -or $Result.restored -or $null -ne $Result.runtimeResult -or
+        $Result.operations -cne 'Operations.json' -or @($Result.images).Count -ne 0) {
+        throw 'Input validation ownership is incomplete.'
+    }
+    foreach($name in @('Transaction.json','Backup','Runtime','Error.log')) {
+        if(Test-Path -LiteralPath (Join-Path $run $name)){throw 'Input validation has execution or failure evidence.'}
+    }
+    if('originalSavePreserved' -in $Result.PSObject.Properties.Name -and
+        ($Result.originalSavePreserved -isnot [bool] -or -not $Result.originalSavePreserved)) {throw 'Input validation did not preserve its original save.'}
+    $started=ConvertTo-GtUtcDate $Result.startedUtc;$completed=ConvertTo-GtUtcDate $Result.completedUtc
+    if($completed -lt $started){throw 'Input validation completion precedes its start.'}
+    $operations=@(Read-GtObject (Join-Path $run 'Operations.json'))
+    $kinds=@('validation-started','stage-verified','environment-verified','validated')
+    if($operations.Count -ne $kinds.Count){throw 'Input validation did not finish its validation events.'}
+    $previous=$started
+    for($index=0;$index -lt $kinds.Count;$index++) {
+        $time=ConvertTo-GtUtcDate $operations[$index].utc
+        if($operations[$index].kind -cne $kinds[$index] -or $time -lt $previous -or $time -gt $completed) {throw 'Input validation events are incomplete or out of order.'}
+        $previous=$time
+    }
+    $case=Read-GtObject (Join-Path $run 'Case.json');$input=Read-GtObject (Join-Path $run 'InputCase.json')
+    $build=Read-GtObject (Join-Path $run 'Build.json');$environment=Read-GtObject (Join-Path $run 'Environment.json')
+    if($case.id -cne $Result.caseId -or $input.id -cne $Result.caseId -or $ownership.requestedName -cne $Result.caseId -or
+        $build.schemaVersion -ne 1 -or $build.status -cne 'PASS' -or
+        (Get-GtPath $build.environment.gameExe) -ne (Get-GtPath $environment.gameExe)) {throw 'Input validation references incompatible input owners.'}
+    $files=[Collections.Generic.List[object]]::new()
+    foreach($name in @('Directory.json','Result.json','Operations.json','Case.json','InputCase.json','Build.json','Environment.json')) {
+        $file=Join-Path $run $name;$files.Add([pscustomobject]@{path=$file;sha256=Get-GtHash $file})
+    }
+    $inputs=@([pscustomobject]@{path=$case.initialState.settingsFile;sha256=$case.initialState.settingsSha256})
+    if('savePath' -in $case.initialState.PSObject.Properties.Name -and $case.initialState.savePath) {
+        $inputs+=[pscustomobject]@{path=$case.initialState.savePath;sha256=$case.initialState.saveSha256}
+    }
+    if('nativePreferences' -in $case.initialState.PSObject.Properties.Name){$inputs+=@($case.initialState.nativePreferences)}
+    foreach($entry in $inputs) {
+        $file=Get-GtPath $entry.path
+        if(-not(Test-GtWithin $file $run) -or $entry.sha256 -notmatch '^[a-fA-F0-9]{64}$' -or
+            (Get-GtHash $file) -ine $entry.sha256){throw 'Input validation has a changed or external fixed input.'}
+        $files.Add([pscustomobject]@{path=$file;sha256=Get-GtHash $file})
+    }
+    return [pscustomobject]@{run=$run;layout='GameTest';gameDirectory=(Split-Path -Parent $environment.gameExe);caseId=$Result.caseId;completed=$completed;files=$files.ToArray()}
+}
+
+function Test-GtInputValidationProducer([string]$Path,[ValidateSet('GameTest','Runtime')][string]$Layout='GameTest') {
+    Assert-GtFile $Path
+    $tokens=$null;$errors=$null
+    $ast=[Management.Automation.Language.Parser]::ParseFile($Path,[ref]$tokens,[ref]$errors)
+    if($errors.Count){throw 'The validation producer cannot be parsed.'}
+    if(@($ast.FindAll({param($node)$node -is [Management.Automation.Language.AssignmentStatementAst] -and
+        $node.Left.Extent.Text -cin @("`$result['execution']",'$result.execution')},$true)).Count) {
+        throw 'The producer records structured execution but the original receipt omitted it.'
+    }
+    $branches=@($ast.FindAll({param($node) $node -is [Management.Automation.Language.IfStatementAst] -and
+        $node.Clauses.Count -eq 1 -and $node.Clauses[0].Item1.Extent.Text -ceq '$ValidateOnly'},$true))
+    if($branches.Count -ne 1 -or $null -eq $branches[0].ElseClause -or
+        $branches[0].Clauses[0].Item2.Statements.Count -ne 1) {
+        throw 'The producer has no isolated input-validation branch.'
+    }
+    $validation=$branches[0].Clauses[0].Item2.Statements[0]
+    if($validation -isnot [Management.Automation.Language.AssignmentStatementAst] -or
+        $validation.Left.Extent.Text -cne '$result.reason' -or
+        $validation.Right -isnot [Management.Automation.Language.CommandExpressionAst] -or
+        $validation.Right.Expression -isnot [Management.Automation.Language.StringConstantExpressionAst]) {
+        throw 'The producer validation branch is not a constant result message.'
+    }
+    if($Layout -ceq 'Runtime') {
+        $effects=@($ast.FindAll({param($node)
+            ($node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -cin @('New-VerificationNativeUserData','Start-VerificationBackgroundProcess','Start-Process')) -or
+            ($node -is [Management.Automation.Language.AssignmentStatementAst] -and
+                (($node.Left.Extent.Text -ceq '$settingsBackups' -and $node.Operator -eq [Management.Automation.Language.TokenKind]::PlusEquals) -or
+                 ($node.Left.Extent.Text -ceq '$nativeDisplayBackup' -and $node.Right.Extent.Text -ceq 'Get-NativeDisplaySettingsSnapshot') -or
+                 ($node.Left.Extent.Text -ceq '$probeCreated' -and $node.Right.Extent.Text -ceq '$true'))) -or
+            ($node -is [Management.Automation.Language.InvokeMemberExpressionAst] -and $node.Expression.Extent.Text -ceq '$ummParams' -and $node.Member.Extent.Text -ceq 'Save')
+        },$true))
+        if($effects.Count -lt 7 -or @($effects|Where-Object {$_.Extent.StartOffset -lt $branches[0].ElseClause.Extent.StartOffset -or $_.Extent.EndOffset -gt $branches[0].ElseClause.Extent.EndOffset}).Count) {
+            throw 'The runtime producer does not isolate native state and process creation after validation.'
+        }
+        return
+    }
+    $commands=@($branches[0].ElseClause.FindAll({param($node)$node -is [Management.Automation.Language.CommandAst]},$true))
+    $transaction=@($commands|Where-Object {$_.GetCommandName() -ceq 'Write-GtJson' -and
+        $_.CommandElements.Count -gt 1 -and $_.CommandElements[1].Extent.Text -ceq "(Join-Path `$run 'Transaction.json')"}|Sort-Object {$_.Extent.StartOffset}|Select-Object -First 1)
+    $writes=@($ast.FindAll({param($node)$node -is [Management.Automation.Language.CommandAst] -and
+        (($node.GetCommandName() -ceq 'Copy-GtFile' -and $node.CommandElements.Count -gt 2 -and
+        $node.CommandElements[2].Extent.Text.Contains('$installed')) -or
+        ($node.GetCommandName() -ceq 'Write-GtJson' -and $node.CommandElements.Count -gt 1 -and
+        $node.CommandElements[1].Extent.Text.Contains('$markerPath')))},$true))
+    $native=@($ast.FindAll({param($node)$node -is [Management.Automation.Language.CommandAst] -and
+        $node.CommandElements.Count -gt 0 -and $node.CommandElements[0].Extent.Text.Contains('Invoke-RuntimeVerification.ps1')},$true))
+    if($transaction.Count -ne 1 -or -not $writes.Count -or @($writes|Where-Object {$_.Extent.StartOffset -lt $transaction[0].Extent.EndOffset -or
+        $_.Extent.EndOffset -gt $branches[0].ElseClause.Extent.EndOffset}).Count) {
+        throw 'The producer does not persist its transaction before deployment.'
+    }
+    if($native.Count -ne 1 -or $native[0].Extent.StartOffset -lt $transaction[0].Extent.EndOffset -or
+        $native[0].Extent.EndOffset -gt $branches[0].ElseClause.Extent.EndOffset) {throw 'The producer does not isolate native execution after its transaction.'}
+}
+
+function New-GtInputValidationAudit([string]$Path,[string]$ProducerSourcePath,[switch]$Preview) {
+    $run=Get-GtPath $Path;$result=Read-GtObject (Join-Path $run 'Result.json')
+    if('execution' -in $result.PSObject.Properties.Name){throw 'Structured execution records do not need an input audit.'}
+    $ownership=Read-GtObject (Join-Path $run 'Directory.json');$layout=[string]$ownership.layout
+    $producer=Get-GtPath $ProducerSourcePath;Test-GtInputValidationProducer $producer -Layout $layout
+    $canonical=if($layout -ceq 'Runtime'){Join-Path $PSScriptRoot '../runtime-verification/Invoke-RuntimeVerification.ps1'}else{Join-Path $PSScriptRoot 'Invoke-GameTest.ps1'}
+    $canonical=Get-GtPath $canonical
+    $sources=if($layout -ceq 'Runtime'){$result.runnerSources}else{$result.toolSources}
+    $record=@($sources|Where-Object {(Get-GtPath $_.path) -eq $canonical})
+    if($record.Count -ne 1 -or (Get-GtHash $producer) -ine $record[0].sha256){throw 'The recorded validation producer has no matching original bytes.'}
+    $evidence=Get-GtInputValidationEvidence $run $result
+    $archive=Join-Path $run 'InputValidationProducer.ps1'
+    $audit=[ordered]@{schemaVersion=1;kind='input-validation';state='non-executing-complete';directory=$run;
+        producer=[ordered]@{recordedPath=$canonical;archivePath=$archive;sha256=$record[0].sha256};files=$evidence.files;
+        recordedUtc=[datetime]::UtcNow.ToString('O')}
+    if(-not $Preview) {
+        Assert-GtGameStopped
+        if(Test-Path -LiteralPath (Join-Path $evidence.gameDirectory 'Mods/.UBGameTestTransaction.json')){throw 'A recovery transaction still owns this game.'}
+        $current=Get-GtInputValidationEvidence $run (Read-GtObject (Join-Path $run 'Result.json'))
+        if(($current.files|ConvertTo-Json -Compress) -cne ($audit.files|ConvertTo-Json -Compress)){throw 'Validation input evidence changed during audit.'}
+        Copy-GtFile $producer $archive -ExpectedSha256 $record[0].sha256 -SkipIfIdentical
+        Write-GtJson (Join-Path $run 'InputValidationAudit.json') $audit
+    }
+    return [pscustomobject]$audit
+}
+
+function Get-GtInputValidationRun([string]$Path,$Result) {
+    $auditPath=Join-Path $Path 'InputValidationAudit.json'
+    $structured='execution' -in $Result.PSObject.Properties.Name
+    if(-not $structured -and -not(Test-Path -LiteralPath $auditPath)){return $null}
+    if($structured) {
+        $execution=$Result.execution
+        $fields=@('validationOnly','requestedDeployment','requestedLaunch','effectiveDeployment','effectiveLaunch','validationComplete','sideEffectsStarted')
+        Assert-GtProperties $execution $fields $fields
+        foreach($field in $fields){if($execution.$field -isnot [bool]){throw 'Execution lifecycle values must be Boolean.'}}
+        if(-not $execution.validationOnly){return $null}
+        if(-not $execution.validationComplete -or $execution.sideEffectsStarted -or $execution.effectiveDeployment -or $execution.effectiveLaunch) {
+            throw 'Input validation has not completed without execution.'
+        }
+    }
+    $evidence=Get-GtInputValidationEvidence $Path $Result
+    if(-not $structured) {
+        $audit=Read-GtObject $auditPath
+        if($audit.schemaVersion -ne 1 -or $audit.kind -cne 'input-validation' -or $audit.state -cne 'non-executing-complete' -or
+            (Get-GtPath $audit.directory) -ne $evidence.run -or
+            ($audit.files|ConvertTo-Json -Compress) -cne ($evidence.files|ConvertTo-Json -Compress)) {throw 'Input-validation audit no longer matches its original evidence.'}
+        $canonical=if($evidence.layout -ceq 'Runtime'){Get-GtPath (Join-Path $PSScriptRoot '../runtime-verification/Invoke-RuntimeVerification.ps1')}else{Join-Path $PSScriptRoot 'Invoke-GameTest.ps1'}
+        $sources=if($evidence.layout -ceq 'Runtime'){$Result.runnerSources}else{$Result.toolSources}
+        $record=@($sources|Where-Object {(Get-GtPath $_.path) -eq $canonical})
+        if($record.Count -ne 1 -or $audit.producer.recordedPath -ne $record[0].path -or $audit.producer.sha256 -ine $record[0].sha256 -or
+            (Get-GtPath $audit.producer.archivePath) -ne (Join-Path $evidence.run 'InputValidationProducer.ps1') -or
+            (Get-GtHash $audit.producer.archivePath) -ine $record[0].sha256) {throw 'Input-validation audit lost its recorded producer.'}
+        Test-GtInputValidationProducer $audit.producer.archivePath -Layout $evidence.layout
+    }
+    return [pscustomobject]@{path=$evidence.run;name=(Split-Path -Leaf $evidence.run);caseId=$evidence.caseId;completed=$evidence.completed;
+        gameDirectory=$evidence.gameDirectory;buildHash=$null;kind='input-validation';result=$Result}
 }
 
 function Get-GtRuntimeRun([string]$Path,$Result) {

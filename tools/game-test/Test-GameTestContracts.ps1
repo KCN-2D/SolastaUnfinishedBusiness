@@ -503,9 +503,11 @@ function Invoke-PresentationWriterContracts([string]$Source,[string]$Review,[str
     $end=$text.IndexOf('public sealed class Receipt',[StringComparison]::Ordinal)
     $end=$text.LastIndexOf('[Serializable]',$end,[StringComparison]::Ordinal)
     $importsEnd=$text.IndexOf('using UnityEngine;',[StringComparison]::Ordinal)
-    if($start -lt 0 -or $end -le $start -or $importsEnd -lt 0){throw 'The presentation serializer source boundaries were not found.'}
+    $pathStart=$text.IndexOf('const int NativePathBudget=',[StringComparison]::Ordinal)
+    $pathEnd=$text.IndexOf('public sealed class PayloadReceipt',[StringComparison]::Ordinal)
+    if($start -lt 0 -or $end -le $start -or $importsEnd -lt 0 -or $pathStart -lt 0 -or $pathEnd -le $pathStart){throw 'The presentation serializer source boundaries were not found.'}
     # Compile the exact serializer members without Unity rendering members.
-    $excerpt=$text.Substring(0,$importsEnd)+'public static class PresentationCapture {'+$text.Substring($start,$end-$start)+'}' +
+    $excerpt=$text.Substring(0,$importsEnd)+'public static class PresentationCapture {'+$text.Substring($pathStart,$pathEnd-$pathStart)+$text.Substring($start,$end-$start)+'}' +
         'public static class RuntimeVerificationConfiguration { public static string EvidenceDirectory; }'
     $compiledSource=Join-Path $Directory 'PresentationWriter.cs'
     [IO.File]::WriteAllText($compiledSource,$excerpt,[Text.UTF8Encoding]::new($false))
@@ -1028,7 +1030,7 @@ function Invoke-StorageCleanupContracts([hashtable]$Sources,[string]$Directory) 
     # Run the unchanged cleanup sources against a miniature workspace, never the real artifact tree.
     $workspace=Join-Path $Directory 'Workspace'
     $tool=Join-Path $workspace 'tools/game-test'
-    foreach ($relative in @('tools/game-test/GameTest.Common.ps1','tools/game-test/Clear-GameTestArtifacts.ps1','tools/runtime-verification/WindowsDesktop.ps1','tools/runtime-verification/EvidencePaths.ps1')) {
+    foreach ($relative in @('tools/game-test/GameTest.Common.ps1','tools/game-test/Clear-GameTestArtifacts.ps1','tools/game-test/Invoke-GameTest.ps1','tools/runtime-verification/Invoke-RuntimeVerification.ps1','tools/runtime-verification/WindowsDesktop.ps1','tools/runtime-verification/EvidencePaths.ps1')) {
         $destination=Join-Path $workspace $relative
         [void][IO.Directory]::CreateDirectory((Split-Path -Parent $destination))
         [IO.File]::Copy($Sources[$relative],$destination)
@@ -1052,7 +1054,7 @@ function Get-VerificationProcessState {
         $counter=Join-Path $PSScriptRoot 'QueryCounter.txt'
         $count=if(Test-Path -LiteralPath $counter){[int][IO.File]::ReadAllText($counter)}else{0}
         $count++;[IO.File]::WriteAllText($counter,[string]$count)
-        if($count -eq $change.atQuery){[IO.File]::WriteAllText($change.path,$change.content)}
+        if($count -eq $change.atQuery){if('remove' -in $change.PSObject.Properties.Name -and $change.remove){[IO.File]::Delete($change.path)}else{[IO.File]::WriteAllText($change.path,$change.content)}}
     }
     $path=Join-Path $PSScriptRoot 'ProcessFixture.json'
     if(Test-Path -LiteralPath $path) {
@@ -1415,11 +1417,11 @@ function Get-VerificationProcessState {
             return $path
         }
         function Set-StorageRuntimeResult([string]$Run,[scriptblock]$Action){$r=Get-Content -LiteralPath (Join-Path $Run 'Result.json') -Raw|ConvertFrom-Json;&$Action $r;Write-GtJson (Join-Path $Run 'Result.json') $r}
-        function Set-StorageQueryMutation([string]$Path,$Value,[int]$At=1,[switch]$Raw) {
+        function Set-StorageQueryMutation([string]$Path,$Value,[int]$At=1,[switch]$Raw,[switch]$Remove) {
             $counter=Join-Path (Split-Path -Parent $processFixture) 'QueryCounter.txt'
             if(Test-Path -LiteralPath $counter){Remove-Item -LiteralPath $counter}
             $content=if($Raw){[string]$Value}else{$Value|ConvertTo-Json -Depth 30}
-            Write-GtJson (Join-Path (Split-Path -Parent $processFixture) 'QueryMutation.json') @{atQuery=$At;path=$Path;content=$content}
+            Write-GtJson (Join-Path (Split-Path -Parent $processFixture) 'QueryMutation.json') @{atQuery=$At;path=$Path;content=$content;remove=[bool]$Remove}
         }
         function Clear-StorageQueryMutation {
             foreach($name in @('QueryCounter.txt','QueryMutation.json')){
@@ -1428,9 +1430,206 @@ function Get-VerificationProcessState {
             }
         }
 
+        $inputProducer=Join-Path $Directory 'InputValidationProducer.ps1'
+        [IO.File]::WriteAllText($inputProducer,@'
+param([switch]$ValidateOnly)
+if($ValidateOnly){$result.reason='Input validation completed.'}
+else {
+    Write-GtJson (Join-Path $run 'Transaction.json') $transaction
+    Copy-GtFile $source (Join-Path $installed 'file')
+    & (Join-Path $script:GameTestRepo 'tools/runtime-verification/Invoke-RuntimeVerification.ps1')
+}
+'@,[Text.UTF8Encoding]::new($false))
+        foreach($mutation in @('validation-command','validation-expression','marker-before-transaction','launch-before-transaction')) {
+            $text=[IO.File]::ReadAllText($inputProducer)
+            switch($mutation) {
+                'validation-command'{$text=$text.Replace("`$result.reason='Input validation completed.'",'Remove-Item $installed -Recurse')}
+                'validation-expression'{$text=$text.Replace("`$result.reason='Input validation completed.'",'${result}.reason=(Remove-Item $installed -Recurse -PassThru)')}
+                'marker-before-transaction'{$text=$text.Replace('if($ValidateOnly)',"Write-GtJson `$markerPath @{} `nif(`$ValidateOnly)")}
+                'launch-before-transaction'{
+                    $launch="& (Join-Path `$script:GameTestRepo 'tools/runtime-verification/Invoke-RuntimeVerification.ps1')"
+                    $text=$text.Replace($launch,'').Replace('if($ValidateOnly)',($launch+"`nif(`$ValidateOnly)"))
+                }
+            }
+            $candidate=Join-Path $Directory ('InputProducer-'+$mutation+'.ps1')
+            [IO.File]::WriteAllText($candidate,$text,[Text.UTF8Encoding]::new($false))
+            Add-StorageCheck ('producer audit rejects external effects outside its transaction: '+$mutation) (Test-StorageRejection {Test-GtInputValidationProducer $candidate})
+        }
+        $tokens=$null;$parseErrors=$null
+        $invokeAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $tool 'Invoke-GameTest.ps1'),[ref]$tokens,[ref]$parseErrors)
+        if($parseErrors.Count){throw 'The current validation producer does not parse.'}
+        $executionAssignment=@($invokeAst.FindAll({param($node)$node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq "`$result['execution']"},$true))
+        $validatedAssignment=@($invokeAst.FindAll({param($node)$node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq '$result.execution.validationComplete'},$true))
+        $effectsAssignment=@($invokeAst.FindAll({param($node)$node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq '$result.execution.sideEffectsStarted'},$true))
+        $backupAssignment=@($invokeAst.FindAll({param($node)$node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq '$backup'},$true))
+        Add-StorageCheck 'the actual execution producer has unique lifecycle boundaries before backup creation' ($executionAssignment.Count -eq 1 -and $validatedAssignment.Count -eq 1 -and $effectsAssignment.Count -eq 1 -and $backupAssignment.Count -eq 1 -and $effectsAssignment[0].Extent.EndOffset -lt $backupAssignment[0].Extent.StartOffset)
+        function New-StorageInputValidation([string]$Parent,[string]$Name,[string]$Build,[bool]$Requested=$false,[switch]$Unstructured) {
+            $path=Join-Path $Parent $Name;[void][IO.Directory]::CreateDirectory((Join-Path $path 'Input'))
+            $settings=Join-Path $path 'Input/Settings.xml';[IO.File]::WriteAllText($settings,'<Settings />')
+            $case=[ordered]@{id=$Name;initialState=@{settingsFile=$settings;settingsSha256=Get-GtHash $settings;nativePreferences=@()}}
+            Write-GtJson (Join-Path $path 'Case.json') $case;Write-GtJson (Join-Path $path 'InputCase.json') $case
+            [IO.File]::Copy((Join-Path $Build 'Build.json'),(Join-Path $path 'Build.json'))
+            Write-GtJson (Join-Path $path 'Environment.json') @{gameExe=(Join-Path $game 'Solasta.exe')}
+            Write-GtJson (Join-Path $path 'Directory.json') @{schemaVersion=1;layout='GameTest';directory=$path;requestedName=$Name}
+            $start=[datetime]::UtcNow.AddDays(-8).AddMinutes(-1)
+            $events=@();$index=0
+            foreach($kind in @('validation-started','stage-verified','environment-verified','validated')) {
+                $events+=@{kind=$kind;utc=$start.AddSeconds($index++).ToString('O');message='Input event'}
+            }
+            Write-GtJson (Join-Path $path 'Operations.json') $events
+            $result=[ordered]@{schemaVersion=1;caseId=$Name;status='BLOCKED';reason='This text is not an ownership condition.';
+                evidenceDirectory=$path;startedUtc=$start.ToString('O');completedUtc=$start.AddMinutes(1).ToString('O');
+                runtimeResult=$null;restored=$false;images=@();operations='Operations.json';
+                toolSources=@(@{path=(Join-Path $tool 'Invoke-GameTest.ps1');sha256=Get-GtHash $inputProducer})}
+            if(-not $Unstructured) {
+                $ValidateOnly=$true;$Deploy=$Requested;$Launch=$Requested
+                . ([scriptblock]::Create($executionAssignment[0].Extent.Text))
+                . ([scriptblock]::Create($validatedAssignment[0].Extent.Text))
+            }
+            Write-GtJson (Join-Path $path 'Result.json') $result
+            return $path
+        }
+        foreach($requested in @($false,$true)) {
+            $area=New-StorageArea ('completed-input-'+$requested)
+            $build=New-StorageBuild $area '20260101-000000-001-Build-abcd'
+            $inputRun=New-StorageInputValidation $area 'input' $build $requested
+            $owner=Get-GtInputValidationRun $inputRun (Read-GtObject (Join-Path $inputRun 'Result.json'))
+            Add-StorageCheck ('actual ValidateOnly receipt suppresses execution despite requested switches: '+$requested) ($owner.kind -eq 'input-validation' -and -not $owner.result.execution.effectiveDeployment -and -not $owner.result.execution.effectiveLaunch -and $owner.result.execution.requestedDeployment -eq $requested)
+            $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=0} -Apply
+            Add-StorageCheck ('completed input owner retires and releases its exact build: '+$requested) (-not(Test-Path $inputRun) -and -not(Test-Path $build))
+        }
+        foreach($failure in @('incomplete','side-effects','string-bool','transaction','runtime','backup','error','late-event')) {
+            $area=New-StorageArea ('incomplete-input-'+$failure);$build=New-StorageBuild $area '20260101-000000-001-Build-abcd'
+            $inputRun=New-StorageInputValidation $area 'input' $build
+            switch($failure) {
+                'incomplete'{Set-StorageRuntimeResult $inputRun {param($value)$value.execution.validationComplete=$false}}
+                'side-effects'{Set-StorageRuntimeResult $inputRun {param($value)$value.execution.sideEffectsStarted=$true}}
+                'string-bool'{Set-StorageRuntimeResult $inputRun {param($value)$value.execution.sideEffectsStarted='false'}}
+                'transaction'{Write-GtJson (Join-Path $inputRun 'Transaction.json') @{schemaVersion=1;state='prepared';gameDirectory=$game}}
+                'runtime'{[void][IO.Directory]::CreateDirectory((Join-Path $inputRun 'Runtime'))}
+                'backup'{[void][IO.Directory]::CreateDirectory((Join-Path $inputRun 'Backup'))}
+                'error'{[IO.File]::WriteAllText((Join-Path $inputRun 'Error.log'),'Failed after validation')}
+                'late-event'{$events=@(Read-GtObject (Join-Path $inputRun 'Operations.json'));$events+=@{kind='backup-started';utc=[datetime]::UtcNow.ToString('O')};Write-GtJson (Join-Path $inputRun 'Operations.json') $events}
+            }
+            $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=0} -Apply
+            Add-StorageCheck ('execution ambiguity preserves input and required build: '+$failure) ((Test-Path $inputRun) -and (Test-Path $build))
+        }
+        $area=New-StorageArea 'audited-input';$build=New-StorageBuild $area '20260101-000000-001-Build-abcd'
+        $inputRun=New-StorageInputValidation $area 'input' $build -Unstructured
+        $originalResult=Get-GtHash (Join-Path $inputRun 'Result.json')
+        $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=0} -Apply
+        Add-StorageCheck 'an unstructured validation result cannot silently retire itself' ((Test-Path $inputRun) -and (Test-Path $build))
+        $r=Invoke-StorageCleanup $area -Options @{AuditInputValidation=$true;InputProducerPath=$inputProducer}
+        Add-StorageCheck 'input audit preview writes no ownership receipt' (-not(Test-Path (Join-Path $inputRun 'InputValidationAudit.json')) -and (Get-GtHash (Join-Path $inputRun 'Result.json')) -ceq $originalResult)
+        $r=Invoke-StorageCleanup $area -Options @{AuditInputValidation=$true;InputProducerPath=$inputProducer} -Apply
+        Add-StorageCheck 'explicit producer audit preserves the original result and records its independent proof' ((Test-Path (Join-Path $inputRun 'InputValidationAudit.json')) -and (Get-GtHash (Join-Path $inputRun 'Result.json')) -ceq $originalResult)
+        $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=0} -Apply
+        Add-StorageCheck 'an audited nonexecuting input releases its build through normal cleanup' (-not(Test-Path $inputRun) -and -not(Test-Path $build))
+        foreach($failure in @('producer','structured-producer','validation-error','deployed-event','input-changed','owner-case')) {
+            $area=New-StorageArea ('unproven-audit-'+$failure);$build=New-StorageBuild $area '20260101-000000-001-Build-abcd'
+            $inputRun=New-StorageInputValidation $area 'input' $build -Unstructured
+            $producer=$inputProducer
+            switch($failure) {
+                'producer'{$producer=Join-Path $tool 'Invoke-GameTest.ps1'}
+                'structured-producer'{$producer=Join-Path $tool 'Invoke-GameTest.ps1';Set-StorageRuntimeResult $inputRun {param($value)$value.toolSources[0].sha256=Get-GtHash $producer}}
+                'validation-error'{[IO.File]::WriteAllText((Join-Path $inputRun 'Error.log'),'Failure')}
+                'deployed-event'{$events=@(Read-GtObject (Join-Path $inputRun 'Operations.json'));$events[3].kind='deployed';Write-GtJson (Join-Path $inputRun 'Operations.json') $events}
+                'input-changed'{[IO.File]::WriteAllText((Join-Path $inputRun 'Input/Settings.xml'),'<Changed />')}
+                'owner-case'{Set-StorageRuntimeResult $inputRun {param($value)$value.caseId='other-input'}}
+            }
+            $r=Invoke-StorageCleanup $area -Options @{AuditInputValidation=$true;InputProducerPath=$producer} -Apply
+            Add-StorageCheck ('insufficient input audit evidence is retained: '+$failure) (-not(Test-Path (Join-Path $inputRun 'InputValidationAudit.json')) -and (Test-Path $build))
+        }
+        foreach($changed in @('result','operations','producer')) {
+            $area=New-StorageArea ('changed-input-'+$changed);$build=New-StorageBuild $area '20260101-000000-001-Build-abcd'
+            $inputRun=New-StorageInputValidation $area 'input' $build -Unstructured
+            [void](New-GtInputValidationAudit $inputRun $inputProducer)
+            switch($changed) {
+                'result'{$value=Read-GtObject (Join-Path $inputRun 'Result.json');$value.caseId='changed';Set-StorageQueryMutation (Join-Path $inputRun 'Result.json') $value}
+                'operations'{$value=@(Read-GtObject (Join-Path $inputRun 'Operations.json'));$value[3].kind='backup-started';Set-StorageQueryMutation (Join-Path $inputRun 'Operations.json') $value}
+                'producer'{Set-StorageQueryMutation (Join-Path $inputRun 'InputValidationProducer.ps1') '# changed source' -Raw}
+            }
+            try {
+                Add-StorageCheck ('input ownership is rechecked before retirement: '+$changed) ((Test-StorageRejection {Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=0} -Apply}) -and (Test-Path $inputRun) -and (Test-Path $build))
+            } finally {Clear-StorageQueryMutation}
+        }
+
         $area=New-StorageArea 'unique-default';$a=New-StorageRuntime $area 'uniqueA';$b=New-StorageRuntime $area 'uniqueB'
         $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2} -Apply
         Add-StorageCheck 'default count retention remains compatible for unique IDs' ((Test-Path -LiteralPath $a)-and(Test-Path -LiteralPath $b)-and $r.actions.Count -eq 0)
+        $runtimeProducer=Join-Path $Directory 'RuntimeValidationProducer.ps1'
+        [IO.File]::WriteAllText($runtimeProducer,@'
+param([switch]$ValidateOnly)
+if($ValidateOnly){$result.reason='Compiled without execution.'}
+else {
+    New-VerificationNativeUserData $source $target
+    $nativeDisplayBackup=Get-NativeDisplaySettingsSnapshot
+    $settingsBackups += $backup
+    $probeCreated=$true
+    $ummParams.Save($paramsPath)
+    Start-VerificationBackgroundProcess -FilePath $GameExePath
+    $process=Start-Process @launchParameters
+}
+'@,[Text.UTF8Encoding]::new($false))
+        $runtimeTokens=$null;$runtimeParseErrors=$null
+        $runtimeAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $workspace 'tools/runtime-verification/Invoke-RuntimeVerification.ps1'),[ref]$runtimeTokens,[ref]$runtimeParseErrors)
+        $runtimeExecution=@($runtimeAst.FindAll({param($node)$node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq "`$result['execution']"},$true))
+        $runtimeValidated=@($runtimeAst.FindAll({param($node)$node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq '$result.execution.validationComplete'},$true))
+        $runtimeEffects=@($runtimeAst.FindAll({param($node)$node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq '$result.execution.sideEffectsStarted'},$true))
+        $runtimeNativeInput=@($runtimeAst.FindAll({param($node)$node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -ceq 'New-VerificationNativeUserData'},$true))
+        Add-StorageCheck 'runtime lifecycle records validation and side effects before native input creation' ($runtimeParseErrors.Count -eq 0 -and $runtimeExecution.Count -eq 1 -and $runtimeValidated.Count -eq 1 -and $runtimeEffects.Count -eq 1 -and $runtimeNativeInput.Count -eq 1 -and $runtimeEffects[0].Extent.EndOffset -lt $runtimeNativeInput[0].Extent.StartOffset)
+        function New-StorageRuntimeValidation([string]$Parent,[string]$Name,[switch]$Unstructured) {
+            $path=Join-Path $Parent $Name;[void][IO.Directory]::CreateDirectory($path)
+            Write-GtJson (Join-Path $path 'Directory.json') @{schemaVersion=1;layout='Runtime';directory=$path;requestedName=$Name}
+            [IO.File]::WriteAllText((Join-Path $path 'Compile.log'),'')
+            $result=[ordered]@{status='incomplete';reason='The reason is not an ownership condition.';runName=$Name;evidenceDirectory=$path;
+                startedUtc='2020-01-01T00:00:00Z';completedUtc='2020-01-02T00:00:00Z';validationOnly=$true;startupOnly=$false;compilationSucceeded=$true;processId=$null;
+                settingsRestored=$true;displaySettingsRestored=$true;probeRemoved=$true;
+                expectedUb=@{location=(Join-Path $game 'Mods/SolastaUnfinishedBusiness/SolastaUnfinishedBusiness.dll')};
+                runnerSources=@(@{path=(Join-Path $workspace 'tools/runtime-verification/Invoke-RuntimeVerification.ps1');sha256=Get-GtHash $runtimeProducer;archivePath=$runtimeProducer})}
+            if(-not $Unstructured){$ValidateOnly=$true;$StartupOnly=$false;$Sync=$false;. ([scriptblock]::Create($runtimeExecution[0].Extent.Text));. ([scriptblock]::Create($runtimeValidated[0].Extent.Text))}
+            Write-GtJson (Join-Path $path 'Result.json') $result;return $path
+        }
+        $area=New-StorageArea 'runtime-validation';$validation=New-StorageRuntimeValidation $area 'input'
+        $owner=Get-GtInputValidationRun $validation (Read-GtObject (Join-Path $validation 'Result.json'))
+        $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=0} -Apply
+        Add-StorageCheck 'completed runtime validation retires without fabricated process or native-file restoration receipts' ($owner.kind -ceq 'input-validation' -and -not(Test-Path $validation))
+        foreach($failure in @('pid','backup','side-effects','string-bool','incomplete','compile-failed','native-data')) {
+            $area=New-StorageArea ('runtime-validation-'+$failure);$validation=New-StorageRuntimeValidation $area 'input'
+            switch($failure){
+                'pid'{Set-StorageRuntimeResult $validation {param($value)$value.processId=4318}}
+                'backup'{[void][IO.Directory]::CreateDirectory((Join-Path $validation 'SettingsBackup'))}
+                'side-effects'{Set-StorageRuntimeResult $validation {param($value)$value.execution.sideEffectsStarted=$true}}
+                'string-bool'{Set-StorageRuntimeResult $validation {param($value)$value.validationOnly='true'}}
+                'incomplete'{Set-StorageRuntimeResult $validation {param($value)$value.execution.validationComplete=$false}}
+                'compile-failed'{Set-StorageRuntimeResult $validation {param($value)$value.compilationSucceeded=$false}}
+                'native-data'{Write-GtJson (Join-Path $validation 'Native-UserDataLocation.json') @{owner='unknown'}}
+            }
+            $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=0} -Apply
+            Add-StorageCheck ('ambiguous runtime validation is retained: '+$failure) (Test-Path $validation)
+        }
+        $area=New-StorageArea 'runtime-validation-audit';$validation=New-StorageRuntimeValidation $area 'input' -Unstructured;$original=Get-GtHash (Join-Path $validation 'Result.json')
+        $r=Invoke-StorageCleanup $area -Options @{AuditInputValidation=$true;InputProducerPath=$runtimeProducer} -Apply
+        Add-StorageCheck 'runtime producer audit preserves original result bytes' ((Test-Path (Join-Path $validation 'InputValidationAudit.json')) -and (Get-GtHash (Join-Path $validation 'Result.json')) -ceq $original)
+        $r=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=0} -Apply
+        Add-StorageCheck 'audited runtime nonexecution uses ordinary artifact retirement' (-not(Test-Path $validation))
+        foreach($failure in @('archive-missing','archive-changed','result-changed','late-consumer','audit-disappeared')) {
+            $area=New-StorageArea ('runtime-audit-'+$failure);$validation=New-StorageRuntimeValidation $area 'input' -Unstructured
+            [void](New-GtInputValidationAudit $validation $runtimeProducer)
+            switch($failure){
+                'archive-missing'{Remove-Item -LiteralPath (Join-Path $validation 'InputValidationProducer.ps1')}
+                'archive-changed'{[IO.File]::WriteAllText((Join-Path $validation 'InputValidationProducer.ps1'),'# changed')}
+                'result-changed'{Set-StorageRuntimeResult $validation {param($value)$value.runName='changed'}}
+                'late-consumer'{$reference=Join-Path $Directory 'runtime-late-reference.json';Write-GtJson $reference @{schemaVersion=1;paths=@()};$changed=@{schemaVersion=1;paths=@($validation)};Set-StorageQueryMutation $reference $changed}
+                'audit-disappeared'{Set-StorageQueryMutation (Join-Path $validation 'InputValidationAudit.json') $null -Remove}
+            }
+            $options=@{KeepLatestPerCase=0};if($failure -eq 'late-consumer'){$options.ReferencePath=@($reference)}
+            try{[void](Invoke-StorageCleanup $area -Prune -Options $options -Apply)}catch{}finally{Clear-StorageQueryMutation}
+            Add-StorageCheck ('runtime validation ownership changes prevent retirement: '+$failure) (Test-Path $validation)
+        }
+        $escapedProducer=Join-Path $Directory 'RuntimeProducer-OutsideValidation.ps1';$escaped=[IO.File]::ReadAllText($runtimeProducer).Replace('    $process=Start-Process @launchParameters','').Replace('if($ValidateOnly)',"`$process=Start-Process @launchParameters`nif(`$ValidateOnly)");[IO.File]::WriteAllText($escapedProducer,$escaped,[Text.UTF8Encoding]::new($false))
+        Add-StorageCheck 'runtime producer audit rejects launch outside its execution branch' (Test-StorageRejection {Test-GtInputValidationProducer $escapedProducer -Layout Runtime})
+
         foreach($status in @('success','failed','incomplete')) {
             $area=New-StorageArea ('age-'+$status);$run=New-StorageRuntime $area ('unique-'+$status) 8 $status;$native=(New-StorageNativeCompanion $run -Bytes 16384 -DirectRuntime).path
             $preview=Invoke-StorageCleanup $area -Prune -Options @{KeepLatestPerCase=2;MaxAgeDays=1}
@@ -2303,6 +2502,20 @@ if ('fixtureObserved' -in $Case.expected.PSObject.Properties.Name -and $Case.exp
                 $checks+= [ordered]@{name='reference path resolved and deduplicated';passed=(@($adapter.referencePaths).Count -eq 1 -and $adapter.referencePaths[0] -ceq $reference)}
             }
             [ordered]@{mode=$mode;status=$(if (@($checks | Where-Object passed -eq $false).Count) {'FAIL'}else{'PASS'});casePath=$path;checks=$checks}
+        })
+        $records+=@(foreach ($mode in @('initial-setup-empty-object','initial-setup-null','initial-setup-non-save')) {
+            $initial=[pscustomobject]@{}
+            if ($mode -eq 'initial-setup-null') { $initial | Add-Member -NotePropertyName setup -NotePropertyValue $null }
+            if ($mode -eq 'initial-setup-non-save') { $initial | Add-Member -NotePropertyName setup -NotePropertyValue ([pscustomobject]@{kind='use-power'}) }
+            $failure=$null
+            try {
+                if ($mode -eq 'initial-setup-empty-object') { Assert-GtProperties $initial @() @() }
+                Assert-GtInitialSetup ([pscustomobject]@{initialState=$initial}) $false
+            } catch { $failure=$_.Exception.Message }
+            $expectedFailure=if ($mode -eq 'initial-setup-non-save') {'Initial setup requires a saved-game adapter.'}else{$null}
+            $matched=$failure -ceq $expectedFailure
+            [ordered]@{mode=$mode;status=$(if($matched){'PASS'}else{'FAIL'});scope='Shared JSON-property and optional-setup helpers.';
+                checks=@([ordered]@{name='helper acceptance and rejection boundary';expected=$expectedFailure;actual=$failure;passed=$matched})}
         })
         $adapterFunction=(Get-Command Get-GtAdapter -CommandType Function).ScriptBlock.Ast
         $dispatch=@($adapterFunction.FindAll({param($n) $n -is [Management.Automation.Language.SwitchStatementAst]},$true))

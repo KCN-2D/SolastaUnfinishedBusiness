@@ -364,7 +364,7 @@ internal static class BootContext
         // Enable mod before optional diagnostics parse user-authored data.
         enable();
 
-        RacesContext.SwitchCustomFaces();
+        RacesContext.SwitchCharacterModels();
 
         if (CoroutineHost)
         {

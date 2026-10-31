@@ -46,6 +46,9 @@ $acceptanceScope = if ($VisualAcceptance) { 'visual-observation' }
     else { 'native-observation' }
 $result = [ordered]@{ schemaVersion=1; caseId=$case.id; executionMode=$(if($VisualAcceptance){'visual-acceptance'}else{'native-regression'}); acceptanceScope=$acceptanceScope; status='BLOCKED'; reason='Preconditions have not completed.'; startedUtc=[datetime]::UtcNow.ToString('O'); evidenceDirectory=$run; runtimeResult=$null; restored=$false; images=@(); operations='Operations.json' }
 $result['backgroundProofMode']=$(if($VisualAcceptance){'interactive'}elseif($RequireNonInputDesktop){'owned-non-input-desktop'}else{'strict-other-app-foreground'})
+$result['execution']=[ordered]@{validationOnly=[bool]$ValidateOnly;requestedDeployment=[bool]$Deploy;requestedLaunch=[bool]$Launch;
+    effectiveDeployment=([bool]$Deploy -and -not $ValidateOnly);effectiveLaunch=([bool]$Launch -and -not $ValidateOnly);
+    validationComplete=$false;sideEffectsStarted=$false}
 $transactionCreated=$false; $runtimeFailure=$null; $oldCaseEnvironment=[Environment]::GetEnvironmentVariable('UB_GAME_TEST_CASE_PATH','Process'); $operationLock=$null
 try {
     $operationLock=Enter-GtLock
@@ -154,10 +157,12 @@ try {
     }
     Write-GtJson (Join-Path $run 'Case.json') $case
     Add-GtEvent 'validated' 'Case, fixed settings, source identity, staging and installed game DLLs verified.'
+    $result.execution.validationComplete=$true
     if ($ValidateOnly) {
-        $result.reason='Validation succeeded. Deployment and launch were not requested.'
+        $result.reason='Input validation completed.'
     } else {
         if (-not $Deploy -or -not $Launch -or -not $AuthorizedGameDirectory -or (Get-GtPath $AuthorizedGameDirectory) -ne $game) { throw 'Execution requires -Deploy -Launch and -AuthorizedGameDirectory matching the installed game.' }
+        $result.execution.sideEffectsStarted=$true
         $backup=Join-Path $run 'Backup'
         New-Item -ItemType Directory -Path $backup | Out-Null
         $paths=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)

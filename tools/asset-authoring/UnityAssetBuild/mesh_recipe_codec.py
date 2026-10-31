@@ -117,9 +117,12 @@ def write_mesh(writer, mesh):
 
 def encode_recipe(recipe, json_path, payload_relative='Data/mesh-numeric.bin'):
     """Write a new external recipe without changing input geometry or input objects."""
-    fields(recipe, ('schemaVersion', 'bundleName', 'meshes'), ('textures',))
+    fields(recipe, ('schemaVersion', 'bundleName', 'meshes'), ('textures', 'sourceBundles'))
     need(recipe['schemaVersion'] == 1 and isinstance(recipe['meshes'], list)
          and 1 <= len(recipe['meshes']) <= 128, 'Invalid mesh recipe version/count.')
+    need(isinstance(recipe['bundleName'], str) and
+         re.fullmatch(r'[a-z0-9][a-z0-9_.-]{0,127}', recipe['bundleName']) is not None,
+         'Invalid mesh recipe bundle name.')
     need(re.fullmatch(r'[A-Za-z0-9_./-]+', payload_relative) is not None
          and not payload_relative.startswith('/') and all(p not in ('', '.', '..') for p in payload_relative.split('/'))
          and payload_relative.endswith('.bin'), 'Invalid relative numeric payload path.')

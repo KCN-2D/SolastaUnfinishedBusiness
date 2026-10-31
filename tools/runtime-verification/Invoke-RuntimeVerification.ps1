@@ -338,6 +338,10 @@ $result = [ordered]@{
     probes = $ProbeType; sources = @(); hashes = @{}; assemblyVersions = @{}; processId = $null
     settingsRestored = $false; displaySettingsRestored = $false; probeRemoved = $false; passed = 0; failed = 0; incomplete = 0
 }
+$result['execution']=[ordered]@{
+    validationOnly=[bool]$ValidateOnly;requestedDeployment=[bool](-not $ValidateOnly -and (-not $StartupOnly -or $Sync));requestedLaunch=[bool](-not $ValidateOnly)
+    effectiveDeployment=$false;effectiveLaunch=$false;validationComplete=$false;sideEffectsStarted=$false
+}
 
 function Save-OwnedProcessCleanupEvidence {
     try { Write-Json (Join-Path $runDirectory 'Runtime-ProcessCleanup.json') $result.processCleanup }
@@ -596,11 +600,13 @@ try {
         $result.compilationSucceeded = $true
         $result.hashes['probe'] = (Get-FileHash -LiteralPath $probeDll -Algorithm SHA256).Hash
     }
+    $result.execution.validationComplete=$true
     if ($ValidateOnly) {
         $result.reason = 'Probe compiled. Runtime checks were not requested (-ValidateOnly).'
     }
     else {
         Assert-NoGameProcess
+        $result.execution.sideEffectsStarted=$true
         if (-not $StartupOnly) {
             $nativeUserFilesBefore = @(Get-VerificationNativeUserFiles $nativePreferencesDirectory)
             Write-Json (Join-Path $runDirectory 'Native-OriginalFiles-Before.json') $nativeUserFilesBefore
@@ -637,6 +643,7 @@ try {
             Copy-Item -LiteralPath $PlayerLogPath -Destination (Join-Path $runDirectory 'Original-Player.log')
         }
         if ($Sync) {
+            $result.execution.effectiveDeployment=$true
             & (Join-Path $repoRoot 'tools\runtime-verification\Invoke-SolastaSemiAutoTest.ps1') -SkipBuild -Sync -GameExePath $GameExePath *> (Join-Path $runDirectory 'Sync.log')
         }
         Assert-File (Join-Path $installedUbDirectory 'SolastaUnfinishedBusiness.dll')
@@ -649,6 +656,7 @@ try {
         $ummParams.Save($paramsPath)
         if (-not $StartupOnly) {
             New-Item -ItemType Directory -Path $probeDirectory | Out-Null
+            $result.execution.effectiveDeployment=$true
             $probeCreated = $true
             Copy-Item -LiteralPath $probeDll -Destination $probeDirectory
             Write-Json (Join-Path $probeDirectory 'Info.json') @{
@@ -687,6 +695,7 @@ try {
             } else { $process = Start-Process @launchParameters }
         }
         finally { [Environment]::SetEnvironmentVariable('UB_RUNTIME_VERIFICATION_OWNER', $previousNativeOwner, 'Process') }
+        $result.execution.effectiveLaunch=$true
         $processStartTime = $process.StartTime
         $result.processId = $process.Id
         $result['processStartedUtc']=$processStartTime.ToUniversalTime().ToString('O')

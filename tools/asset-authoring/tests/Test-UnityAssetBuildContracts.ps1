@@ -1054,7 +1054,11 @@ if ($MeshesOnly) {
     $ownedSession=$null; $failure=$null; $completed=$false
     $queuedJobs=[Collections.Generic.List[object]]::new()
     $resultPath=Join-Path $jobs ('contracts-meshes-'+[guid]::NewGuid().ToString('N')+'.json')
-    function MeshJobIds { @(Get-ChildItem -LiteralPath $jobs -Directory | Where-Object Name -Match '^[a-f0-9]{32}$' | ForEach-Object Name) }
+    function MeshJobIds { @(Get-ChildItem -LiteralPath $jobs -Directory | Where-Object {
+        $marker=Join-Path $_.FullName '.solasta-asset-authoring-job'
+        (Test-Path -LiteralPath $marker -PathType Leaf) -and
+            [IO.File]::ReadAllText($marker).Trim() -ceq 'SolastaUBAssetAuthoring:UnityJob:1'
+    } | ForEach-Object Name) }
     function Invoke-MeshQueueContract($Recipe, [string]$Kind = 'mesh-templates', [object[]]$InputFiles = @()) {
         $id=[guid]::NewGuid().ToString('N');$job=Join-Path $jobs $id;$input=Join-Path $project ('Assets/AuthoringJobs/'+$id+'/Input')
         [void][IO.Directory]::CreateDirectory($job);[void][IO.Directory]::CreateDirectory($input)
@@ -1126,7 +1130,7 @@ if ($MeshesOnly) {
             boneWeights=@(1,0,0,0,0.75,0.25,0,0,0.5,0.5,0,0);boneIndices=@(0,0,0,0,0,1,0,0,1,0,0,0)}
         $skinned|Add-Member -NotePropertyName blendShapes -NotePropertyValue @(
             @{name='DeformA';frames=@(
-                @{weight=25;vertices=@(0,0,0.125,0,0,0,0,0,0);normals=@(0.0625,0,0,0,0,0,0,0,0);tangents=@(0,0.03125,0,0,0,0,0,0,0)},
+                @{weight=25;vertices=@(0,0,0.125,0,0,0,0,0,0);normals=@(0.0625,0,0,0.00000011920928955078125,0,0,0,0,0);tangents=@(0,0.03125,0,0,0,0,0,0.0000000298023223876953125,0)},
                 @{weight=100;vertices=@(0,0,0.5,0,0,0,0,0,0);normals=@(0.25,0,0,0,0,0,0,0,0);tangents=@(0,0.125,0,0,0,0,0,0,0)})},
             @{name='DeformB';frames=@(@{weight=100;vertices=@(0,0,0,-0.25,0,0,0,0,0);normals=@(0,0,0,0,0.125,0,0,0,0);tangents=@(0,0,0,0,0,-0.0625,0,0,0)})})
         $repeated=($skinned.blendShapes[0]|ConvertTo-Json -Depth 20|ConvertFrom-Json)

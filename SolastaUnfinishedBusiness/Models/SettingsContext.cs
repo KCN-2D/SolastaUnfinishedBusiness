@@ -260,7 +260,7 @@ public static class SettingsContext
                 if (_enableCustomFaces == value) return;
                 _enableCustomFaces = value;
                 UserPreferences.SetValue("Settings/Gui/EnableCustomFaces", value);
-                RacesContext.SwitchCustomFaces();
+                RacesContext.SwitchCharacterModels();
             }
         }
 

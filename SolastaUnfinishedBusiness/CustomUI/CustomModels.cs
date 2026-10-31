@@ -656,13 +656,96 @@ public static class CustomModels
             internal readonly Vector3 Offset = offset, Normal = normal, Tangent = tangent;
             internal readonly bool Native = native;
         }
-        internal sealed class SurfaceBinding(string fingerprint, Matrix4x4 rendererToPrefab,
-            Vector4[] sourceTangents, SurfaceVertex[] vertices)
+        internal sealed class SurfaceBinding
         {
-            internal readonly string Fingerprint = fingerprint;
-            internal readonly Matrix4x4 RendererToPrefab = rendererToPrefab;
-            internal readonly Vector4[] SourceTangents = sourceTangents;
-            internal readonly SurfaceVertex[] Vertices = vertices;
+            internal readonly string Fingerprint;
+            internal readonly Matrix4x4 RendererToPrefab;
+            internal readonly Vector4[] SourceTangents;
+            internal readonly SurfaceVertex[] Vertices;
+            internal readonly Mesh BoundarySource;
+            internal readonly IReadOnlyDictionary<int, (BoneWeight Weights, Vector3 Normal, Vector4 Tangent)> BoundaryOverrides;
+            internal readonly string BoundaryBlendShapeName;
+            internal readonly IReadOnlyDictionary<int, (Vector3 Original, Vector3 Position, float MaximumDistance)> BoundaryPositions;
+            internal readonly Matrix4x4 BoundaryPositionFrame;
+            internal readonly IReadOnlyDictionary<int, (Vector3 Original, Vector3 Position)> BoundaryBlendShapePositions;
+
+            internal SurfaceBinding(string fingerprint, Matrix4x4 rendererToPrefab,
+                Vector4[] sourceTangents, SurfaceVertex[] vertices, Mesh boundarySource = null,
+                IReadOnlyDictionary<int, (BoneWeight Weights, Vector3 Normal, Vector4 Tangent)> boundaryOverrides = null,
+                string boundaryBlendShapeName = null,
+                IReadOnlyDictionary<int, (Vector3 Original, Vector3 Position, float MaximumDistance)> boundaryPositions = null,
+                Matrix4x4? boundaryPositionFrame = null,
+                IReadOnlyDictionary<int, (Vector3 Original, Vector3 Position)> boundaryBlendShapePositions = null)
+            {
+                Fingerprint = fingerprint;
+                RendererToPrefab = rendererToPrefab;
+                SourceTangents = sourceTangents;
+                Vertices = vertices;
+                BoundarySource = boundarySource;
+                BoundaryBlendShapeName = boundaryBlendShapeName;
+                BoundaryPositionFrame = boundaryPositionFrame ?? Matrix4x4.identity;
+                if (boundaryPositions is { Count: > 0 })
+                    BoundaryPositions = boundaryPositions.ToDictionary(pair => pair.Key, pair => pair.Value);
+                if (boundaryBlendShapePositions is { Count: > 0 })
+                    BoundaryBlendShapePositions = boundaryBlendShapePositions.ToDictionary(pair => pair.Key, pair => pair.Value);
+                if (boundaryOverrides == null || boundaryOverrides.Count == 0)
+                {
+                    if (boundarySource || boundaryBlendShapeName != null || BoundaryPositions != null || BoundaryBlendShapePositions != null)
+                        throw new InvalidOperationException("A boundary source requires its explicit vertex changes.");
+                    return;
+                }
+                if (!boundarySource) throw new InvalidOperationException("A boundary change requires its immutable surface source.");
+                BoundaryOverrides = boundaryOverrides.ToDictionary(pair => pair.Key, pair => pair.Value);
+                if (BoundaryPositions != null && BoundaryPositions.Keys.Any(index => !BoundaryOverrides.ContainsKey(index)))
+                    throw new InvalidOperationException("A boundary position requires its surface vertex declaration.");
+                if (BoundaryBlendShapePositions != null && (string.IsNullOrWhiteSpace(boundaryBlendShapeName) ||
+                    BoundaryBlendShapePositions.Keys.Any(index => !BoundaryOverrides.ContainsKey(index))))
+                    throw new InvalidOperationException("A boundary frame position requires its named surface vertex declaration.");
+                using var stream = new MemoryStream();
+                using (var writer = new BinaryWriter(stream, System.Text.Encoding.UTF8, true))
+                {
+                    writer.Write(boundaryBlendShapeName ?? "");
+                    foreach (var pair in BoundaryOverrides.OrderBy(pair => pair.Key))
+                    {
+                        writer.Write(pair.Key);
+                        var weight = pair.Value.Weights;
+                        writer.Write(weight.boneIndex0); writer.Write(weight.weight0);
+                        writer.Write(weight.boneIndex1); writer.Write(weight.weight1);
+                        writer.Write(weight.boneIndex2); writer.Write(weight.weight2);
+                        writer.Write(weight.boneIndex3); writer.Write(weight.weight3);
+                        var normal = pair.Value.Normal; var tangent = pair.Value.Tangent;
+                        writer.Write(normal.x); writer.Write(normal.y); writer.Write(normal.z);
+                        writer.Write(tangent.x); writer.Write(tangent.y); writer.Write(tangent.z); writer.Write(tangent.w);
+                    }
+                    if (BoundaryPositions != null)
+                    {
+                        writer.Write("positions"); writer.Write(BoundaryPositions.Count);
+                        for (var component = 0; component < 16; component++) writer.Write(BoundaryPositionFrame[component]);
+                        foreach (var pair in BoundaryPositions.OrderBy(pair => pair.Key))
+                        {
+                            writer.Write(pair.Key);
+                            var original = pair.Value.Original; var position = pair.Value.Position;
+                            writer.Write(original.x); writer.Write(original.y); writer.Write(original.z);
+                            writer.Write(position.x); writer.Write(position.y); writer.Write(position.z);
+                            writer.Write(pair.Value.MaximumDistance);
+                        }
+                    }
+                    if (BoundaryBlendShapePositions != null)
+                    {
+                        writer.Write("frame-positions"); writer.Write(BoundaryBlendShapePositions.Count);
+                        foreach (var pair in BoundaryBlendShapePositions.OrderBy(pair => pair.Key))
+                        {
+                            writer.Write(pair.Key);
+                            var original = pair.Value.Original; var position = pair.Value.Position;
+                            writer.Write(original.x); writer.Write(original.y); writer.Write(original.z);
+                            writer.Write(position.x); writer.Write(position.y); writer.Write(position.z);
+                        }
+                    }
+                }
+                using var hash = CreateAssetSha256();
+                stream.Position = 0;
+                Fingerprint += ":boundary:" + BitConverter.ToString(hash.ComputeHash(stream)).Replace("-", "");
+            }
         }
         internal static SourceGraph PrepareMeshes(GraphicsCharacter graphics,
             IReadOnlyDictionary<SkinnedMeshRenderer, (SkinMeshSource Source, Mesh Mesh)> changes) =>
@@ -687,6 +770,9 @@ public static class CustomModels
             private readonly List<NativeData> _data = [];
             private readonly List<NativeSkin> _skins = [];
             private readonly Dictionary<SkinnedMeshRenderer, SkinMeshSource> _installed = [];
+            private readonly HashSet<Component> _boundaryVirtualOwners = [];
+            private readonly HashSet<Component> _boundaryRenderOwners = [];
+            private readonly Dictionary<NativeOwner, int[]> _boundaryClothVertices = [];
             private bool _applied, _started;
 
             private sealed class NativeOwner(Component component, object deformer, int order)
@@ -834,7 +920,8 @@ public static class CustomModels
                         pair.Value.Vertices.Length != change.Mesh.vertexCount ||
                         pair.Value.SourceTangents.Length != change.Source.Original.vertexCount)
                         throw new InvalidOperationException("An authored source attachment does not match its render source.");
-                    ValidateBinding(change.Source.Original, change.Mesh, pair.Value, change.Source.ClothOwner);
+                    ValidateBinding(change.Source.Original, change.Mesh, pair.Value, change.Source.ClothOwner,
+                        change.Source.ClothOwner ? NativeSkinBoundaryVertices(change.Source, pair.Value) : null);
                 }
                 foreach (var owner in _owners.Where(owner => owner.Order == 1))
                 {
@@ -869,7 +956,7 @@ public static class CustomModels
                                 var prediction = typeof(object).GetMethod("MemberwiseClone", Fields).Invoke(row.skin.Deformer, null);
                                 SourceMesh.SetValue(prediction, row.skin.Replacement);
                                 Put(prediction, "MeshData", renderData);
-                                var child = RebuildChildData(childData[row.index], binding,
+                                var child = RebuildChildData(childData[row.index], binding, row.skin.Original,
                                     (Vector3)Get(renderData, "baseScale"), (int)Get(virtualData, "vertexCount"));
                                 Put(child, "childDataHash", (int)Invoke(prediction, "GetDataHash"));
                                 childData[row.index] = child;
@@ -896,10 +983,84 @@ public static class CustomModels
                 }
             }
 
-            private static void ValidateBinding(Mesh original, Mesh authored, SurfaceBinding binding, bool nativeCloth)
+            private HashSet<int> NativeSkinBoundaryVertices(SkinMeshSource source, SurfaceBinding binding)
             {
+                if (binding.BoundaryOverrides == null) return null;
+                var result = new HashSet<int>(binding.BoundaryOverrides.Keys);
+                var linked = _owners.Where(owner => owner.Order == 1 && owner.Children.Contains(source.ClothOwner)).ToArray();
+                if (linked.Length == 0) return [];
+                foreach (var owner in linked)
+                {
+                    var cloths = _owners.Where(cloth => cloth.Order == 0 && cloth.Parent == owner.Component).ToArray();
+                    if (cloths.Length == 0) return [];
+                    var registrations = new List<IEnumerable<int>>();
+                    foreach (var cloth in cloths)
+                    {
+                        if (cloth.ClothData == null || Get(cloth.ClothData, "useVertexList") is not IEnumerable vertices)
+                            throw new InvalidOperationException("A boundary cloth owner has no immutable vertex registration data.");
+                        var indices = vertices.Cast<int>().ToArray();
+                        registrations.Add(indices);
+                        _boundaryClothVertices[cloth] = indices;
+                    }
+                    var data = Get(owner.Deformer, "MeshData");
+                    var children = (IList)Get(data, "childDataList");
+                    var child = children[Array.IndexOf(owner.Children, source.ClothOwner)];
+                    result.IntersectWith(NativeSkinOnlyBoundaryVertices(binding, child, (int)Get(data, "vertexCount"), registrations));
+                    _boundaryVirtualOwners.Add(owner.Component);
+                    _boundaryRenderOwners.Add(source.ClothOwner);
+                }
+                return result;
+            }
+
+            private static HashSet<int> NativeSkinOnlyBoundaryVertices(SurfaceBinding binding, object child,
+                int virtualCount, IEnumerable<IEnumerable<int>> registrations)
+            {
+                if (child == null || registrations == null)
+                    throw new InvalidOperationException("A boundary cloth binding has unresolved native consumers.");
+                var used = new HashSet<int>(); var consumers = 0;
+                foreach (var indices in registrations)
+                {
+                    if (indices == null) throw new InvalidOperationException("A boundary cloth consumer has unknown vertex registrations.");
+                    consumers++;
+                    foreach (var index in indices)
+                    {
+                        if (index < 0 || index >= virtualCount)
+                            throw new InvalidOperationException("A boundary cloth consumer registers an invalid virtual vertex.");
+                        used.Add(index);
+                    }
+                }
+                if (consumers == 0) throw new InvalidOperationException("A boundary cloth binding has no resolved native consumer.");
+                var info = (uint[])Get(child, "vertexInfoList");
+                var weights = (Array)Get(child, "vertexWeightList");
+                var result = new HashSet<int>();
+                foreach (var index in binding.BoundaryOverrides.Keys)
+                {
+                    var anchor = binding.Vertices[index].Anchor;
+                    if (anchor < 0 || anchor >= info.Length)
+                        throw new InvalidOperationException("A boundary cloth vertex has no native child correspondence.");
+                    var packed = info[anchor]; var count = (int)(packed >> 28); var start = (int)(packed & 0x0fffffff);
+                    if (count == 0 || start > weights.Length - count)
+                        throw new InvalidOperationException("A boundary cloth vertex has an invalid virtual parent span.");
+                    var nativeOnly = true;
+                    for (var offset = 0; offset < count; offset++)
+                    {
+                        var parent = (int)Get(weights.GetValue(start + offset), "parentIndex");
+                        if (parent < 0 || parent >= virtualCount)
+                            throw new InvalidOperationException("A boundary cloth vertex references an invalid virtual parent.");
+                        if (used.Contains(parent)) nativeOnly = false;
+                    }
+                    if (nativeOnly) result.Add(index);
+                }
+                return result;
+            }
+
+            private static void ValidateBinding(Mesh original, Mesh authored, SurfaceBinding binding, bool nativeCloth,
+                ISet<int> nativeSkinOnlyVertices = null)
+            {
+                if (binding.BoundaryOverrides != null) ValidateBoundary(original, authored, binding);
                 var sourceCounts = original.GetBonesPerVertex(); var sourceWeights = original.GetAllBoneWeights();
                 var targetCounts = authored.GetBonesPerVertex(); var targetWeights = authored.GetAllBoneWeights();
+                var boneCount = original.bindposes.Length;
                 if (sourceCounts.Length != original.vertexCount || targetCounts.Length != binding.Vertices.Length)
                     throw new InvalidOperationException("An authored source skin has incomplete per-vertex influence counts.");
                 var sourceStarts = new int[sourceCounts.Length];
@@ -910,12 +1071,56 @@ public static class CustomModels
                     var anchor = binding.Vertices[index].Anchor;
                     if (anchor < 0 || anchor >= sourceCounts.Length)
                         throw new InvalidOperationException("An authored source attachment has no native skin anchor.");
-                    if (sourceCounts[anchor] != targetCounts[index] || sourceStarts[anchor] > sourceWeights.Length - sourceCounts[anchor] ||
+                    if (sourceStarts[anchor] > sourceWeights.Length - sourceCounts[anchor] ||
                         targetOffset > targetWeights.Length - targetCounts[index])
                         throw new InvalidOperationException("An authored source attachment changed native skin binding correspondence.");
-                    for (var influence = 0; influence < sourceCounts[anchor]; influence++)
-                        if (!sourceWeights[sourceStarts[anchor] + influence].Equals(targetWeights[targetOffset + influence]))
-                            throw new InvalidOperationException("An authored source attachment changed a native skin weight or its order.");
+                    if (binding.BoundaryOverrides != null && binding.BoundaryOverrides.TryGetValue(index, out var boundary))
+                    {
+                        var weight = boundary.Weights;
+                        var indices = new[] { weight.boneIndex0, weight.boneIndex1, weight.boneIndex2, weight.boneIndex3 };
+                        var values = new[] { weight.weight0, weight.weight1, weight.weight2, weight.weight3 };
+                        var influence = 0; var total = 0f;
+                        for (var slot = 0; slot < values.Length; slot++)
+                        {
+                            var value = values[slot];
+                            if (!Finite(value) || value < 0f || value > 1f ||
+                                value > 0f && (indices[slot] < 0 || indices[slot] >= boneCount))
+                                throw new InvalidOperationException("A boundary skin declaration has an invalid bone or weight.");
+                            if (value == 0f) continue;
+                            for (var previous = 0; previous < slot; previous++)
+                                if (values[previous] > 0f && indices[previous] == indices[slot])
+                                    throw new InvalidOperationException("A boundary skin declaration repeats a bone influence.");
+                            if (influence >= targetCounts[index] ||
+                                targetWeights[targetOffset + influence].boneIndex != indices[slot] ||
+                                targetWeights[targetOffset + influence].weight != value)
+                                throw new InvalidOperationException("A boundary skin differs from its declared influence order or weight.");
+                            total += value; influence++;
+                        }
+                        if (influence != targetCounts[index] || Mathf.Abs(total - 1f) > 0.00001f)
+                            throw new InvalidOperationException("A boundary skin declaration has incomplete or unnormalized influences.");
+                        if (nativeCloth && (nativeSkinOnlyVertices == null || !nativeSkinOnlyVertices.Contains(index)) &&
+                            (sourceCounts[anchor] != targetCounts[index] ||
+                            Enumerable.Range(0, sourceCounts[anchor]).Any(offset =>
+                                !sourceWeights[sourceStarts[anchor] + offset].Equals(targetWeights[targetOffset + offset]))))
+                            throw new InvalidOperationException("A boundary cloth skin change requires matching virtual skin binding data.");
+                        if (nativeCloth && binding.BoundaryPositions != null &&
+                            binding.BoundaryPositions.TryGetValue(index, out var position) && !position.Original.Equals(position.Position) &&
+                            (nativeSkinOnlyVertices == null || !nativeSkinOnlyVertices.Contains(index)))
+                            throw new InvalidOperationException("A boundary cloth position change requires native-only skin binding data.");
+                        if (nativeCloth && binding.BoundaryBlendShapePositions != null &&
+                            binding.BoundaryBlendShapePositions.TryGetValue(index, out var framePosition) &&
+                            !framePosition.Original.Equals(framePosition.Position) &&
+                            (nativeSkinOnlyVertices == null || !nativeSkinOnlyVertices.Contains(index)))
+                            throw new InvalidOperationException("A boundary cloth frame position change requires native-only skin binding data.");
+                    }
+                    else
+                    {
+                        if (sourceCounts[anchor] != targetCounts[index])
+                            throw new InvalidOperationException("An authored source attachment changed native skin binding correspondence.");
+                        for (var influence = 0; influence < sourceCounts[anchor]; influence++)
+                            if (!sourceWeights[sourceStarts[anchor] + influence].Equals(targetWeights[targetOffset + influence]))
+                                throw new InvalidOperationException("An authored source attachment changed a native skin weight or its order.");
+                    }
                     targetOffset += targetCounts[index];
                 }
                 if (targetOffset != targetWeights.Length) throw new InvalidOperationException("An authored source skin binding has unused influences.");
@@ -926,11 +1131,124 @@ public static class CustomModels
                     if (tangents.Length != authored.vertexCount)
                         throw new InvalidOperationException("An authored cloth attachment has incomplete tangent frames.");
                     for (var index = 0; index < tangents.Length; index++)
-                        if (binding.Vertices[index].Native
+                        if (binding.BoundaryOverrides != null && binding.BoundaryOverrides.TryGetValue(index, out var boundary)
+                                ? !tangents[index].Equals(boundary.Tangent)
+                                : binding.Vertices[index].Native
                                 ? !tangents[index].Equals(binding.SourceTangents[binding.Vertices[index].Anchor])
                                 : tangents[index].w != -1f)
                             throw new InvalidOperationException("An authored cloth attachment changed its owned or native tangent frame.");
                 }
+            }
+
+            private static void ValidateBoundary(Mesh original, Mesh authored, SurfaceBinding binding)
+            {
+                var source = binding.BoundarySource;
+                if (!source || source.vertexCount != authored.vertexCount || source.subMeshCount != authored.subMeshCount ||
+                    !source.bindposes.SequenceEqual(authored.bindposes) ||
+                    !source.bindposes.SequenceEqual(original.bindposes))
+                    throw new InvalidOperationException("A boundary attachment changed its positions, topology, or bind poses.");
+                var sourcePositions = source.vertices; var positions = authored.vertices;
+                if (sourcePositions.Length != source.vertexCount || positions.Length != source.vertexCount)
+                    throw new InvalidOperationException("A boundary attachment has incomplete positions.");
+                if (binding.BoundaryPositions != null)
+                {
+                    var frame = binding.BoundaryPositionFrame;
+                    for (var component = 0; component < 16; component++)
+                        if (!Finite(frame[component])) throw new InvalidOperationException("A boundary position frame is nonfinite.");
+                    if (frame[3] != 0f || frame[7] != 0f || frame[11] != 0f || frame[15] != 1f ||
+                        !Finite(frame.determinant) || frame.determinant == 0f ||
+                        binding.BoundaryPositions.Keys.Any(index => index < 0 || index >= source.vertexCount))
+                        throw new InvalidOperationException("A boundary position frame or vertex is invalid.");
+                }
+                for (var index = 0; index < source.vertexCount; index++)
+                {
+                    if (binding.BoundaryPositions != null && binding.BoundaryPositions.TryGetValue(index, out var position))
+                    {
+                        var distance = binding.BoundaryPositionFrame.MultiplyVector(position.Position - position.Original).magnitude;
+                        if (!Finite(position.Original) || !Finite(position.Position) || !Finite(position.MaximumDistance) ||
+                            position.MaximumDistance < 0f || !Finite(distance) || distance > position.MaximumDistance ||
+                            !sourcePositions[index].Equals(position.Original) || !positions[index].Equals(position.Position))
+                            throw new InvalidOperationException("A boundary position differs from its declared source, target, or distance bound.");
+                    }
+                    else if (!sourcePositions[index].Equals(positions[index]))
+                        throw new InvalidOperationException("A boundary attachment changed an undeclared position.");
+                }
+                for (var index = 0; index < source.subMeshCount; index++)
+                    if (source.GetTopology(index) != authored.GetTopology(index) ||
+                        !source.GetIndices(index).SequenceEqual(authored.GetIndices(index)))
+                        throw new InvalidOperationException("A boundary attachment changed its source topology.");
+                var sourceUv = new List<Vector4>(); var targetUv = new List<Vector4>();
+                for (var channel = 0; channel < 8; channel++)
+                {
+                    source.GetUVs(channel, sourceUv); authored.GetUVs(channel, targetUv);
+                    if (!sourceUv.SequenceEqual(targetUv))
+                        throw new InvalidOperationException("A boundary attachment changed its source UVs.");
+                }
+                var normals = authored.normals; var tangents = authored.tangents;
+                var sourceNormals = source.normals; var sourceTangents = source.tangents;
+                var sourceWeights = source.boneWeights; var weights = authored.boneWeights;
+                if (normals.Length != source.vertexCount || tangents.Length != source.vertexCount ||
+                    sourceNormals.Length != source.vertexCount || sourceTangents.Length != source.vertexCount ||
+                    weights.Length != source.vertexCount || sourceWeights.Length != source.vertexCount ||
+                    binding.BoundaryOverrides.Keys.Any(index => index < 0 || index >= source.vertexCount))
+                    throw new InvalidOperationException("A boundary attachment has incomplete or invalid vertex channels.");
+                for (var index = 0; index < source.vertexCount; index++)
+                {
+                    if (binding.BoundaryOverrides.TryGetValue(index, out var boundary))
+                    {
+                        if (!Finite(boundary.Normal) || !Finite((Vector3)boundary.Tangent) ||
+                            boundary.Normal.sqrMagnitude < 0.99f || ((Vector3)boundary.Tangent).sqrMagnitude < 0.99f ||
+                            boundary.Tangent.w is not (-1f or 1f) ||
+                            !normals[index].Equals(boundary.Normal) || !tangents[index].Equals(boundary.Tangent))
+                            throw new InvalidOperationException("A boundary surface differs from its declared normal or tangent.");
+                    }
+                    else if (!normals[index].Equals(sourceNormals[index]) || !tangents[index].Equals(sourceTangents[index]) ||
+                             !weights[index].Equals(sourceWeights[index]))
+                        throw new InvalidOperationException("A boundary attachment changed an undeclared vertex channel.");
+                }
+                if (source.blendShapeCount != authored.blendShapeCount)
+                    throw new InvalidOperationException("A boundary attachment changed its expression channels.");
+                if (binding.BoundaryBlendShapePositions != null &&
+                    source.GetBlendShapeIndex(binding.BoundaryBlendShapeName) < 0)
+                    throw new InvalidOperationException("A boundary frame position has no matching source expression.");
+                var sourcePosition = new Vector3[source.vertexCount]; var sourceNormal = new Vector3[source.vertexCount];
+                var sourceTangent = new Vector3[source.vertexCount]; var targetPosition = new Vector3[source.vertexCount];
+                var targetNormal = new Vector3[source.vertexCount]; var targetTangent = new Vector3[source.vertexCount];
+                for (var shape = 0; shape < source.blendShapeCount; shape++)
+                {
+                    var name = source.GetBlendShapeName(shape); var count = source.GetBlendShapeFrameCount(shape);
+                    if (name != authored.GetBlendShapeName(shape) || count != authored.GetBlendShapeFrameCount(shape))
+                        throw new InvalidOperationException("A boundary attachment changed its expression layout.");
+                    for (var frame = 0; frame < count; frame++)
+                    {
+                        var frameWeight = source.GetBlendShapeFrameWeight(shape, frame);
+                        if (frameWeight != authored.GetBlendShapeFrameWeight(shape, frame))
+                            throw new InvalidOperationException("A boundary attachment changed its expression frame weights.");
+                        source.GetBlendShapeFrameVertices(shape, frame, sourcePosition, sourceNormal, sourceTangent);
+                        authored.GetBlendShapeFrameVertices(shape, frame, targetPosition, targetNormal, targetTangent);
+                        for (var index = 0; index < source.vertexCount; index++)
+                        {
+                            if (name == binding.BoundaryBlendShapeName && binding.BoundaryBlendShapePositions != null &&
+                                binding.BoundaryBlendShapePositions.TryGetValue(index, out var position))
+                            {
+                                if (!Finite(frameWeight) || frameWeight == 0f || !Finite(position.Original) || !Finite(position.Position) ||
+                                    !(sourcePosition[index] * (100f / frameWeight)).Equals(position.Original) ||
+                                    !SameFrameValue(position.Position * (frameWeight / 100f), targetPosition[index], frameWeight))
+                                    throw new InvalidOperationException("A boundary frame position differs from its declared source or target.");
+                            }
+                            else if (!SameFrameValue(sourcePosition[index], targetPosition[index], frameWeight))
+                                throw new InvalidOperationException("A boundary attachment changed an undeclared expression position.");
+                            if (name == binding.BoundaryBlendShapeName && binding.BoundaryOverrides.ContainsKey(index)
+                                    ? !Finite(targetNormal[index]) || !Finite(targetTangent[index])
+                                    : !SameFrameValue(sourceNormal[index], targetNormal[index], frameWeight) ||
+                                      !SameFrameValue(sourceTangent[index], targetTangent[index], frameWeight))
+                                throw new InvalidOperationException("A boundary attachment changed an undeclared expression vertex.");
+                        }
+                    }
+                }
+                static bool SameFrameValue(Vector3 source, Vector3 target, float frameWeight) => source.Equals(target) ||
+                    target.Equals(Vector3.zero) && Finite(source) && Finite(frameWeight) && frameWeight != 0f &&
+                    source * (100f / Mathf.Abs(frameWeight)) == Vector3.zero;
             }
 
             private static void RebuildRenderData(UnityEngine.Object data, Mesh replacement)
@@ -948,7 +1266,8 @@ public static class CustomModels
                 Invoke(data, "CreateVerifyData");
             }
 
-            private static object RebuildChildData(object original, SurfaceBinding binding, Vector3 nativeScale, int parentCount)
+            private static object RebuildChildData(object original, SurfaceBinding binding, Mesh nativeMesh,
+                Vector3 nativeScale, int parentCount)
             {
                 var sourceInfo = (uint[])Get(original, "vertexInfoList");
                 var sourceWeights = (Array)Get(original, "vertexWeightList");
@@ -956,6 +1275,7 @@ public static class CustomModels
                 var info = new uint[binding.Vertices.Length];
                 var parents = new int[info.Length];
                 var weights = new List<object>();
+                var nativeNormals = binding.BoundaryOverrides == null ? null : nativeMesh.normals;
                 var matrix = binding.RendererToPrefab;
                 var lengths = new Vector3(((Vector3)matrix.GetColumn(0)).magnitude,
                     ((Vector3)matrix.GetColumn(1)).magnitude, ((Vector3)matrix.GetColumn(2)).magnitude);
@@ -988,7 +1308,8 @@ public static class CustomModels
                             !Finite((Vector3)Get(weight, "localPos")) || !Finite((Vector3)Get(weight, "localNor")) ||
                             !Finite((Vector3)Get(weight, "localTan")))
                             throw new InvalidOperationException("A native source binding has an invalid parent or nonfinite channel.");
-                        if (!vertex.Native)
+                        var hasBoundary = binding.BoundaryOverrides != null && binding.BoundaryOverrides.TryGetValue(index, out _);
+                        if (!vertex.Native || hasBoundary)
                         {
                             var normal = ((Vector3)Get(weight, "localNor")).normalized;
                             var tangent = (Vector3)Get(weight, "localTan");
@@ -1001,8 +1322,25 @@ public static class CustomModels
                             Vector3 Transfer(Vector3 value) => tangent * value.x + bitangent * value.y + normal * value.z;
                             if (!vertex.Offset.Equals(Vector3.zero))
                                 Put(weight, "localPos", (Vector3)Get(weight, "localPos") + Transfer(vertex.Offset) * metric);
-                            Put(weight, "localNor", Transfer(vertex.Normal).normalized);
-                            Put(weight, "localTan", Transfer(vertex.Tangent).normalized);
+                            var surfaceNormal = vertex.Normal; var surfaceTangent = vertex.Tangent;
+                            if (hasBoundary)
+                            {
+                                if (nativeNormals.Length != binding.SourceTangents.Length)
+                                    throw new InvalidOperationException("A boundary cloth source has incomplete native normal frames.");
+                                var declaration = binding.BoundaryOverrides[index];
+                                var sourceNormal = nativeNormals[vertex.Anchor].normalized;
+                                var sourceTangent = (Vector3)binding.SourceTangents[vertex.Anchor];
+                                sourceTangent = (sourceTangent - sourceNormal * Vector3.Dot(sourceNormal, sourceTangent)).normalized;
+                                if (sourceNormal.sqrMagnitude < 0.99f || sourceTangent.sqrMagnitude < 0.99f)
+                                    throw new InvalidOperationException("A boundary cloth source has a singular native surface frame.");
+                                var sourceBitangent = Vector3.Cross(sourceNormal, sourceTangent) * handedness;
+                                Vector3 Coordinates(Vector3 value) => new(Vector3.Dot(value, sourceTangent),
+                                    Vector3.Dot(value, sourceBitangent), Vector3.Dot(value, sourceNormal));
+                                surfaceNormal = Coordinates(declaration.Normal);
+                                surfaceTangent = Coordinates((Vector3)declaration.Tangent);
+                            }
+                            Put(weight, "localNor", Transfer(surfaceNormal).normalized);
+                            Put(weight, "localTan", Transfer(surfaceTangent).normalized);
                         }
                         weights.Add(weight);
                     }
@@ -1155,19 +1493,18 @@ public static class CustomModels
                     throw new InvalidOperationException("Prospective native mesh data has no current native verification identity.");
                 var virtualIds = (IDictionary)Get(managerMesh, "sharedVirtualMeshIdToIndexDict");
                 var childIds = (IDictionary)Get(managerMesh, "sharedChildMeshIdToSharedVirtualMeshIndexDict");
-                var valueFields = new Dictionary<Type, FieldInfo[]>();
                 int? parentIndex = virtualIds.Contains(uid) ? (int)virtualIds[uid] : null;
                 if (parentIndex.HasValue)
                 {
                     var info = NativeBindingItem(Get(managerMesh, "sharedVirtualMeshInfoList"), parentIndex.Value);
                     if ((int)Get(info, "uid") != uid || (int)Get(info, "useCount") <= 0)
                         throw new InvalidOperationException("The native shared virtual identity has no live matching owner.");
-                    MatchNativeBindingChunk(managerMesh, info, "vertexChunk", "sharedVirtualVertexInfoList", (Array)Get(prospectiveVirtualData, "vertexInfoList"), valueFields);
-                    MatchNativeBindingChunk(managerMesh, info, "weightChunk", "sharedVirtualWeightList", (Array)Get(prospectiveVirtualData, "vertexWeightList"), valueFields);
-                    MatchNativeOptionalBindingChunk(managerMesh, info, "vertexChunk", "sharedVirtualUvList", Optional(prospectiveVirtualData, "uvList") as Array, valueFields);
-                    MatchNativeOptionalBindingChunk(managerMesh, info, "triangleChunk", "sharedVirtualTriangleList", Optional(prospectiveVirtualData, "triangleList") as Array, valueFields);
-                    MatchNativeOptionalBindingChunk(managerMesh, info, "vertexChunk", "sharedVirtualVertexToTriangleInfoList", Optional(prospectiveVirtualData, "vertexToTriangleInfoList") as Array, valueFields);
-                    MatchNativeOptionalBindingChunk(managerMesh, info, "vertexToTriangleChunk", "sharedVirtualVertexToTriangleIndexList", Optional(prospectiveVirtualData, "vertexToTriangleIndexList") as Array, valueFields);
+                    MatchNativeBindingChunk(managerMesh, info, "vertexChunk", "sharedVirtualVertexInfoList", (Array)Get(prospectiveVirtualData, "vertexInfoList"));
+                    MatchNativeBindingChunk(managerMesh, info, "weightChunk", "sharedVirtualWeightList", (Array)Get(prospectiveVirtualData, "vertexWeightList"));
+                    MatchNativeOptionalBindingChunk(managerMesh, info, "vertexChunk", "sharedVirtualUvList", Optional(prospectiveVirtualData, "uvList") as Array);
+                    MatchNativeOptionalBindingChunk(managerMesh, info, "triangleChunk", "sharedVirtualTriangleList", Optional(prospectiveVirtualData, "triangleList") as Array);
+                    MatchNativeOptionalBindingChunk(managerMesh, info, "vertexChunk", "sharedVirtualVertexToTriangleInfoList", Optional(prospectiveVirtualData, "vertexToTriangleInfoList") as Array);
+                    MatchNativeOptionalBindingChunk(managerMesh, info, "vertexToTriangleChunk", "sharedVirtualVertexToTriangleIndexList", Optional(prospectiveVirtualData, "vertexToTriangleIndexList") as Array);
                 }
                 var children = (IList)Get(prospectiveVirtualData, "childDataList");
                 for (var index = 0; index < children.Count; index++)
@@ -1179,57 +1516,175 @@ public static class CustomModels
                         !parentIndex.HasValue || (int)Get(info, "sharedVirtualMeshIndex") != parentIndex.Value)
                         throw new InvalidOperationException("A shared native child identity belongs to another virtual source.");
                     var child = children[index];
-                    MatchNativeBindingChunk(managerMesh, info, "vertexChunk", "sharedChildVertexInfoList", (Array)Get(child, "vertexInfoList"), valueFields);
-                    MatchNativeBindingChunk(managerMesh, info, "weightChunk", "sharedChildWeightList", (Array)Get(child, "vertexWeightList"), valueFields);
+                    MatchNativeBindingChunk(managerMesh, info, "vertexChunk", "sharedChildVertexInfoList", (Array)Get(child, "vertexInfoList"));
+                    MatchNativeBindingChunk(managerMesh, info, "weightChunk", "sharedChildWeightList", (Array)Get(child, "vertexWeightList"));
                 }
             }
+            private static readonly Dictionary<Type, Func<object, int, object>> NativeBindingReaders = new();
+            private static readonly Dictionary<(Type Array, Type Container), Func<Array, object, int, int, bool>> NativeBindingMatchers = new();
+            private static readonly Dictionary<(Type Expected, Type Actual), Func<object, object, bool>> NativeBindingValues = new();
+
             private static object NativeBindingItem(object values, int index)
             {
-                if (index < 0 || index >= (int)Get(values, "Length"))
-                    throw new InvalidOperationException("A native shared binding references an invalid runtime slot.");
-                return values.GetType().GetProperty("Item", Fields)?.GetValue(values, new object[] { index }) ??
-                    throw new MissingMemberException(values.GetType().FullName, "Item");
+                if (index < 0) throw new InvalidOperationException("A native shared binding references an invalid runtime slot.");
+                if (values == null) throw new MissingMemberException(null, "Length");
+                var type = values.GetType();
+                Func<object, int, object> read;
+                lock (NativeBindingReaders)
+                {
+                    if (!NativeBindingReaders.TryGetValue(type, out read))
+                        NativeBindingReaders.Add(type, read = CreateNativeBindingReader(type));
+                }
+                return read(values, index);
+            }
+            private static Func<object, int, object> CreateNativeBindingReader(Type type)
+            {
+                var value = Expression.Parameter(typeof(object), "value");
+                var index = Expression.Parameter(typeof(int), "index");
+                var container = Expression.Convert(value, type);
+                var length = NativeBindingMember(container, "Length");
+                var item = type.GetProperty("Item", Fields);
+                Expression read = item == null
+                    ? NativeBindingError(typeof(object), new MissingMemberException(type.FullName, "Item"))
+                    : Expression.Convert(Expression.Property(container, item, index), typeof(object));
+                read = Expression.Condition(Expression.OrElse(Expression.LessThan(index, Expression.Constant(0)),
+                        Expression.GreaterThanOrEqual(index, length)),
+                    NativeBindingError(typeof(object), new InvalidOperationException("A native shared binding references an invalid runtime slot.")), read);
+                return Expression.Lambda<Func<object, int, object>>(read, value, index).Compile();
             }
             private static void MatchNativeOptionalBindingChunk(object managerMesh, object info, string chunkName,
-                string arrayName, Array expected, Dictionary<Type, FieldInfo[]> valueFields)
+                string arrayName, Array expected)
             {
                 // Native SetShared* copies these optional inputs only when nonempty.
-                if (expected is { Length: > 0 }) MatchNativeBindingChunk(managerMesh, info, chunkName, arrayName, expected, valueFields);
+                if (expected is { Length: > 0 }) MatchNativeBindingChunk(managerMesh, info, chunkName, arrayName, expected);
             }
             private static void MatchNativeBindingChunk(object managerMesh, object info, string chunkName,
-                string arrayName, Array expected, Dictionary<Type, FieldInfo[]> valueFields)
+                string arrayName, Array expected)
             {
                 var chunk = Get(info, chunkName); var values = Get(managerMesh, arrayName);
                 var start = (int)Get(chunk, "startIndex"); var length = (int)Get(chunk, "dataLength");
                 if (expected == null || expected.Rank != 1 || expected.Length != length || start < 0 ||
                     start > (int)Get(values, "Length") - length)
                     throw new InvalidOperationException("A native shared binding chunk has incompatible dimensions: " + arrayName);
-                for (var index = 0; index < length; index++)
-                    if (!SameNativeBindingValue(expected.GetValue(index), NativeBindingItem(values, start + index), valueFields))
-                        throw new InvalidOperationException("A native shared identity has different binding content: " + arrayName);
+                if (length == 0) return;
+                var key = (expected.GetType(), values.GetType());
+                Func<Array, object, int, int, bool> matches;
+                lock (NativeBindingMatchers)
+                {
+                    if (!NativeBindingMatchers.TryGetValue(key, out matches))
+                        NativeBindingMatchers.Add(key, matches = CreateNativeBindingMatcher(key.Item1, key.Item2));
+                }
+                if (!matches(expected, values, start, length))
+                    throw new InvalidOperationException("A native shared identity has different binding content: " + arrayName);
             }
-            private static bool SameNativeBindingValue(object expected, object actual, Dictionary<Type, FieldInfo[]> valueFields)
+            private static Func<Array, object, int, int, bool> CreateNativeBindingMatcher(Type arrayType, Type containerType)
+            {
+                var expected = Expression.Parameter(typeof(Array), "expected");
+                var actual = Expression.Parameter(typeof(object), "actual");
+                var start = Expression.Parameter(typeof(int), "start");
+                var length = Expression.Parameter(typeof(int), "length");
+                var item = containerType.GetProperty("Item", Fields);
+                if (item == null)
+                    return Expression.Lambda<Func<Array, object, int, int, bool>>(
+                        NativeBindingError(typeof(bool), new MissingMemberException(containerType.FullName, "Item")), expected, actual, start, length).Compile();
+                var array = Expression.Variable(arrayType, "array");
+                var container = Expression.Variable(containerType, "container");
+                var index = Expression.Variable(typeof(int), "index");
+                var left = Expression.Variable(arrayType.GetElementType(), "left");
+                var right = Expression.Variable(item.PropertyType, "right");
+                var stop = Expression.Label(typeof(bool));
+                var compare = NativeBindingComparison(left, right);
+                var body = Expression.Block(new[] { array, container, index, left, right },
+                    Expression.Assign(array, Expression.Convert(expected, arrayType)),
+                    Expression.Assign(container, Expression.Convert(actual, containerType)),
+                    Expression.Assign(index, Expression.Constant(0)),
+                    Expression.Loop(Expression.IfThenElse(Expression.LessThan(index, length),
+                        Expression.Block(Expression.Assign(left, Expression.ArrayIndex(array, index)),
+                            Expression.Assign(right, Expression.Property(container, item, Expression.Add(start, index))),
+                            Expression.IfThen(Expression.Not(compare), Expression.Break(stop, Expression.Constant(false))),
+                            Expression.PostIncrementAssign(index), Expression.Empty()),
+                        Expression.Break(stop, Expression.Constant(true))), stop));
+                return Expression.Lambda<Func<Array, object, int, int, bool>>(body, expected, actual, start, length).Compile();
+            }
+            private static bool SameNativeBindingValue(object expected, object actual)
             {
                 if (expected == null || actual == null) return expected == null && actual == null;
-                if (expected is float a && actual is float b)
+                var key = (expected.GetType(), actual.GetType());
+                Func<object, object, bool> compare;
+                lock (NativeBindingValues)
                 {
-                    if (float.IsNaN(a) || float.IsInfinity(a) || float.IsNaN(b) || float.IsInfinity(b))
-                        throw new InvalidOperationException("Native shared binding contains a nonfinite scalar.");
-                    return BitConverter.DoubleToInt64Bits(a) == BitConverter.DoubleToInt64Bits(b);
+                    if (!NativeBindingValues.TryGetValue(key, out compare))
+                    {
+                        var left = Expression.Parameter(typeof(object), "expected");
+                        var right = Expression.Parameter(typeof(object), "actual");
+                        compare = Expression.Lambda<Func<object, object, bool>>(
+                            NativeBindingComparison(Expression.Convert(left, key.Item1), Expression.Convert(right, key.Item2), true), left, right).Compile();
+                        NativeBindingValues.Add(key, compare);
+                    }
                 }
-                if (expected is Vector2 uv)
-                    return SameNativeBindingValue(uv.x, Get(actual, "x"), valueFields) && SameNativeBindingValue(uv.y, Get(actual, "y"), valueFields);
-                var type = expected.GetType();
-                if (type != actual.GetType()) return false;
-                if (type.IsPrimitive || type.IsEnum) return expected.Equals(actual);
-                if (!type.IsValueType) throw new InvalidOperationException("Native shared binding has an unsupported reference value.");
-                if (!valueFields.TryGetValue(type, out var fields))
-                    valueFields.Add(type, fields = type.GetFields(Fields));
-                if (fields.Length == 0) throw new InvalidOperationException("Native shared binding has no inspectable value fields.");
-                foreach (var field in fields)
-                    if (!SameNativeBindingValue(field.GetValue(expected), field.GetValue(actual), valueFields)) return false;
-                return true;
+                return compare(expected, actual);
             }
+            private static Expression NativeBindingComparison(Expression expected, Expression actual, bool runtimeTypes = false)
+            {
+                var leftType = expected.Type; var rightType = actual.Type;
+                var leftNullable = Nullable.GetUnderlyingType(leftType); var rightNullable = Nullable.GetUnderlyingType(rightType);
+                if (leftNullable != null || rightNullable != null)
+                {
+                    var leftNull = NativeBindingNull(expected); var rightNull = NativeBindingNull(actual);
+                    return Expression.Condition(Expression.OrElse(leftNull, rightNull), Expression.AndAlso(leftNull, rightNull),
+                        NativeBindingComparison(leftNullable == null ? expected : Expression.Property(expected, "Value"),
+                            rightNullable == null ? actual : Expression.Property(actual, "Value"), runtimeTypes));
+                }
+                if (leftType == typeof(float) && rightType == typeof(float))
+                {
+                    Expression Finite(Expression value) => Expression.AndAlso(
+                        Expression.Not(Expression.Call(typeof(float), nameof(float.IsNaN), null, value)),
+                        Expression.Not(Expression.Call(typeof(float), nameof(float.IsInfinity), null, value)));
+                    Expression Bits(Expression value) => Expression.Call(typeof(BitConverter), nameof(BitConverter.DoubleToInt64Bits), null,
+                        Expression.Convert(value, typeof(double)));
+                    return Expression.Condition(Expression.AndAlso(Finite(expected), Finite(actual)), Expression.Equal(Bits(expected), Bits(actual)),
+                        NativeBindingError(typeof(bool), new InvalidOperationException("Native shared binding contains a nonfinite scalar.")));
+                }
+                if (leftType == typeof(Vector2))
+                {
+                    Expression Axis(string name)
+                    {
+                        var field = NativeField(rightType, name);
+                        var property = field == null ? rightType.GetProperty(name, Fields) : null;
+                        if (field == null && property == null)
+                            return NativeBindingError(typeof(bool), new MissingMemberException(rightType.FullName, name));
+                        var member = field != null ? (Expression)Expression.Field(actual, field) : Expression.Property(actual, property);
+                        var value = Expression.Variable(member.Type, name);
+                        return Expression.Block(new[] { value }, Expression.Assign(value, member),
+                            Expression.Condition(NativeBindingNull(value),
+                                NativeBindingError(typeof(bool), new MissingMemberException(rightType.FullName, name)),
+                                NativeBindingComparison(Expression.Field(expected, name), value)));
+                    }
+                    return Expression.AndAlso(Expression.Not(NativeBindingNull(actual)), Expression.AndAlso(Axis("x"), Axis("y")));
+                }
+                if (!runtimeTypes && (!leftType.IsValueType || !rightType.IsValueType))
+                    return Expression.Call(typeof(SourceGraph).GetMethod(nameof(SameNativeBindingValue), BindingFlags.Static | BindingFlags.NonPublic),
+                        Expression.Convert(expected, typeof(object)), Expression.Convert(actual, typeof(object)));
+                if (leftType != rightType) return Expression.Constant(false);
+                if (leftType.IsEnum) return Expression.Equal(expected, actual);
+                if (leftType.IsPrimitive)
+                    return Expression.Call(expected, leftType.GetMethod(nameof(Equals), new[] { leftType }), actual);
+                if (!leftType.IsValueType)
+                    return NativeBindingError(typeof(bool), new InvalidOperationException("Native shared binding has an unsupported reference value."));
+                var fields = leftType.GetFields(Fields);
+                if (fields.Length == 0)
+                    return NativeBindingError(typeof(bool), new InvalidOperationException("Native shared binding has no inspectable value fields."));
+                return fields.Select(field => NativeBindingComparison(Expression.Field(expected, field), Expression.Field(actual, field)))
+                    .Aggregate(Expression.AndAlso);
+            }
+            private static Expression NativeBindingNull(Expression value) => Nullable.GetUnderlyingType(value.Type) != null
+                ? Expression.Not(Expression.Property(value, "HasValue"))
+                : value.Type.IsValueType ? Expression.Constant(false) : Expression.ReferenceEqual(value, Expression.Constant(null, value.Type));
+            private static Expression NativeBindingMember(Expression value, string name) => NativeField(value.Type, name) is { } field
+                ? Expression.Field(value, field) : Expression.Property(value, value.Type.GetProperty(name, Fields) ??
+                    throw new MissingMemberException(value.Type.FullName, name));
+            private static Expression NativeBindingError(Type type, Exception error) => Expression.Throw(Expression.New(
+                error.GetType().GetConstructor(new[] { typeof(string) }), Expression.Constant(error.Message)), type);
 
             private void ValidateProspectiveData()
             {
@@ -1302,22 +1757,26 @@ public static class CustomModels
                 var virtualData = _owners.Where(owner => owner.Order == 1).Select(owner =>
                         _data.SingleOrDefault(data => ReferenceEquals(data.Deformer, owner.Deformer))?.Replacement)
                     .Where(data => data).ToArray();
-                var parents = new Dictionary<int, string>();
-                var children = new Dictionary<long, (int Parent, string Content)>();
+                var parents = new Dictionary<int, UnityEngine.Object>();
+                var children = new Dictionary<long, (int Parent, object Row)>();
                 foreach (var data in virtualData)
                 {
-                    var uid = (int)Get(data, "SaveDataHash"); var content = HashNativeData(data);
-                    if (parents.TryGetValue(uid, out var previous) && previous != content)
+                    var uid = (int)Get(data, "SaveDataHash");
+                    if (parents.TryGetValue(uid, out var previous) && !ReferenceEquals(previous, data) &&
+                        HashNativeData(previous) != HashNativeData(data))
                         throw new InvalidOperationException("Prepared native virtual sources have the same identity and different content.");
-                    parents[uid] = content;
+                    parents[uid] = data;
                     var rows = (IList)Get(data, "childDataList");
                     for (var index = 0; index < rows.Count; index++)
                     {
                         var childUid = unchecked((long)uid << ((16 + index) & 63));
-                        var childContent = HashNativeData(new[] { Get(rows[index], "vertexInfoList"), Get(rows[index], "vertexWeightList") });
-                        if (children.TryGetValue(childUid, out var child) && (child.Parent != uid || child.Content != childContent))
+                        var row = rows[index];
+                        if (children.TryGetValue(childUid, out var child) &&
+                            (child.Parent != uid || !ReferenceEquals(child.Row, row) &&
+                             HashNativeData(new[] { Get(child.Row, "vertexInfoList"), Get(child.Row, "vertexWeightList") }) !=
+                             HashNativeData(new[] { Get(row, "vertexInfoList"), Get(row, "vertexWeightList") })))
                             throw new InvalidOperationException("Prepared native child sources have conflicting shared identities.");
-                        children[childUid] = (uid, childContent);
+                        children[childUid] = (uid, row);
                     }
                 }
                 if (virtualData.Length == 0 || !(bool)InvokeStatic(ManagerType, "IsInstance")) return;
@@ -1507,6 +1966,7 @@ public static class CustomModels
                 {
                     if (skin.Superseded || skin.Renderer is not SkinnedMeshRenderer renderer || !renderer) continue;
                     var mesh = installed ? skin.Replacement : skin.Original;
+                    if (!mesh) continue;
                     for (var index = 0; index < Math.Min(skin.Weights.Length, mesh.blendShapeCount); index++)
                         renderer.SetBlendShapeWeight(index, skin.Weights[index]);
                 }
@@ -1520,6 +1980,7 @@ public static class CustomModels
 
             private void ValidateSources(bool installed)
             {
+                ValidateBoundaryOwners();
                 foreach (var owner in _owners)
                 {
                     if (!owner.Component) continue;
@@ -1538,7 +1999,8 @@ public static class CustomModels
                     if (!skin.Renderer) continue;
                     var expected = installed ? skin.Replacement : skin.Original;
                     var source = skin.Deformer == null ? CurrentMesh(skin.Renderer) : SourceMesh.GetValue(skin.Deformer) as Mesh;
-                    if (_started && skin.Deformer == null && source != skin.Replacement)
+                    if (_started && skin.Deformer == null && source != skin.Replacement &&
+                        (installed || source != skin.Original))
                     {
                         // A newer ordinary-skin owner keeps its mesh and weights.
                         skin.Superseded = true;
@@ -1558,6 +2020,21 @@ public static class CustomModels
                     if (!ReferenceEquals(actual, expected) && (_applied || !ReferenceEquals(actual, data.Original)))
                         throw new InvalidOperationException("A different native data owner prevents skin restoration.");
                 }
+            }
+            private void ValidateBoundaryOwners()
+            {
+                if (_boundaryVirtualOwners.Count == 0) return;
+                var virtuals = _graphics.GetComponentsInChildren(VirtualType, true).Cast<Component>().Where(component =>
+                    ((IEnumerable)Get(Get(component, "Deformer"), "renderDeformerList")).Cast<Component>().Any(_boundaryRenderOwners.Contains)).ToArray();
+                var cloths = _graphics.GetComponentsInChildren(ClothBaseType, true).Cast<Component>().Where(component =>
+                    Optional(component, "virtualDeformer") is Component parent && _boundaryVirtualOwners.Contains(parent)).ToArray();
+                if (virtuals.Length != _boundaryVirtualOwners.Count || virtuals.Any(component => !_boundaryVirtualOwners.Contains(component)) ||
+                    cloths.Length != _boundaryClothVertices.Count || cloths.Any(component => !_boundaryClothVertices.Keys.Any(owner => owner.Component == component)))
+                    throw new InvalidOperationException("A different native consumer generation invalidated the boundary skin proof.");
+                foreach (var pair in _boundaryClothVertices)
+                    if (!pair.Key.Component || !ReferenceEquals(Optional(pair.Key.Component, "ClothData"), pair.Key.ClothData) ||
+                        !((IEnumerable)Get(pair.Key.ClothData, "useVertexList")).Cast<int>().SequenceEqual(pair.Value))
+                        throw new InvalidOperationException("A native cloth registration changed after the boundary skin proof was prepared.");
             }
             private static Mesh CurrentMesh(Renderer renderer) => renderer is SkinnedMeshRenderer skin
                 ? skin.sharedMesh : renderer.GetComponent<MeshFilter>()?.sharedMesh;

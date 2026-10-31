@@ -266,9 +266,28 @@
     </Reference>
   </ItemGroup>
 
+  <UsingTask TaskName="NormalizeZipEntryTimestamps" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <ArchivePath ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.IO.Compression" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        using (var stream = File.Open(ArchivePath, FileMode.Open, FileAccess.ReadWrite))
+        using (var archive = new ZipArchive(stream, ZipArchiveMode.Update))
+        {
+            var timestamp = new DateTimeOffset(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
+            foreach (var entry in archive.Entries) entry.LastWriteTime = timestamp;
+        }
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
   <Target Name="ZipTranslations" BeforeTargets="PreBuildEvent" Condition="('$(Configuration)' == 'Release' Or '$(Configuration)' == 'Release Install' Or '$(Configuration)' == 'Release Workflow')">
 <!--    <Exec Command="call ApplyTranslations.bat" />-->
     <ZipDirectory Overwrite="true" SourceDirectory="$(ProjectDir)/Translations/" DestinationFile="$(ProjectDir)/Resources/Translations.zip" />
+    <NormalizeZipEntryTimestamps ArchivePath="$(ProjectDir)/Resources/Translations.zip" />
   </Target>
 
   <ItemGroup Condition="('$(Configuration)' == 'Release' Or '$(Configuration)' == 'Release Install' Or '$(Configuration)' == 'Release Workflow')">

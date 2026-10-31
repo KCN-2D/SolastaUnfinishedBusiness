@@ -349,8 +349,33 @@ try {
         $blenderArgs += $step.arguments
         $stageLog = Join-Path $runDirectory ("reports\$stage.log")
         New-Item -ItemType Directory -Path (Split-Path -Parent $stageLog) -Force | Out-Null
-        & $BlenderPath @blenderArgs 2>&1 | Tee-Object -FilePath $stageLog
-        if ($LASTEXITCODE -ne 0) { throw "Blender stage '$stage' failed with exit code $LASTEXITCODE. Output: $runDirectory" }
+        $previousErrorPreference = $ErrorActionPreference
+        $previousNativePreference = Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue
+        $previousNativePreferenceValue = if ($null -ne $previousNativePreference) { $previousNativePreference.Value } else { $null }
+        try {
+            # Windows PowerShell turns redirected stderr into ErrorRecord values.
+            # Preserve the complete native diagnostic before judging its exit code.
+            $ErrorActionPreference = 'Continue'
+            $PSNativeCommandUseErrorActionPreference = $false
+            & $BlenderPath @blenderArgs 2>&1 | ForEach-Object {
+                if ($_ -is [Management.Automation.ErrorRecord] -and
+                    $_.FullyQualifiedErrorId -cnotin @('NativeCommandError', 'NativeCommandErrorMessage')) {
+                    throw $_
+                }
+                [string]$_
+            } -ErrorAction Stop | Tee-Object -FilePath $stageLog -ErrorAction Stop
+            $nativeExitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $previousErrorPreference
+            if ($null -eq $previousNativePreference) {
+                Remove-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue
+            }
+            else {
+                $PSNativeCommandUseErrorActionPreference = $previousNativePreferenceValue
+            }
+        }
+        if ($nativeExitCode -ne 0) { throw "Blender stage '$stage' failed with exit code $nativeExitCode. Output: $runDirectory" }
         Assert-InputsUnchanged
         $stageReportPath = Join-Path $runDirectory "reports\$stage.json"
         if (-not (Test-Path -LiteralPath $stageReportPath -PathType Leaf)) {

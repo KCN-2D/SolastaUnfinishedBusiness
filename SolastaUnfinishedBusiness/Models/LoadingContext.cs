@@ -13,6 +13,8 @@ internal static class LoadingContext
     private static LoadingSettings _settings;
     private static bool _unloaded;
 
+    internal static bool IsLoadInProgress => !_unloaded && LoadingOwners.Count != 0;
+
     internal static void Initialize()
     {
         Unload();

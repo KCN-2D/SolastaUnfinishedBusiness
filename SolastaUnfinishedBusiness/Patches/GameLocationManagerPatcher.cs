@@ -35,6 +35,7 @@ public static class GameLocationManagerPatcher
         {
             LoadingContext.UpdateLoadingState(
                 __instance, __instance.locationLoadingCoroutine, __instance.locationUnloadingCoroutine);
+            if (__instance.LocationIsReady) RacesContext.RefreshPendingCharacterModels();
             CivilianAnimationContext.UpdateAmbientCivilianAnimations();
         }
 
@@ -163,6 +164,7 @@ public static class GameLocationManagerPatcher
         [UsedImplicitly]
         public static void Postfix(GameLocationManager __instance)
         {
+            RacesContext.RefreshPendingCharacterModels();
             CivilianAnimationContext.ResumeCivilianReactions();
             CombatAiContext.RestoreEnemyBattleTactics();
             CampaignTranslationRuntimeRepairContext.RepairWorldLocationGadgets(

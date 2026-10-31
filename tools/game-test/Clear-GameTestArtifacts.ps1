@@ -8,12 +8,18 @@ param(
     [ValidateRange(0,9223372036854775807)][long]$MaxRetainedBytes=0,
     [switch]$PruneSuperseded,
     [switch]$ReleaseNativeUserData,
+    [switch]$AuditInputValidation,
+    [string]$InputProducerPath,
     [switch]$Apply
 )
 . (Join-Path $PSScriptRoot 'GameTest.Common.ps1')
 if ($ReleaseNativeUserData -and ($PruneSuperseded -or $MaxAgeDays -gt 0 -or $MaxRetainedBytes -gt 0)) {
     throw 'Native user-data release is separate from run/build pruning.'
 }
+if($AuditInputValidation -and ($ReleaseNativeUserData -or $PruneSuperseded -or $MaxAgeDays -gt 0 -or $MaxRetainedBytes -gt 0 -or -not $InputProducerPath)) {
+    throw 'Input-validation audit requires its producer source and runs separately from payload cleanup.'
+}
+if($InputProducerPath -and -not $AuditInputValidation){throw 'InputProducerPath is only used by an input-validation audit.'}
 function Test-ArtifactEnvironment([string]$Path) {
     return [IO.File]::Exists([IO.Path]::Combine($Path,'tools','game-test','GameTest.Common.ps1'))
 }
@@ -96,7 +102,7 @@ function Get-CleanupResultSummary($Result) {
     $summary=[ordered]@{}
     foreach($name in @('status','reason','runName','caseId','startedUtc','completedUtc','passed','failed','incomplete','validationOnly','startupOnly','compilationSucceeded',
         'settingsRestored','displaySettingsRestored','probeRemoved','originalNativeFilesUnchanged','restored','originalSavePreserved','nativeVerificationStatus',
-        'hashes','expectedUb','loadedUb','sources','adapterSources','toolSources')) {
+        'hashes','expectedUb','loadedUb','sources','adapterSources','toolSources','execution')) {
         if($name -in $Result.PSObject.Properties.Name){$summary[$name]=$Result.$name}
     }
     if('processCleanup' -in $Result.PSObject.Properties.Name){
@@ -133,6 +139,36 @@ try {
     Write-CleanupEvent ([ordered]@{event='cleanup-start';schemaVersion=1;utc=[DateTime]::UtcNow.ToString('O');applied=[bool]$Apply;policy=$policy;referenceInputs=$referenceInputs})
     $journal.Flush($true);$journalState.flushes++
     $directories=@(Get-ArtifactBoundaries $root)
+    if($AuditInputValidation) {
+        foreach($directory in $directories) {
+            $run=$directory.FullName
+            if((Test-Preserved $run) -or (Test-Referenced $run) -or
+                -not [IO.File]::Exists((Join-Path $run 'Directory.json')) -or
+                -not [IO.File]::Exists((Join-Path $run 'Result.json'))) {continue}
+            try {
+                $identity=Read-GtObject (Join-Path $run 'Directory.json')
+                if($identity.layout -cnotin @('GameTest','Runtime')){continue}
+                if($identity.layout -ceq 'GameTest' -and -not [IO.File]::Exists((Join-Path $run 'Build.json'))){continue}
+                $existing=Read-GtObject (Join-Path $run 'Result.json')
+                if($identity.layout -ceq 'Runtime' -and ('validationOnly' -notin $existing.PSObject.Properties.Name -or $existing.validationOnly -isnot [bool] -or -not $existing.validationOnly)){continue}
+                if('execution' -in $existing.PSObject.Properties.Name){continue}
+                if(Test-Path -LiteralPath (Join-Path $run 'InputValidationAudit.json')) {
+                    [void](Get-GtInputValidationRun $run $existing)
+                    $retentionReasons[$run]='completed-input-audit';continue
+                }
+                if($Apply){Assert-ArtifactGameStopped;Assert-ReferencesCurrent}
+                $audit=New-GtInputValidationAudit $run $InputProducerPath -Preview:(-not $Apply)
+                $action=[pscustomobject]@{kind='input-validation-audit';path=$run;bytes=0;applied=[bool]$Apply;producerSha256=$audit.producer.sha256}
+                $actions.Add($action);Save-CleanupReport $action
+            } catch {
+                $retentionReasons[$run]='input-validation-not-proven'
+                $actions.Add([pscustomobject]@{kind='retained';path=$run;bytes=0;applied=$false;reason=$_.Exception.Message})
+            }
+        }
+        Write-Host ('{0} input audit entries; applied={1}' -f $actions.Count,[bool]$Apply)
+        Write-Host "Report: $report"
+        return
+    }
     $backupDirectories=if ($ReleaseNativeUserData) { @() } else { $directories }
     foreach ($directory in $backupDirectories) {
         $run=$directory.FullName
@@ -184,6 +220,8 @@ try {
                 $transactionPath=Join-Path $directory.FullName 'Transaction.json'
                 if ((Test-Path -LiteralPath $resultPath -PathType Leaf) -and -not (Test-Path -LiteralPath $transactionPath -PathType Leaf)) {
                     $runtime=Read-GtObject $resultPath
+                    $inputValidation=Get-GtInputValidationRun $directory.FullName $runtime
+                    if($null -ne $inputValidation){$inputValidation;continue}
                     if ('status' -in $runtime.PSObject.Properties.Name -and $runtime.status -cin @('success','failed','incomplete')) {
                         Get-GtRuntimeRun $directory.FullName $runtime
                         continue
@@ -224,7 +262,7 @@ try {
             $run | Add-Member -NotePropertyName identityHash -NotePropertyValue (Get-GtHash $identityPath)
             $run | Add-Member -NotePropertyName identityPath -NotePropertyValue $identityPath
         }
-        foreach ($group in $runs | Group-Object caseId) {
+        foreach ($group in $runs | Group-Object kind,caseId) {
             foreach ($run in @($group.Group | Sort-Object completed -Descending | Select-Object -First $KeepLatestPerCase)) {
                 $retentionReasons[$run.path]='latest-per-case'
             }
@@ -301,6 +339,7 @@ try {
             if ($Run.path -eq $root -or -not (Test-GtWithin $Run.path $root)) { throw 'The cleanup report root cannot be deleted.' }
             if (Test-Path -LiteralPath (Join-Path $Run.gameDirectory 'Mods\.UBGameTestTransaction.json')) { throw 'A recovery transaction appeared during cleanup.' }
             if ($Run.kind -eq 'runtime') { [void](Get-GtRuntimeRun $Run.path (Read-GtObject $Run.identityPath)) }
+            elseif ($Run.kind -eq 'input-validation') { $current=Get-GtInputValidationRun $Run.path (Read-GtObject $Run.identityPath);if($null -eq $current -or $current.kind -cne 'input-validation'){throw 'Input-validation ownership disappeared before cleanup.'} }
             elseif ($Run.kind -eq 'game-test') {
                 $transaction=Read-GtObject (Join-Path $Run.path 'Transaction.json')
                 if ($transaction.schemaVersion -ne 1 -or $transaction.state -ne 'restored' -or
@@ -353,6 +392,7 @@ try {
                 $companions=@(if ($companionsByRun.ContainsKey($run.path)) { $companionsByRun[$run.path] })
                 if ((Get-GtHash $run.identityPath) -ne $run.identityHash) { throw 'A cleanup result changed during planning.' }
                 if ($run.kind -eq 'runtime') { [void](Get-GtRuntimeRun $run.path (Read-GtObject $run.identityPath)) }
+                elseif ($run.kind -eq 'input-validation') { $current=Get-GtInputValidationRun $run.path (Read-GtObject $run.identityPath);if($null -eq $current -or $current.kind -cne 'input-validation'){throw 'Input-validation ownership disappeared during cleanup planning.'} }
                 elseif ($run.kind -eq 'game-test') {
                     $transaction=Read-GtObject (Join-Path $run.path 'Transaction.json')
                     if ($transaction.schemaVersion -ne 1 -or $transaction.state -ne 'restored' -or
@@ -368,7 +408,7 @@ try {
                 }
                 $diagnostic=[ordered]@{path=$run.path;kind=$run.kind;caseId=$run.caseId;completedUtc=$run.completed.ToUniversalTime().ToString('O');
                     identitySha256=$run.identityHash;result=(Get-CleanupResultSummary $run.result);runtimeResult=$null;receiptHashes=@()}
-                foreach ($name in @('Directory.json','Transaction.json','BackupRelease.json','Build.json')) {
+                foreach ($name in @('Directory.json','Transaction.json','BackupRelease.json','Build.json','InputValidationAudit.json','InputValidationProducer.ps1')) {
                     $path=Join-Path $run.path $name
                     if (Test-Path -LiteralPath $path -PathType Leaf) { $diagnostic.receiptHashes+= [ordered]@{name=$name;sha256=Get-GtHash $path} }
                 }

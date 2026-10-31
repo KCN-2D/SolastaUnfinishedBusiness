@@ -705,7 +705,9 @@ try {
     Invoke-Step -Description "SolastaUnfinishedBusiness.zip を作成しています..." -Action {
         Push-Location $localOutputRoot
         try {
-            & tar -acf $outputZip "SolastaUnfinishedBusiness"
+            # UMM extracts on its UI thread. Store the package so installation does
+            # not decode another compression layer over the Unity asset payloads.
+            & tar -acf $outputZip --options "zip:compression=store" "SolastaUnfinishedBusiness"
         }
         finally {
             Pop-Location

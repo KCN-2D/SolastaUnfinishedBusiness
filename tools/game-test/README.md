@@ -218,7 +218,15 @@ $evidence = '.\tools\game-test\artifacts'
 
 制作処理などが参照する入力は、`-ReferencePath '<参照JSON>'`で保持します。JSONは`{"schemaVersion":1,"paths":["<保持する証跡のパス>"]}`の形式で、`paths`に`tools/game-test/artifacts/`内のファイル・フォルダを指定します。相対パスは参照JSONの場所を基準にします。
 
-保持する実行に `Build.json` が保存されている場合は、その原本と一致する検証ビルドも保持します。整理結果の `retainedDirectories` に、最新の実行・参照先・ビルド入力などの保持理由を記録します。
+保持する実行に `Build.json` が保存されている場合は、その原本と一致する検証ビルドも保持します。`-ValidateOnly`で完了したGameTest・Runtimeの入力検証も整理対象です。整理結果の `retainedDirectories` に、最新の実行・参照先・ビルド入力などの保持理由を記録します。
+
+実行状態の記録がない入力検証は、実行元スクリプトと記録されたSHA-256が一致し、入力・イベント・非実行を確認できる場合に監査できます。`InputValidationAudit.json`へ証明を保存してから、通常の整理を実行します。
+
+```powershell
+& .\tools\game-test\Clear-GameTestArtifacts.ps1 -ArtifactRoot $evidence `
+  -AuditInputValidation -InputProducerPath '<元の実行スクリプト.ps1>'
+# 候補を確認し、同じ引数へ -Apply を追加します。
+```
 
 終了・復元を確認できた個別Runtime実行も対象です。結果と入力ハッシュを整理レポートへ保存し、所有する検証用データと実行証跡を先に撤去してから、参照されなくなったビルドを整理します。
 

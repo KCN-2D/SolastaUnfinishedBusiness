@@ -22,7 +22,7 @@ public static class GraphicsCharacterPatcher
         [UsedImplicitly]
         public static void Postfix(GraphicsCharacter __instance)
         {
-            RacesContext.RefreshCustomFaces(__instance);
+            RacesContext.RefreshCharacterModels(__instance);
         }
     }
 
@@ -87,7 +87,7 @@ public static class GraphicsCharacterPatcher
 
             if (__originalMethod.Name is nameof(GraphicsCharacter.RebindAnimator) or "ResetAnimatorState")
             {
-                __state = RacesContext.SuspendCustomFaces(__instance);
+                __state = RacesContext.SuspendCharacterModels(__instance);
                 CombatAnimationContext.ForgetActionAnimation(__instance);
             }
         }
@@ -115,7 +115,7 @@ public static class GraphicsCharacterPatcher
 
             if (__originalMethod.Name == nameof(GraphicsCharacter.SetupAfterEquipment))
             {
-                RacesContext.RefreshCustomFaces(__instance);
+                RacesContext.RefreshCharacterModels(__instance);
                 RacesContext.RefreshBodyShape(__instance);
             }
         }
@@ -125,7 +125,7 @@ public static class GraphicsCharacterPatcher
             Exception __exception)
         {
             if (__originalMethod.Name is nameof(GraphicsCharacter.RebindAnimator) or "ResetAnimatorState")
-                RacesContext.ResumeCustomFaces(__instance, __state, __exception != null);
+                RacesContext.ResumeCharacterModels(__instance, __state, __exception != null);
             return __exception;
         }
     }
@@ -139,7 +139,7 @@ public static class GraphicsCharacterPatcher
         {
             CombatAnimationContext.ReleaseEquipmentPresentation(__instance);
             RacesContext.ReleaseBodyShape(__instance);
-            RacesContext.ReleaseCustomFaces(__instance);
+            RacesContext.ReleaseCharacterModels(__instance);
             CivilianAnimationContext.ForgetCivilianReaction(__instance);
             CombatAnimationContext.ForgetActionAnimation(__instance);
         }

@@ -24,11 +24,10 @@ public static class GraphicsCharacterFactoryManagerPatcher
     public static class DestroyBodyPart_Patch
     {
         [UsedImplicitly]
-        public static void Prefix([HarmonyArgument(0)] GraphicsCharacter graphicsCharacter,
-            [HarmonyArgument(1)] GraphicsCharacterDefinitions.BodyPart part)
+        public static void Prefix([HarmonyArgument(0)] GraphicsCharacter graphicsCharacter)
         {
             RacesContext.ReleaseBodyShape(graphicsCharacter);
-            RacesContext.ReleaseCustomFacesForBodyPart(graphicsCharacter, part);
+            RacesContext.ReleaseCharacterModels(graphicsCharacter);
         }
     }
 
@@ -49,7 +48,7 @@ public static class GraphicsCharacterFactoryManagerPatcher
         [UsedImplicitly]
         public static void Postfix([HarmonyArgument(0)] GraphicsCharacter graphicsCharacter)
         {
-            RacesContext.RefreshCustomFaceMaterials(graphicsCharacter);
+            RacesContext.RefreshCharacterModelMaterials(graphicsCharacter);
         }
     }
 
@@ -874,12 +873,14 @@ public static class GraphicsCharacterFactoryManagerPatcher
         typeof(GraphicsCharacter))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
-    public static class FinalizeGnomeScavengerAppearance_Patch
+    public static class RefreshAllMorphotypeParameters_Patch
     {
         [UsedImplicitly]
         public static void Prefix(
-            [HarmonyArgument(0)] GraphicsCharacter graphicsCharacter)
+            [HarmonyArgument(0)] GraphicsCharacter graphicsCharacter,
+            out object __state)
         {
+            __state = RacesContext.BeginCharacterModelMaterialRefresh(graphicsCharacter);
             try
             {
                 RestoreGnomeScavengerAppearance(graphicsCharacter);
@@ -927,6 +928,13 @@ public static class GraphicsCharacterFactoryManagerPatcher
             }
 
             ApplyGnomeScavengerAppearance(graphicsCharacter, hero);
+        }
+
+        [UsedImplicitly]
+        public static Exception Finalizer(object __state, Exception __exception)
+        {
+            RacesContext.EndCharacterModelMaterialRefresh(__state, __exception != null);
+            return __exception;
         }
     }
 

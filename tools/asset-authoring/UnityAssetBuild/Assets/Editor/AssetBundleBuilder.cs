@@ -742,6 +742,10 @@ namespace SolastaAssetAuthoring
                     AssetDatabase.ImportAsset(state.outputPath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
                     return ValidateSourceAsset(state, AssetDatabase.LoadAssetAtPath(state.outputPath, state.assetType));
                 }).ToArray();
+                // Persisted clones own their data; input containers are no longer needed
+                // while building and reloading the replacement bundle.
+                foreach (var sourceBundle in sourceBundles) { if (sourceBundle != null) sourceBundle.Unload(true); report.sourceBundlesReleased++; }
+                sourceBundles.Clear();
                 var bundle = BuildAndReload(output, recipe.bundleName, paths.Concat(texturePaths).Concat(clones.Select(state => state.outputPath)).ToArray(), generated, report);
                 try
                 {
@@ -771,8 +775,6 @@ namespace SolastaAssetAuthoring
                 report.sceneCountAfter = SceneManager.sceneCount;
                 Require(report.activeScenePathBefore == report.activeScenePathAfter && report.activeSceneDirtyBefore == report.activeSceneDirtyAfter &&
                         report.sceneCountBefore == report.sceneCountAfter, "The mesh build changed the open scene state.");
-                foreach (var sourceBundle in sourceBundles) { if (sourceBundle != null) sourceBundle.Unload(true); report.sourceBundlesReleased++; }
-                sourceBundles.Clear();
                 report.stage = "complete"; report.success = true; report.completedUtc = DateTime.UtcNow.ToString("o");
                 WriteJson(reportPath, report); return true;
             }
@@ -970,6 +972,38 @@ namespace SolastaAssetAuthoring
             var serialized = new SerializedObject(mesh);
             var channels = MeshShapeChannels(serialized);
             Require(channels.arraySize == shapes.Length, "Temporary mesh blend shape physical slots were merged.");
+            var frames = serialized.FindProperty("m_Shapes.shapes");
+            var vertices = serialized.FindProperty("m_Shapes.vertices");
+            Require(frames != null && frames.isArray && vertices != null && vertices.isArray &&
+                frames.arraySize == shapes.Sum(shape => shape.frames.Length), "The mesh serialized blend shape data is unavailable.");
+            // AddBlendShapeFrame omits small deltas when constructing its sparse table.
+            // Store every supplied nonzero component so import does not alter authored frames.
+            var sparseCount = 0;
+            foreach (var shape in shapes)
+                foreach (var frame in shape.frames)
+                    for (var vertex = 0; vertex < frame.vertices.Length / 3; vertex++)
+                        if (MeshBlendFrameHasData(frame, vertex)) sparseCount++;
+            vertices.arraySize = sparseCount;
+            var physicalFrame = 0; var sparseIndex = 0;
+            foreach (var shape in shapes)
+                foreach (var frame in shape.frames)
+                {
+                    var stored = frames.GetArrayElementAtIndex(physicalFrame++);
+                    stored.FindPropertyRelative("firstVertex").longValue = sparseIndex;
+                    for (var vertex = 0; vertex < frame.vertices.Length / 3; vertex++)
+                    {
+                        if (!MeshBlendFrameHasData(frame, vertex)) continue;
+                        var row = vertices.GetArrayElementAtIndex(sparseIndex++);
+                        row.FindPropertyRelative("index").longValue = vertex;
+                        var offset = vertex * 3;
+                        row.FindPropertyRelative("vertex").vector3Value = new Vector3(frame.vertices[offset], frame.vertices[offset + 1], frame.vertices[offset + 2]);
+                        row.FindPropertyRelative("normal").vector3Value = new Vector3(frame.normals[offset], frame.normals[offset + 1], frame.normals[offset + 2]);
+                        row.FindPropertyRelative("tangent").vector3Value = new Vector3(frame.tangents[offset], frame.tangents[offset + 1], frame.tangents[offset + 2]);
+                    }
+                    stored.FindPropertyRelative("vertexCount").longValue = sparseIndex - stored.FindPropertyRelative("firstVertex").longValue;
+                    stored.FindPropertyRelative("hasNormals").boolValue = true;
+                    stored.FindPropertyRelative("hasTangents").boolValue = true;
+                }
             var hashes = new Dictionary<string, long>(StringComparer.Ordinal);
             var firstFrame = 0;
             for (var index = 0; index < shapes.Length; index++)
@@ -993,6 +1027,14 @@ namespace SolastaAssetAuthoring
                 return channel.FindPropertyRelative("name").stringValue == shapes[index].name &&
                     channel.FindPropertyRelative("nameHash").longValue == hashes[shapes[index].name];
             }), "Mesh blend shape names/hashes were not restored.");
+        }
+        private static bool MeshBlendFrameHasData(MeshBlendFrame frame, int vertex)
+        {
+            for (var axis = vertex * 3; axis < vertex * 3 + 3; axis++)
+                if (BitConverter.DoubleToInt64Bits(frame.vertices[axis]) != 0 ||
+                    BitConverter.DoubleToInt64Bits(frame.normals[axis]) != 0 ||
+                    BitConverter.DoubleToInt64Bits(frame.tangents[axis]) != 0) return true;
+            return false;
         }
         private static string HashBytes(byte[] bytes)
         {
