@@ -11,13 +11,13 @@ function Field($Value,[string]$Name) {
     $property=$Value.PSObject.Properties[$Name]
     if($null -ne $property -and $null -ne $property.Value){return $property.Value}
 }
-function Text-Field($Value,[string]$Name,[bool]$Optional=$false) {
+function Get-TextField($Value,[string]$Name,[bool]$Optional=$false) {
     $text=Field $Value $Name
     if($null -eq $text -and $Optional){return ''}
     if($text -isnot [string] -or (-not $Optional -and [string]::IsNullOrWhiteSpace($text))){throw "Manifest string required: $Name"}
     return $text
 }
-function Array-Field($Value,[string]$Name) {
+function Get-ArrayField($Value,[string]$Name) {
     $property=$Value.PSObject.Properties[$Name]
     if($null -eq $property -or $property.Value -isnot [Array]){throw "Manifest array required: $Name"}
     return $property.Value
@@ -34,7 +34,7 @@ function Artifact([string]$Path,[string]$ExpectedSha='') {
     $actual=if($exists){Hash $Path}else{$null}
     [ordered]@{path=$Path;exists=$exists;sha256=$actual;expectedSha256=$ExpectedSha;hashMatches=$(if($ExpectedSha -and $exists){[string]::Equals($actual,$ExpectedSha,[StringComparison]::OrdinalIgnoreCase)}else{$null})}
 }
-function Check-Status($Checks) {
+function Get-CheckStatus($Checks) {
     $statuses=@($Checks | ForEach-Object {$_.status})
     if($statuses -ccontains 'FAIL'){'FAIL'}elseif($statuses -ccontains 'NOT_RECORDED' -or $statuses.Count -eq 0){'NOT_RECORDED'}elseif($statuses -ccontains 'REVIEW'){'REVIEW'}else{'PASS'}
 }
@@ -57,39 +57,39 @@ foreach($path in $orderedPaths) {
         continue
     }
     if((Field $data 'schemaVersion') -ne 1){throw "Unsupported presentation manifest schema: $path"}
-    $input=[ordered]@{path=$path;sha256=(Hash $path)}
-    $inputs.Add($input)
-    $title=Text-Field $data 'title'
+    $manifestInput=[ordered]@{path=$path;sha256=(Hash $path)}
+    $inputs.Add($manifestInput)
+    $title=Get-TextField $data 'title'
     $frameIds=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-    $frames=@(foreach($frame in @(Array-Field $data 'frames')) {
-        $id=Text-Field $frame 'id'
+    $frames=@(foreach($frame in @(Get-ArrayField $data 'frames')) {
+        $id=Get-TextField $frame 'id'
         if(-not $frameIds.Add($id)){throw "Duplicate frame id: $id"}
-        $artifact=Artifact (Resolve-ArtifactPath $path (Text-Field $frame 'path')) (Text-Field $frame 'sha256' $true)
-        [ordered]@{id=$id;path=$artifact.path;label=(Text-Field $frame 'label' $true);group=(Text-Field $frame 'group' $true);phase=(Text-Field $frame 'phase' $true);exists=$artifact.exists;sha256=$artifact.sha256;expectedSha256=$artifact.expectedSha256;hashMatches=$artifact.hashMatches}
+        $artifact=Artifact (Resolve-ArtifactPath $path (Get-TextField $frame 'path')) (Get-TextField $frame 'sha256' $true)
+        [ordered]@{id=$id;path=$artifact.path;label=(Get-TextField $frame 'label' $true);group=(Get-TextField $frame 'group' $true);phase=(Get-TextField $frame 'phase' $true);exists=$artifact.exists;sha256=$artifact.sha256;expectedSha256=$artifact.expectedSha256;hashMatches=$artifact.hashMatches}
     })
     $checkIds=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-    $checks=@(foreach($check in @(Array-Field $data 'checks')) {
-        $id=Text-Field $check 'id';$state=Text-Field $check 'status'
+    $checks=@(foreach($check in @(Get-ArrayField $data 'checks')) {
+        $id=Get-TextField $check 'id';$state=Get-TextField $check 'status'
         if(-not $checkIds.Add($id)){throw "Duplicate check id: $id"}
         if(@('PASS','FAIL','REVIEW','NOT_RECORDED') -cnotcontains $state){throw "Invalid manifest check status: $state"}
-        $evidence=@(foreach($frameId in @(Array-Field $check 'evidence')) {
+        $evidence=@(foreach($frameId in @(Get-ArrayField $check 'evidence')) {
             if($frameId -isnot [string] -or -not $frameIds.Contains($frameId)){throw "Unknown evidence frame id: $frameId"}
             $frameId
         })
         $missingEvidence=@($frames | Where-Object {$evidence -ccontains $_.id -and -not $_.exists})
         $changedEvidence=@($frames | Where-Object {$evidence -ccontains $_.id -and $_.hashMatches -eq $false})
         $evidenceState=if($changedEvidence.Count){'FAIL'}elseif($missingEvidence.Count){'NOT_RECORDED'}else{'PASS'}
-        $effectiveState=Check-Status @([ordered]@{status=$state},[ordered]@{status=$evidenceState})
-        [ordered]@{id=$id;title=(Text-Field $check 'title');status=$effectiveState;declaredStatus=$state;expected=(Text-Field $check 'expected' $true);actual=(Text-Field $check 'actual' $true);evidence=$evidence;missingEvidence=@($missingEvidence | ForEach-Object {$_.id})}
+        $effectiveState=Get-CheckStatus @([ordered]@{status=$state},[ordered]@{status=$evidenceState})
+        [ordered]@{id=$id;title=(Get-TextField $check 'title');status=$effectiveState;declaredStatus=$state;expected=(Get-TextField $check 'expected' $true);actual=(Get-TextField $check 'actual' $true);evidence=$evidence;missingEvidence=@($missingEvidence | ForEach-Object {$_.id})}
     })
-    $sources=@(foreach($source in @(Array-Field $data 'sources')) {
-        $artifact=Artifact (Resolve-ArtifactPath $path (Text-Field $source 'path')) (Text-Field $source 'sha256' $true)
-        [ordered]@{path=$artifact.path;role=(Text-Field $source 'role' $true);expectedSha256=$artifact.expectedSha256;exists=$artifact.exists;sha256=$artifact.sha256;hashMatches=$artifact.hashMatches}
+    $sources=@(foreach($source in @(Get-ArrayField $data 'sources')) {
+        $artifact=Artifact (Resolve-ArtifactPath $path (Get-TextField $source 'path')) (Get-TextField $source 'sha256' $true)
+        [ordered]@{path=$artifact.path;role=(Get-TextField $source 'role' $true);expectedSha256=$artifact.expectedSha256;exists=$artifact.exists;sha256=$artifact.sha256;hashMatches=$artifact.hashMatches}
     })
     $frameStatus=if(@($frames | Where-Object {$_.hashMatches -eq $false}).Count){'FAIL'}elseif(@($frames | Where-Object {-not $_.exists}).Count){'NOT_RECORDED'}else{'PASS'}
     $sourceStatus=if(@($sources | Where-Object {$_.hashMatches -eq $false}).Count){'FAIL'}elseif(@($sources | Where-Object {-not $_.exists}).Count){'NOT_RECORDED'}else{'PASS'}
-    $documentStatus=Check-Status @([ordered]@{status=(Check-Status $checks)},[ordered]@{status=$sourceStatus},[ordered]@{status=$frameStatus})
-    $documents.Add([ordered]@{manifest=$path;manifestSha256=$input.sha256;title=$title;status=$documentStatus;sourceIntegrity=$sourceStatus;frameIntegrity=$frameStatus;frames=$frames;checks=$checks;sources=$sources})
+    $documentStatus=Get-CheckStatus @([ordered]@{status=(Get-CheckStatus $checks)},[ordered]@{status=$sourceStatus},[ordered]@{status=$frameStatus})
+    $documents.Add([ordered]@{manifest=$path;manifestSha256=$manifestInput.sha256;title=$title;status=$documentStatus;sourceIntegrity=$sourceStatus;frameIntegrity=$frameStatus;frames=$frames;checks=$checks;sources=$sources})
 }
 if($documents.Count -eq 0){[pscustomobject]@{status='NOT_APPLICABLE';visualAcceptance='NOT_REVIEWED';reason='No supported presentation evidence manifest.'};return}
 if(-not $OutputDirectory) {
@@ -99,8 +99,8 @@ if(-not $OutputDirectory) {
     $OutputDirectory=Join-Path $PSScriptRoot ('artifacts\PresentationReview\'+$key)
 }
 $output=[IO.Path]::GetFullPath($OutputDirectory)
-foreach($input in $inputs) {
-    $sourceDirectory=[IO.Path]::GetDirectoryName($input.path).TrimEnd('\','/')
+foreach($manifestInput in $inputs) {
+    $sourceDirectory=[IO.Path]::GetDirectoryName($manifestInput.path).TrimEnd('\','/')
     if($output -eq $sourceDirectory -or $output.StartsWith($sourceDirectory+[IO.Path]::DirectorySeparatorChar,[StringComparison]::OrdinalIgnoreCase)){throw 'Review output must be outside the source evidence directory.'}
 }
 $cursor=$output
@@ -114,8 +114,8 @@ foreach($name in @('Summary.json','Review.html')) {
 }
 $contexts=[Collections.Generic.List[object]]::new()
 $contextPaths=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-foreach($input in $inputs) {
-    $directory=[IO.Path]::GetDirectoryName($input.path)
+foreach($manifestInput in $inputs) {
+    $directory=[IO.Path]::GetDirectoryName($manifestInput.path)
     for($level=0;$level -lt 4 -and $directory;$level++) {
         $resultPath=Join-Path $directory 'Result.json'
         if((Test-Path -LiteralPath $resultPath -PathType Leaf) -and $contextPaths.Add($resultPath)) {
@@ -131,7 +131,7 @@ foreach($input in $inputs) {
 }
 $references=@(foreach($reference in $ReferenceImagePath){Artifact ((Resolve-Path -LiteralPath $reference).ProviderPath)})
 $allChecks=@(foreach($document in $documents){$document.checks})
-$status=Check-Status $documents
+$status=Get-CheckStatus $documents
 $summary=[ordered]@{schemaVersion=1;status=$status;visualAcceptance='NOT_REVIEWED';generatorSha256=(Hash $PSCommandPath);inputs=@($inputs.ToArray());documents=@($documents.ToArray());references=$references;runContext=@($contexts.ToArray())}
 [void][IO.Directory]::CreateDirectory($output)
 $utf8=[Text.UTF8Encoding]::new($false)
@@ -166,5 +166,5 @@ $html.Add('</table>')
 if($references.Count){$html.Add('<h2>参照画像</h2><div class="grid">');foreach($entry in $references){$html.Add('<figure><img src="'+(Link $entry.path)+'" alt="参照画像"><figcaption>'+(Escape ([IO.Path]::GetFileName($entry.path)))+'</figcaption></figure>')};$html.Add('</div>')}
 $html.Add('</html>')
 [IO.File]::WriteAllText((Join-Path $output 'Review.html'),($html -join [Environment]::NewLine)+[Environment]::NewLine,$utf8)
-foreach($input in $inputs){if((Hash $input.path) -cne $input.sha256){throw 'Source evidence changed during review.'}}
+foreach($manifestInput in $inputs){if((Hash $manifestInput.path) -cne $manifestInput.sha256){throw 'Source evidence changed during review.'}}
 [pscustomobject]@{status=$status;checks=$allChecks.Count;images=@(foreach($document in $documents){$document.frames}).Count;summary=(Join-Path $output 'Summary.json');html=(Join-Path $output 'Review.html')}

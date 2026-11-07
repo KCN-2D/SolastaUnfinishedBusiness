@@ -11,6 +11,9 @@ import hashlib
 import json
 import math
 from numbers import Real
+from typing import Any, TYPE_CHECKING, Protocol, Callable, overload
+from collections.abc import Iterable, Iterator, Sequence
+import importlib
 from pathlib import Path
 import re
 import struct
@@ -20,8 +23,46 @@ import time
 import zlib
 
 import bpy
-from mathutils import Vector
-from mathutils.kdtree import KDTree
+if TYPE_CHECKING:
+    class _Quaternion(Protocol):
+        def to_euler(self) -> Sequence[float]: ...
+
+    class _Vector(Protocol):
+        def __iter__(self) -> Iterator[float]: ...
+        def __getitem__(self, index: int) -> float: ...
+        def __len__(self) -> int: ...
+        def __add__(self, other: '_Vector') -> '_Vector': ...
+        def __sub__(self, other: '_Vector') -> '_Vector': ...
+        def __mul__(self, scalar: float) -> '_Vector': ...
+        def __rmul__(self, scalar: float) -> '_Vector': ...
+        def __truediv__(self, scalar: float) -> '_Vector': ...
+        @property
+        def length(self) -> float: ...
+        def normalized(self) -> '_Vector': ...
+        def normalize(self) -> None: ...
+        def cross(self, other: '_Vector') -> '_Vector': ...
+        def dot(self, other: '_Vector') -> float: ...
+        def angle(self, other: '_Vector', fallback: float | None = None) -> float: ...
+        def to_track_quat(self, track: str, up: str) -> _Quaternion: ...
+
+    class _Matrix(Protocol):
+        @overload
+        def __matmul__(self, other: '_Matrix') -> '_Matrix': ...
+        @overload
+        def __matmul__(self, other: _Vector) -> _Vector: ...
+        def to_3x3(self) -> '_Matrix': ...
+
+    class _KDTree(Protocol):
+        def insert(self, co: Iterable[float], index: int) -> None: ...
+        def balance(self) -> None: ...
+        def find(self, co: Iterable[float]) -> tuple[_Vector, int, float]: ...
+        def find_range(self, co: Iterable[float], radius: float) -> list[tuple[_Vector, int, float]]: ...
+
+# Blender embeds these compiled modules in its own Python runtime.
+# The constructors stay native; the shared boundary declares the API used here.
+Vector: 'Callable[[Iterable[float]], _Vector]' = getattr(importlib.import_module('mathutils'), 'Vector')
+Matrix: 'Callable[[Iterable[Iterable[float]]], _Matrix]' = getattr(importlib.import_module('mathutils'), 'Matrix')
+KDTree: 'Callable[[int], _KDTree]' = getattr(importlib.import_module('mathutils.kdtree'), 'KDTree')
 
 
 VERSION = (4, 5, 9)
@@ -40,6 +81,17 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
+if TYPE_CHECKING:
+    class _CyclesApi(Protocol):
+        def get_device_types(self) -> tuple[bool, bool, bool, bool, bool, bool]: ...
+        def set_device_override(self, backend: str) -> bool: ...
+
+def _cycles_api() -> '_CyclesApi':
+    # Blender provides this extension inside its own Python process.
+    import importlib
+    from typing import cast
+    return cast('_CyclesApi', importlib.import_module('_cycles'))
+
 CYCLES_GPU_BACKENDS=('CUDA','OPTIX','HIP','METAL','ONEAPI')
 
 def _prevent_cycles_preferences_save():
@@ -54,13 +106,13 @@ def _prevent_cycles_preferences_save():
     require(not preferences.use_preferences_save,'Transient preference saving was not disabled.')
     return before
 
-def inspect_cycles_devices(backend):
+def inspect_cycles_devices(backend) -> dict[str, Any]:
     import bpy
-    import _cycles
+    cycles = _cycles_api()
     require(tuple(bpy.app.version)==VERSION,'Cycles device selection requires Blender 4.5.9.')
     require(backend in CYCLES_GPU_BACKENDS,'An explicit supported GPU backend is required.')
     save_guard=_prevent_cycles_preferences_save()
-    native_flags=_cycles.get_device_types()
+    native_flags=cycles.get_device_types()
     require(len(native_flags)==6,'The target Cycles backend capability signature differs.')
     available=dict(zip(('CUDA','OPTIX','HIP','METAL','ONEAPI','HIPRT'),map(bool,native_flags)))
     require(available[backend],'The installed Cycles build does not report the requested backend.')
@@ -77,9 +129,9 @@ def inspect_cycles_devices(backend):
                 requestedBackend=backend,compiledBackendCapabilities=available,devices=devices,
                 actualRenderVerified=False,preferencesSaved=False,preferenceSaveGuard=save_guard)
 
-def configure_cycles_device(spec,receipt_path):
+def configure_cycles_device(spec,receipt_path) -> dict[str, Any]:
     import bpy
-    import _cycles
+    cycles = _cycles_api()
     require(isinstance(spec,dict) and set(spec)=={'backend','deviceId'},'The device request must explicitly own backend and native persistent device ID.')
     backend=spec['backend'];device_id=spec['deviceId']
     require(isinstance(device_id,str) and bool(device_id),'Use a captured nonempty native device ID; names or invented IDs are not a substitute.')
@@ -95,7 +147,7 @@ def configure_cycles_device(spec,receipt_path):
     # Native documented process override also covers producers which set their
     # newly created scene.cycles.device='CPU'. It does not add unknown CLI args
     # to the producer's own strict argparse input or mutate the saved .blend.
-    require(_cycles.set_device_override(backend),'Native Cycles rejected the process override.')
+    require(cycles.set_device_override(backend),'Native Cycles rejected the process override.')
     receipt=dict(status='PROCESS_DEVICE_SELECTION_CONFIGURED_RENDER_PROOF_PENDING',request=spec,
                  observed=observation,originalProcessPreferences=before,
                  selectedDevices=[dict(id=d.id,name=d.name,type=d.type,use=bool(d.use)) for d in active],
@@ -176,6 +228,193 @@ def normal_map_rgb(rgba, source_encoding):
         normal = np.column_stack((x, y, z)) / length[:, None]
         result[start:stop, :3] = np.clip(np.rint((normal * .5 + .5) * 255), 0, 255).astype(np.uint8)
         result[start:stop, 3] = 255
+    return result.tobytes()
+
+
+
+
+def native_surface_uv_ownership(packet, skin, slot, shape, boundary_fade_metres, sampler,
+                                texture_property="_BumpMap"):
+    """Raster native slot ownership with physical seam and frame correspondence.
+
+    Ownership rises from true open cuts over the supplied distance in metres.
+    UV seams weld only when position, four weights/indices and every native
+    physical position frame match. Returned coverage includes zero-weight cuts;
+    combine coincident owners by minimum ownership to protect every source LOD.
+    Raster rows begin at V=1 and columns grow with U. Pixel data passed to
+    refine_native_normal_slopes must use that same row order; an upload to a
+    bottom-row-first native texture performs its row conversion separately.
+    No source packet, skeleton, UV, frame or material is written.
+    """
+    import heapq
+    import numpy as np
+    require(isinstance(shape, (tuple, list)) and len(shape) == 2 and
+            all(isinstance(value, int) and not isinstance(value, bool) and value > 0 for value in shape),
+            "Native UV ownership needs a positive height/width")
+    require(isinstance(boundary_fade_metres, Real) and not isinstance(boundary_fade_metres, bool) and
+            math.isfinite(boundary_fade_metres) and float(boundary_fade_metres) > 0,
+            "Native boundary fade must be a positive finite distance")
+    feather = float(boundary_fade_metres) / 6
+
+    h,w=shape
+    positions=np.asarray(packet['vertices'],dtype='<f4').reshape(-1,3)
+    require(len(positions) > 0 and np.isfinite(positions).all(), 'Native surface positions must be complete and finite')
+    transform=np.asarray(skin['rendererToPrefab']).reshape(4,4).T
+    require(np.isfinite(transform).all(), 'Native surface transform must be finite')
+    world=positions@transform[:3,:3].T+transform[:3,3]
+    uvrow=next(u for u in packet['uv'] if u['channel']==0)
+    uv=np.asarray(uvrow['values']).reshape(-1,4)[:,:2]
+    material=skin['materials'][slot]
+    prop=next(p for p in material['properties'] if p['name']==texture_property)
+    uv=uv*np.asarray(prop['scale'])+np.asarray(prop['offset'])
+    triangles=np.asarray(packet['subMeshes'][slot],dtype=int).reshape(-1,3)
+    require(len(triangles) > 0 and triangles.min() >= 0 and triangles.max() < len(positions), 'Native surface topology must be complete')
+    require(uv.shape == (len(positions), 2) and np.isfinite(uv).all(), 'Native surface UV must be complete and finite')
+    outside=[bool(np.min(uv[triangles,axis]) < -1e-6 or np.max(uv[triangles,axis]) > 1+1e-6) for axis in (0,1)]
+    require(all(not outside[axis] or sampler['wrapU' if axis==0 else 'wrapV']=='Repeat' for axis in (0,1)), 'Periodic source must retain its actual Repeat sampler.')
+    tile_instances=[]
+    for tri in triangles:
+        low=np.floor(uv[tri].min(axis=0)+1e-6).astype(int);high=np.floor(uv[tri].max(axis=0)-1e-6).astype(int)
+        low=np.minimum(low,high)
+        for u in range(int(low[0]),int(high[0])+1):
+            for v in range(int(low[1]),int(high[1])+1):tile_instances.append((tri,np.array([u,v])))
+    # Weld only native duplicate position + skin + all native position frames.
+    # Distinct skin/expression correspondences never become a fake interior edge.
+    require(np.isfinite(np.asarray(packet['weights'], dtype='<f4')).all(), 'Native surface skin weights must be finite')
+    require(all(np.isfinite(np.asarray(frame['vertices'], dtype='<f4')).all() for channel in packet['shapes'] for frame in channel['frames']), 'Native surface physical frames must be finite')
+    fields=[positions.view('<u4').reshape(len(positions),-1),np.asarray(packet['weights'],dtype='<f4').view('<u4').reshape(len(positions),-1),
+            np.asarray(packet['boneIndices'],dtype='<i4').view('<u4').reshape(len(positions),-1)]
+    fields += [np.asarray(f['vertices'],dtype='<f4').view('<u4').reshape(len(positions),-1)
+               for s in packet['shapes'] for f in s['frames']]
+    keys=np.ascontiguousarray(np.concatenate(fields,axis=1))
+    _,indices,groups=np.unique(keys,axis=0,return_index=True,return_inverse=True)
+    group_positions=world[indices]
+    edge_counts={};edges={}
+    for triangle in groups[triangles]:
+        for a,b in zip(triangle,np.roll(triangle,-1)):
+            if a==b:continue
+            key=tuple(sorted((int(a),int(b))))
+            edge_counts[key]=edge_counts.get(key,0)+1
+            edges[key]=float(np.linalg.norm(group_positions[a]-group_positions[b]))
+    adjacency=[[] for _ in indices]
+    boundary=set()
+    for (a,b),length in edges.items():
+        adjacency[a].append((b,length));adjacency[b].append((a,length))
+        if edge_counts[(a,b)]==1:boundary.update((a,b))
+    distances=np.full(len(indices),np.inf)
+    queue=[]
+    for index in boundary:distances[index]=0;heapq.heappush(queue,(0,index))
+    while queue:
+        distance,index=heapq.heappop(queue)
+        if distance!=distances[index]:continue
+        for other,length in adjacency[index]:
+            next_distance=distance+length
+            if next_distance<distances[other]:distances[other]=next_distance;heapq.heappush(queue,(next_distance,other))
+    vertex_weight=np.clip(distances[groups]/(6*feather),0,1)
+    vertex_weight=vertex_weight*vertex_weight*(3-2*vertex_weight)
+    ownership=np.zeros(shape);metric=np.zeros(shape);anisotropy=np.zeros(shape)
+    covered=np.zeros(shape,dtype=bool);overlaps=0;physical_triangles=0
+    for tri,tile in tile_instances:
+        tex=np.column_stack(((uv[tri,0]-tile[0])*w-.5,(1-(uv[tri,1]-tile[1]))*h-.5))
+        delta=np.stack((tex[1]-tex[0],tex[2]-tex[0]),axis=1)
+        determinant=np.linalg.det(delta)
+        if abs(determinant)<1e-10:continue
+        jacobian=np.stack((world[tri[1]]-world[tri[0]],world[tri[2]]-world[tri[0]]),axis=1)@np.linalg.inv(delta)
+        singular=np.linalg.svd(jacobian,compute_uv=False)
+        if singular[-1]<=0:continue
+        density=float(np.sqrt(np.prod(singular)))
+        ratio=float(singular[0]/singular[-1])
+        lo=np.maximum(0,np.ceil(tex.min(axis=0)).astype(int));hi=np.minimum((w-1,h-1),np.floor(tex.max(axis=0)).astype(int))
+        if np.any(hi<lo):continue
+        yy,xx=np.mgrid[lo[1]:hi[1]+1,lo[0]:hi[0]+1]
+        ab=np.stack((xx-tex[0,0],yy-tex[0,1]),axis=-1)@np.linalg.inv(delta).T
+        bary=np.dstack((1-ab.sum(axis=2),ab))
+        inside=np.all(bary>=-1e-7,axis=2)
+        if not np.any(inside):continue
+        rows=yy[inside];cols=xx[inside]
+        interpolated=np.clip(bary[inside]@vertex_weight[tri],0,1)
+        repeat=covered[rows,cols]
+        overlaps+=int(repeat.sum())
+        ownership[rows,cols]=np.where(repeat,np.minimum(ownership[rows,cols],interpolated),interpolated)
+        metric[rows,cols]=np.where(repeat,np.maximum(metric[rows,cols],density),density)
+        anisotropy[rows,cols]=ratio
+        covered[rows,cols]=True
+        physical_triangles+=1
+    require(np.any(covered),'Native source slot has no rasterizable UV surface.')
+    metric[~covered]=np.median(metric[covered])
+    report=dict(nativeTriangles=len(triangles),rasterizedTriangles=physical_triangles,nativeVertices=len(positions),
+                nativeWeldGroups=len(indices),trueOpenBoundaryGroups=len(boundary),
+                boundaryFadeMetres=6*feather,duplicatedUvCoveragePixels=overlaps,
+                metresPerTexelQuantiles=np.quantile(metric[covered],[0,.1,.5,.9,1]).tolist(),
+                anisotropyQuantiles=np.quantile(anisotropy[covered],[0,.1,.5,.9,1]).tolist(),
+                nativeSourceChannelsWritten=False,
+                boundaryRule='rest position, skin and all position-frame exact duplicate seam closure; actual open boundary geodesic fade')
+    cut_uv_edges=[]
+    for triangle in triangles:
+        for a,b in zip(triangle,np.roll(triangle,-1)):
+            ga,gb=groups[a],groups[b]
+            if ga!=gb and edge_counts[tuple(sorted((int(ga),int(gb))))]==1:cut_uv_edges.append(uv[[a,b]])
+    for vertex in np.unique(triangles):
+        if groups[vertex] in boundary:cut_uv_edges.append(uv[[vertex,vertex]])
+    return ownership,metric,report,covered,cut_uv_edges
+
+def protect_bilinear_uv_edges(mask, edges, *, wrap_u="Repeat", wrap_v="Repeat"):
+    """Every tap along a continuous edge, including arbitrarily short grid-cell intervals."""
+    import numpy as np
+    require(isinstance(mask, np.ndarray) and mask.ndim == 2 and mask.dtype == np.bool_,
+            "Bilinear cut support needs a two-dimensional Boolean mask")
+    require(wrap_u in ("Repeat", "Clamp") and wrap_v in ("Repeat", "Clamp"),
+            "Bilinear cut support needs the declared Repeat/Clamp sampler")
+    h,w=mask.shape
+    require(h > 0 and w > 0, "Bilinear cut support has no pixels")
+    for edge in edges:
+        edge=np.asarray(edge, dtype=float)
+        require(edge.shape == (2, 2) and np.isfinite(edge).all(), "Native cut UV edge must contain two finite points")
+        points=edge*np.array([w,-h])+np.array([-.5,h-.5])
+        delta=points[1]-points[0];events=[0.,1.]
+        for axis in [0,1]:
+            if abs(delta[axis])<1e-20:continue
+            low=min(points[:,axis]);high=max(points[:,axis])
+            crossings=np.arange(int(np.floor(low))+1,int(np.ceil(high)),dtype=np.float64)
+            t=(crossings-points[0,axis])/delta[axis]
+            events.extend(t[(t>0)&(t<1)].tolist())
+        events=np.unique(events);samples=np.r_[events,(events[:-1]+events[1:])/2]
+        q=points[0]+samples[:,None]*delta;ij=np.floor(q).astype(np.int64)
+        for dy in [0,1]:
+            for dx in [0,1]:
+                rows=(ij[:,1]+dy)%h if wrap_v == "Repeat" else np.clip(ij[:,1]+dy, 0, h-1)
+                cols=(ij[:,0]+dx)%w if wrap_u == "Repeat" else np.clip(ij[:,0]+dx, 0, w-1)
+                mask[rows,cols]=True
+
+def refine_native_normal_slopes(rgba, ownership, reduction):
+    """Reduce native RGorAG tangent slopes inside a source-owned UV field.
+
+    Return canonical XYZ RGB/A=1 for the existing Unity normal-map importer.
+    A globally red- or alpha-packed source keeps its encoded X/Y exactly where
+    ownership is zero. Main texture alpha and native skin colour are unrelated.
+    """
+    import numpy as np
+    require(isinstance(rgba, bytes) and len(rgba) > 0 and len(rgba) % 4 == 0,
+            "Native normal refinement needs complete immutable RGBA8 pixels")
+    require(isinstance(reduction, Real) and not isinstance(reduction, bool) and
+            math.isfinite(reduction) and 0 <= float(reduction) <= 1,
+            "Native normal slope reduction must be between zero and one")
+    weights=np.asarray(ownership)
+    require(weights.ndim == 2 and weights.dtype.kind in "fiu" and
+            weights.size * 4 == len(rgba) and np.isfinite(weights).all() and
+            weights.min() >= 0 and weights.max() <= 1,
+            "Native normal ownership must match the pixels and stay between zero and one")
+    source=np.frombuffer(rgba, dtype=np.uint8).reshape(-1,4)
+    require(np.all(source[:,0] == 255) or np.all(source[:,3] == 255),
+            "Exact protected normal conversion needs one globally constant X multiplicand")
+    result=np.empty_like(source);weights=weights.reshape(-1)
+    for start in range(0, len(source), 256 * 1024):
+        stop=min(start + 256 * 1024, len(source));values=source[start:stop].astype(float) / 255
+        xy=np.column_stack((values[:,0] * values[:,3] * 2 - 1, values[:,1] * 2 - 1))
+        xy*=1 - float(reduction) * weights[start:stop,None]
+        z=np.sqrt(np.maximum(1 - np.sum(xy * xy, axis=1), 0))
+        result[start:stop,:3]=np.rint(np.clip(np.column_stack((xy,z)) * .5 + .5, 0, 1) * 255).astype(np.uint8)
+        result[start:stop,3]=255
     return result.tobytes()
 
 
@@ -620,11 +859,13 @@ def preview_receipt(path, *, view):
         dimensions = list(image.size)
     finally:
         bpy.data.images.remove(image)
-    direction = (scene.camera.matrix_world.to_3x3() @ Vector((0, 0, 1))).normalized()
+    camera=scene.camera
+    if camera is None: raise RuntimeError('A preview camera is required.')
+    direction = (camera.matrix_world.to_3x3() @ Vector((0, 0, 1))).normalized()
     receipt = {"schema_version": 1, "image": path.name, "sha256": file_hash(path),
                "view": view, "width": dimensions[0], "height": dimensions[1],
                "engine": scene.render.engine, "camera_direction": list(direction),
-               "camera_projection": scene.camera.data.type, "frame": scene.frame_current}
+               "camera_projection": camera.data.type, "frame": scene.frame_current}
     path.with_suffix(path.suffix + ".capture.json").write_text(
         json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
     return receipt
@@ -849,10 +1090,12 @@ def rig_contract(rig, skin):
         require(values and all(0 < value <= 1 for value in values), "Invalid or unweighted skin vertex")
         max_weight_error = max(max_weight_error, abs(sum(values) - 1.0))
     require(max_weight_error < 0.00001, "Skin weights are not normalized")
+    action=rig.animation_data.action if rig.animation_data is not None else None
+    if action is None: raise RuntimeError('A rig animation action is required.')
     return {"bone_parents": parents, "vertices": len(skin.data.vertices),
             "triangles": len(skin.data.loop_triangles),
-            "action": rig.animation_data.action.name,
-            "action_frame_range": list(rig.animation_data.action.frame_range),
+            "action": action.name,
+            "action_frame_range": list(action.frame_range),
             "maximum_weight_sum_error": max_weight_error}
 
 

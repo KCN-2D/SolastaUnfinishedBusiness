@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -18,6 +18,30 @@ public static class CharacterStatsPanelPatcher
         NonHeroSubjects = new();
     private static readonly ConditionalWeakTable<AttackModesPanel, NonHeroAttackModesBinding>
         NonHeroAttackModeSubjects = new();
+
+    internal static bool HasAbilityScoreBinding(
+        AbilityScoresListingPanel panel,
+        RulesetCharacter character)
+    {
+        if (!panel || character == null || panel.abilityScoreBoxes == null ||
+            panel.abilityScoreBoxes.Count < AttributeDefinitions.AbilityScoreNames.Length)
+        {
+            return false;
+        }
+
+        for (var index = 0; index < AttributeDefinitions.AbilityScoreNames.Length; index++)
+        {
+            var box = panel.abilityScoreBoxes[index];
+            var attribute = character.GetAttribute(AttributeDefinitions.AbilityScoreNames[index]);
+
+            if (!box || attribute == null || !ReferenceEquals(box.AbilityScore, attribute))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     internal static void BindAbilityScores(
         AbilityScoresListingPanel panel,

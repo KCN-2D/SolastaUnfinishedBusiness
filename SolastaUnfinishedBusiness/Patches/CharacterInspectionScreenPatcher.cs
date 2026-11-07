@@ -1,6 +1,11 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
+using System.Reflection.Emit;
+using System;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
@@ -10,6 +15,40 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterInspectionScreenPatcher
 {
+    private static bool NativeParentInitializationAvailable { get; set; }
+
+    [HarmonyPatch(typeof(CharacterInspectionScreen), nameof(CharacterInspectionScreen.CommonShow))]
+    [UsedImplicitly]
+    public static class CommonShow_Patch
+    {
+        [UsedImplicitly]
+        private static void Prefix(
+            CharacterInspectionScreen __instance,
+            RulesetCharacterHero __0,
+            GuiScreen __1,
+            ActionDefinitions.InventoryManagementMode __2,
+            out UiHelpers.NativePanelInitialization __state)
+        {
+            __state = null;
+            if (!NativeParentInitializationAvailable || __0 == null)
+            {
+                return;
+            }
+
+            // CommonShow owns this synchronous Bind -> Show operation. Before
+            // native Bind the hidden screen is unbound; once active, every
+            // request field must still identify this exact native invocation.
+            __state = UiHelpers.BeginNativePanelInitialization(__instance, __instance,
+                () => !__instance.Visible && __instance.InspectedCharacter == null ||
+                      __instance.previousScreen == __1 && __instance.inventoryManagementMode == __2 &&
+                      ReferenceEquals(__instance.InspectedCharacter?.RulesetCharacterHero, __0));
+        }
+
+        [UsedImplicitly]
+        private static Exception Finalizer(UiHelpers.NativePanelInitialization __state, Exception __exception) =>
+            __state == null ? __exception : __state.Finish(__exception);
+    }
+
     [HarmonyPatch(typeof(CharacterInspectionScreen), nameof(CharacterInspectionScreen.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -55,13 +94,14 @@ public static class CharacterInspectionScreenPatcher
                 return;
             }
 
-            // A Simulacrum inventory session temporarily rebinds these pooled boxes to
-            // non-Hero attributes. CharacterInspectionScreen does not reliably rebind
-            // the listing on every subsequent Hero inspection, so restore the actual
-            // inspected Hero explicitly instead of leaving an empty pooled panel.
-            CharacterStatsPanelPatcher.BindAbilityScores(
-                __instance.abilityScoresListingPanel,
-                heroCharacter);
+            // A pooled listing can retain a non-Hero binding after Simulacrum inspection.
+            // Native already binds normal Hero boxes, including their refresh handlers.
+            if (!CharacterStatsPanelPatcher.HasAbilityScoreBinding(
+                    __instance.abilityScoresListingPanel, heroCharacter))
+            {
+                CharacterStatsPanelPatcher.BindAbilityScores(
+                    __instance.abilityScoresListingPanel, heroCharacter);
+            }
 
             //PATCH: support display max spell points on inspection screen (SPELL_POINTS)
             SpellPointsContext.DisplayMaxSpellPointsOnInspectionScreen(__instance, heroCharacter);
@@ -69,6 +109,32 @@ public static class CharacterInspectionScreenPatcher
             CharacterInspectionScreenEnhancement.RefreshInspectionSpellTabs(__instance, heroCharacter);
             CharacterInspectionScreenEnhancement.ConfigureInspectionTabsScroll(__instance);
 
+        }
+
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            NativeParentInitializationAvailable = false;
+            var code = instructions.ToList();
+            var setActive = AccessTools.Method(typeof(GameObject), nameof(GameObject.SetActive));
+            var getGameObject = AccessTools.PropertyGetter(typeof(Component), nameof(Component.gameObject));
+            // Bind also activates each inspection toggle. Only the two temporary
+            // activations whose receiver is this screen belong to the parent scope.
+            var parents = Enumerable.Range(3, Math.Max(0, code.Count - 3)).Where(index =>
+                code[index].Calls(setActive) && code[index - 3].opcode == OpCodes.Ldarg_0 &&
+                code[index - 2].Calls(getGameObject)).ToArray();
+            var enables = parents.Where(index => code[index - 1].opcode == OpCodes.Ldc_I4_1).ToArray();
+            var sites = parents.Where(index => code[index - 1].opcode == OpCodes.Ldc_I4_0).ToArray();
+            if (parents.Length != 2 || enables.Length != 1 || sites.Length != 1 || enables[0] >= sites[0])
+            {
+                Main.Error("CharacterInspectionScreen.Bind native parent initialization sites differ.");
+                return code;
+            }
+
+            code[sites[0]].opcode = OpCodes.Call;
+            code[sites[0]].operand = new Action<GameObject, bool>(UiHelpers.RestorePreparedPanelActive).Method;
+            NativeParentInitializationAvailable = true;
+            return code;
         }
 
         [UsedImplicitly]
@@ -158,18 +224,57 @@ public static class CharacterInspectionScreenPatcher
     public static class FilterInspectionPanels_Patch
     {
         [UsedImplicitly]
-        public static bool Prefix(CharacterInspectionScreen __instance)
+        internal static bool Prefix(
+            CharacterInspectionScreen __instance,
+            out UiHelpers.NativePanelInitialization __state)
         {
-            if (!SimulacrumEquipmentPanel.TryGetActiveCharacter(__instance, out _))
+            __state = null;
+            if (SimulacrumEquipmentPanel.TryGetActiveCharacter(__instance, out _))
+            {
+                // Its owner already prepared the one supported panel and performs native Show.
+                return false;
+            }
+
+            var index = __instance.currentToggle;
+            if (index < 0 || index >= __instance.inspectionPanels.Count ||
+                __instance.InspectedCharacter?.RulesetCharacterHero == null)
             {
                 return true;
             }
 
-            // Bind already prepared the single supported panel. AfterBeginShow performs the first
-            // native Show so the panel cannot skip its initialization merely because it was made
-            // active while the parent screen was still entering OnBeginShow.
-            return false;
+            var panel = __instance.inspectionPanels[index];
+            __state = UiHelpers.BeginNativePanelInitialization(__instance, panel,
+                () => __instance.currentToggle == index &&
+                      index < __instance.inspectionPanels.Count &&
+                      ReferenceEquals(__instance.inspectionPanels[index], panel));
+            return true;
         }
+
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var code = instructions.ToList();
+            var setActive = AccessTools.Method(typeof(GameObject), nameof(GameObject.SetActive));
+            var sites = Enumerable.Range(1, Math.Max(0, code.Count - 1)).Where(index =>
+                code[index].Calls(setActive) && code[index - 1].opcode == OpCodes.Ldc_I4_0).ToArray();
+            if (sites.Length != 5)
+            {
+                Main.Error("CharacterInspectionScreen.FilterInspectionPanels native initialization sites differ.");
+                return code;
+            }
+
+            foreach (var index in sites)
+            {
+                code[index].opcode = OpCodes.Call;
+                code[index].operand = new Action<GameObject, bool>(UiHelpers.RestorePreparedPanelActive).Method;
+            }
+
+            return code;
+        }
+
+        [UsedImplicitly]
+        internal static Exception Finalizer(UiHelpers.NativePanelInitialization __state, Exception __exception) =>
+            __state == null ? __exception : __state.Finish(__exception);
     }
 
     [HarmonyPatch(

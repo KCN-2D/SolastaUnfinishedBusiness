@@ -332,6 +332,15 @@ internal static class CampaignsContext
 
         var metamagicOptions = MetamagicContext.GetVisibleMetamagicOptions();
 
+        // Native SetState refreshes existing bindings. Keep those rows while
+        // their ordered definitions and table remain unchanged.
+        if (__instance.Table && __instance.ItemPrefab &&
+            __instance.Table.childCount == __instance.relevantMetamagicOptions.Count &&
+            __instance.relevantMetamagicOptions.SequenceEqual(metamagicOptions))
+        {
+            return;
+        }
+
         __instance.relevantMetamagicOptions.Clear();
         __instance.relevantMetamagicOptions.AddRange(metamagicOptions);
 
@@ -341,11 +350,23 @@ internal static class CampaignsContext
             return;
         }
 
+        for (var index = 0; index < __instance.Table.childCount; index++)
+        {
+            __instance.Table.GetChild(index).GetComponent<MetamagicProficiencyItem>().Unbind();
+        }
+
         Gui.ReleaseChildrenToPool(__instance.Table);
 
         while (__instance.Table.childCount < __instance.relevantMetamagicOptions.Count)
         {
             Gui.GetPrefabFromPool(__instance.ItemPrefab, __instance.Table);
+        }
+
+        // SetState does not bind replacement rows. Reuse native Bind for the live
+        // hero, callback and tooltip ownership before native state refresh.
+        if (__instance.InspectedCharacter != null)
+        {
+            __instance.Bind(__instance.InspectedCharacter, __instance.OnItemClicked);
         }
     }
 

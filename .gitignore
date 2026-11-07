@@ -326,8 +326,32 @@ __pycache__/
 !/tools/runtime-verification/Tests/
 /tools/runtime-verification/Tests/*
 !/tools/runtime-verification/Tests/PresentationCaptureProbe.cs
-/tools/blender-models/
+/tools/blender-models/*
+!/tools/blender-models/CharacterFaces/
+/tools/blender-models/CharacterFaces/*
+!/tools/blender-models/CharacterFaces/build_models.py
+!/tools/blender-models/CharacterFaces/collect_sources.py
+!/tools/blender-models/CharacterFaces/production.py
+!/tools/blender-models/CharacterFaces/material_fields.py
+!/tools/blender-models/CharacterFaces/generate.py
+!/tools/blender-models/CharacterFaces/check_packed_rgba.py
+!/tools/blender-models/CharacterFaces/Invoke-ModelBuild.ps1
+!/tools/blender-models/CharacterFaces/README.md
+!/tools/blender-models/CharacterHair/
+/tools/blender-models/CharacterHair/*
+!/tools/blender-models/CharacterHair/NativeHairSourceGroom.shader
+!/tools/blender-models/CharacterHair/SourceGroom.cginc
+!/tools/blender-models/CharacterHair/SourceGroomProgram.cginc
+!/tools/blender-models/CharacterHair/NativeFamilyFx.cginc
+!/tools/blender-models/CharacterHair/materials.json
+!/tools/blender-models/CharacterHair/validate_material.py
+!/tools/blender-models/CharacterHair/compare_compiled_material.py
+!/tools/blender-models/CharacterHair/adopt_material.py
+!/tools/blender-models/CharacterHair/README.md
+!/tools/blender-models/CharacterHair/GenerateFlowCoverageSweptProfile.py
+!/tools/blender-models/CharacterHair/PrepareGroup.py
 /tools/asset-authoring/workspace/
+/SolastaUnfinishedBusiness/BlenderModels/CharacterModels/*.bundle
 
 # Environment files with sensitive data
 /tools/localization/.env

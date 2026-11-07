@@ -1,8 +1,11 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
 using HarmonyLib;
 using JetBrains.Annotations;
 using Newtonsoft.Json;
@@ -17,6 +20,11 @@ using SolastaUnfinishedBusiness.Races;
 using SolastaUnfinishedBusiness.Validators;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.AddressableAssets.ResourceLocators;
+using UnityEngine.ResourceManagement;
+using UnityEngine.ResourceManagement.AsyncOperations;
+using UnityEngine.ResourceManagement.ResourceLocations;
+using UnityEngine.ResourceManagement.ResourceProviders;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionSenses;
 
@@ -275,9 +283,127 @@ internal static class RacesContext
     private static readonly ConditionalWeakTable<Mesh, string> CharacterModelFingerprints = new();
     private static readonly ConditionalWeakTable<Texture, string> CharacterModelTextureFingerprints = new();
     private static readonly HashSet<CharacterModelPresentation> CharacterModelOwners = [];
+    private static readonly Dictionary<GraphicsCharacter, int> CharacterModelCreations = [];
+    private static readonly Dictionary<GraphicsCharacter, (LODGroup Group, LOD[] Levels, Dictionary<Renderer, bool> Hidden)>
+        CharacterModelLodStates = [];
     private static readonly HashSet<string> CharacterModelErrors = [];
     private static CharacterModelCatalog _characterModelCatalog;
+    private static readonly HashSet<CharacterModelResourceLease> CharacterModelResourceOwners = [];
     private static bool _characterModelsUnloading, _characterModelCatalogAttempted, _characterModelRefreshPending;
+    private sealed class CharacterModelBlueprint(string digest, JObject template, CharacterModelManifest resources, string directory)
+    {
+        internal readonly string Digest = digest;
+        internal readonly JObject Template = template;
+        internal readonly CharacterModelManifest Resources = resources;
+        internal readonly string Directory = directory;
+    }
+    private static CharacterModelBlueprint _characterModelBlueprint;
+    private static Task<CharacterModelBlueprint> _characterModelPreparation, _characterModelPreparationWorker;
+    private static CancellationTokenSource _characterModelPreparationCancellation;
+    [ThreadStatic] private static CancellationToken _characterModelReadCancellation;
+    private static int _characterModelPreparationGeneration;
+    private static bool _characterModelPreparationStarted;
+
+    private static void PrepareCharacterModelCatalog()
+    {
+        if (_characterModelsUnloading || !SettingsContext.GuiModManagerInstance.EnableCustomFaces ||
+            _characterModelCatalog != null) return;
+        if (_characterModelPreparation == null && !_characterModelCatalogAttempted)
+        {
+            _characterModelCatalogAttempted = true;
+            var generation = _characterModelPreparationGeneration;
+            var cancellation = new CancellationTokenSource();
+            _characterModelPreparationCancellation = cancellation;
+            var previous = _characterModelBlueprint;
+            var directory = System.IO.Path.Combine(Main.ModFolder, "BlenderModels", "CharacterModels");
+            CharacterModelBlueprint Read()
+            {
+                if (generation != Volatile.Read(ref _characterModelPreparationGeneration)) return null;
+                _characterModelReadCancellation = cancellation.Token;
+                try
+                {
+                    var blueprint = CharacterModelCatalog.ReadBlueprint(directory, previous);
+                    if (blueprint.Resources == null) CustomModels.SkinMeshSource.PrepareNativeMetadata();
+                    return blueprint;
+                }
+                finally { _characterModelReadCancellation = default; }
+            }
+            _characterModelPreparation = _characterModelPreparationWorker == null
+                ? Task.Run(Read)
+                : _characterModelPreparationWorker.ContinueWith(previousWorker =>
+                {
+                    _ = previousWorker.Exception;
+                    return Read();
+                }, TaskScheduler.Default);
+            _characterModelPreparationWorker = _characterModelPreparation;
+        }
+        if (_characterModelPreparation != null && !_characterModelPreparationStarted &&
+            ServiceRepository.GetService<IGraphicsCharacterFactoryService>() is MonoBehaviour factory)
+        {
+            _characterModelPreparationStarted = true;
+            factory.StartCoroutine(CompleteCharacterModelCatalog(_characterModelPreparation,
+                _characterModelPreparationGeneration));
+        }
+    }
+
+    private static IEnumerator CompleteCharacterModelCatalog(Task<CharacterModelBlueprint> preparation, int generation)
+    {
+        bool Current() => generation == _characterModelPreparationGeneration && !_characterModelsUnloading &&
+                          SettingsContext.GuiModManagerInstance.EnableCustomFaces;
+        try
+        {
+            while (!preparation.IsCompleted)
+            {
+                if (!Current()) yield break;
+                yield return null;
+            }
+            if (!Current()) yield break;
+            try
+            {
+                var blueprint = preparation.GetAwaiter().GetResult();
+                _characterModelCatalog = CharacterModelCatalog.FromBlueprint(
+                    System.IO.Path.Combine(Main.ModFolder, "BlenderModels", "CharacterModels"), blueprint);
+                _characterModelBlueprint = blueprint;
+                if (_characterModelCatalog.UsesCompleteParts) SwitchCharacterModels();
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception exception) { ReportCharacterModelError("catalog", exception); }
+        }
+        finally
+        {
+            if (generation == _characterModelPreparationGeneration)
+            {
+                _characterModelPreparation = null;
+                _characterModelPreparationStarted = false;
+                _characterModelPreparationCancellation?.Dispose();
+                _characterModelPreparationCancellation = null;
+            }
+            _ = preparation.ContinueWith(failed => _ = failed.Exception, TaskContinuationOptions.OnlyOnFaulted);
+        }
+        if (Current()) RefreshPendingCharacterModels();
+    }
+
+    private static void CancelCharacterModelCatalogPreparation(bool unloading = false)
+    {
+        UpdateContext.CancelCharacterModelDownload();
+        var cancellation = _characterModelPreparationCancellation;
+        _characterModelPreparationCancellation = null;
+        cancellation?.Cancel();
+        if (cancellation != null)
+        {
+            if (_characterModelPreparationWorker == null || _characterModelPreparationWorker.IsCompleted) cancellation.Dispose();
+            else _ = _characterModelPreparationWorker.ContinueWith(_ => cancellation.Dispose());
+        }
+        _characterModelPreparationGeneration++;
+        if (_characterModelPreparation != null)
+            _ = _characterModelPreparation.ContinueWith(failed => _ = failed.Exception,
+                TaskContinuationOptions.OnlyOnFaulted);
+        _characterModelPreparation = null;
+        _characterModelPreparationStarted = false;
+        if (!unloading) return;
+        _characterModelBlueprint = null;
+        _characterModelPreparationWorker = null;
+    }
 
     private static bool DeferCharacterModelRefresh => LoadingContext.IsLoadInProgress &&
         ServiceRepository.GetService<IGameLocationService>()?.LocationIsReady != true;
@@ -286,6 +412,7 @@ internal static class RacesContext
     {
         if (!_characterModelRefreshPending || _characterModelsUnloading || _bodyShapesUnloading ||
             DeferCharacterModelRefresh) return;
+        if (_characterModelPreparation != null && _characterModelCatalog == null) return;
         _characterModelRefreshPending = false;
         foreach (var owner in CharacterModelOwners.ToArray())
         {
@@ -297,21 +424,53 @@ internal static class RacesContext
             if (owner) owner.RefreshPending();
             else BodyShapeOwners.Remove(owner);
         }
+        SynchronizeCharacterModelRefreshPending();
     }
+
+    private static void SynchronizeCharacterModelRefreshPending() =>
+        _characterModelRefreshPending = CharacterModelOwners.Any(owner => owner && owner.IsPending) ||
+                                        BodyShapeOwners.Any(owner => owner && owner.IsPending);
 
     internal static void SwitchCharacterModels()
     {
         if (_characterModelsUnloading) return;
+        if (!SettingsContext.GuiModManagerInstance.EnableCustomFaces)
+            foreach (var graphics in CharacterModelLodStates.Keys.ToArray()) RestoreCharacterModelLods(graphics);
+        CharacterModelTextureReadback.SetEnabled(SettingsContext.GuiModManagerInstance.EnableCustomFaces);
         if (_characterModelCatalog == null) _characterModelCatalogAttempted = false;
+        if (SettingsContext.GuiModManagerInstance.EnableCustomFaces) PrepareCharacterModelCatalog();
+        else CancelCharacterModelCatalogPreparation();
         var factory = ServiceRepository.GetService<IGraphicsCharacterFactoryService>();
         if (factory != null)
-            foreach (var graphics in factory.GraphicsCharacters.ToArray()) RefreshCharacterModels(graphics);
-        if (!SettingsContext.GuiModManagerInstance.EnableCustomFaces && !CharacterModelOwners.Any(owner => owner && owner.HasCatalogSources))
+            foreach (var graphics in factory.GraphicsCharacters.ToArray())
+            {
+                if (graphics && CharacterModelCreations.ContainsKey(graphics)) continue;
+                if (_characterModelCatalog?.UsesCompleteParts == true && graphics && graphics.Renderers?.Any() == true)
+                    RefreshNativeCharacterModel(factory, graphics);
+                else RefreshCharacterModels(graphics);
+            }
+        if (!SettingsContext.GuiModManagerInstance.EnableCustomFaces) ReleaseUnusedCharacterModelCatalog();
+    }
+
+    private static void RefreshNativeCharacterModel(IGraphicsCharacterFactoryService factory, GraphicsCharacter graphics)
+    {
+        if (graphics is GraphicsCharacterHero hero) factory.RefreshGraphicsCharacter(hero, false);
+        else if (graphics is GraphicsCharacterMonster monster) factory.RefreshGraphicsCharacter(monster, null);
+    }
+
+    private static void ReleaseUnusedCharacterModelCatalog()
+    {
+        if (_characterModelCatalog is { HasPreparedSources: false } catalog &&
+            (_characterModelsUnloading || catalog.IsRetiring || !SettingsContext.GuiModManagerInstance.EnableCustomFaces) &&
+            !catalog.HasLiveSourceOwners &&
+            !CharacterModelOwners.Any(owner => owner && owner.HasCatalogSources))
         {
-            _characterModelCatalog?.Dispose();
+            catalog.Dispose();
             _characterModelCatalog = null;
             _characterModelCatalogAttempted = false;
             CharacterModelPresentation.ClearUnusedDerivedData();
+            if (!_characterModelsUnloading && SettingsContext.GuiModManagerInstance.EnableCustomFaces)
+                PrepareCharacterModelCatalog();
         }
     }
 
@@ -326,6 +485,15 @@ internal static class RacesContext
                 if (owner && (owner.HasSources || owner.IsPending)) owner.Release(false, owner.HasSources);
                 return;
             }
+            if (_characterModelCatalog?.UsesCompleteParts == true)
+            {
+                if (owner && (owner.HasSources || owner.IsPending)) owner.Release(false, false);
+                var lease = graphics.GetComponent<CharacterModelResourceLease>() ??
+                    graphics.gameObject.AddComponent<CharacterModelResourceLease>();
+                lease.Bind(graphics, _characterModelCatalog);
+                lease.Synchronize();
+                return;
+            }
             owner ??= graphics.gameObject.AddComponent<CharacterModelPresentation>();
             owner.Bind(graphics);
             if (!owner.isActiveAndEnabled || owner.IsInitializing) return;
@@ -336,11 +504,15 @@ internal static class RacesContext
                 owner.DeferRefresh();
                 return;
             }
-            if (SettingsContext.GuiModManagerInstance.EnableCustomFaces && _characterModelCatalog == null)
+            if (SettingsContext.GuiModManagerInstance.EnableCustomFaces &&
+                (_characterModelCatalog == null || _characterModelCatalog.IsRetiring))
             {
-                if (_characterModelCatalogAttempted) return;
-                _characterModelCatalogAttempted = true;
-                _characterModelCatalog = CharacterModelCatalog.Load();
+                PrepareCharacterModelCatalog();
+                if (_characterModelPreparation != null || _characterModelCatalog?.IsRetiring == true)
+                {
+                    owner.DeferRefresh();
+                    return;
+                }
             }
             owner.Refresh(graphics, SettingsContext.GuiModManagerInstance.EnableCustomFaces ? _characterModelCatalog : null);
         }
@@ -354,10 +526,53 @@ internal static class RacesContext
         catch (Exception exception) { ReportCharacterModelError("materials", exception); }
     }
 
+    internal static void RefreshCharacterModelLods(GraphicsCharacter graphics)
+    {
+        RestoreCharacterModelLods(graphics);
+        if (_characterModelsUnloading || !graphics || !SettingsContext.GuiModManagerInstance.EnableCustomFaces ||
+            _characterModelCatalog?.UsesCompleteParts != true || !UsesBodyShapeAppearance(graphics.RulesetCharacter)) return;
+        var group = AccessTools.Field(typeof(GraphicsCharacter), "sharedLodGroup")?.GetValue(graphics) as LODGroup;
+        if (!group) return;
+        var lods = group.GetLODs();
+        if (lods.Length < 3 || lods[1].renderers.Length == 0) return;
+        var retained = new HashSet<Renderer>(lods.Take(2).SelectMany(lod => lod.renderers));
+        var hidden = lods.Skip(2).SelectMany(lod => lod.renderers).Where(renderer => renderer && !retained.Contains(renderer))
+            .Distinct().ToDictionary(renderer => renderer, renderer => renderer.forceRenderingOff);
+        CharacterModelLodStates.Add(graphics, (group, (LOD[])lods.Clone(), hidden));
+        // A renderer removed from an LODGroup becomes independently visible.
+        // Keep those source renderers hidden until their native levels return.
+        foreach (var renderer in hidden.Keys) renderer.forceRenderingOff = true;
+        // Select the complete character at one detail level. Mixing higher-detail
+        // hands or feet with a lower-detail torso separates their shared cuts.
+        for (var index = 2; index < lods.Length; index++) lods[index].renderers = lods[1].renderers;
+        group.SetLODs(lods);
+    }
+
+    internal static void RestoreCharacterModelLods(GraphicsCharacter graphics)
+    {
+        if (ReferenceEquals(graphics, null) || !CharacterModelLodStates.TryGetValue(graphics, out var state)) return;
+        CharacterModelLodStates.Remove(graphics);
+        foreach (var pair in state.Hidden)
+            if (pair.Key && pair.Key.forceRenderingOff) pair.Key.forceRenderingOff = pair.Value;
+        if (state.Group && !Main.IsApplicationQuitting) state.Group.SetLODs(state.Levels);
+    }
+
+    internal static void BindCharacterPartParameters(GraphicsCharacterFactoryManager factory, GraphicsCharacter graphics,
+        GraphicsCharacterDefinitions.BodyPart part, bool shape)
+    {
+        if (_characterModelCatalog?.UsesCompleteParts != true || !graphics) return;
+        var index = (int)part;
+        var keys = shape ? factory.shapePartsToLoad : factory.armorPartsToLoad;
+        var instances = shape ? graphics.ShapeInstancePerBodySlot : graphics.ArmorInstancePerBodySlot;
+        if (index < 0 || index >= keys.Length || index >= instances.Length || !instances[index]) return;
+        _characterModelCatalog.BindPartParameters(graphics, keys[index], instances[index], part, shape);
+    }
+
     internal static object BeginCharacterModelMaterialRefresh(GraphicsCharacter graphics)
     {
         if (_characterModelsUnloading || !graphics || graphics.RulesetCharacter == null ||
-            !SettingsContext.GuiModManagerInstance.EnableCustomFaces) return null;
+            !SettingsContext.GuiModManagerInstance.EnableCustomFaces ||
+            _characterModelCatalog?.UsesCompleteParts == true) return null;
         var owner = graphics.GetComponent<CharacterModelPresentation>() ??
             graphics.gameObject.AddComponent<CharacterModelPresentation>();
         owner.Bind(graphics);
@@ -376,6 +591,7 @@ internal static class RacesContext
         if (!graphics) return null;
         ReleaseBodyShape(graphics);
         var owner = graphics.GetComponent<CharacterModelPresentation>();
+        if (!owner && _characterModelCatalog?.UsesCompleteParts == true) return null;
         if (!owner && !_characterModelsUnloading && graphics.RulesetCharacter != null &&
             UsesCharacterModelPresentation(graphics))
         {
@@ -396,33 +612,45 @@ internal static class RacesContext
             if (!failed) RefreshBodyShape(graphics);
         }
         catch (Exception exception) { ReportCharacterModelError("resume", exception); }
+        finally { if (state is CharacterModelPresentation owner && owner && !owner.IsInitializing && !owner.IsPending) owner.ReleasePreparedSources(); }
     }
 
     internal static void ReleaseCharacterModels(GraphicsCharacter graphics)
     {
         if (!graphics) return;
+        RestoreCharacterModelLods(graphics);
         try { graphics.GetComponent<CharacterModelPresentation>()?.Release(false, false); }
         catch (Exception exception) { ReportCharacterModelError("release", exception); }
+        graphics.GetComponent<CharacterModelResourceLease>()?.Release();
     }
 
     private static void UnloadCharacterModels()
     {
         _characterModelsUnloading = true;
+        foreach (var graphics in CharacterModelLodStates.Keys.ToArray()) RestoreCharacterModelLods(graphics);
+        CharacterModelTextureReadback.SetEnabled(false);
+        _characterModelCatalog?.Retire();
+        CancelCharacterModelCatalogPreparation(true);
         _characterModelRefreshPending = false;
         foreach (var owner in CharacterModelOwners.ToArray())
         {
             try { owner.Release(Main.IsApplicationQuitting, false); }
             catch (Exception exception) { ReportCharacterModelError("unload-restore", exception); }
         }
+        var factory = ServiceRepository.GetService<IGraphicsCharacterFactoryService>();
+        foreach (var lease in CharacterModelResourceOwners.ToArray())
+        {
+            if (!lease) { CharacterModelResourceOwners.Remove(lease); continue; }
+            if (!Main.IsApplicationQuitting && factory != null && lease.Graphics && lease.Graphics.RulesetCharacter != null)
+                RefreshNativeCharacterModel(factory, lease.Graphics);
+            else lease.Release();
+        }
         if (CharacterModelOwners.Any(owner => owner && owner.HasSources))
         {
             ReportCharacterModelError("unload", new InvalidOperationException("Custom character model sources are still owned by a renderer."));
             return;
         }
-        _characterModelCatalog?.Dispose();
-        _characterModelCatalog = null;
-        _characterModelCatalogAttempted = false;
-        CharacterModelPresentation.ClearUnusedDerivedData();
+        ReleaseUnusedCharacterModelCatalog();
     }
 
     private static void ReportCharacterModelError(string stage, Exception exception)
@@ -431,37 +659,122 @@ internal static class RacesContext
         if (CharacterModelErrors.Add(text)) Main.Error("Unable to apply a custom character model (" + text + ").");
     }
 
-    private static string CharacterModelFingerprint(Mesh source) => CharacterModelFingerprints.GetValue(source,
-        static mesh => ReadNativeRestMesh(mesh, readable =>
+    internal static string CharacterModelFingerprint(Mesh source) => CharacterModelFingerprints.GetValue(source,
+        static mesh => CharacterModelCurrentFingerprint(mesh));
+
+    internal static string CharacterModelCurrentFingerprint(Mesh source) => CharacterModelMeshData.Capture(source, false).Fingerprint();
+
+    private sealed class CharacterModelMeshPacketLimit : Exception { }
+
+    private sealed class CharacterModelMeshData
+    {
+        internal sealed class Uv(int channel, int dimension, Vector4[] values)
+        { internal readonly int Channel = channel, Dimension = dimension; internal readonly Vector4[] Values = values; }
+        internal sealed class Frame(int count)
         {
-            var positions = readable.vertices;
-            var sourceNormals = readable.normals;
-            var sourceTangents = readable.tangents;
-            var colors = readable.colors;
-            if (positions.Length != mesh.vertexCount || sourceNormals.Length != mesh.vertexCount ||
-                sourceTangents.Length != 0 && sourceTangents.Length != mesh.vertexCount ||
-                colors.Length != 0 && colors.Length != mesh.vertexCount)
+            internal float Weight;
+            internal readonly Vector3[] Positions = new Vector3[count], Normals = new Vector3[count], Tangents = new Vector3[count];
+        }
+        internal sealed class Shape(string name, int frameCount, IEnumerable<Frame> frames)
+        { internal readonly string Name = name; internal readonly int FrameCount = frameCount; internal readonly IEnumerable<Frame> Frames = frames; }
+        internal readonly int VertexCount, IndexFormat, ShapeCount, OwnerThread;
+        internal readonly bool Snapshot;
+        internal readonly Vector3[] Positions, Normals;
+        internal readonly Vector4[] Tangents;
+        internal readonly Color[] Colors;
+        internal readonly Matrix4x4[] Poses;
+        internal readonly BoneWeight[] Weights;
+        internal readonly int[][] SubmeshIndices;
+        internal readonly Uv[] Uvs;
+        internal readonly IEnumerable<Shape> Shapes;
+        private long _bytes;
+
+        private CharacterModelMeshData(Mesh source, Mesh readable, bool snapshot, long maximumBytes)
+        {
+            VertexCount = source.vertexCount; IndexFormat = (int)source.indexFormat;
+            ShapeCount = source.blendShapeCount; OwnerThread = Thread.CurrentThread.ManagedThreadId; Snapshot = snapshot;
+            Positions = readable.vertices; Normals = readable.normals; Tangents = readable.tangents; Colors = readable.colors;
+            if (Positions.Length != VertexCount || Normals.Length != VertexCount ||
+                Tangents.Length != 0 && Tangents.Length != VertexCount || Colors.Length != 0 && Colors.Length != VertexCount)
                 throw new InvalidOperationException("A native character model rest channel is incomplete.");
+            Poses = source.bindposes; Weights = source.boneWeights;
+            _bytes = 1024L + 12L * (Positions.Length + Normals.Length) + 16L * (Tangents.Length + Colors.Length) +
+                     64L * Poses.Length + 32L * Weights.Length;
+            Budget(maximumBytes);
+            SubmeshIndices = new int[readable.subMeshCount][];
+            for (var index = 0; index < SubmeshIndices.Length; index++)
+            { SubmeshIndices[index] = readable.GetIndices(index); _bytes += 4L * SubmeshIndices[index].Length; Budget(maximumBytes); }
+            var uvs = new List<Uv>();
+            for (var channel = 0; channel < 8; channel++)
+            {
+                var values = new List<Vector4>(); readable.GetUVs(channel, values);
+                if (values.Count == 0) continue;
+                var dimension = readable.GetVertexAttributeDimension((UnityEngine.Rendering.VertexAttribute)
+                    ((int)UnityEngine.Rendering.VertexAttribute.TexCoord0 + channel));
+                if (values.Count != VertexCount || dimension < 1 || dimension > 4)
+                    throw new InvalidOperationException("A native character model UV channel is incomplete.");
+                uvs.Add(new Uv(channel, dimension, values.ToArray())); _bytes += 16L * values.Count; Budget(maximumBytes);
+            }
+            Uvs = uvs.ToArray();
+            var shapes = ReadShapes(source, snapshot, maximumBytes);
+            Shapes = snapshot ? shapes.ToArray() : shapes;
+        }
+        internal static CharacterModelMeshData Capture(Mesh source, bool snapshot, long maximumBytes = long.MaxValue) =>
+            ReadNativeRestMesh(source, readable => new CharacterModelMeshData(source, readable, snapshot, maximumBytes));
+        private void Budget(long maximumBytes)
+        { if (_bytes > maximumBytes) throw new CharacterModelMeshPacketLimit(); }
+        private IEnumerable<Shape> ReadShapes(Mesh source, bool snapshot, long maximumBytes)
+        {
+            var reusable = !snapshot && ShapeCount > 0 ? new Frame(VertexCount) : null;
+            for (var shape = 0; shape < ShapeCount; shape++)
+            {
+                if (Thread.CurrentThread.ManagedThreadId != OwnerThread)
+                    throw new InvalidOperationException("A native character mesh channel was read outside its owner thread.");
+                var name = source.GetBlendShapeName(shape); var frameCount = source.GetBlendShapeFrameCount(shape);
+                _bytes += 128L + 2L * (name?.Length ?? 0); Budget(maximumBytes);
+                var frames = ReadFrames(source, shape, frameCount, snapshot, reusable, maximumBytes);
+                yield return new Shape(name, frameCount, snapshot ? frames.ToArray() : frames);
+            }
+        }
+        private IEnumerable<Frame> ReadFrames(Mesh source, int shape, int count, bool snapshot, Frame reusable, long maximumBytes)
+        {
+            for (var frame = 0; frame < count; frame++)
+            {
+                if (Thread.CurrentThread.ManagedThreadId != OwnerThread)
+                    throw new InvalidOperationException("A native character mesh frame was read outside its owner thread.");
+                if (snapshot) { _bytes += 128L + 36L * VertexCount; Budget(maximumBytes); }
+                var value = snapshot ? new Frame(VertexCount) : reusable;
+                source.GetBlendShapeFrameVertices(shape, frame, value.Positions, value.Normals, value.Tangents);
+                value.Weight = source.GetBlendShapeFrameWeight(shape, frame);
+                yield return value;
+            }
+        }
+        internal string Fingerprint(Func<bool> cancelled = null)
+        {
+            if (!Snapshot && Thread.CurrentThread.ManagedThreadId != OwnerThread)
+                throw new InvalidOperationException("A live native character mesh reader was sent to a fingerprint worker.");
+            CheckCancellation(cancelled);
+            var vectorBytes = new byte[4096];
             using var sha = CustomModels.CreateAssetSha256();
             using var hashing = new System.Security.Cryptography.CryptoStream(System.IO.Stream.Null, sha,
                 System.Security.Cryptography.CryptoStreamMode.Write);
             using var stream = new System.IO.BufferedStream(hashing, 65536);
             using var writer = new System.IO.BinaryWriter(stream, System.Text.Encoding.UTF8, true);
-            writer.Write("Solasta.MeshSource.1"); writer.Write(mesh.vertexCount); writer.Write((int)mesh.indexFormat);
-            CharacterModelWriteVectors(writer, positions);
-            CharacterModelWriteVectors(writer, sourceNormals);
-            CharacterModelWriteVectors(writer, sourceTangents);
-            writer.Write(checked(colors.Length * 4));
-            foreach (var value in colors)
+            writer.Write("Solasta.MeshSource.1"); writer.Write(VertexCount); writer.Write(IndexFormat);
+            CharacterModelWriteVectors(writer, Positions, vectorBytes, cancelled);
+            CharacterModelWriteVectors(writer, Normals, vectorBytes, cancelled);
+            CharacterModelWriteVectors(writer, Tangents, vectorBytes, cancelled);
+            writer.Write(checked(Colors.Length * 4));
+            foreach (var value in Colors)
             {
                 CharacterModelWriteFloat(writer, value.r); CharacterModelWriteFloat(writer, value.g);
                 CharacterModelWriteFloat(writer, value.b); CharacterModelWriteFloat(writer, value.a);
             }
-            var poses = mesh.bindposes;
+            var poses = Poses;
             writer.Write(checked(poses.Length * 16));
             foreach (var matrix in poses)
                 for (var index = 0; index < 16; index++) CharacterModelWriteFloat(writer, matrix[index]);
-            var weights = mesh.boneWeights;
+            var weights = Weights;
             writer.Write(checked(weights.Length * 4));
             foreach (var weight in weights)
             {
@@ -474,66 +787,146 @@ internal static class RacesContext
                 writer.Write(weight.boneIndex0); writer.Write(weight.boneIndex1);
                 writer.Write(weight.boneIndex2); writer.Write(weight.boneIndex3);
             }
-            writer.Write(readable.subMeshCount);
-            for (var index = 0; index < readable.subMeshCount; index++) CharacterModelWriteInts(writer, readable.GetIndices(index));
-            var uvChannels = new List<(int Channel, int Dimension, List<Vector4> Values)>();
-            for (var channel = 0; channel < 8; channel++)
-            {
-                var values = new List<Vector4>(); readable.GetUVs(channel, values);
-                if (values.Count > 0) uvChannels.Add((channel,
-                    readable.GetVertexAttributeDimension((UnityEngine.Rendering.VertexAttribute)((int)UnityEngine.Rendering.VertexAttribute.TexCoord0 + channel)), values));
-            }
-            writer.Write(uvChannels.Count);
+            writer.Write(SubmeshIndices.Length);
+            foreach(var indices in SubmeshIndices) CharacterModelWriteInts(writer, indices);
+            var uvChannels = Uvs;
+            writer.Write(uvChannels.Length);
             foreach (var uv in uvChannels)
             {
-                if (uv.Values.Count != mesh.vertexCount || uv.Dimension < 1 || uv.Dimension > 4)
+                if (uv.Values.Length != VertexCount || uv.Dimension < 1 || uv.Dimension > 4)
                     throw new InvalidOperationException("A native character model UV channel is incomplete.");
-                writer.Write(uv.Channel); writer.Write(uv.Dimension); writer.Write(checked(mesh.vertexCount * uv.Dimension));
+                writer.Write(uv.Channel); writer.Write(uv.Dimension); writer.Write(checked(VertexCount * uv.Dimension));
                 foreach (var value in uv.Values)
                     for (var component = 0; component < uv.Dimension; component++) CharacterModelWriteFloat(writer, value[component]);
             }
-            writer.Write(mesh.blendShapeCount);
-            Vector3[] vertices = mesh.blendShapeCount == 0 ? [] : new Vector3[mesh.vertexCount];
-            Vector3[] normals = mesh.blendShapeCount == 0 ? [] : new Vector3[mesh.vertexCount];
-            Vector3[] tangents = mesh.blendShapeCount == 0 ? [] : new Vector3[mesh.vertexCount];
-            for (var shape = 0; shape < mesh.blendShapeCount; shape++)
+            writer.Write(ShapeCount);
+            foreach(var shape in Shapes)
             {
-                writer.Write(mesh.GetBlendShapeName(shape)); var frames = mesh.GetBlendShapeFrameCount(shape); writer.Write(frames);
-                for (var frame = 0; frame < frames; frame++)
+                CheckCancellation(cancelled);
+                writer.Write(shape.Name); writer.Write(shape.FrameCount);
+                foreach(var frame in shape.Frames)
                 {
-                    mesh.GetBlendShapeFrameVertices(shape, frame, vertices, normals, tangents);
-                    CharacterModelWriteFloat(writer, mesh.GetBlendShapeFrameWeight(shape, frame));
-                    CharacterModelWriteVectors(writer, vertices);
-                    CharacterModelWriteVectors(writer, normals);
-                    CharacterModelWriteVectors(writer, tangents);
+                    CheckCancellation(cancelled);
+                    CharacterModelWriteFloat(writer, frame.Weight);
+                    CharacterModelWriteVectors(writer, frame.Positions, vectorBytes, cancelled);
+                    CharacterModelWriteVectors(writer, frame.Normals, vectorBytes, cancelled);
+                    CharacterModelWriteVectors(writer, frame.Tangents, vectorBytes, cancelled);
                 }
             }
             writer.Flush();
             stream.Flush();
             hashing.FlushFinalBlock();
             return BitConverter.ToString(sha.Hash).Replace("-", "").ToLowerInvariant();
-        }));
+
+        }
+    }
+
+    private static void CheckCancellation(Func<bool> cancelled)
+    { if (cancelled != null && cancelled()) throw new OperationCanceledException("A character model source request was superseded."); }
+
+    private static class CharacterModelMeshPreparation
+    {
+        private const long MaximumPacketBytes = 32L * 1024 * 1024;
+        private static int _busy;
+        private sealed class Pending(CharacterModelMeshData data)
+        {
+            internal CharacterModelMeshData Data = data;
+            internal volatile bool Cancelled;
+        }
+        private static Task<string> Queue(Pending pending) => Task.Run(() =>
+        {
+            try { return pending.Data.Fingerprint(() => pending.Cancelled); }
+            finally { pending.Data = null; Interlocked.Exchange(ref _busy, 0); }
+        });
+        internal static IEnumerator Prepare(Mesh source, Func<bool> current, Action onFailure = null)
+        {
+            if (!source || !current() || CharacterModelFingerprints.TryGetValue(source, out _)) yield break;
+            while (Interlocked.CompareExchange(ref _busy, 1, 0) != 0)
+            { if (!current()) yield break; yield return null; }
+            Pending pending = null;
+            var workerOwns = false;
+            try
+            {
+                if (!current()) yield break;
+                try { pending = new Pending(CharacterModelMeshData.Capture(source, true, MaximumPacketBytes)); }
+                catch (CharacterModelMeshPacketLimit) { yield break; }
+                catch (Exception exception) { onFailure?.Invoke(); ReportCharacterModelError("mesh-prefetch", exception); yield break; }
+                if (!current()) yield break;
+                Task<string> job;
+                try { job = Queue(pending); workerOwns = true; }
+                catch (Exception exception) { onFailure?.Invoke(); ReportCharacterModelError("mesh-prefetch", exception); yield break; }
+                while (!job.IsCompleted)
+                {
+                    if (!current())
+                    {
+                        pending.Cancelled = true;
+                        _ = job.ContinueWith(failed => _ = failed.Exception, TaskContinuationOptions.OnlyOnFaulted);
+                        yield break;
+                    }
+                    yield return null;
+                }
+                if (job.IsFaulted)
+                { if (!pending.Cancelled) { onFailure?.Invoke(); ReportCharacterModelError("mesh-prefetch", job.Exception); } yield break; }
+                if (!current() || !source) yield break;
+                if (CharacterModelFingerprints.GetValue(source, _ => job.Result) != job.Result)
+                { onFailure?.Invoke(); ReportCharacterModelError("mesh-prefetch", new InvalidOperationException("A native mesh changed during content verification.")); }
+            }
+            finally
+            {
+                if (pending != null) pending.Cancelled = true;
+                if (!workerOwns) Interlocked.Exchange(ref _busy, 0);
+            }
+        }
+    }
 
     private static void CharacterModelWriteFloat(System.IO.BinaryWriter writer, float value)
     {
         if (!BodyShapeFinite(value)) throw new InvalidOperationException("A native character model source contains nonfinite data.");
         writer.Write(value == 0f ? 0f : value);
     }
-    private static void CharacterModelWriteVectors(System.IO.BinaryWriter writer, Vector3[] values)
+    private static unsafe void CharacterModelWriteVectors(System.IO.BinaryWriter writer, Vector3[] values,
+        byte[] buffer, Func<bool> cancelled = null)
     {
         writer.Write(checked(values.Length * 3));
-        foreach (var value in values)
-        {
-            CharacterModelWriteFloat(writer, value.x); CharacterModelWriteFloat(writer, value.y); CharacterModelWriteFloat(writer, value.z);
-        }
+        if (sizeof(Vector3) != 12) throw new InvalidOperationException("A native Vector3 has an incompatible packed layout.");
+        fixed (Vector3* data = values) CharacterModelWriteVectorBytes(writer, (float*)data, values.Length, 3, buffer, cancelled);
     }
-    private static void CharacterModelWriteVectors(System.IO.BinaryWriter writer, Vector4[] values)
+    private static unsafe void CharacterModelWriteVectors(System.IO.BinaryWriter writer, Vector4[] values,
+        byte[] buffer, Func<bool> cancelled = null)
     {
         writer.Write(checked(values.Length * 4));
-        foreach (var value in values)
+        if (sizeof(Vector4) != 16) throw new InvalidOperationException("A native Vector4 has an incompatible packed layout.");
+        fixed (Vector4* data = values) CharacterModelWriteVectorBytes(writer, (float*)data, values.Length, 4, buffer, cancelled);
+    }
+    private static unsafe void CharacterModelWriteVectorBytes(System.IO.BinaryWriter writer, float* values,
+        int vertices, int dimension, byte[] buffer, Func<bool> cancelled)
+    {
+        if (!BitConverter.IsLittleEndian)
         {
-            CharacterModelWriteFloat(writer, value.x); CharacterModelWriteFloat(writer, value.y);
-            CharacterModelWriteFloat(writer, value.z); CharacterModelWriteFloat(writer, value.w);
+            for (var vertex = 0; vertex < vertices; vertex++)
+            {
+                if ((vertex & 255) == 0) CheckCancellation(cancelled);
+                for (var axis = 0; axis < dimension; axis++) CharacterModelWriteFloat(writer, values[vertex * dimension + axis]);
+            }
+            return;
+        }
+        for (var first = 0; first < vertices; first += 256)
+        {
+            CheckCancellation(cancelled);
+            var count = Math.Min(256, vertices - first) * dimension;
+            var input = (uint*)(values + first * dimension);
+            fixed (byte* bytes = buffer)
+            {
+                var output = (uint*)bytes;
+                for (var index = 0; index < count; index++)
+                {
+                    var bits = input[index];
+                    if ((bits & 0x7f800000u) == 0x7f800000u)
+                        throw new InvalidOperationException("A native character model source contains nonfinite data.");
+                    output[index] = (bits & 0x7fffffffu) == 0 ? 0u : bits;
+                }
+            }
+            writer.Write(buffer, 0, count * sizeof(float));
         }
     }
     private static void CharacterModelWriteInts(System.IO.BinaryWriter writer, int[] values)
@@ -560,13 +953,7 @@ internal static class RacesContext
                 var rgba = copy.GetRawTextureData();
                 if (rgba.Length != checked(texture.width * texture.height * 4))
                     throw new InvalidOperationException("A native character model texture did not yield RGBA32 linear pixels.");
-                using var sha = CustomModels.CreateAssetSha256();
-                using var hashing = new System.Security.Cryptography.CryptoStream(System.IO.Stream.Null, sha,
-                    System.Security.Cryptography.CryptoStreamMode.Write);
-                using var writer = new System.IO.BinaryWriter(hashing, System.Text.Encoding.UTF8, true);
-                writer.Write("Solasta.TextureRgba32Linear.1"); writer.Write(texture.width); writer.Write(texture.height); writer.Write(rgba); writer.Flush();
-                hashing.FlushFinalBlock();
-                return BitConverter.ToString(sha.Hash).Replace("-", "").ToLowerInvariant();
+                return CustomModels.TextureRgba32LinearFingerprint(texture.width, texture.height, rgba, rgba.Length);
             }
             finally
             {
@@ -577,24 +964,740 @@ internal static class RacesContext
             }
         });
 
+    internal static IEnumerator PrepareCharacterModelSources(GraphicsCharacterFactoryManager factory,
+        GraphicsCharacter graphics, IEnumerator native)
+    {
+        var prepared = false;
+        RulesetCharacter actor = null;
+        CharacterModelCatalog.PreparedSources preparation = null;
+        CharacterModelResourceLease resourceLease = null;
+        bool Current() => !_characterModelsUnloading && SettingsContext.GuiModManagerInstance.EnableCustomFaces &&
+                          factory && graphics && ReferenceEquals(actor, graphics.RulesetCharacter) &&
+                          !factory.IsAbortingGraphicsCharacter(graphics);
+        try
+        {
+            actor = graphics ? graphics.RulesetCharacter : null;
+            if (!factory) yield break;
+            if (Current())
+            {
+                PrepareCharacterModelCatalog();
+                while (Current() && _characterModelCatalog == null && _characterModelPreparation != null) yield return null;
+                if (Current() && _characterModelCatalog?.UsesCompleteParts == true)
+                {
+                    var catalog = _characterModelCatalog;
+                    using var sourceLease = catalog.PrepareSources();
+                    resourceLease = graphics.GetComponent<CharacterModelResourceLease>() ??
+                        graphics.gameObject.AddComponent<CharacterModelResourceLease>();
+                    resourceLease.Bind(graphics, catalog);
+                    resourceLease.BeginLoad();
+                    bool PartCurrent() => Current() && ReferenceEquals(catalog, _characterModelCatalog) && !catalog.IsRetiring;
+                    yield return catalog.PrepareCompleteParts(factory, PartCurrent);
+                    if (_characterModelsUnloading || !factory || !graphics ||
+                        !ReferenceEquals(actor, graphics.RulesetCharacter) || factory.IsAbortingGraphicsCharacter(graphics)) yield break;
+                    while (native.MoveNext())
+                    {
+                        resourceLease.Synchronize(factory);
+                        yield return native.Current;
+                    }
+                    yield break;
+                }
+            }
+            while (native.MoveNext())
+            {
+                var value = native.Current;
+                yield return value;
+                // Native code has one null wait after its addressable loads complete,
+                // while old parts and the loaded prefab source handles are still owned.
+                if (value != null || prepared) continue;
+                prepared = true;
+                actor = graphics ? graphics.RulesetCharacter : null;
+                if (!Current()) continue;
+                // Retry the superseded generation before native prefab handles are released.
+                while (Current())
+                {
+                    CharacterModelTextureReadback.SetEnabled(true);
+                    PrepareCharacterModelCatalog();
+                    while (Current() && (_characterModelCatalog == null || _characterModelCatalog.IsRetiring))
+                    {
+                        PrepareCharacterModelCatalog();
+                        if (_characterModelPreparation == null && _characterModelCatalog?.IsRetiring != true) break;
+                        yield return null;
+                    }
+                    if (!Current() || _characterModelCatalog == null || _characterModelCatalog.IsRetiring) break;
+                    var catalog = _characterModelCatalog;
+                    var generation = _characterModelPreparationGeneration;
+                    bool SourceCurrent() => Current() && generation == _characterModelPreparationGeneration &&
+                                            ReferenceEquals(catalog, _characterModelCatalog) && !catalog.IsRetiring &&
+                                            (preparation == null || preparation.SourcesCurrent(factory, graphics, true));
+                    preparation = catalog.PrepareSources();
+                    preparation.CaptureSources(factory, graphics, true);
+                    yield return ObserveCharacterModelPreparation(PrepareCharacterModelAssets(factory, graphics,
+                        preparation, SourceCurrent, true), () => preparation.Failed = true);
+                    if (SourceCurrent()) break;
+                    preparation.Dispose();
+                    preparation = null;
+                }
+            }
+            if (preparation is { Completed: true, Failed: false } && Current() && preparation.SourcesCurrent(factory, graphics, false) &&
+                ReferenceEquals(preparation.Catalog, _characterModelCatalog) && !_characterModelCatalog.IsRetiring)
+            {
+                var owner = graphics.GetComponent<CharacterModelPresentation>() ?? graphics.gameObject.AddComponent<CharacterModelPresentation>();
+                owner.Bind(graphics); owner.PrepareSources(preparation); preparation = null;
+            }
+        }
+        finally
+        {
+            try { (native as IDisposable)?.Dispose(); }
+            finally
+            {
+                try
+                {
+                    if (resourceLease) resourceLease.EndLoad();
+                    else if (graphics) graphics.GetComponent<CharacterModelResourceLease>()?.Synchronize();
+                }
+                finally { preparation?.Dispose(); }
+            }
+        }
+    }
+
+    internal static IEnumerator PrepareCharacterModelCreation(GraphicsCharacterFactoryManager factory, IEnumerator native,
+        int requestId, GraphicsCharacter existing)
+    {
+        GraphicsCharacter created = null;
+        var generation = _characterModelPreparationGeneration;
+        var completed = false;
+        void RetainCreation()
+        {
+            if (!ReferenceEquals(created, null) || _characterModelCatalog?.UsesCompleteParts != true) return;
+            var graphics = existing;
+            if (!graphics && requestId >= 0) factory.characterPerRequestId.TryGetValue(requestId, out graphics);
+            if (!graphics) return;
+            created = graphics;
+            CharacterModelCreations.TryGetValue(created, out var owners);
+            CharacterModelCreations[created] = owners + 1;
+        }
+        try
+        {
+            if (!_characterModelsUnloading && SettingsContext.GuiModManagerInstance.EnableCustomFaces)
+            {
+                PrepareCharacterModelCatalog();
+                while (factory && !_characterModelsUnloading && SettingsContext.GuiModManagerInstance.EnableCustomFaces &&
+                       _characterModelCatalog == null && _characterModelPreparation != null) yield return null;
+            }
+            if (!factory || _characterModelsUnloading) yield break;
+            generation = _characterModelPreparationGeneration;
+            RetainCreation();
+            while (native.MoveNext())
+            {
+                RetainCreation();
+                yield return native.Current;
+            }
+            completed = true;
+        }
+        finally
+        {
+            try { (native as IDisposable)?.Dispose(); }
+            finally
+            {
+                if (!ReferenceEquals(created, null))
+                {
+                    var owners = CharacterModelCreations[created] - 1;
+                    if (owners == 0) CharacterModelCreations.Remove(created);
+                    else CharacterModelCreations[created] = owners;
+                }
+            }
+        }
+        if (completed && generation != _characterModelPreparationGeneration && factory && created &&
+            !_characterModelsUnloading && !CharacterModelCreations.ContainsKey(created) &&
+            !factory.IsAbortingGraphicsCharacter(created)) RefreshNativeCharacterModel(factory, created);
+    }
+
+    private static object NativeCharacterModelResource(object key)
+    {
+        const string prefix = "UB/CharacterResources/";
+        return key is string text && text.StartsWith(prefix, StringComparison.Ordinal) ? text.Substring(prefix.Length) : key;
+    }
+
+    internal static bool NativeClothMeshPoolingEnabled => Patches.RenderMeshDeformerPatcher.RuntimeMeshLifetime_Patch.Enabled;
+    private static readonly Dictionary<Mesh, CharacterModelCatalog> CharacterModelClothMeshOwners = [];
+
+    internal static Mesh AcquireCharacterModelClothMesh(Mesh source) =>
+        NativeClothMeshPoolingEnabled && !_characterModelsUnloading && SettingsContext.GuiModManagerInstance.EnableCustomFaces &&
+        _characterModelCatalog?.TryAcquireClothMesh(source, out var mesh) == true ? mesh : UnityEngine.Object.Instantiate(source);
+
+    internal static void ReleaseCharacterModelClothMesh(UnityEngine.Object value)
+    {
+        if (value is Mesh mesh && CharacterModelClothMeshOwners.TryGetValue(mesh, out var catalog)) catalog.ReturnClothMesh(mesh);
+        else UnityEngine.Object.Destroy(value);
+    }
+
+    internal static void SetCharacterModelClothBindPoses(Mesh mesh, Matrix4x4[] poses)
+    {
+        if (CharacterModelClothMeshOwners.ContainsKey(mesh))
+        {
+            var current = mesh.bindposes;
+            if (current.Length == poses.Length && current.SelectMany((pose, index) => Enumerable.Range(0, 16)
+                    .Select(component => pose[component] == poses[index][component])).All(equal => equal)) return;
+        }
+        mesh.bindposes = poses;
+    }
+
+    internal static AsyncOperationHandle<T> LoadCharacterModelResourceAsync<T>(object key) where T : UnityEngine.Object
+    {
+        if (!_characterModelsUnloading && SettingsContext.GuiModManagerInstance.EnableCustomFaces &&
+            _characterModelCatalog?.UsesCompleteParts == true && _characterModelCatalog.TryGetResource(key, out var part))
+            return _characterModelCatalog.LoadResourceAsync<T>(part);
+        return Addressables.LoadAssetAsync<T>(NativeCharacterModelResource(key));
+    }
+
+    internal static void LoadCharacterModelResource<T>(ref GraphicsCharacterFactoryManager.LoadAssetWrapper<T> source)
+        where T : UnityEngine.Object
+    {
+        if (!_characterModelsUnloading && SettingsContext.GuiModManagerInstance.EnableCustomFaces &&
+            _characterModelCatalog?.UsesCompleteParts == true && _characterModelCatalog.TryGetResource(source.Key, out var resource))
+            source.Handle = _characterModelCatalog.LoadResourceAsync<T>(resource);
+        else if (!Equals(NativeCharacterModelResource(source.Key), source.Key))
+            source.Handle = Addressables.LoadAssetAsync<T>(NativeCharacterModelResource(source.Key));
+        else source.LoadAsset();
+    }
+
+    private static IEnumerator PrepareCharacterModelAssets(GraphicsCharacterFactoryManager factory,
+        GraphicsCharacter graphics, CharacterModelCatalog.PreparedSources preparation, Func<bool> current, bool includePending)
+    {
+        if (!current()) yield break;
+        // The live route owns only this actor's retained sources. Factory pending maps
+        // belong to its in-flight native request and must never be borrowed by another actor.
+        preparation.RetainNativeSources(factory, graphics, includePending);
+        var meshes = new HashSet<Mesh>();
+        var materials = new HashSet<Material>();
+        var parts = new HashSet<GameObject>();
+        foreach (var prefab in CharacterModelPartSources(factory, graphics, includePending).Where(part => part))
+        {
+            parts.Add(prefab);
+            var skins = CustomModels.SkinMeshSource.CapturePrefab(prefab,
+                prefab.GetComponentsInChildren<SkinnedMeshRenderer>(true).Where(renderer => renderer.sharedMesh));
+            if (skins != null) foreach (var skin in skins.Values) if (skin.Original) meshes.Add(skin.Original);
+            foreach (var material in prefab.GetComponentsInChildren<Renderer>(true).SelectMany(renderer => renderer.sharedMaterials))
+                if (material) materials.Add(material);
+        }
+        if (includePending)
+            foreach (var source in factory.customArmorMaterialLoadOperations.Values)
+                if (source.IsDone && source.Status == UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationStatus.Succeeded && source.Result)
+                    materials.Add(source.Result);
+        foreach (var source in graphics.CustomArmorMaterialPerBodySlot ?? [])
+            if (source.Value) materials.Add(source.Value);
+        foreach (var mesh in meshes)
+        {
+            if (!current()) break;
+            if (CharacterModelFingerprints.TryGetValue(mesh, out _)) continue;
+            yield return CharacterModelMeshPreparation.Prepare(mesh, current, () => preparation.Failed = true);
+        }
+        foreach (var mesh in meshes)
+        {
+            if (!current()) break;
+            var fingerprint = CharacterModelFingerprint(mesh);
+            yield return ObserveCharacterModelPreparation(preparation.Catalog.PrepareMesh(mesh, fingerprint, preparation, current), () => preparation.Failed = true);
+        }
+        var bodyTextures = preparation.Catalog.HasBodyTextureConditions ? CharacterModelBodyTextureSources(factory, graphics, includePending).ToHashSet() : [];
+        var nativeTextures = CharacterModelNativeTextureSources(factory, graphics, includePending);
+        if (SystemInfo.supportsAsyncGPUReadback && current())
+        {
+            var textures = materials.SelectMany(preparation.Catalog.NativeTextureSources).Concat(bodyTextures)
+                .Concat(nativeTextures.Values.SelectMany(values => values)).ToHashSet();
+            foreach (var texture in textures)
+            {
+                if (!current()) break;
+                if (CharacterModelTextureFingerprints.TryGetValue(texture, out _)) continue;
+                yield return CharacterModelTextureReadback.Read(texture, current, () => preparation.Failed = true);
+            }
+        }
+        yield return ObserveCharacterModelPreparation(preparation.Catalog.PrepareMaterialTextures(parts, bodyTextures, preparation, current, nativeTextures), () => preparation.Failed = true);
+        yield return ObserveCharacterModelPreparation(preparation.Catalog.PrepareJointMeshes(factory, graphics, parts, preparation, current, includePending), () => preparation.Failed = true);
+        // Prepare the immutable prefab binding while the old native parts are
+        // still published. No extra asynchronous wait may follow instantiation.
+        if (current() && preparation.HasPacks)
+        {
+            preparation.RetainNativeSources(factory, graphics, includePending);
+            yield return ObserveCharacterModelPreparation(PrepareCharacterModelData(parts, preparation, current), () => preparation.Failed = true);
+        }
+        if (current() && !preparation.Failed) preparation.Completed = true;
+    }
+
+    private static IEnumerator PrepareCharacterModelData(IEnumerable<GameObject> parts,
+        CharacterModelCatalog.PreparedSources preparation, Func<bool> current)
+    {
+        if (!current()) yield break;
+        var prefabs = parts.Where(part => part).Distinct().ToArray();
+        var sources = new Dictionary<SkinnedMeshRenderer, CustomModels.SkinMeshSource>();
+        foreach (var part in prefabs)
+        {
+            var captured = CustomModels.SkinMeshSource.CapturePrefab(part,
+                part.GetComponentsInChildren<SkinnedMeshRenderer>(true).Where(renderer => renderer.sharedMesh));
+            if (captured == null) yield break;
+            foreach (var pair in captured) sources[pair.Key] = pair.Value;
+        }
+        var changes = new Dictionary<SkinnedMeshRenderer, (CustomModels.SkinMeshSource Source, Mesh Mesh)>();
+        var bindings = new Dictionary<SkinnedMeshRenderer, CustomModels.SkinMeshSource.SurfaceBinding>();
+        foreach (var pair in sources)
+        {
+            // Joint attachments depend on the final actor pair and retain the regular path.
+            if (!pair.Value.ClothOwner || IsJointSkin(pair.Key) ||
+                !CharacterModelFingerprints.TryGetValue(pair.Value.Original, out var fingerprint) ||
+                !preparation.Catalog.HasPreparedBinding(fingerprint)) continue;
+            var authored = preparation.Catalog.Mesh(pair.Value.Original, fingerprint, preparation.Packs, out _);
+            var binding = preparation.Catalog.Binding(pair.Value.Original, fingerprint);
+            if (authored == pair.Value.Original || binding == null || binding.BoundaryOverrides != null) continue;
+            changes.Add(pair.Key, (pair.Value, authored)); bindings.Add(pair.Key, binding);
+        }
+        if (changes.Count == 0) yield break;
+        yield return CustomModels.SkinMeshSource.PrepareNativeBindings(prefabs, changes, bindings,
+            key => CharacterModelPresentation.RetainExistingSourceData(preparation.Derived, key),
+            (key, data) => CharacterModelPresentation.RetainPreparedSourceData(preparation.Derived, key, data),
+            source => preparation.Catalog.PrepareNativeFingerprint(source, current),
+            preparation.Catalog.NativeDataFingerprint, current);
+        foreach (var pair in changes)
+        {
+            if (!current()) yield break;
+            if (bindings.TryGetValue(pair.Key, out var binding))
+                yield return preparation.Catalog.PrepareSurfacePacket(pair.Value.Source.Original, binding, preparation, current);
+        }
+    }
+
+    private static IReadOnlyDictionary<int, IReadOnlyCollection<Texture>> CharacterModelNativeTextureSources(
+        GraphicsCharacterFactoryManager factory, GraphicsCharacter graphics, bool includePending = true)
+    {
+        var sources = new Dictionary<int, HashSet<Texture>>();
+        void Add(int id, Texture current,
+            UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<Texture> pending)
+        {
+            if (id == -1) return;
+            if (!sources.TryGetValue(id, out var textures)) sources.Add(id, textures = []);
+            if (current) textures.Add(current);
+            if (includePending && pending.IsValid() && pending.IsDone &&
+                pending.Status == UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationStatus.Succeeded && pending.Result)
+                textures.Add(pending.Result);
+        }
+        // These are the native parameter channels assigned after part instantiation.
+        // Keep their current and pending sources while the factory owns the handles.
+        Add(factory.bdMainTexId, graphics.BDMainTex.Value, factory.bdMainTexWrapper.Handle);
+        Add(factory.bdNormalMapId, graphics.BDNormalMap.Value, factory.bdNormalMapWrapper.Handle);
+        Add(factory.bdMetallicGlossMapId, graphics.BDMetallicGlossMap.Value, factory.bdMetallicGlossMapWrapper.Handle);
+        Add(factory.scarsMainTexId, graphics.ScarsMainTex.Value, factory.scarsMainTexWrapper.Handle);
+        Add(factory.scarsNormalMapId, graphics.ScarsNormalMap.Value, factory.scarsNormalMapWrapper.Handle);
+        Add(factory.mainTexId, graphics.EyeMainTex.Value, factory.eyeMainTexWrapper.Handle);
+        Add(factory.colorMaskId, graphics.EyeColorMask.Value, factory.eyeColorMaskWrapper.Handle);
+        return sources.ToDictionary(pair => pair.Key, pair => (IReadOnlyCollection<Texture>)pair.Value);
+    }
+
+    private static GameObject CharacterModelPartSource(GraphicsCharacterDefinitions.BodyPart part,
+        IReadOnlyDictionary<GraphicsCharacterDefinitions.BodyPart,
+            UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject>> pending,
+        KeyValuePair<string, GameObject>[] native, bool includePending = true)
+    {
+        if (includePending && pending.TryGetValue(part, out var load) && load.IsValid() && load.IsDone &&
+            load.Status == UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationStatus.Succeeded) return load.Result;
+        var index = (int)part;
+        return native != null && index >= 0 && index < native.Length ? native[index].Value : null;
+    }
+
+    private static IEnumerable<GameObject> CharacterModelPartSources(GraphicsCharacterFactoryManager factory, GraphicsCharacter graphics, bool includePending = true)
+    {
+        for (var index = 0; index < GraphicsCharacterDefinitions.BodyPartCount; index++)
+        {
+            var part = (GraphicsCharacterDefinitions.BodyPart)index;
+            var shape = CharacterModelPartSource(part, factory.shapePartsLoadOperations, graphics.ShapeObjectPerBodySlot, includePending);
+            var armor = CharacterModelPartSource(part, factory.armorPartsLoadOperations, graphics.ArmorObjectPerBodySlot, includePending);
+            if (shape) yield return shape;
+            if (armor) yield return armor;
+        }
+    }
+
+    private static IEnumerable<Texture> CharacterModelBodyTextureSources(GraphicsCharacterFactoryManager factory, GraphicsCharacter graphics, bool includePending = true)
+    {
+        var id = Shader.PropertyToID("_MainTex");
+        for (var index = 0; index < GraphicsCharacterDefinitions.BodyPartCount; index++)
+        {
+            var part = (GraphicsCharacterDefinitions.BodyPart)index;
+            if (part == GraphicsCharacterDefinitions.BodyPart.Head) continue;
+            var shape = CharacterModelPartSource(part, factory.shapePartsLoadOperations, graphics.ShapeObjectPerBodySlot, includePending);
+            var armor = CharacterModelPartSource(part, factory.armorPartsLoadOperations, graphics.ArmorObjectPerBodySlot, includePending);
+            Material custom = null;
+            if (includePending && factory.customArmorMaterialLoadOperations.TryGetValue(part, out var customLoad) && customLoad.IsDone &&
+                customLoad.Status == UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationStatus.Succeeded) custom = customLoad.Result;
+            else if (graphics.CustomArmorMaterialPerBodySlot is { } customs && index < customs.Length) custom = customs[index].Value;
+            foreach (var material in new[] { shape, armor }.Where(value => value)
+                         .SelectMany(value => value.GetComponentsInChildren<Renderer>(true)).SelectMany(renderer => renderer.sharedMaterials).Concat([custom]))
+            {
+                if (!material || !material.shader || !material.shader.name.StartsWith("Lux/Human/Skin", StringComparison.Ordinal) || !material.HasProperty(id)) continue;
+                var texture = material.GetTexture(id);
+                if (texture && texture.dimension == UnityEngine.Rendering.TextureDimension.Tex2D) yield return texture;
+            }
+        }
+    }
+
+    private static IEnumerable<UnityEngine.Object> CharacterModelSourceReferences(
+        GraphicsCharacterFactoryManager factory, GraphicsCharacter graphics, bool includePending)
+    {
+        for (var index = 0; index < GraphicsCharacterDefinitions.BodyPartCount; index++)
+        {
+            var part = (GraphicsCharacterDefinitions.BodyPart)index;
+            yield return CharacterModelPartSource(part, factory.shapePartsLoadOperations, graphics.ShapeObjectPerBodySlot, includePending);
+            yield return CharacterModelPartSource(part, factory.armorPartsLoadOperations, graphics.ArmorObjectPerBodySlot, includePending);
+            var native = graphics.CustomArmorMaterialPerBodySlot;
+            var material = native != null && index < native.Length ? native[index].Value : null;
+            if (includePending && factory.customArmorMaterialLoadOperations.TryGetValue(part, out var pending) && pending.IsValid() &&
+                pending.IsDone && pending.Status == UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationStatus.Succeeded)
+                material = pending.Result;
+            yield return material;
+        }
+        Texture Select(Texture native, UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<Texture> pending) =>
+            includePending && pending.IsValid() && pending.IsDone &&
+            pending.Status == UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationStatus.Succeeded ? pending.Result : native;
+        yield return Select(graphics.BDMainTex.Value, factory.bdMainTexWrapper.Handle);
+        yield return Select(graphics.BDNormalMap.Value, factory.bdNormalMapWrapper.Handle);
+        yield return Select(graphics.BDMetallicGlossMap.Value, factory.bdMetallicGlossMapWrapper.Handle);
+        yield return Select(graphics.ScarsMainTex.Value, factory.scarsMainTexWrapper.Handle);
+        yield return Select(graphics.ScarsNormalMap.Value, factory.scarsNormalMapWrapper.Handle);
+        yield return Select(graphics.EyeMainTex.Value, factory.eyeMainTexWrapper.Handle);
+        yield return Select(graphics.EyeColorMask.Value, factory.eyeColorMaskWrapper.Handle);
+    }
+
+    private static IEnumerator ObserveCharacterModelPreparation(IEnumerator preparation, Action failed = null)
+    {
+        try
+        {
+            while (true)
+            {
+                bool more;
+                try { more = preparation.MoveNext(); }
+                catch (Exception exception) { failed?.Invoke(); ReportCharacterModelError("mesh-prefetch", exception); yield break; }
+                if (!more) yield break;
+                if (preparation.Current is IEnumerator nested)
+                {
+                    var observed = ObserveCharacterModelPreparation(nested, failed);
+                    try { while (observed.MoveNext()) yield return observed.Current; }
+                    finally { (observed as IDisposable)?.Dispose(); }
+                }
+                else yield return preparation.Current;
+            }
+        }
+        finally { (preparation as IDisposable)?.Dispose(); }
+    }
+
+    private static class CharacterModelTextureReadback
+    {
+        private const int Capacity = 16 * 1024 * 1024;
+        private static readonly object BufferLock = new();
+        private static byte[] _buffer;
+        private static bool _enabled, _leased;
+
+        internal static void SetEnabled(bool enabled)
+        {
+            lock (BufferLock)
+            {
+                _enabled = enabled;
+                if (enabled) _buffer ??= new byte[Capacity];
+                else if (!_leased) _buffer = null;
+            }
+        }
+        private static bool TryAcquire(out byte[] buffer)
+        {
+            lock (BufferLock)
+            {
+                buffer = null;
+                if (!_enabled || _leased) return false;
+                _buffer ??= new byte[Capacity];
+                _leased = true;
+                buffer = _buffer;
+                return true;
+            }
+        }
+        private static void Return(byte[] buffer)
+        {
+            lock (BufferLock)
+            {
+                if (!_leased || !ReferenceEquals(buffer, _buffer))
+                    throw new InvalidOperationException("A native texture readback returned a different byte buffer.");
+                _leased = false;
+                if (!_enabled) _buffer = null;
+            }
+        }
+        private sealed class Pending(byte[] buffer, int count)
+        {
+            internal RenderTexture Target;
+            internal byte[] Buffer = buffer, Bytes;
+            internal readonly int Count = count;
+            internal bool Done, Cancelled, WorkerOwns;
+            internal Exception Error;
+            internal void ReturnBuffer()
+            {
+                if (Buffer == null) return;
+                var returning = Buffer;
+                Buffer = Bytes = null;
+                Return(returning);
+            }
+            internal void Complete(UnityEngine.Rendering.AsyncGPUReadbackRequest request)
+            {
+                try
+                {
+                    if (Cancelled) return;
+                    if (request.hasError) throw new InvalidOperationException("A native texture asynchronous readback failed.");
+                    var pixels = request.GetData<byte>();
+                    if (pixels.Length != Count) throw new InvalidOperationException("A native texture readback changed its RGBA32 byte count.");
+                    Unity.Collections.NativeArray<byte>.Copy(pixels, 0, Buffer, 0, Count);
+                    Bytes = Buffer;
+                }
+                catch (Exception exception) { Error = exception; }
+                finally
+                {
+                    if (Target) RenderTexture.ReleaseTemporary(Target);
+                    Target = null;
+                    Done = true;
+                    if (Cancelled) ReturnBuffer();
+                }
+            }
+        }
+        internal static IEnumerator Read(Texture source, Func<bool> current, Action onFailure = null)
+        {
+            var width = source.width; var height = source.height; var update = source.updateCount;
+            var count = checked(width * height * 4);
+            if (count > Capacity) yield break;
+            byte[] buffer;
+            while (!TryAcquire(out buffer))
+            {
+                if (!current()) yield break;
+                yield return null;
+            }
+            var pending = new Pending(buffer, count);
+            try
+            {
+                var active = RenderTexture.active;
+                var write = GL.sRGBWrite;
+                try
+                {
+                    pending.Target = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+                    GL.sRGBWrite = false;
+                    Graphics.Blit(source, pending.Target);
+                    UnityEngine.Rendering.AsyncGPUReadback.Request(pending.Target, 0, TextureFormat.RGBA32, pending.Complete);
+                }
+                catch (Exception exception)
+                {
+                    if (pending.Target) RenderTexture.ReleaseTemporary(pending.Target);
+                    pending.Target = null;
+                    pending.Done = true;
+                    onFailure?.Invoke(); ReportCharacterModelError("texture-prefetch", exception);
+                    yield break;
+                }
+                finally { GL.sRGBWrite = write; RenderTexture.active = active; }
+                while (!pending.Done)
+                {
+                    if (!current()) yield break;
+                    yield return null;
+                }
+                if (pending.Error != null)
+                {
+                    onFailure?.Invoke(); ReportCharacterModelError("texture-prefetch", pending.Error);
+                    yield break;
+                }
+                if (!current() || !source || source.width != width || source.height != height || source.updateCount != update)
+                    yield break;
+                var bytes = pending.Bytes;
+                pending.WorkerOwns = true;
+                Task<string> job;
+                try
+                {
+                    job = Task.Run(() =>
+                    {
+                        try { return CustomModels.TextureRgba32LinearFingerprint(width, height, bytes, count); }
+                        finally { pending.ReturnBuffer(); }
+                    });
+                }
+                catch (Exception exception)
+                {
+                    pending.WorkerOwns = false;
+                    onFailure?.Invoke(); ReportCharacterModelError("texture-prefetch", exception);
+                    yield break;
+                }
+                while (!job.IsCompleted)
+                {
+                    if (!current())
+                    {
+                        _ = job.ContinueWith(failed => _ = failed.Exception, TaskContinuationOptions.OnlyOnFaulted);
+                        yield break;
+                    }
+                    yield return null;
+                }
+                if (job.IsFaulted)
+                {
+                    onFailure?.Invoke(); ReportCharacterModelError("texture-prefetch", job.Exception);
+                    yield break;
+                }
+                if (!current() || !source || source.width != width || source.height != height || source.updateCount != update)
+                    yield break;
+                if (CharacterModelTextureFingerprints.GetValue(source, _ => job.Result) != job.Result)
+                { onFailure?.Invoke(); ReportCharacterModelError("texture-prefetch", new InvalidOperationException("A native texture changed during content verification.")); }
+            }
+            finally
+            {
+                pending.Cancelled = true;
+                if (!pending.WorkerOwns && pending.Done) pending.ReturnBuffer();
+            }
+        }
+    }
+
     [Serializable] private sealed class CharacterModelManifest
     {
-        // Json.NET populates these declarations after the strict schema check.
+        // The strict schema reader populates these declarations before asset validation.
         public int schemaVersion = 0;
         public string recipeVersion = null;
         public CharacterModelBundle[] bundles = null;
         public CharacterModelMeshAsset[] meshes = null;
         public CharacterModelMaterialAsset[] materials = null;
         public CharacterModelProperty[] textureRemaps = null;
+        public CharacterModelResource[] resources = null;
     }
+    private sealed class CharacterModelResource(string source, string asset, string kind,
+        CharacterModelResourceBundle[] bundles, CharacterModelPartParameter[] parameters)
+    {
+        internal readonly string Source = source, Asset = asset, Kind = kind;
+        internal Type AssetType => Kind switch
+        {
+            "GameObject" => typeof(GameObject), "Material" => typeof(Material), "Texture" => typeof(Texture),
+            "RuntimeAnimatorController" => typeof(RuntimeAnimatorController), "AnimationClip" => typeof(AnimationClip),
+            "Avatar" => typeof(Avatar), "AudioClip" => typeof(AudioClip), _ => null
+        };
+        internal readonly CharacterModelResourceBundle[] Bundles = bundles;
+        internal readonly CharacterModelPartParameter[] Parameters = parameters;
+        internal string Key => "UB/CharacterResources/" + Source;
+    }
+    private sealed class CharacterModelResourceBundle(string file, string name)
+    {
+        internal readonly string File = file, Name = name;
+    }
+    private sealed class CharacterModelPartParameter(string renderer, int slot, string set)
+    {
+        internal readonly string Renderer = renderer, Set = set;
+        internal readonly int Slot = slot;
+    }
+    // Managed file verification owns its read lock independently of catalog/actor life.
+    private sealed class BundleVerification : IDisposable
+    {
+        private sealed class Result
+        {
+            internal Exception Error;
+            internal bool Cancelled;
+        }
+        private readonly string _path, _expected;
+        private readonly object _gate = new();
+        private readonly Task<Result> _task;
+        private System.IO.FileStream _readLock;
+        private bool _hashFinished;
+        private int _cancelled;
+        internal bool Completed => _task.IsCompleted;
+        internal bool Cancelled => Volatile.Read(ref _cancelled) != 0;
+
+        internal BundleVerification(string path, string expected)
+        {
+            _path = System.IO.Path.GetFullPath(path); _expected = expected;
+            // This delegate captures only this managed operation: no entry/catalog/actor.
+            _task = Task.Run(Verify);
+            _ = _task.ContinueWith(task => { _ = task.Exception; }, CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
+        private void CheckCancellation()
+        { if (Cancelled) throw new OperationCanceledException(); }
+        private Result Verify()
+        {
+            var result = new Result(); System.IO.FileStream stream = null;
+            try
+            {
+                CheckCancellation();
+                stream = new System.IO.FileStream(_path, System.IO.FileMode.Open,
+                    System.IO.FileAccess.Read, System.IO.FileShare.Read, 65536,
+                    System.IO.FileOptions.SequentialScan);
+                using (var hash = CustomModels.CreateAssetSha256())
+                {
+                    var buffer = new byte[65536];
+                    while (true)
+                    {
+                        CheckCancellation(); var count = stream.Read(buffer, 0, buffer.Length);
+                        if (count == 0) break;
+                        hash.TransformBlock(buffer, 0, count, buffer, 0);
+                    }
+                    CheckCancellation(); hash.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                    var digest = BitConverter.ToString(hash.Hash).Replace("-", "").ToLowerInvariant();
+                    if (!StringComparer.Ordinal.Equals(digest, _expected))
+                        throw new InvalidOperationException("A custom character model pack does not match its catalog: " + _path);
+                }
+                lock (_gate)
+                {
+                    CheckCancellation();
+                    _readLock = stream; stream = null;
+                    // No hash/read touches the transferred stream after this point.
+                    _hashFinished = true;
+                }
+            }
+            catch (OperationCanceledException) { result.Cancelled = true; }
+            catch (Exception error) { result.Error = error; }
+            finally
+            {
+                try { stream?.Dispose(); }
+                catch (Exception error) { result.Error ??= error; }
+                lock (_gate)
+                {
+                    _hashFinished = true;
+                    if (Cancelled && _readLock != null)
+                    {
+                        try { _readLock.Dispose(); }
+                        catch (Exception error) { result.Error ??= error; }
+                        _readLock = null;
+                    }
+                }
+            }
+            return result;
+        }
+        internal void RequireReady()
+        {
+            if (!Completed) throw new InvalidOperationException("A character pack is still being verified.");
+            var result = _task.GetAwaiter().GetResult();
+            if (Cancelled || result.Cancelled) throw new OperationCanceledException();
+            if (result.Error != null)
+                throw new InvalidOperationException("A character pack verification failed: " + _path, result.Error);
+        }
+        // Called on the Unity owner thread. The callback is never stored or queued.
+        internal void Consume(Action<long> load)
+        {
+            RequireReady();
+            lock (_gate)
+            {
+                CheckCancellation();
+                if (_readLock == null) throw new InvalidOperationException("A verified character pack lost its read lock.");
+                try { load(_readLock.Length); }
+                finally { _readLock.Dispose(); _readLock = null; Interlocked.Exchange(ref _cancelled, 1); }
+            }
+        }
+        public void Dispose()
+        {
+            Interlocked.Exchange(ref _cancelled, 1);
+            lock (_gate)
+            {
+                // In-flight hashing alone owns its stream and closes it in finally.
+                if (_hashFinished) { _readLock?.Dispose(); _readLock = null; }
+            }
+        }
+    }
+
     [Serializable] private sealed class CharacterModelBundle
     {
         public string file = null, sha256 = null;
         [NonSerialized] internal AssetBundle Loaded;
+        [NonSerialized] internal BundleVerification Verification;
         [NonSerialized] internal int Owners;
         [NonSerialized] internal List<CharacterModelMeshAsset> Meshes;
         [NonSerialized] internal List<CharacterModelProperty> Textures;
         [NonSerialized] internal List<CharacterModelMaterialProfile> Profiles;
+        [NonSerialized] internal List<CharacterModelJointAsset> Joints;
         [NonSerialized] internal LinkedListNode<CharacterModelBundle> Unused;
         [NonSerialized] internal long StoredBytes, CachedBytes;
     }
@@ -602,18 +1705,406 @@ internal static class RacesContext
     {
         public string sourceFingerprint = null, mode = null, authoredMeshAsset = null, authoredFingerprint = null,
             bundleFile = null, bindingFile = null, bindingSha256 = null;
+        public CharacterModelJointAsset[] jointAttachments;
         [NonSerialized] internal Mesh Loaded;
+        [NonSerialized] internal CustomModels.SkinMeshSource.SourceGraph.NativeSurfacePacket PreparedFinishPacket;
         [NonSerialized] internal CustomModels.SkinMeshSource.SurfaceBinding LoadedBinding;
+        [NonSerialized] internal CustomModels.SkinMeshSource.SurfaceBinding LoadedBaseBinding;
+        [NonSerialized] internal bool LoadedBaseBindingPrepared;
+        [NonSerialized] internal Mesh LoadedBaseBindingTarget;
+        [NonSerialized] internal CharacterModelBindingTemplate ParsedBinding;
+        [NonSerialized] internal LinkedListNode<CharacterModelMeshAsset> ParsedBindingNode;
         [NonSerialized] internal CharacterModelSurfaceLayout[] Layouts;
         [NonSerialized] internal (string BundleSha256, string Asset, string Fingerprint) VerifiedContent;
     }
+    // Coupled derived surfaces remain declarations of the existing immutable mesh catalog.
+    [Serializable] private sealed class CharacterModelJointAsset
+    {
+        public GraphicsCharacterDefinitions.BodyPart donorPart = GraphicsCharacterDefinitions.BodyPart.Body;
+        public string tangentMode = "uvDerivative";
+        public string bodySourceFingerprint = null, headFingerprint = null, bodyFingerprint = null, authoredFingerprint = null, bundleFile = null, authoredMeshAsset = null;
+        public int[] origins = null, bodyToHead = null, donorBones = null, removedTriangles = null, uvEdges = null;
+        public float[] uvFractions = null, headToBody = null;
+        [NonSerialized] internal Mesh Loaded = null;
+        [NonSerialized] internal string InvalidReason = null;
+        [NonSerialized] internal readonly HashSet<(Mesh Head, Mesh Body)> Verified = [];
+    }
+
+    private static void ValidateCharacterModelJoint(Mesh head, Mesh body, Mesh target, CharacterModelJointAsset declaration)
+    {
+        if (!head || !body || !target || !head.isReadable || !target.isReadable)
+            throw new InvalidOperationException("A coupled joint requires its complete readable immutable sources.");
+        var h = CharacterModelMeshData.Capture(head, true); var b = CharacterModelMeshData.Capture(body, true);
+        var t = CharacterModelMeshData.Capture(target, true); var n = h.VertexCount;
+        var origins = declaration.origins;
+        if (origins == null || origins.Length != t.VertexCount || t.VertexCount <= n ||
+            origins.Take(n).Where((v, i) => v != i).Any() || declaration.headToBody?.Length != 16 ||
+            declaration.bodyToHead?.Length != b.Poses.Length || declaration.donorBones == null ||
+            declaration.uvEdges?.Length != 2 * (t.VertexCount - n) || declaration.uvFractions?.Length != t.VertexCount - n ||
+            declaration.removedTriangles == null || h.SubmeshIndices.Length != 1 || t.SubmeshIndices.Length != 1 ||
+            h.Uvs.Length != t.Uvs.Length || h.Tangents.Length != n || b.Tangents.Length != b.VertexCount ||
+            t.Poses.Length != h.Poses.Length + declaration.donorBones.Length ||
+            !t.Poses.Take(h.Poses.Length).SequenceEqual(h.Poses) || declaration.headToBody.Any(v => !BodyShapeFinite(v)))
+            throw new InvalidOperationException("A coupled joint has incomplete source, palette, topology or UV correspondence.");
+        var frame = new Matrix4x4(); for (var i = 0; i < 16; i++) frame[i] = declaration.headToBody[i];
+        if (!BodyShapeFinite(frame.determinant) || frame.determinant == 0f || frame[3] != 0f || frame[7] != 0f || frame[11] != 0f || frame[15] != 1f)
+            throw new InvalidOperationException("A coupled joint has an invalid common source frame.");
+        var toHead = frame.inverse; var normalToHead = frame.transpose;
+        for (var i = 0; i < declaration.bodyToHead.Length; i++)
+        {
+            var mapped = declaration.bodyToHead[i]; if (mapped == -1) continue;
+            if (mapped < 0 || mapped >= t.Poses.Length || !JointPose(t.Poses[mapped], b.Poses[i] * frame))
+                throw new InvalidOperationException("A coupled joint changed a native donor bind pose.");
+        }
+        for (var i = 0; i < declaration.donorBones.Length; i++)
+            if (declaration.donorBones[i] < 0 || declaration.donorBones[i] >= b.Poses.Length ||
+                declaration.bodyToHead[declaration.donorBones[i]] != h.Poses.Length + i ||
+                declaration.donorBones.Take(i).Contains(declaration.donorBones[i]))
+                throw new InvalidOperationException("A coupled joint changed its appended native palette order.");
+        var nativeCut = new BodyShapeCut(h.Positions, h.SubmeshIndices.SelectMany(v => v).ToArray());
+        var sourceCutEdges = nativeCut.Edges.Select(e => e.First < e.Second ? (e.First, e.Second) : (e.Second, e.First)).ToHashSet();
+        var sourceRemoved = declaration.removedTriangles.Where(i => i >= 0 && i < h.SubmeshIndices[0].Length / 3)
+            .SelectMany(i => h.SubmeshIndices[0].Skip(i * 3).Take(3)).Select(i => h.Positions[i]).ToHashSet();
+        // Closed patches can consume their removed native ridge edges. One
+        // source topology serves both that domain and the per-face chart proof.
+        var sourceRemovedFaces = declaration.removedTriangles.ToHashSet();
+        Dictionary<(int, int), List<(int Face, int A, int B)>> sourceChartEdges = null;
+        int[] sourceChartGroups = null;
+        void PrepareSourceChartTopology()
+        {
+            if (sourceChartEdges != null) return;
+            var points = new Dictionary<Vector3, int>();
+            sourceChartGroups = h.Positions.Select(point =>
+            {
+                if (!points.TryGetValue(point, out var id)) points.Add(point, id = points.Count);
+                return id;
+            }).ToArray();
+            sourceChartEdges = [];
+            var indices = h.SubmeshIndices[0];
+            for (var face = 0; face < indices.Length / 3; face++)
+                for (var corner = 0; corner < 3; corner++)
+                {
+                    var a = indices[face * 3 + corner]; var z = indices[face * 3 + (corner + 1) % 3];
+                    var ga = sourceChartGroups[a]; var gz = sourceChartGroups[z]; if (ga == gz) continue;
+                    var key = ga < gz ? (ga, gz) : (gz, ga);
+                    if (!sourceChartEdges.TryGetValue(key, out var faces)) sourceChartEdges.Add(key, faces = []);
+                    faces.Add((face, a, z));
+                }
+        }
+        bool SameSourcePoint(int a, int z) => h.Positions[a].Equals(h.Positions[z]) && SameWeight(h.Weights[a], h.Weights[z], null) &&
+            h.Shapes.All(shape => shape.Frames.All(physical => physical.Positions[a].Equals(physical.Positions[z])));
+        bool OppositeSourceFaces(List<(int Face, int A, int B)> faces) => faces.Count == 2 &&
+            SameSourcePoint(faces[0].A, faces[1].B) && SameSourcePoint(faces[0].B, faces[1].A);
+        HashSet<(int, int)> sourceCavityUvEdges = null;
+        bool IsCavityUvEdge((int, int) uvEdge)
+        {
+            if (sourceCavityUvEdges != null) return sourceCavityUvEdges.Contains(uvEdge);
+            PrepareSourceChartTopology();
+            sourceCavityUvEdges = sourceChartEdges.Values.Where(OppositeSourceFaces)
+                .SelectMany(faces => faces.Where(face => sourceRemovedFaces.Contains(face.Face)))
+                .Select(edge => edge.A < edge.B ? (edge.A, edge.B) : (edge.B, edge.A)).ToHashSet();
+            return sourceCavityUvEdges.Contains(uvEdge);
+        }
+        for (var vertex = 0; vertex < origins.Length; vertex++)
+        {
+            var donor = origins[vertex] < 0; var source = donor ? b : h; var index = donor ? -origins[vertex] - 1 : origins[vertex];
+            if (index < 0 || index >= source.VertexCount || !SameWeight(source.Weights[index], t.Weights[vertex], donor ? declaration.bodyToHead : null) ||
+                !(donor ? JointVector(toHead.MultiplyPoint3x4(source.Positions[index]), t.Positions[vertex]) : source.Positions[index].Equals(t.Positions[vertex])) ||
+                !(donor ? JointVector(normalToHead.MultiplyVector(source.Normals[index]).normalized, t.Normals[vertex]) : source.Normals[index].Equals(t.Normals[vertex])) ||
+                !donor && !source.Tangents[index].Equals(t.Tangents[vertex]))
+                throw new InvalidOperationException("A coupled joint changed a source vertex, normal or positive native influence.");
+            if (h.Colors.Length != t.Colors.Length && h.Colors.Length == 0 || h.Colors.Length != 0 &&
+                (t.Colors.Length != t.VertexCount || !donor && !h.Colors[index].Equals(t.Colors[vertex])))
+                throw new InvalidOperationException("A coupled joint changed its native colour channel.");
+            for (var channel = 0; channel < h.Uvs.Length; channel++)
+            {
+                var hu = h.Uvs[channel]; var tu = t.Uvs[channel];
+                if (hu.Channel != tu.Channel || hu.Dimension != tu.Dimension)
+                    throw new InvalidOperationException("A coupled joint changed a native UV layout.");
+                if (vertex < n)
+                { if (!hu.Values[vertex].Equals(tu.Values[vertex])) throw new InvalidOperationException("A coupled joint changed a native UV coordinate."); continue; }
+                var row = vertex - n; var a = declaration.uvEdges[row * 2]; var z = declaration.uvEdges[row * 2 + 1]; var f = declaration.uvFractions[row];
+                if (a < 0 || z < 0 || a >= n || z >= n || !BodyShapeFinite(f) || f < 0 || f > 1)
+                    throw new InvalidOperationException("A coupled joint has invalid native UV edge correspondence.");
+                if (donor)
+                {
+                    var ga = nativeCut.Groups[a]; var gz = nativeCut.Groups[z]; var edge = ga < gz ? (ga, gz) : (gz, ga);
+                    var sourceUvEdge = a < z ? (a, z) : (z, a);
+                    var originalCutEdge = ga >= 0 && gz >= 0 && sourceCutEdges.Contains(edge);
+                    if (!(originalCutEdge || IsCavityUvEdge(sourceUvEdge)) ||
+                        !sourceRemoved.Contains(h.Positions[a]) || !sourceRemoved.Contains(h.Positions[z]))
+                        throw new InvalidOperationException("A coupled joint's UV donor is outside the removed native cut.");
+                }
+                var expected = donor ? Vector4.LerpUnclamped(hu.Values[a], hu.Values[z], f) : hu.Values[index];
+                var actual = tu.Values[vertex];
+                for (var component = 0; component < hu.Dimension; component++)
+                {
+                    var delta = actual[component] - expected[component];
+                    if (component < 2 ? Mathf.Abs(delta - Mathf.Round(delta)) > 0.000002f : delta != 0f)
+                        throw new InvalidOperationException("A coupled joint changed its source UV footprint.");
+                }
+            }
+        }
+        var oldTriangles = h.SubmeshIndices[0]; var removed = sourceRemovedFaces;
+        if (oldTriangles.Length % 3 != 0 || declaration.removedTriangles.Length != removed.Count ||
+            removed.Any(i => i < 0 || i >= oldTriangles.Length / 3))
+            throw new InvalidOperationException("A coupled joint removed an invalid source triangle.");
+        var retained = Enumerable.Range(0, oldTriangles.Length / 3).Where(i => !removed.Contains(i))
+            .SelectMany(i => oldTriangles.Skip(i * 3).Take(3)).ToArray(); var triangles = t.SubmeshIndices[0];
+        if (!triangles.Take(retained.Length).SequenceEqual(retained) || triangles.Length <= retained.Length ||
+            triangles.Length % 3 != 0 || triangles.Any(i => i < 0 || i >= t.VertexCount))
+            throw new InvalidOperationException("A coupled joint changed an undeclared native triangle.");
+        var strip = triangles.Skip(retained.Length).ToArray();
+        ValidateRemovedSourceCharts();
+        var hs = h.Shapes.ToArray(); var bs = b.Shapes.ToArray(); var ts = t.Shapes.ToArray();
+        if (hs.Select(s => s.Name).Distinct().Count() != hs.Length || bs.Select(s => s.Name).Distinct().Count() != bs.Length ||
+            ts.Length != hs.Length + bs.Count(s => hs.All(v => v.Name != s.Name)))
+            throw new InvalidOperationException("A coupled joint has ambiguous physical channel ownership.");
+        var expectedNames = hs.Select(s => s.Name).Concat(bs.Where(s => hs.All(v => v.Name != s.Name)).Select(s => s.Name)).ToArray();
+        for (var shape = 0; shape < ts.Length; shape++)
+        {
+            var targetShape = ts[shape]; var headShape = hs.SingleOrDefault(v => v.Name == targetShape.Name); var bodyShape = bs.SingleOrDefault(v => v.Name == targetShape.Name);
+            var frames = targetShape.Frames.ToArray(); var originalFrames = (headShape ?? bodyShape).Frames.ToArray();
+            if (targetShape.Name != expectedNames[shape] || frames.Length != originalFrames.Length ||
+                !frames.Select(f => f.Weight).SequenceEqual(originalFrames.Select(f => f.Weight)) ||
+                bodyShape != null && bodyShape.Frames.Any(f => !frames.Any(v => v.Weight == f.Weight)))
+                throw new InvalidOperationException("A coupled joint changed the native physical frame layout.");
+            foreach (var physical in frames)
+            {
+                var hf = headShape?.Frames.SingleOrDefault(v => v.Weight == physical.Weight);
+                var bf = bodyShape?.Frames.SingleOrDefault(v => v.Weight == physical.Weight);
+                var positions = new Vector3[t.VertexCount]; var normals = new Vector3[t.VertexCount];
+                for (var vertex = 0; vertex < origins.Length; vertex++)
+                {
+                    var donor = origins[vertex] < 0; var index = donor ? -origins[vertex] - 1 : origins[vertex];
+                    var dp = donor ? toHead.MultiplyVector(bf?.Positions[index] ?? Vector3.zero) : hf?.Positions[index] ?? Vector3.zero;
+                    var dn = donor ? normalToHead.MultiplyVector(b.Normals[index] + (bf?.Normals[index] ?? Vector3.zero)).normalized - t.Normals[vertex] : hf?.Normals[index] ?? Vector3.zero;
+                    if (!(donor ? JointVector(dp, physical.Positions[vertex]) && JointVector(dn, physical.Normals[vertex]) :
+                        dp.Equals(physical.Positions[vertex]) && dn.Equals(physical.Normals[vertex]) &&
+                        (hf?.Tangents[index] ?? Vector3.zero).Equals(physical.Tangents[vertex])))
+                        throw new InvalidOperationException("A coupled joint changed an owned physical frame value.");
+                    positions[vertex] = t.Positions[vertex] + physical.Positions[vertex]; normals[vertex] = t.Normals[vertex] + physical.Normals[vertex];
+                }
+                ValidateJointTangents(t, origins, strip, positions, normals, physical, h, declaration, hf);
+            }
+        }
+        ValidateJointTangents(t, origins, strip, t.Positions, t.Normals, null, h, declaration, null);
+        ValidateJointTopology(h, b, t, origins, retained.Length);
+        return;
+
+        void ValidateRemovedSourceCharts()
+        {
+            PrepareSourceChartTopology();
+            var pointIds = sourceChartGroups; var sourceEdges = sourceChartEdges;
+            var parents = removed.ToDictionary(face => face, face => face);
+            int Find(int face)
+            {
+                while (parents[face] != face) { parents[face] = parents[parents[face]]; face = parents[face]; }
+                return face;
+            }
+            bool SameUv(int a, int z) => h.Positions[a].Equals(h.Positions[z]) && h.Uvs.All(uv => uv.Values[a].Equals(uv.Values[z]));
+            bool SameCorner(int a, int z) => SameSourcePoint(a, z) && h.Normals[a].Equals(h.Normals[z]) && h.Tangents[a].Equals(h.Tangents[z]) &&
+                h.Uvs.All(uv => uv.Values[a].Equals(uv.Values[z])) && (h.Colors.Length == 0 || h.Colors[a].Equals(h.Colors[z])) &&
+                h.Shapes.All(shape => shape.Frames.All(physical => physical.Normals[a].Equals(physical.Normals[z]) && physical.Tangents[a].Equals(physical.Tangents[z])));
+            foreach (var faces in sourceEdges.Values.Where(faces => OppositeSourceFaces(faces) && faces.All(face => removed.Contains(face.Face))))
+            {
+                if (!SameUv(faces[0].A, faces[1].B) || !SameUv(faces[0].B, faces[1].A)) continue;
+                var a = Find(faces[0].Face); var z = Find(faces[1].Face); if (a != z) parents[z] = a;
+            }
+            var rawEdges = new Dictionary<(int, int), HashSet<int>>();
+            foreach (var faces in sourceEdges.Values.Where(faces => faces.Count == 1 || OppositeSourceFaces(faces)))
+                foreach (var edge in faces.Where(face => removed.Contains(face.Face)))
+                {
+                    var key = edge.A < edge.B ? (edge.A, edge.B) : (edge.B, edge.A);
+                    if (!rawEdges.TryGetValue(key, out var charts)) rawEdges.Add(key, charts = []);
+                    charts.Add(Find(edge.Face));
+                }
+            var removedCorners = removed.SelectMany(face => oldTriangles.Skip(face * 3).Take(3).Select(vertex => (Face: face, Vertex: vertex))).ToArray();
+            var cornerCharts = new Dictionary<int, HashSet<int>>();
+            var retainedEdges = new HashSet<(int, int)>();
+            for (var face = 0; face < retained.Length / 3; face++)
+                for (var corner = 0; corner < 3; corner++)
+                {
+                    var a = pointIds[retained[face * 3 + corner]]; var z = pointIds[retained[face * 3 + (corner + 1) % 3]];
+                    retainedEdges.Add(a < z ? (a, z) : (z, a));
+                }
+            for (var face = 0; face < strip.Length; face += 3)
+            {
+                HashSet<int> common = null;
+                for (var corner = 0; corner < 3; corner++)
+                {
+                    var vertex = strip[face + corner]; var origin = origins[vertex]; HashSet<int> candidates;
+                    if (origin >= 0)
+                    {
+                        if (!cornerCharts.TryGetValue(origin, out candidates))
+                        {
+                            candidates = removedCorners.Where(source => SameCorner(origin, source.Vertex)).Select(source => Find(source.Face)).ToHashSet();
+                            cornerCharts.Add(origin, candidates);
+                        }
+                    }
+                    else
+                    {
+                        var row = vertex - n; var a = declaration.uvEdges[row * 2]; var z = declaration.uvEdges[row * 2 + 1];
+                        rawEdges.TryGetValue(a < z ? (a, z) : (z, a), out candidates);
+                    }
+                    if (candidates == null || candidates.Count == 0) throw new InvalidOperationException("A coupled joint corner has no raw removed native chart owner.");
+                    if (common == null) common = new HashSet<int>(candidates); else common.IntersectWith(candidates);
+                    var next = strip[face + (corner + 1) % 3];
+                    if (origin < 0 || origins[next] < 0) continue;
+                    var ga = pointIds[origin]; var gz = pointIds[origins[next]]; var key = ga < gz ? (ga, gz) : (gz, ga);
+                    if (!retainedEdges.Contains(key)) continue;
+                    var sides = sourceEdges[key]; var missing = sides.Where(source => removed.Contains(source.Face)).ToArray();
+                    if (!OppositeSourceFaces(sides) || missing.Length != 1 ||
+                        !(SameCorner(origin, missing[0].A) && SameCorner(origins[next], missing[0].B) ||
+                          SameCorner(origin, missing[0].B) && SameCorner(origins[next], missing[0].A)))
+                        throw new InvalidOperationException("A coupled joint changed the raw removed-side receiver chart at a retained boundary.");
+                }
+                if (common == null || common.Count != 1) throw new InvalidOperationException("A coupled joint triangle crosses ambiguous or unrelated removed native charts.");
+            }
+        }
+
+        static bool SameWeight(BoneWeight source, BoneWeight target, int[] remap)
+        {
+            for (var slot = 0; slot < 4; slot++)
+            {
+                var w = BodyShapeWeight(source, slot); if (w != BodyShapeWeight(target, slot)) return false;
+                if (w <= 0f) continue; var index = BodyShapeWeightIndex(source, slot);
+                var mapped = remap == null ? index : remap[index];
+                if (mapped < 0 || mapped != BodyShapeWeightIndex(target, slot)) return false;
+            }
+            return true;
+        }
+    }
+    private static bool JointVector(Vector3 a, Vector3 b) => BodyShapeFinite(a) && BodyShapeFinite(b) && (a - b).sqrMagnitude <= 0.000002f * 0.000002f;
+    private static bool JointPose(Matrix4x4 a, Matrix4x4 b) => Enumerable.Range(0, 16).All(i => BodyShapeFinite(a[i]) && BodyShapeFinite(b[i]) && Mathf.Abs(a[i] - b[i]) <= 0.000001f);
+
+    private static void ValidateJointTangents(CharacterModelMeshData target, int[] origins, int[] strip,
+        Vector3[] positions, Vector3[] normals, CharacterModelMeshData.Frame physical,
+        CharacterModelMeshData source, CharacterModelJointAsset declaration, CharacterModelMeshData.Frame sourcePhysical)
+    {
+        var uv = target.Uvs.Single(v => v.Channel == 0); var ts = new Vector3[target.VertexCount]; var bs = new Vector3[target.VertexCount];
+        for (var k = 0; k < strip.Length; k += 3)
+        {
+            var a = strip[k]; var b = strip[k + 1]; var c = strip[k + 2];
+            var p1 = positions[b] - positions[a]; var p2 = positions[c] - positions[a];
+            var u1 = uv.Values[b] - uv.Values[a]; var u2 = uv.Values[c] - uv.Values[a]; var det = u1.x * u2.y - u1.y * u2.x;
+            if (!BodyShapeFinite(det) || Mathf.Abs(det) <= 0.00000000000001f || Vector3.Dot(Vector3.Cross(p1, p2), (normals[a] + normals[b] + normals[c]) / 3f) <= 0.000000000001f)
+                throw new InvalidOperationException("A coupled joint has a singular UV or inward physical triangle.");
+            var tangent = (p1 * u2.y - p2 * u1.y) / det; var bitangent = (p2 * u1.x - p1 * u2.x) / det;
+            for (var corner = 0; corner < 3; corner++) { var v = strip[k + corner]; ts[v] += tangent; bs[v] += bitangent; }
+        }
+        for (var i = 0; i < origins.Length; i++)
+        {
+            if (origins[i] >= 0) continue;
+            var n = normals[i].normalized; Vector3 tangent; float sign;
+            if (declaration.tangentMode == "sourceUvEdge")
+            {
+                var row = i - source.VertexCount; var a = declaration.uvEdges[row * 2]; var z = declaration.uvEdges[row * 2 + 1];
+                var f = declaration.uvFractions[row];
+                var first = (Vector3)source.Tangents[a] + (sourcePhysical?.Tangents[a] ?? Vector3.zero);
+                var second = (Vector3)source.Tangents[z] + (sourcePhysical?.Tangents[z] ?? Vector3.zero);
+                if (!BodyShapeFinite(first) || !BodyShapeFinite(second) ||
+                    source.Tangents[a].w != source.Tangents[z].w || Mathf.Abs(source.Tangents[a].w) != 1f ||
+                    (first.normalized + second.normalized).sqrMagnitude <= 0.000000000001f)
+                    throw new InvalidOperationException("A coupled joint has an incompatible native tangent chart edge.");
+                var field = Vector3.LerpUnclamped(first, second, f);
+                field -= n * Vector3.Dot(n, field);
+                if (!BodyShapeFinite(field) || field.sqrMagnitude <= 0.000000000001f)
+                    throw new InvalidOperationException("A coupled joint has a singular native source tangent field.");
+                tangent = field.normalized; sign = source.Tangents[a].w;
+            }
+            else
+            {
+                tangent = (ts[i] - n * Vector3.Dot(ts[i], n)).normalized;
+                sign = Mathf.Sign(Vector3.Dot(Vector3.Cross(n, tangent), bs[i]));
+            }
+            var actual = (Vector3)target.Tangents[i] + (physical?.Tangents[i] ?? Vector3.zero);
+            if (!BodyShapeFinite(actual) || !BodyShapeFinite(n) || n.sqrMagnitude < 0.99f ||
+                !BodyShapeFinite(tangent) || tangent.sqrMagnitude < 0.99f || Mathf.Abs(Vector3.Dot(n, actual)) > 0.0001f ||
+                Mathf.Abs(actual.sqrMagnitude - 1f) > 0.0002f || (tangent - actual).sqrMagnitude > 0.0001f * 0.0001f || sign != target.Tangents[i].w)
+                throw new InvalidOperationException("A coupled joint has an invalid source-derived tangent frame.");
+        }
+    }
+    private static void ValidateJointTopology(CharacterModelMeshData head, CharacterModelMeshData body,
+        CharacterModelMeshData target, int[] origins, int retainedIndexCount)
+    {
+        // Group by immutable source identity, not rounded target positions.
+        var sourceHead = new Dictionary<Vector3, int>(); var sourceBody = new Dictionary<Vector3, int>(); var groups = new int[target.VertexCount];
+        var next = 0;
+        for (var i = 0; i < groups.Length; i++)
+        {
+            var donor = origins[i] < 0; var dictionary = donor ? sourceBody : sourceHead;
+            var point = donor ? body.Positions[-origins[i] - 1] : head.Positions[origins[i]];
+            if (!dictionary.TryGetValue(point, out var group)) dictionary.Add(point, group = next++);
+            groups[i] = group;
+        }
+        var edges = new Dictionary<(int, int), List<(int, int)>>(); var indices = target.SubmeshIndices[0];
+        var stripEdges = new HashSet<(int, int)>();
+        for (var i = 0; i < indices.Length; i += 3)
+        for (var corner = 0; corner < 3; corner++)
+        {
+            var a = groups[indices[i + corner]]; var b = groups[indices[i + (corner + 1) % 3]];
+            if (a == b) throw new InvalidOperationException("A coupled joint has a degenerate source edge.");
+            var key = a < b ? (a, b) : (b, a); if (!edges.TryGetValue(key, out var values)) edges.Add(key, values = []);
+            values.Add((a, b));
+            if (i >= retainedIndexCount) stripEdges.Add(key);
+        }
+        // The preceding source-prefix check preserves native retained topology exactly.
+        // Every edge used by the new strip must still be manifold and oppositely wound.
+        if (stripEdges.Any(key => edges[key].Count > 2 || edges[key].Count == 2 && edges[key][0] == edges[key][1]))
+            throw new InvalidOperationException("A coupled joint has a nonmanifold or duplicated edge.");
+        var cut = new BodyShapeCut(body.Positions, body.SubmeshIndices.SelectMany(v => v).ToArray());
+        var expected = cut.Edges.Select(e => (cut.Points[e.First], cut.Points[e.Second])).ToArray();
+        var selected = sourceBody.Keys.ToHashSet();
+        var cutIndices = cut.Points.Select((point, index) => (point, index)).ToDictionary(v => v.point, v => v.index);
+        if (selected.Any(point => !cutIndices.ContainsKey(point)))
+            throw new InvalidOperationException("A coupled joint source is not a native body boundary.");
+        var components = selected.Select(point => cut.Components[cutIndices[point]]).Distinct().ToArray();
+        if (components.Length == 0 || components.Any(component => !cut.Closed[component] ||
+                cut.Components.Count(value => value == component) != selected.Count(point => cut.Components[cutIndices[point]] == component)))
+            throw new InvalidOperationException("A coupled joint does not copy complete native donor boundaries.");
+        var donorBoundary = new HashSet<(int, int)>();
+        foreach (var edge in expected.Where(e => selected.Contains(e.Item1) && selected.Contains(e.Item2)))
+        {
+            var a = sourceBody[edge.Item1]; var b = sourceBody[edge.Item2]; var key = a < b ? (a, b) : (b, a);
+            donorBoundary.Add(key);
+            if (!edges.TryGetValue(key, out var values) || values.Count != 1)
+                throw new InvalidOperationException("A coupled joint does not retain its actual donor boundary.");
+        }
+        var nativeGroups = head.Positions.Select(point => sourceHead[point]).ToArray();
+        var nativeBoundary = BodyShapeEdges(head.SubmeshIndices.SelectMany(v => v).ToArray(), nativeGroups)
+            .Where(pair => pair.Value == 1).Select(pair => pair.Key).ToHashSet();
+        // Original open cuts remain legal; a removed receiver cavity or dangling strip may not remain open.
+        if (edges.Any(pair => pair.Value.Count == 1 && !donorBoundary.Contains(pair.Key) && !nativeBoundary.Contains(pair.Key)))
+            throw new InvalidOperationException("A coupled joint leaves a new source boundary open.");
+        if (selected.Count < 3 || indices.Skip(retainedIndexCount).All(i => origins[i] >= 0))
+            throw new InvalidOperationException("A coupled joint has no complete donor boundary.");
+    }
+
+    private static bool JointPeriodicSamplers(SkinnedMeshRenderer renderer)
+    {
+        var found = false;
+        foreach (var material in renderer.sharedMaterials)
+        {
+            if (!material || !material.shader) continue;
+            for (var index = 0; index < material.shader.GetPropertyCount(); index++)
+            {
+                if (material.shader.GetPropertyType(index) != UnityEngine.Rendering.ShaderPropertyType.Texture) continue;
+                var name = material.shader.GetPropertyName(index); var texture = material.GetTexture(name); if (!texture) continue;
+                var scale = material.GetTextureScale(name); found = true;
+                if (texture.wrapModeU != TextureWrapMode.Repeat || texture.wrapModeV != TextureWrapMode.Repeat ||
+                    !BodyShapeFinite(scale.x) || !BodyShapeFinite(scale.y) || scale.x != Mathf.Round(scale.x) || scale.y != Mathf.Round(scale.y)) return false;
+            }
+        }
+        return found;
+    }
+
     [Serializable] private sealed class CharacterModelMaterialAsset
     {
         public string sourceFingerprint = null, sourceShader = null, bundleFile = null;
         public int materialSlot = 0;
         public CharacterModelProperty[] properties = null;
         public CharacterModelMaterialProfile authoredProfile = null;
-        [NonSerialized] internal bool SharedTexturesAdded;
         internal bool UsesTextures
         {
             get
@@ -623,6 +2114,19 @@ internal static class RacesContext
             }
         }
         internal string AssetBundleFile => UsesTextures ? bundleFile : null;
+        internal bool UsesBodyTexture
+        {
+            get
+            {
+                foreach (var property in properties)
+                {
+                    if (property.sourceBodyTextureFingerprint != null) return true;
+                    foreach (var candidate in property.SourceCandidates ?? [])
+                        if (candidate.sourceBodyTextureFingerprint != null) return true;
+                }
+                return false;
+            }
+        }
     }
     [Serializable] private sealed class CharacterModelMaterialProfile
     {
@@ -632,13 +2136,32 @@ internal static class RacesContext
     }
     [Serializable] private sealed class CharacterModelSurfaceLayout
     {
+        internal const string DefaultGroomCodec = "tile16-v1";
+        internal const string FineFiberGroomCodec = "fineFiber32-v1";
         public int sourceUv = 0, groomUv = 0;
         public int[] preservedUv = null;
+        public string groomCodec = DefaultGroomCodec;
+
+        internal bool HasSupportedGroomCodec => groomCodec is DefaultGroomCodec or FineFiberGroomCodec;
+        internal bool IsValidGroomCoordinate(Vector4 value)
+        {
+            if (!HasSupportedGroomCodec || !BodyShapeFinite(value.x) || !BodyShapeFinite(value.y) ||
+                !BodyShapeFinite(value.z) || !BodyShapeFinite(value.w) || value.z < 0f || value.z != (int)value.z)
+                return false;
+            if (value.z <= 16f) return value.w is -1f or 1f;
+            return groomCodec == FineFiberGroomCodec && value.z <= 48f &&
+                   value.x is >= 0f and <= 1f && value.y is >= 0f and <= 1f &&
+                   Mathf.Abs(value.w) is >= 1f and < 2f;
+        }
+        internal bool IsSameGroomSurface(Vector4 first, Vector4 second, Vector4 third) =>
+            first.z == second.z && first.z == third.z &&
+            (groomCodec != FineFiberGroomCodec || first.z <= 16f ||
+             first.w == second.w && first.w == third.w);
     }
     [Serializable] private sealed class CharacterModelProperty
     {
         public string name = null, kind = null, textureAsset = null, sourceTextureFingerprint = null,
-            sourceShader = null, bundleFile = null;
+            sourceShader = null, bundleFile = null, sourceBodyTextureFingerprint = null;
         public int? sourceWidth = null, sourceHeight = null;
         public float value = 0f;
         [NonSerialized] internal Texture2D Loaded;
@@ -647,29 +2170,383 @@ internal static class RacesContext
             !sourceWidth.HasValue || sourceWidth.Value == width && sourceHeight.Value == height;
     }
 
-    private sealed class CharacterModelCatalog : IDisposable
+    private sealed class CharacterModelBindingPacketLimit : Exception { }
+
+    private sealed class CharacterModelBindingTemplate(Matrix4x4 frame,
+        CustomModels.SkinMeshSource.SurfaceVertex[] vertices, int originalCount, int authoredCount, int slots)
     {
+        internal readonly int OriginalCount = originalCount, AuthoredCount = authoredCount, Slots = slots;
+        internal readonly long Bytes = 256L + vertices.Sum(vertex => vertex.EstimatedMemory);
+        // Only the immutable format data is retained. Native tangents and boundary
+        // meshes remain owned by the current mesh/actor binding, never this template.
+        internal CustomModels.SkinMeshSource.SurfaceBinding Instantiate(string identity, Vector4[] tangents) =>
+            new(identity, frame, tangents, (CustomModels.SkinMeshSource.SurfaceVertex[])vertices.Clone());
+    }
+
+    private sealed class CharacterModelCatalog : IDisposable, IResourceLocator
+    {
+        private const long MaximumParsedBindingBytes = 32L * 1024 * 1024;
+        private const int MaximumParsedBindings = 24;
+        private const long MaximumBindingPacketBytes = 8L * 1024 * 1024;
+        private readonly LinkedList<CharacterModelMeshAsset> _parsedBindings = new();
+        private long _parsedBindingBytes;
+        private static int _bindingPreparationBusy;
         private const long MaximumUnusedBundleBytes = 256L * 1024 * 1024;
         private const int MaximumUnusedBundles = 24;
+        private const long MaximumUnusedNativeSourceBytes = 64L * 1024 * 1024;
+        private const int MaximumUnusedNativeSources = 24;
+        private sealed class NativeSourceEntry
+        {
+            internal readonly UnityEngine.Object Source;
+            internal readonly UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle Handle;
+            internal readonly HashSet<UnityEngine.Object> Data;
+            internal readonly Dictionary<UnityEngine.Object, long> Assets;
+            internal int Owners;
+            internal LinkedListNode<NativeSourceEntry> Unused;
+            internal NativeSourceEntry(UnityEngine.Object source, UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle handle)
+            {
+                Source = source; Handle = handle;
+                Data = source is GameObject prefab ? CustomModels.SkinMeshSource.NativePrefabData(prefab) : [];
+                Assets = NativeSourceAssets(source).ToDictionary(asset => asset,
+                    asset => Math.Max(0L, UnityEngine.Profiling.Profiler.GetRuntimeMemorySizeLong(asset)));
+                foreach (var data in Data) Assets[data] = CustomModels.SkinMeshSource.NativeDataMemorySize(data);
+            }
+        }
+        private readonly Dictionary<UnityEngine.Object, NativeSourceEntry> _nativeSources = [];
+        private readonly Dictionary<UnityEngine.Object, string> _nativeDataFingerprints = [];
+        private readonly LinkedList<NativeSourceEntry> _unusedNativeSources = new();
+        private int _preparedSources, _preparedNativeSourceReferences;
+        internal bool HasPreparedSources => _preparedSources != 0;
+        internal bool HasLiveSourceOwners => _nativeSources.Values.Any(entry => entry.Owners != 0);
+        internal bool IsRetiring { get; private set; }
+        internal void Retire() => IsRetiring = true;
+        internal sealed class PreparedSources(CharacterModelCatalog catalog) : IDisposable
+        {
+            internal readonly CharacterModelCatalog Catalog = catalog;
+            internal readonly HashSet<string> Packs = [];
+            internal readonly HashSet<UnityEngine.Object> NativeSources = [];
+            internal readonly HashSet<string> Derived = new(StringComparer.Ordinal);
+            internal readonly int Generation = _characterModelPreparationGeneration;
+            private RulesetCharacter _actor;
+            private UnityEngine.Object[] _sourceReferences;
+            internal bool Completed, Failed;
+            internal bool HasPacks => Packs.Count != 0;
+            internal void CaptureSources(GraphicsCharacterFactoryManager factory, GraphicsCharacter graphics, bool includePending)
+            {
+                _actor = graphics.RulesetCharacter;
+                _sourceReferences = CharacterModelSourceReferences(factory, graphics, includePending).ToArray();
+            }
+            internal bool SourcesCurrent(GraphicsCharacterFactoryManager factory, GraphicsCharacter graphics, bool includePending) =>
+                factory && graphics && ReferenceEquals(_actor, graphics.RulesetCharacter) &&
+                Generation == _characterModelPreparationGeneration && !Catalog.IsRetiring &&
+                ReferenceEquals(Catalog, _characterModelCatalog) && _sourceReferences != null &&
+                !_sourceReferences.Any(value => !ReferenceEquals(value, null) && !value) &&
+                _sourceReferences.SequenceEqual(CharacterModelSourceReferences(factory, graphics, includePending));
+            internal void RetainNativeSources(GraphicsCharacterFactoryManager factory, GraphicsCharacter graphics, bool includePending = true)
+            {
+                var before = NativeSources.Count;
+                try { Catalog.RetainNativePrefabSources(factory, graphics, NativeSources, includePending); }
+                finally { Catalog._preparedNativeSourceReferences += NativeSources.Count - before; }
+            }
+            private bool _disposed;
+            public void Dispose()
+            {
+                if (_disposed) return;
+                CharacterModelPresentation.ReleaseSourceData(Derived);
+                Catalog.ReleaseBundles(Packs);
+                var before = NativeSources.Count;
+                try { Catalog.ReleaseNativeSources(NativeSources); }
+                finally { Catalog._preparedNativeSourceReferences -= before - NativeSources.Count; }
+                if (--Catalog._preparedSources < 0) throw new InvalidOperationException("A catalog preparation has no matching source owner.");
+                _disposed = true;
+                ReleaseUnusedCharacterModelCatalog();
+            }
+        }
+        internal PreparedSources PrepareSources()
+        {
+            if (IsRetiring) throw new InvalidOperationException("A retiring catalog cannot prepare native sources.");
+            _preparedSources++;
+            return new PreparedSources(this);
+        }
+
         private readonly string _directory;
         private readonly Dictionary<string, CharacterModelBundle> _bundles;
         private readonly Dictionary<string, CharacterModelMeshAsset> _meshes;
+        private readonly Dictionary<string, CharacterModelResource> _resources;
+        private readonly Dictionary<string, IResourceLocation> _resourceLocations = new(StringComparer.Ordinal);
+        private readonly HashSet<string> _verifiedResourceFiles = new(StringComparer.Ordinal);
+        // A chooser retains bodies, materials and animation assets as well as styles.
+        // Keep that working set under the byte budget without evicting at each choice.
+        private const int MaximumRetainedResources = 256;
+        private const long MaximumRetainedResourceBytes = 512L * 1024 * 1024;
+        private sealed class RetainedResource
+        {
+            internal (string Source, Type Type) Key;
+            internal AsyncOperationHandle Handle;
+            internal Action<AsyncOperationHandle> Completed;
+            internal Dictionary<UnityEngine.Object, long> Assets;
+            internal LinkedListNode<RetainedResource> Node;
+        }
+        private readonly Dictionary<(string Source, Type Type), RetainedResource> _retainedResources = [];
+        private readonly LinkedList<RetainedResource> _retainedResourceOrder = new();
+        private long _retainedResourceBytes;
+        private const int MaximumUnusedClothMeshes = 24;
+        private const long MaximumUnusedClothMeshBytes = 256L * 1024 * 1024;
+        private sealed class ClothMeshEntry(Mesh source, Mesh mesh)
+        {
+            internal readonly Mesh Source = source, Mesh = mesh;
+            internal LinkedListNode<ClothMeshEntry> Unused;
+            internal long Bytes;
+        }
+        private readonly Dictionary<Mesh, ClothMeshEntry> _clothMeshes = [];
+        private readonly LinkedList<ClothMeshEntry> _unusedClothMeshes = new();
+        private long _unusedClothMeshBytes;
+        private bool _disposed;
+        internal bool UsesCompleteParts { get; }
+
+        internal bool TryAcquireClothMesh(Mesh source, out Mesh mesh)
+        {
+            mesh = null;
+            if (_disposed || IsRetiring || !UsesCompleteParts || !source || !source.isReadable ||
+                !_retainedResources.Values.Any(entry => entry.Assets?.ContainsKey(source) == true)) return false;
+            TrimClothMeshes();
+            var entry = _unusedClothMeshes.FirstOrDefault(candidate => ReferenceEquals(candidate.Source, source));
+            if (entry != null)
+            {
+                _unusedClothMeshes.Remove(entry.Unused); entry.Unused = null;
+                _unusedClothMeshBytes -= entry.Bytes;
+                mesh = entry.Mesh;
+                // Physics changes only these mutable streams. Expressions and the
+                // appended identity bind pose remain owned by this runtime clone.
+                mesh.vertices = source.vertices;
+                mesh.normals = source.normals;
+                mesh.tangents = source.tangents;
+                var bones = source.GetBonesPerVertex();
+                if (bones.Length != 0) mesh.SetBoneWeights(bones, source.GetAllBoneWeights());
+                mesh.bounds = source.bounds;
+                return true;
+            }
+            mesh = UnityEngine.Object.Instantiate(source);
+            _clothMeshes.Add(mesh, new ClothMeshEntry(source, mesh));
+            CharacterModelClothMeshOwners.Add(mesh, this);
+            return true;
+        }
+        internal void ReturnClothMesh(Mesh mesh)
+        {
+            if (!_clothMeshes.TryGetValue(mesh, out var entry)) return;
+            if (entry.Unused != null) return;
+            if (_disposed || IsRetiring || _characterModelsUnloading || !entry.Source || !mesh)
+            {
+                DestroyClothMesh(entry);
+                return;
+            }
+            entry.Bytes = Math.Max(0L, UnityEngine.Profiling.Profiler.GetRuntimeMemorySizeLong(mesh));
+            entry.Unused = _unusedClothMeshes.AddLast(entry);
+            _unusedClothMeshBytes += entry.Bytes;
+            TrimClothMeshes();
+        }
+        private void TrimClothMeshes()
+        {
+            foreach (var entry in _unusedClothMeshes.Where(entry => !entry.Source || !entry.Mesh).ToArray()) DestroyClothMesh(entry);
+            while (_unusedClothMeshes.First is { } first &&
+                   (_unusedClothMeshes.Count > MaximumUnusedClothMeshes || _unusedClothMeshBytes > MaximumUnusedClothMeshBytes))
+                DestroyClothMesh(first.Value);
+        }
+        private void DestroyClothMesh(ClothMeshEntry entry)
+        {
+            if (entry.Unused != null)
+            {
+                _unusedClothMeshes.Remove(entry.Unused); entry.Unused = null;
+                _unusedClothMeshBytes -= entry.Bytes;
+            }
+            _clothMeshes.Remove(entry.Mesh);
+            CharacterModelClothMeshOwners.Remove(entry.Mesh);
+            if (entry.Mesh) UnityEngine.Object.Destroy(entry.Mesh);
+        }
+
+        private sealed class ResourceLoadOperation<T>(CharacterModelCatalog catalog, CharacterModelResource part)
+            : AsyncOperationBase<T>, IUpdateReceiver where T : UnityEngine.Object
+        {
+            private PreparedSources _lease;
+            private AsyncOperationHandle<T> _loaded;
+            private bool _watching;
+
+            protected override void Execute()
+            {
+                _lease = catalog.PrepareSources();
+                _watching = true;
+                Addressables.ResourceManager.AddUpdateReceiver(this);
+                Update(0);
+            }
+            public void Update(float unscaledDeltaTime)
+            {
+                if (!_watching) return;
+                try
+                {
+                    if (!catalog.VerifyResourceFiles(part)) return;
+                    StopWatching();
+                    _loaded = catalog.LoadVerifiedResource<T>(part);
+                    _loaded.Completed += Loaded;
+                }
+                catch (Exception exception)
+                {
+                    StopWatching();
+                    _lease?.Dispose(); _lease = null;
+                    Complete(null, false, exception.Message, false);
+                }
+            }
+            private void Loaded(AsyncOperationHandle<T> operation)
+            {
+                _lease?.Dispose(); _lease = null;
+                Complete(operation.Result, operation.Status == AsyncOperationStatus.Succeeded,
+                    operation.OperationException?.Message, false);
+            }
+            private void StopWatching()
+            {
+                if (!_watching) return;
+                _watching = false;
+                Addressables.ResourceManager.RemoveUpdateReciever(this);
+            }
+            protected override void GetDependencies(List<AsyncOperationHandle> dependencies)
+            {
+                if (_loaded.IsValid()) dependencies.Add(_loaded);
+            }
+            protected override void Destroy()
+            {
+                StopWatching();
+                _lease?.Dispose(); _lease = null;
+                if (!_loaded.IsValid()) return;
+                _loaded.Completed -= Loaded;
+                Addressables.Release(_loaded); _loaded = default;
+            }
+        }
+
+        internal bool TryGetResource(object key, out CharacterModelResource part)
+        {
+            const string prefix = "UB/CharacterResources/";
+            part = null;
+            if (key is not string text) return false;
+            if (text.StartsWith(prefix, StringComparison.Ordinal)) text = text.Substring(prefix.Length);
+            return _resources.TryGetValue(text, out part);
+        }
+        internal AsyncOperationHandle<T> LoadResourceAsync<T>(CharacterModelResource part) where T : UnityEngine.Object => VerifyResourceFiles(part)
+            ? LoadVerifiedResource<T>(part)
+            : Addressables.ResourceManager.StartOperation(new ResourceLoadOperation<T>(this, part), default);
+        private AsyncOperationHandle<T> LoadVerifiedResource<T>(CharacterModelResource part) where T : UnityEngine.Object
+        {
+            if (IsRetiring) return Addressables.LoadAssetAsync<T>(part.Key);
+            var key = (part.Source, typeof(T));
+            if (_retainedResources.TryGetValue(key, out var retained))
+            {
+                if (retained.Handle.IsValid())
+                {
+                    _retainedResourceOrder.Remove(retained.Node);
+                    _retainedResourceOrder.AddLast(retained.Node);
+                    Addressables.ResourceManager.Acquire(retained.Handle);
+                    return retained.Handle.Convert<T>();
+                }
+                ReleaseRetainedResource(retained);
+            }
+            var loaded = Addressables.LoadAssetAsync<T>(part.Key);
+            retained = new RetainedResource { Key = key, Handle = loaded };
+            retained.Node = _retainedResourceOrder.AddLast(retained);
+            _retainedResources.Add(key, retained);
+            // The cache owns the original reference; the factory owns its acquired reference.
+            Addressables.ResourceManager.Acquire(retained.Handle);
+            retained.Completed = operation =>
+            {
+                if (!_retainedResources.TryGetValue(key, out var current) || !ReferenceEquals(current, retained)) return;
+                if (operation.Status != AsyncOperationStatus.Succeeded || operation.Result is not UnityEngine.Object source || !source)
+                {
+                    ReleaseRetainedResource(retained);
+                    return;
+                }
+                retained.Assets = NativeSourceAssets(source).ToDictionary(asset => asset,
+                    asset => Math.Max(0L, UnityEngine.Profiling.Profiler.GetRuntimeMemorySizeLong(asset)));
+                TrimRetainedResources();
+            };
+            retained.Handle.Completed += retained.Completed;
+            TrimRetainedResources();
+            return loaded;
+        }
+        private void TrimRetainedResources()
+        {
+            long Size() => _retainedResources.Values.Where(entry => entry.Assets != null)
+                .SelectMany(entry => entry.Assets).GroupBy(asset => asset.Key).Sum(group => group.First().Value);
+            _retainedResourceBytes = Size();
+            while (_retainedResourceOrder.First is { } first &&
+                   (_retainedResources.Count > MaximumRetainedResources || _retainedResourceBytes > MaximumRetainedResourceBytes))
+            {
+                ReleaseRetainedResource(first.Value);
+                _retainedResourceBytes = Size();
+            }
+        }
+        private void ReleaseRetainedResource(RetainedResource retained)
+        {
+            _retainedResources.Remove(retained.Key);
+            _retainedResourceOrder.Remove(retained.Node);
+            if (retained.Handle.IsValid())
+            {
+                if (retained.Completed != null) retained.Handle.Completed -= retained.Completed;
+                Addressables.Release(retained.Handle);
+            }
+            retained.Assets = null;
+        }
+        private bool VerifyResourceFiles(CharacterModelResource part)
+        {
+            var ready = true;
+            foreach (var dependency in part.Bundles)
+            {
+                if (_verifiedResourceFiles.Contains(dependency.File)) continue;
+                var entry = _bundles[dependency.File];
+                var verification = entry.Verification;
+                if (verification == null || verification.Cancelled)
+                {
+                    verification?.Dispose();
+                    entry.Verification = verification = new BundleVerification(System.IO.Path.Combine(_directory, entry.file), entry.sha256);
+                }
+                if (!verification.Completed) { ready = false; continue; }
+                verification.RequireReady();
+                _verifiedResourceFiles.Add(dependency.File);
+            }
+            return ready;
+        }
+        public string LocatorId => "UB.CharacterModelResources";
+        public IEnumerable<object> Keys => _resources.Values.Select(part => (object)part.Key);
+        private readonly bool _hasJointAttachments;
         private readonly Dictionary<string, CharacterModelMaterialAsset> _materials;
-        private readonly Dictionary<(string Shader, string Property, string Fingerprint), CharacterModelProperty> _textureRemaps = [];
+        private readonly Dictionary<(string Shader, string Property, string Fingerprint, string Body), CharacterModelProperty> _textureRemaps = [];
         private readonly Dictionary<string, CharacterModelProperty[]> _textureProperties = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, Dictionary<string, CharacterModelProperty[]>> _nativeTextureProperties;
+        private readonly HashSet<string> _bodyTextureFingerprints;
+        internal bool HasBodyTextureConditions => _bodyTextureFingerprints.Count != 0;
+        internal bool IsBodyTextureFingerprint(string fingerprint) => _bodyTextureFingerprints.Contains(fingerprint);
         private readonly LinkedList<CharacterModelBundle> _unusedBundles = new();
         private long _unusedBundleBytes;
         private CharacterModelCatalog(string directory, CharacterModelManifest manifest)
         {
             _directory = directory;
+            UsesCompleteParts = manifest.schemaVersion == 3;
+            _resources = (manifest.resources ?? []).ToDictionary(part => part.Source, StringComparer.Ordinal);
+            _bodyTextureFingerprints = (manifest.textureRemaps ?? []).Concat(manifest.materials.SelectMany(material => material.properties))
+                .Select(property => property.sourceBodyTextureFingerprint).Where(value => value != null).ToHashSet(StringComparer.Ordinal);
+            _nativeTextureProperties = (manifest.textureRemaps ?? []).Select(property => (property.sourceShader, Property: property))
+                .Concat(manifest.materials.SelectMany(material => material.properties
+                    .Where(property => property.kind == "texture-remap").Select(property => (material.sourceShader, Property: property))))
+                .GroupBy(row => row.sourceShader, StringComparer.Ordinal).ToDictionary(group => group.Key,
+                    group => group.GroupBy(row => row.Property.name, StringComparer.Ordinal)
+                        .ToDictionary(properties => properties.Key, properties => properties.Select(row => row.Property).ToArray(), StringComparer.Ordinal),
+                    StringComparer.Ordinal);
             _bundles = manifest.bundles.ToDictionary(value => value.file, StringComparer.Ordinal);
             _meshes = manifest.meshes.ToDictionary(value => value.sourceFingerprint, StringComparer.Ordinal);
+            _hasJointAttachments = manifest.meshes.Any(mesh => (mesh.jointAttachments ?? []).Any(joint => joint.InvalidReason == null));
             _materials = manifest.materials.ToDictionary(value => MaterialKey(value.sourceFingerprint, value.materialSlot, value.sourceShader), StringComparer.Ordinal);
             foreach (var entry in _bundles.Values)
             {
                 entry.Meshes = [];
                 entry.Textures = [];
                 entry.Profiles = [];
+                entry.Joints = [];
             }
             var layouts = manifest.materials.Where(value => value.authoredProfile != null)
                 .ToLookup(value => value.sourceFingerprint, value => value.authoredProfile.layout, StringComparer.Ordinal);
@@ -678,6 +2555,8 @@ internal static class RacesContext
                 mesh.Layouts = layouts[mesh.sourceFingerprint].ToArray();
                 mesh.VerifiedContent = default;
                 if (mesh.mode == "authored") _bundles[mesh.bundleFile].Meshes.Add(mesh);
+                foreach (var joint in mesh.jointAttachments ?? [])
+                    if (joint.InvalidReason == null && _bundles.TryGetValue(joint.bundleFile, out var owner)) owner.Joints.Add(joint);
             }
             foreach (var material in manifest.materials)
             {
@@ -688,13 +2567,20 @@ internal static class RacesContext
             }
             foreach (var property in manifest.textureRemaps ?? [])
             {
-                _textureRemaps.Add((property.sourceShader, property.name, property.sourceTextureFingerprint), property);
+                _textureRemaps.Add((property.sourceShader, property.name, property.sourceTextureFingerprint, property.sourceBodyTextureFingerprint), property);
                 _bundles[property.bundleFile].Textures.Add(property);
             }
             foreach (var group in (manifest.textureRemaps ?? []).GroupBy(property => property.sourceShader, StringComparer.Ordinal))
                 _textureProperties.Add(group.Key, group.GroupBy(property => property.name, StringComparer.Ordinal)
                     .OrderBy(properties => properties.Key, StringComparer.Ordinal).Select(properties => new CharacterModelProperty
                     { name = properties.Key, kind = "texture-index", SourceCandidates = properties.ToArray() }).ToArray());
+            foreach (var key in _materials.Keys.ToArray())
+            {
+                var entry = _materials[key];
+                if (entry.authoredProfile == null && _textureProperties.TryGetValue(entry.sourceShader, out var selectors))
+                    _materials[key] = WithSharedTextures(entry, selectors);
+            }
+            if (UsesCompleteParts) Addressables.AddResourceLocator(this);
         }
         private static bool IsHash(string value) => value != null && value.Length == 64 && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
         private static bool SourceDimensionsValid(CharacterModelProperty property) =>
@@ -703,35 +2589,151 @@ internal static class RacesContext
         private static bool IsBundleFile(string value) => !string.IsNullOrWhiteSpace(value) &&
             value.IndexOfAny(System.IO.Path.GetInvalidFileNameChars()) < 0 && System.IO.Path.GetFileName(value) == value && value is not ("." or "..");
         private static string MaterialKey(string fingerprint, int slot, string shader) => fingerprint + "|" + slot + "|" + shader;
-        internal static CharacterModelCatalog Load()
+        public bool Locate(object key, Type type, out IList<IResourceLocation> locations)
         {
-            var directory = System.IO.Path.Combine(Main.ModFolder, "BlenderModels", "CharacterModels");
+            locations = null;
+            if (!UsesCompleteParts || key is not string text ||
+                !text.StartsWith("UB/CharacterResources/", StringComparison.Ordinal) ||
+                !_resources.TryGetValue(text.Substring("UB/CharacterResources/".Length), out var part)) return false;
+            if (type != null && !type.IsAssignableFrom(part.AssetType)) return false;
+            if (!_resourceLocations.TryGetValue(text, out var selected))
+            {
+                IResourceLocation original = null;
+                foreach (var locator in Addressables.ResourceLocators)
+                {
+                    if (ReferenceEquals(locator, this) || !locator.Locate(part.Source, part.AssetType, out var found)) continue;
+                    original = found.FirstOrDefault();
+                    if (original != null) break;
+                }
+                if (original == null || !original.HasDependencies)
+                    throw new InvalidOperationException("The character part source address is unavailable: " + part.Source);
+                var template = original.Dependencies.FirstOrDefault(dependency => dependency.Data is AssetBundleRequestOptions);
+                if (template == null) throw new InvalidOperationException("The character part source has no bundle provider.");
+                // A finished part owns its full dependency closure. The native
+                // catalog supplies provider metadata, without loading its assets.
+                var dependencies = part.Bundles.Select(bundle => ResourceBundleLocation(template, bundle)).ToArray();
+                selected = new ResourceLocationBase(part.Key, part.Asset, original.ProviderId, part.AssetType, dependencies) { Data = original.Data };
+                _resourceLocations.Add(text, selected);
+            }
+            locations = new[] { selected };
+            return true;
+        }
+        private IResourceLocation ResourceBundleLocation(IResourceLocation template, CharacterModelResourceBundle bundle)
+        {
+            var options = (AssetBundleRequestOptions)typeof(object).GetMethod("MemberwiseClone",
+                BindingFlags.Instance | BindingFlags.NonPublic).Invoke(template.Data, null);
+            var entry = _bundles[bundle.File];
+            var path = System.IO.Path.Combine(_directory, entry.file);
+            options.BundleName = bundle.Name;
+            options.Crc = 0;
+            options.Hash = entry.sha256.Substring(0, 32);
+            options.BundleSize = new System.IO.FileInfo(path).Length;
+            return new ResourceLocationBase("UB.CharacterBundle/" + entry.file, path, template.ProviderId, template.ResourceType) { Data = options };
+        }
+        internal IEnumerator PrepareCompleteParts(GraphicsCharacterFactoryManager factory, Func<bool> current)
+        {
+            var sources = new[] { factory.shapePartsToLoad, factory.armorPartsToLoad };
+            var required = sources.SelectMany(parts => parts).Select(key => TryGetResource(key, out var part) ? part : null)
+                .Where(part => part != null).Distinct().ToArray();
+            foreach (var part in required)
+            {
+                while (current() && !VerifyResourceFiles(part))
+                {
+                    yield return null;
+                }
+                if (!current()) yield break;
+            }
+            if (!current()) yield break;
+            foreach (var parts in sources)
+                for (var index = 0; index < parts.Length; index++)
+                    if (TryGetResource(parts[index], out var part)) parts[index] = part.Key;
+        }
+        internal void BindPartParameters(GraphicsCharacter graphics, string key, GameObject instance,
+            GraphicsCharacterDefinitions.BodyPart bodyPart, bool shape)
+        {
+            const string prefix = "UB/CharacterResources/";
+            if (!UsesCompleteParts || key == null || !key.StartsWith(prefix, StringComparison.Ordinal) ||
+                !_resources.TryGetValue(key.Substring(prefix.Length), out var part)) return;
+            foreach (var parameter in part.Parameters)
+            {
+                var target = parameter.Renderer.Length == 0 ? instance.transform : instance.transform.Find(parameter.Renderer);
+                var renderer = target ? target.GetComponent<Renderer>() : null;
+                var materials = renderer ? renderer.sharedMaterials : [];
+                if (!renderer || parameter.Slot >= materials.Length || !materials[parameter.Slot] ||
+                    !graphics.MaterialsToDestroy.Contains(materials[parameter.Slot]))
+                    throw new InvalidOperationException("A completed character part parameter does not reference a native-owned material: " + part.Source);
+                var owners = parameter.Set switch
+                {
+                    "Skin" => graphics.SkinMaterials, "Face" => graphics.FaceMaterials, "Eyes" => graphics.EyeMaterials,
+                    "Groom" when shape && bodyPart == GraphicsCharacterDefinitions.BodyPart.Hair => graphics.HairMaterials,
+                    "Groom" when shape && bodyPart == GraphicsCharacterDefinitions.BodyPart.Beard => graphics.BeardMaterials,
+                    "Groom" => null,
+                    "Armor" => graphics.ArmorMaterials,
+                    _ => throw new InvalidOperationException("Unknown character part parameter set.")
+                };
+                owners?.Add(materials[parameter.Slot]);
+            }
+        }
+        internal static CharacterModelBlueprint ReadBlueprint(string directory, CharacterModelBlueprint previous)
+        {
+            directory = UpdateContext.PrepareCharacterModelFiles(directory, _characterModelReadCancellation);
             var path = System.IO.Path.Combine(directory, "CharacterModels.manifest.json");
             if (!System.IO.File.Exists(path)) throw new System.IO.FileNotFoundException("The custom character model catalog is missing.", path);
-            var manifest = Parse(System.IO.File.ReadAllText(path));
-            Validate(manifest);
-            return new CharacterModelCatalog(directory, manifest);
+            var bytes = System.IO.File.ReadAllBytes(path);
+            using var sha = CustomModels.CreateAssetSha256();
+            var digest = BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
+            if (previous?.Digest == digest && previous.Directory == directory) return previous;
+            using var stream = new System.IO.MemoryStream(bytes, false);
+            using var text = new System.IO.StreamReader(stream, System.Text.Encoding.UTF8, true);
+            var template = Parse(text.ReadToEnd());
+            if ((int)template["schemaVersion"] != 3) return new CharacterModelBlueprint(digest, template, null, directory);
+            var resources = CreateManifest(template);
+            Validate(resources);
+            return new CharacterModelBlueprint(digest, null, resources, directory);
         }
-        private static CharacterModelManifest Parse(string json)
+        internal static CharacterModelCatalog FromBlueprint(string directory, CharacterModelBlueprint blueprint)
+        {
+            CharacterModelManifest manifest;
+            if (blueprint.Resources is { } resources)
+            {
+                // Resource declarations are immutable; live bundle state belongs to each catalog.
+                manifest = new CharacterModelManifest
+                {
+                    schemaVersion = resources.schemaVersion, recipeVersion = resources.recipeVersion,
+                    bundles = resources.bundles.Select(bundle => new CharacterModelBundle
+                        { file = bundle.file, sha256 = bundle.sha256 }).ToArray(),
+                    resources = resources.resources, meshes = [], materials = [], textureRemaps = []
+                };
+            }
+            else
+            {
+                manifest = CreateManifest(blueprint.Template);
+                Validate(manifest);
+            }
+            return new CharacterModelCatalog(blueprint.Directory, manifest);
+        }
+        private static JObject Parse(string json)
         {
             using var text = new System.IO.StringReader(json);
             using var reader = new JsonTextReader(text)
                 { DateParseHandling = DateParseHandling.None, FloatParseHandling = FloatParseHandling.Double };
             var data = JObject.Load(reader,
                 new JsonLoadSettings { DuplicatePropertyNameHandling = DuplicatePropertyNameHandling.Error });
-            if (reader.Read() || data.Properties().Any(property => property.Name is not ("schemaVersion" or "recipeVersion" or "bundles" or "meshes" or "materials" or "textureRemaps")) ||
+            if (reader.Read() || data.Properties().Any(property => property.Name is not ("schemaVersion" or "recipeVersion" or "bundles" or "meshes" or "materials" or "textureRemaps" or "resources")) ||
                 !JsonField(data, "schemaVersion", JTokenType.Integer) || !JsonField(data, "recipeVersion", JTokenType.String) ||
                 data["bundles"] is not JArray bundles || data["meshes"] is not JArray meshes || data["materials"] is not JArray materials)
                 throw new System.IO.InvalidDataException("Invalid custom character model catalog JSON schema.");
             var version = (int)data["schemaVersion"];
-            if (version is not (1 or 2) || version == 1 && data.Property("textureRemaps") != null || version == 2 && data["textureRemaps"] is not JArray)
+            if (version is not (1 or 2 or 3) || version == 1 && data.Property("textureRemaps") != null ||
+                version >= 2 && data["textureRemaps"] is not JArray || version < 3 && data.Property("resources") != null ||
+                version == 3 && (data["resources"] is not JArray { Count: > 0 } || meshes.Count != 0 || materials.Count != 0 || ((JArray)data["textureRemaps"]).Count != 0))
                 throw new System.IO.InvalidDataException("Invalid custom character model shared texture catalog version.");
             foreach (var token in bundles)
                 if (token is not JObject bundle || bundle.Properties().Any(property => property.Name is not ("file" or "sha256")) ||
                     !JsonField(bundle, "file", JTokenType.String) || !JsonField(bundle, "sha256", JTokenType.String))
                     throw new System.IO.InvalidDataException("Invalid custom character model pack JSON schema.");
             foreach (var token in meshes)
-                if (token is not JObject mesh || mesh.Properties().Any(property => property.Name is not ("sourceFingerprint" or "mode" or "authoredMeshAsset" or "authoredFingerprint" or "bundleFile" or "bindingFile" or "bindingSha256")) ||
+                if (token is not JObject mesh || mesh.Properties().Any(property => property.Name is not ("sourceFingerprint" or "mode" or "authoredMeshAsset" or "authoredFingerprint" or "bundleFile" or "bindingFile" or "bindingSha256" or "jointAttachments")) ||
                     !JsonField(mesh, "sourceFingerprint", JTokenType.String) || !JsonField(mesh, "mode", JTokenType.String) ||
                     !JsonField(mesh, "authoredMeshAsset", JTokenType.String, false) || !JsonField(mesh, "authoredFingerprint", JTokenType.String, false) ||
                     !JsonField(mesh, "bundleFile", JTokenType.String, false) ||
@@ -748,15 +2750,17 @@ internal static class RacesContext
                     (profileToken is not JObject profile || profile.Properties().Any(field => field.Name is not ("bundleFile" or "materialAsset" or "shader" or "layout")) ||
                      !JsonField(profile, "bundleFile", JTokenType.String) || !JsonField(profile, "materialAsset", JTokenType.String) ||
                      !JsonField(profile, "shader", JTokenType.String) || profile["layout"] is not JObject layout ||
-                     layout.Properties().Any(field => field.Name is not ("sourceUv" or "groomUv" or "preservedUv")) ||
+                     layout.Properties().Any(field => field.Name is not ("sourceUv" or "groomUv" or "preservedUv" or "groomCodec")) ||
                      !JsonField(layout, "sourceUv", JTokenType.Integer) || !JsonField(layout, "groomUv", JTokenType.Integer) ||
+                     layout.Property("groomCodec") != null && !JsonField(layout, "groomCodec", JTokenType.String) ||
                      layout["preservedUv"] is not JArray preserved ||
                      preserved.Any(channel => channel.Type != JTokenType.Integer)))
                     throw new System.IO.InvalidDataException("Invalid authored material profile JSON schema.");
                 foreach (var value in properties)
-                    if (value is not JObject property || property.Properties().Any(field => field.Name is not ("name" or "kind" or "textureAsset" or "sourceTextureFingerprint" or "sourceWidth" or "sourceHeight" or "bundleFile" or "value")) ||
+                    if (value is not JObject property || property.Properties().Any(field => field.Name is not ("name" or "kind" or "textureAsset" or "sourceTextureFingerprint" or "sourceBodyTextureFingerprint" or "sourceWidth" or "sourceHeight" or "bundleFile" or "value")) ||
                         !JsonField(property, "name", JTokenType.String) || !JsonField(property, "kind", JTokenType.String) ||
                         !JsonField(property, "textureAsset", JTokenType.String, false) || !JsonField(property, "sourceTextureFingerprint", JTokenType.String, false) ||
+                        !JsonField(property, "sourceBodyTextureFingerprint", JTokenType.String, false) ||
                         !JsonField(property, "sourceWidth", JTokenType.Integer, false) || !JsonField(property, "sourceHeight", JTokenType.Integer, false) ||
                         !JsonField(property, "bundleFile", JTokenType.String, false) ||
                         !JsonField(property, "value", JTokenType.Float, (string)property["kind"] == "float"))
@@ -764,28 +2768,147 @@ internal static class RacesContext
             }
             foreach (var token in data["textureRemaps"] as JArray ?? [])
                 if (token is not JObject property || property.Properties().Any(field => field.Name is not
-                        ("sourceShader" or "name" or "kind" or "sourceTextureFingerprint" or "sourceWidth" or "sourceHeight" or "bundleFile" or "textureAsset")) ||
+                        ("sourceShader" or "name" or "kind" or "sourceTextureFingerprint" or "sourceBodyTextureFingerprint" or "sourceWidth" or "sourceHeight" or "bundleFile" or "textureAsset")) ||
                     !JsonField(property, "sourceShader", JTokenType.String) || !JsonField(property, "name", JTokenType.String) ||
                     !JsonField(property, "kind", JTokenType.String) || !JsonField(property, "sourceTextureFingerprint", JTokenType.String) ||
+                    !JsonField(property, "sourceBodyTextureFingerprint", JTokenType.String, false) ||
                     !JsonField(property, "sourceWidth", JTokenType.Integer, false) || !JsonField(property, "sourceHeight", JTokenType.Integer, false) ||
                     !JsonField(property, "bundleFile", JTokenType.String) || !JsonField(property, "textureAsset", JTokenType.String))
                     throw new System.IO.InvalidDataException("Invalid shared custom character model texture JSON schema.");
-            return data.ToObject<CharacterModelManifest>(JsonSerializer.Create(new JsonSerializerSettings
-                { MissingMemberHandling = MissingMemberHandling.Error }));
+            foreach (var token in data["resources"] as JArray ?? [])
+            {
+                if (token is not JObject part || part.Properties().Any(field => field.Name is not ("source" or "asset" or "type" or "bundles" or "parameters")) ||
+                    !JsonField(part, "source", JTokenType.String) || !JsonField(part, "asset", JTokenType.String) || !JsonField(part, "type", JTokenType.String) ||
+                    part["bundles"] is not JArray partBundles || part["parameters"] is not JArray parameters)
+                    throw new System.IO.InvalidDataException("Invalid completed character part schema.");
+                foreach (var value in partBundles)
+                    if (value is not JObject bundle || bundle.Properties().Any(field => field.Name is not ("file" or "name")) ||
+                        !JsonField(bundle, "file", JTokenType.String) || !JsonField(bundle, "name", JTokenType.String))
+                        throw new System.IO.InvalidDataException("Invalid completed character part dependency.");
+                foreach (var value in parameters)
+                    if (value is not JObject parameter || parameter.Properties().Any(field => field.Name is not ("renderer" or "slot" or "set")) ||
+                        !JsonField(parameter, "renderer", JTokenType.String) || !JsonField(parameter, "slot", JTokenType.Integer) ||
+                        !JsonField(parameter, "set", JTokenType.String))
+                        throw new System.IO.InvalidDataException("Invalid completed character part parameter binding.");
+            }
+            return data;
+        }
+
+        private static CharacterModelManifest CreateManifest(JObject data)
+        {
+            var version = (int)data["schemaVersion"];
+            var bundles = (JArray)data["bundles"];
+            var meshes = (JArray)data["meshes"];
+            var materials = (JArray)data["materials"];
+            // All token types and member names were checked above. Construct the declaration
+            // graph directly so first actor loading does not build Json.NET reflection contracts
+            // for thousands of repeated material properties on the Unity thread.
+            return new CharacterModelManifest
+            {
+                schemaVersion = version,
+                recipeVersion = (string)data["recipeVersion"],
+                bundles = bundles.Cast<JObject>().Select(bundle => new CharacterModelBundle
+                {
+                    file = (string)bundle["file"], sha256 = (string)bundle["sha256"]
+                }).ToArray(),
+                meshes = meshes.Cast<JObject>().Select(mesh => new CharacterModelMeshAsset
+                {
+                    sourceFingerprint = (string)mesh["sourceFingerprint"], mode = (string)mesh["mode"],
+                    authoredMeshAsset = (string)mesh["authoredMeshAsset"], authoredFingerprint = (string)mesh["authoredFingerprint"],
+                    bundleFile = (string)mesh["bundleFile"], bindingFile = (string)mesh["bindingFile"],
+                    bindingSha256 = (string)mesh["bindingSha256"],
+                    jointAttachments = mesh["jointAttachments"] == null ? null : mesh["jointAttachments"] is JArray joints
+                        ? joints.Select(ReadJoint).ToArray() : [new CharacterModelJointAsset { InvalidReason = "Joint attachments must be an array." }]
+                }).ToArray(),
+                materials = materials.Cast<JObject>().Select(material => new CharacterModelMaterialAsset
+                {
+                    sourceFingerprint = (string)material["sourceFingerprint"], sourceShader = (string)material["sourceShader"],
+                    bundleFile = (string)material["bundleFile"], materialSlot = ReadInteger(material["materialSlot"]),
+                    properties = ((JArray)material["properties"]).Cast<JObject>().Select(ReadProperty).ToArray(),
+                    authoredProfile = material["authoredProfile"] is JObject profile ? new CharacterModelMaterialProfile
+                    {
+                        bundleFile = (string)profile["bundleFile"], materialAsset = (string)profile["materialAsset"],
+                        shader = (string)profile["shader"], layout = new CharacterModelSurfaceLayout
+                        {
+                            sourceUv = ReadInteger(profile["layout"]["sourceUv"]), groomUv = ReadInteger(profile["layout"]["groomUv"]),
+                            preservedUv = ((JArray)profile["layout"]["preservedUv"]).Select(channel => ReadInteger(channel)).ToArray(),
+                            groomCodec = (string)profile["layout"]["groomCodec"] ?? CharacterModelSurfaceLayout.DefaultGroomCodec
+                        }
+                    } : null
+                }).ToArray(),
+                textureRemaps = (data["textureRemaps"] as JArray)?.Cast<JObject>().Select(ReadProperty).ToArray(),
+                resources = (data["resources"] as JArray)?.Cast<JObject>().Select(part => new CharacterModelResource(
+                    (string)part["source"], (string)part["asset"], (string)part["type"],
+                    ((JArray)part["bundles"]).Cast<JObject>().Select(bundle => new CharacterModelResourceBundle(
+                        (string)bundle["file"], (string)bundle["name"])).ToArray(),
+                    ((JArray)part["parameters"]).Cast<JObject>().Select(parameter => new CharacterModelPartParameter(
+                        (string)parameter["renderer"], ReadInteger(parameter["slot"]), (string)parameter["set"])).ToArray())).ToArray()
+            };
+        }
+        private static CharacterModelProperty ReadProperty(JObject property) => new()
+        {
+            name = (string)property["name"], kind = (string)property["kind"],
+            textureAsset = (string)property["textureAsset"], sourceTextureFingerprint = (string)property["sourceTextureFingerprint"],
+            sourceShader = (string)property["sourceShader"], bundleFile = (string)property["bundleFile"],
+            sourceBodyTextureFingerprint = (string)property["sourceBodyTextureFingerprint"],
+            sourceWidth = property["sourceWidth"] is { Type: JTokenType.Integer } width ? ReadInteger(width) : null,
+            sourceHeight = property["sourceHeight"] is { Type: JTokenType.Integer } height ? ReadInteger(height) : null,
+            value = property["value"] is { Type: JTokenType.Null } value
+                ? throw new JsonSerializationException($"A custom character model numeric value is null at {value.Path}.")
+                : (float?)property["value"] ?? 0f
+        };
+        private static int ReadInteger(JToken value)
+        {
+            try { return (int)value; }
+            catch (OverflowException exception)
+            {
+                throw new JsonReaderException($"A custom character model integer is out of range at {value.Path}.", exception);
+            }
         }
         private static bool JsonField(JObject data, string name, JTokenType type, bool required = true) =>
             data.TryGetValue(name, StringComparison.Ordinal, out var token)
                 ? token.Type == type || type == JTokenType.Float && token.Type == JTokenType.Integer || !required && token.Type == JTokenType.Null
                 : !required;
+        internal IEnumerable<Texture> NativeTextureSources(Material material)
+        {
+            if (!material || !material.shader || !_nativeTextureProperties.TryGetValue(material.shader.name, out var properties))
+                yield break;
+            foreach (var property in properties)
+            {
+                if (!material.HasProperty(property.Key)) continue;
+                var texture = material.GetTexture(property.Key);
+                if (texture && texture.dimension == UnityEngine.Rendering.TextureDimension.Tex2D &&
+                    property.Value.Any(candidate => candidate.MatchesSourceDimensions(texture.width, texture.height)))
+                    yield return texture;
+            }
+        }
         private static void Validate(CharacterModelManifest manifest)
         {
-            if (manifest == null || manifest.schemaVersion is not (1 or 2) || manifest.schemaVersion == 1 && manifest.textureRemaps != null ||
-                manifest.schemaVersion == 2 && manifest.textureRemaps == null || string.IsNullOrWhiteSpace(manifest.recipeVersion) ||
-                manifest.bundles == null || manifest.meshes == null || manifest.meshes.Length == 0 || manifest.materials == null ||
+            if (manifest == null || manifest.schemaVersion is not (1 or 2 or 3) || manifest.schemaVersion == 1 && manifest.textureRemaps != null ||
+                manifest.schemaVersion >= 2 && manifest.textureRemaps == null || string.IsNullOrWhiteSpace(manifest.recipeVersion) ||
+                manifest.bundles == null || manifest.meshes == null || manifest.schemaVersion < 3 && manifest.meshes.Length == 0 || manifest.materials == null ||
                 manifest.bundles.Any(value => value == null || !IsBundleFile(value.file) || !IsHash(value.sha256)) ||
                 manifest.bundles.Select(value => value.file).Distinct(StringComparer.OrdinalIgnoreCase).Count() != manifest.bundles.Length)
                 throw new InvalidOperationException("The custom character model catalog is incomplete or has duplicate packs.");
             var bundles = new HashSet<string>(manifest.bundles.Select(value => value.file), StringComparer.Ordinal);
+            var parts = manifest.resources ?? [];
+            if (manifest.schemaVersion == 3 && (parts.Length == 0 || manifest.meshes.Length != 0 || manifest.materials.Length != 0 || manifest.textureRemaps.Length != 0) ||
+                manifest.schemaVersion < 3 && parts.Length != 0 ||
+                parts.Any(part => part.AssetType == null || string.IsNullOrWhiteSpace(part.Source) || part.Source.StartsWith("UB/", StringComparison.Ordinal) || string.IsNullOrWhiteSpace(part.Asset) ||
+                    part.AssetType != typeof(GameObject) && part.Parameters.Length != 0 ||
+                    part.Bundles.Length == 0 || part.Bundles.Any(bundle => !bundles.Contains(bundle.File) || string.IsNullOrWhiteSpace(bundle.Name)) ||
+                    part.Bundles.Select(bundle => bundle.File).Distinct(StringComparer.Ordinal).Count() != part.Bundles.Length ||
+                    part.Parameters.Any(parameter => parameter.Slot < 0 || parameter.Renderer == null || parameter.Renderer.StartsWith("/", StringComparison.Ordinal) ||
+                        parameter.Renderer.Split('/').Any(segment => segment is "." or "..") || parameter.Set is not ("Skin" or "Face" or "Eyes" or "Groom" or "Armor"))) ||
+                parts.Select(part => part.Source).Distinct(StringComparer.Ordinal).Count() != parts.Length)
+                throw new InvalidOperationException("The completed character part catalog has invalid source or parameter bindings.");
+            var partBundles = parts.SelectMany(part => part.Bundles).ToArray();
+            if (partBundles.GroupBy(bundle => bundle.File, StringComparer.Ordinal)
+                    .Any(group => group.Select(bundle => bundle.Name).Distinct(StringComparer.Ordinal).Count() != 1) ||
+                partBundles.GroupBy(bundle => bundle.Name, StringComparer.Ordinal)
+                    .Any(group => group.Select(bundle => bundle.File).Distinct(StringComparer.Ordinal).Count() != 1))
+                throw new InvalidOperationException("A completed character bundle has conflicting file or provider identities.");
+            if (manifest.schemaVersion == 3) return;
             var sourceFingerprints = new HashSet<string>(StringComparer.Ordinal);
             if (manifest.meshes.Any(value => value == null || !IsHash(value.sourceFingerprint) || value.mode is not ("native" or "authored") ||
                     value.mode == "native" && (!string.IsNullOrEmpty(value.authoredMeshAsset) || !string.IsNullOrEmpty(value.authoredFingerprint) || !string.IsNullOrEmpty(value.bundleFile) ||
@@ -801,16 +2924,18 @@ internal static class RacesContext
             var nativeProperties = NativeFaceAppearanceProperties();
             var nativeTextures = manifest.schemaVersion == 2 ? NativeFaceAppearanceProperties(true) : [];
             if ((manifest.textureRemaps ?? []).Any(property => property == null || string.IsNullOrWhiteSpace(property.sourceShader) ||
-                    string.IsNullOrWhiteSpace(property.name) || property.kind != "texture-remap" || !IsHash(property.sourceTextureFingerprint) || !SourceDimensionsValid(property) ||
+                    string.IsNullOrWhiteSpace(property.name) || property.kind != "texture-remap" || !IsHash(property.sourceTextureFingerprint) ||
+                    property.sourceBodyTextureFingerprint != null && !IsHash(property.sourceBodyTextureFingerprint) || !SourceDimensionsValid(property) ||
                     string.IsNullOrWhiteSpace(property.textureAsset) || property.bundleFile == null || !bundles.Contains(property.bundleFile) ||
                     nativeProperties.Contains(Shader.PropertyToID(property.name)) && !nativeTextures.Contains(Shader.PropertyToID(property.name))) ||
-                (manifest.textureRemaps ?? []).GroupBy(property => (property.sourceShader, property.name, property.sourceTextureFingerprint)).Any(group => group.Count() != 1))
+                (manifest.textureRemaps ?? []).GroupBy(property => (property.sourceShader, property.name, property.sourceTextureFingerprint, property.sourceBodyTextureFingerprint)).Any(group => group.Count() != 1))
                 throw new InvalidOperationException("A shared custom character model texture declaration is invalid or replaces a native choice parameter.");
             foreach (var material in manifest.materials)
             {
                 if (material?.authoredProfile is { } profile &&
                     (!bundles.Contains(profile.bundleFile ?? "") || string.IsNullOrWhiteSpace(profile.materialAsset) ||
                      string.IsNullOrWhiteSpace(profile.shader) || profile.layout == null || profile.layout.preservedUv == null ||
+                     !profile.layout.HasSupportedGroomCodec ||
                      new[] { profile.layout.sourceUv, profile.layout.groomUv }.Any(channel => channel is < 0 or > 7) ||
                      profile.layout.sourceUv == profile.layout.groomUv ||
                      profile.layout.preservedUv.Any(channel => channel is < 0 or > 7 || channel == profile.layout.sourceUv ||
@@ -822,6 +2947,7 @@ internal static class RacesContext
                     !sourceFingerprints.Contains(material.sourceFingerprint) ||
                     material.properties == null || material.properties.Length == 0 && material.authoredProfile == null || material.properties.Any(property => property == null || string.IsNullOrWhiteSpace(property.name) ||
                         property.kind is not ("float" or "texture" or "texture-remap") || !SourceDimensionsValid(property) ||
+                        property.sourceBodyTextureFingerprint != null && (property.kind != "texture-remap" || !IsHash(property.sourceBodyTextureFingerprint)) ||
                         property.kind == "float" && !BodyShapeFinite(property.value) ||
                         property.kind is "texture" or "texture-remap" && string.IsNullOrWhiteSpace(property.textureAsset) ||
                         property.kind == "texture-remap" && !IsHash(property.sourceTextureFingerprint) ||
@@ -832,7 +2958,7 @@ internal static class RacesContext
                                 ? nativeTextures.Contains(Shader.PropertyToID(property.name))
                                 : property.name == "_MainTex" && material.sourceShader != "Custom/CharacterEye"))) ||
                     material.properties.GroupBy(value => value.name, StringComparer.Ordinal).Any(group => group.Count() > 1 &&
-                        (group.Any(value => value.kind != "texture-remap") || group.Select(value => value.sourceTextureFingerprint).Distinct(StringComparer.Ordinal).Count() != group.Count())) ||
+                        (group.Any(value => value.kind != "texture-remap") || group.Select(value => (value.sourceTextureFingerprint, value.sourceBodyTextureFingerprint)).Distinct().Count() != group.Count())) ||
                     !string.IsNullOrEmpty(material.bundleFile) && !bundles.Contains(material.bundleFile))
                     throw new InvalidOperationException("A custom character model material declaration is invalid or replaces a native appearance property.");
             }
@@ -857,23 +2983,195 @@ internal static class RacesContext
             if (field?.GetValue(factory) is not int id) throw new MissingFieldException(typeof(GraphicsCharacterFactoryManager).FullName, name);
             return id;
         }
+        private IEnumerator PrepareBundle(string file, Func<bool> current)
+        {
+            var entry = _bundles[file];
+            if (entry.Owners <= 0) throw new InvalidOperationException("A custom character model pack has no active presentation owner.");
+            if (entry.Loaded || !current()) yield break;
+            var operation = entry.Verification;
+            if (operation == null || operation.Cancelled)
+            {
+                operation?.Dispose();
+                entry.Verification = operation = new BundleVerification(System.IO.Path.Combine(_directory, entry.file), entry.sha256);
+            }
+            while (!operation.Completed)
+            {
+                if (!current() || entry.Owners <= 0 || !ReferenceEquals(entry.Verification, operation)) yield break;
+                yield return null;
+            }
+            if (current() && entry.Owners > 0 && ReferenceEquals(entry.Verification, operation)) operation.RequireReady();
+        }
         private AssetBundle Bundle(string file)
         {
             var entry = _bundles[file];
             if (entry.Owners <= 0) throw new InvalidOperationException("A custom character model pack has no active presentation owner.");
             if (entry.Loaded) return entry.Loaded;
             var path = System.IO.Path.Combine(_directory, entry.file);
-            using (var stream = System.IO.File.OpenRead(path))
-            using (var sha = CustomModels.CreateAssetSha256())
+            var operation = entry.Verification; entry.Verification = null;
+            if (operation != null && operation.Completed && !operation.Cancelled)
             {
-                if (BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "").ToLowerInvariant() != entry.sha256)
-                    throw new InvalidOperationException("A custom character model pack does not match its catalog: " + file);
-                entry.StoredBytes = stream.Length;
+                try
+                {
+                    operation.Consume(length =>
+                    {
+                        entry.StoredBytes = length;
+                        entry.Loaded = AssetBundle.LoadFromFile(path);
+                    });
+                }
+                finally { operation.Dispose(); }
             }
-            entry.Loaded = AssetBundle.LoadFromFile(path);
+            else
+            {
+                operation?.Dispose();
+                // Compatibility path for consumers which did not run preparation.
+                using (var stream = System.IO.File.OpenRead(path))
+                using (var sha = CustomModels.CreateAssetSha256())
+                {
+                    if (BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "").ToLowerInvariant() != entry.sha256)
+                        throw new InvalidOperationException("A custom character model pack does not match its catalog: " + file);
+                    entry.StoredBytes = stream.Length;
+                    entry.Loaded = AssetBundle.LoadFromFile(path);
+                }
+            }
             if (!entry.Loaded) throw new InvalidOperationException("A custom character model pack could not be loaded: " + file);
             return entry.Loaded;
         }
+        private static CharacterModelJointAsset ReadJoint(JToken token)
+        {
+            var result = new CharacterModelJointAsset();
+            try
+            {
+                if (token is not JObject data || data.Properties().Any(p => p.Name is not
+                    ("bodySourceFingerprint" or "headFingerprint" or "bodyFingerprint" or "authoredFingerprint" or "bundleFile" or "authoredMeshAsset" or
+                     "origins" or "bodyToHead" or "donorBones" or "removedTriangles" or "uvEdges" or "uvFractions" or "headToBody" or "donorPart" or "tangentMode")))
+                    throw new JsonReaderException("Invalid coupled joint declaration.");
+                string Text(string name) => JsonField(data, name, JTokenType.String) ? (string)data[name] : throw new JsonReaderException("Missing joint identity: " + name);
+                int[] Ints(string name) => data[name] is JArray a && a.Count <= 1000000 && a.All(t => t.Type == JTokenType.Integer)
+                    ? a.Select(ReadInteger).ToArray() : throw new JsonReaderException("Invalid joint index channel: " + name);
+                float[] Floats(string name) => data[name] is JArray a && a.Count <= 1000000 && a.All(t => t.Type is JTokenType.Integer or JTokenType.Float)
+                    ? a.Select(t => (float)t).ToArray() : throw new JsonReaderException("Invalid joint scalar channel: " + name);
+                if (data["donorPart"] != null &&
+                    (!JsonField(data, "donorPart", JTokenType.String) ||
+                     !Enum.TryParse(Text("donorPart"), false, out result.donorPart) ||
+                     !Enum.IsDefined(typeof(GraphicsCharacterDefinitions.BodyPart), result.donorPart)))
+                    throw new JsonReaderException("Invalid coupled joint donor body part.");
+                if (data["tangentMode"] != null)
+                {
+                    result.tangentMode = Text("tangentMode");
+                    if (result.tangentMode is not ("uvDerivative" or "sourceUvEdge"))
+                        throw new JsonReaderException("Invalid coupled joint tangent owner.");
+                }
+                result.bodySourceFingerprint = Text("bodySourceFingerprint"); result.headFingerprint = Text("headFingerprint");
+                result.bodyFingerprint = Text("bodyFingerprint"); result.authoredFingerprint = Text("authoredFingerprint");
+                result.bundleFile = Text("bundleFile"); result.authoredMeshAsset = Text("authoredMeshAsset");
+                if (!IsHash(result.bodySourceFingerprint) || !IsHash(result.headFingerprint) || !IsHash(result.bodyFingerprint) ||
+                    !IsHash(result.authoredFingerprint) || !IsBundleFile(result.bundleFile) || string.IsNullOrWhiteSpace(result.authoredMeshAsset))
+                    throw new JsonReaderException("Invalid coupled joint source identity.");
+                result.origins = Ints("origins"); result.bodyToHead = Ints("bodyToHead"); result.donorBones = Ints("donorBones");
+                result.removedTriangles = Ints("removedTriangles"); result.uvEdges = Ints("uvEdges");
+                result.uvFractions = Floats("uvFractions"); result.headToBody = Floats("headToBody");
+            }
+            catch (Exception e) { result.InvalidReason = e.Message; }
+            return result;
+        }
+
+        internal IEnumerator PrepareJointMeshes(GraphicsCharacterFactoryManager factory, GraphicsCharacter graphics,
+            IEnumerable<GameObject> parts, PreparedSources preparation, Func<bool> current, bool includePending = true)
+        {
+            if (!_hasJointAttachments || !current()) yield break;
+            preparation.RetainNativeSources(factory, graphics, includePending);
+            // Coupled choices are resolved while immutable prefabs are still owned,
+            // before native publication. Only matching actual source pairs are loaded.
+            var sources = new Dictionary<SkinnedMeshRenderer, CustomModels.SkinMeshSource>();
+            foreach (var part in parts.Concat(CharacterModelPartSources(factory, graphics, includePending))
+                         .Where(p => p && preparation.NativeSources.Contains(p)).Distinct())
+            {
+                var captured = CustomModels.SkinMeshSource.CapturePrefab(part,
+                    part.GetComponentsInChildren<SkinnedMeshRenderer>(true).Where(r => r.sharedMesh));
+                if (captured == null) continue;
+                foreach (var pair in captured) sources[pair.Key] = pair.Value;
+            }
+            var immutable = sources.Values.Select(v => v.Original).Distinct().ToArray();
+            foreach (var originalHead in immutable)
+            {
+                if (!current()) yield break;
+                var hfp = CharacterModelFingerprint(originalHead);
+                if (!_meshes.TryGetValue(hfp, out var entry)) continue;
+                foreach (var joint in entry.jointAttachments ?? [])
+                {
+                    if (!current()) yield break;
+                    if (joint.InvalidReason != null) { preparation.Failed = true; ReportCharacterModelError("joint-declaration", new InvalidOperationException(joint.InvalidReason)); continue; }
+                    var originalBody = immutable.FirstOrDefault(v => CharacterModelFingerprint(v) == joint.bodySourceFingerprint);
+                    if (!originalBody) continue;
+                    var verificationFiles = new HashSet<string>(StringComparer.Ordinal);
+                    foreach (var fingerprint in new[] { hfp, joint.bodySourceFingerprint })
+                        if (_meshes.TryGetValue(fingerprint, out var sourceEntry) && sourceEntry.mode != "native")
+                            verificationFiles.Add(sourceEntry.bundleFile);
+                    var verificationFailed = false;
+                    foreach (var file in verificationFiles)
+                    {
+                        RetainBundle(preparation.Packs, file);
+                        if (!_bundles[file].Loaded)
+                            yield return ObserveCharacterModelPreparation(PrepareBundle(file, current), () => verificationFailed = true);
+                        if (!current()) yield break;
+                        if (verificationFailed) break;
+                    }
+                    if (verificationFailed) { preparation.Failed = true; continue; }
+                    Mesh head = null, body = null, loaded = null;
+                    try
+                    {
+                        head = Mesh(originalHead, hfp, preparation.Packs, out _);
+                        body = Mesh(originalBody, joint.bodySourceFingerprint, preparation.Packs, out _);
+                        if (CharacterModelFingerprint(head) != joint.headFingerprint || CharacterModelFingerprint(body) != joint.bodyFingerprint) continue;
+                        if (!_bundles.ContainsKey(joint.bundleFile)) throw new InvalidOperationException("A joint has no declared immutable pack.");
+                        RetainBundle(preparation.Packs, joint.bundleFile);
+                    }
+                    catch (Exception e) { preparation.Failed = true; ReportCharacterModelError("joint-prefetch", e); continue; }
+                    var jointVerificationFailed = false;
+                    if (!_bundles[joint.bundleFile].Loaded)
+                        yield return ObserveCharacterModelPreparation(PrepareBundle(joint.bundleFile, current), () => jointVerificationFailed = true);
+                    if (!current()) yield break;
+                    if (jointVerificationFailed) { preparation.Failed = true; continue; }
+                    try
+                    {
+                        loaded = joint.Loaded ? joint.Loaded : Bundle(joint.bundleFile).LoadAsset<Mesh>(joint.authoredMeshAsset);
+                        if (!loaded || !loaded.isReadable) throw new InvalidOperationException("A coupled joint mesh is missing or unreadable.");
+                    }
+                    catch (Exception e) { preparation.Failed = true; ReportCharacterModelError("joint-prefetch", e); continue; }
+                    yield return CharacterModelMeshPreparation.Prepare(loaded, current, () => preparation.Failed = true);
+                    if (!current()) yield break;
+                    try
+                    {
+                        if (CharacterModelFingerprint(loaded) != joint.authoredFingerprint) throw new InvalidOperationException("A coupled joint content fingerprint changed.");
+                        if (!joint.Verified.Contains((head, body))) ValidateCharacterModelJoint(head, body, loaded, joint);
+                        joint.Verified.Add((head, body)); joint.Loaded = loaded;
+                    }
+                    catch (Exception e) { joint.Verified.Remove((head, body)); preparation.Failed = true; ReportCharacterModelError("joint-source", e); }
+                    yield return null;
+                }
+            }
+        }
+        // Keep the four-argument Head/Body entry used by existing source witnesses.
+        internal (CharacterModelJointAsset Declaration, Mesh Mesh) Joint(string headSource, string bodySource,
+            Mesh head, Mesh body) => JointForPart(headSource, bodySource, head, body, GraphicsCharacterDefinitions.BodyPart.Body);
+        internal IEnumerable<GraphicsCharacterDefinitions.BodyPart> JointDonorParts(string source) =>
+            _meshes.TryGetValue(source, out var entry)
+                ? (entry.jointAttachments ?? []).Where(j => j.InvalidReason == null).Select(j => j.donorPart).Distinct()
+                : [];
+        internal (CharacterModelJointAsset Declaration, Mesh Mesh) JointForPart(string headSource, string bodySource,
+            Mesh head, Mesh body, GraphicsCharacterDefinitions.BodyPart donorPart)
+        {
+            if (!_meshes.TryGetValue(headSource, out var entry)) return default;
+            var matches = (entry.jointAttachments ?? []).Where(j => j.InvalidReason == null &&
+                j.donorPart == donorPart && j.bodySourceFingerprint == bodySource && j.Loaded && j.Verified.Contains((head, body)) &&
+                j.headFingerprint == CharacterModelFingerprint(head) && j.bodyFingerprint == CharacterModelFingerprint(body)).ToArray();
+            if (matches.Length != 1) return default;
+            var selected = matches[0];
+            return (selected, selected.Loaded);
+        }
+        internal bool HasJointAttachments(string source) => _hasJointAttachments && _meshes.TryGetValue(source, out var entry) &&
+            (entry.jointAttachments ?? []).Any(j => j.InvalidReason == null);
+
         internal Mesh Mesh(Mesh original, string fingerprint, HashSet<string> retained, out string bundleFile)
         {
             bundleFile = null;
@@ -891,7 +3189,7 @@ internal static class RacesContext
                     var loaded = Bundle(entry.bundleFile).LoadAsset<Mesh>(entry.authoredMeshAsset);
                     if (!loaded || !loaded.isReadable || verifyContent && CharacterModelFingerprint(loaded) != entry.authoredFingerprint)
                         throw new InvalidOperationException("An authored character model mesh is missing or its content identity changed: " + entry.authoredMeshAsset);
-                    ValidateCharacterModelBinding(original, loaded);
+                    ValidateCharacterModelBinding(original, loaded, verifyContent);
                     foreach (var layout in entry.Layouts) ValidateSurfaceLayout(original, loaded, layout, verifyContent);
                     entry.VerifiedContent = identity;
                     entry.Loaded = loaded;
@@ -903,6 +3201,31 @@ internal static class RacesContext
                 }
             }
             return entry.Loaded;
+        }
+        internal IEnumerator PrepareMesh(Mesh original, string fingerprint, PreparedSources preparation, Func<bool> current)
+        {
+            if (!_meshes.TryGetValue(fingerprint, out var entry) || entry.mode == "native") yield break;
+            RetainBundle(preparation.Packs, entry.bundleFile);
+            var wasReady = _bundles[entry.bundleFile].Loaded && entry.Loaded &&
+                           (string.IsNullOrEmpty(entry.bindingFile) || entry.LoadedBinding != null);
+            if (!_bundles[entry.bundleFile].Loaded)
+                yield return PrepareBundle(entry.bundleFile, current);
+            if (!current()) yield break;
+            var loaded = entry.Loaded ? entry.Loaded : Bundle(entry.bundleFile).LoadAsset<Mesh>(entry.authoredMeshAsset);
+            if (!loaded || !loaded.isReadable)
+                throw new InvalidOperationException("An authored character model mesh is missing or unreadable: " + entry.authoredMeshAsset);
+            var identity = (_bundles[entry.bundleFile].sha256, entry.authoredMeshAsset, entry.authoredFingerprint);
+            var verifyContent = entry.VerifiedContent != identity;
+            if (verifyContent)
+                yield return CharacterModelMeshPreparation.Prepare(loaded, current, () => preparation.Failed = true);
+            if (!current()) yield break;
+            if (verifyContent && CharacterModelFingerprint(loaded) != entry.authoredFingerprint)
+                throw new InvalidOperationException("An authored character model mesh content identity changed: " + entry.authoredMeshAsset);
+            // Reuse only the immutable authored proof. Current native binding
+            // and coordinate-layout compatibility are checked on every load.
+            Mesh(original, fingerprint, preparation.Packs, out _);
+            yield return PrepareBinding(original, fingerprint, entry, current);
+            if (!wasReady) yield return null;
         }
         private static void ValidateSurfaceLayout(Mesh original, Mesh authored, CharacterModelSurfaceLayout layout, bool validateAuthored)
         {
@@ -918,8 +3241,8 @@ internal static class RacesContext
             if (!validateAuthored) return;
             Coordinates(layout.sourceUv, 2);
             var groom = Coordinates(layout.groomUv, 4);
-            // The common 4x4 tile codec uses 0 for source/core and tileIndex + 1 for cards.
-            if (groom.Any(value => value.z is < 0f or > 16f || value.z != (int)value.z || value.w is not (-1f or 1f)))
+            // The declared codec owns its roles, handedness and optional strand rank.
+            if (groom.Any(value => !layout.IsValidGroomCoordinate(value)))
                 throw new InvalidOperationException("An authored material layout has an invalid surface tile or handedness.");
             for (var slot = 0; slot < authored.subMeshCount; slot++)
             {
@@ -928,8 +3251,8 @@ internal static class RacesContext
                 var indices = authored.GetIndices(slot);
                 if (indices.Length % 3 != 0) throw new InvalidOperationException("An authored material surface has incomplete triangles.");
                 for (var index = 0; index < indices.Length; index += 3)
-                    if (groom[indices[index]].z != groom[indices[index + 1]].z || groom[indices[index]].z != groom[indices[index + 2]].z)
-                        throw new InvalidOperationException("An authored material surface role changes within a triangle.");
+                    if (!layout.IsSameGroomSurface(groom[indices[index]], groom[indices[index + 1]], groom[indices[index + 2]]))
+                        throw new InvalidOperationException("An authored material surface role or strand rank changes within a triangle.");
             }
             return;
             int Dimension(Mesh mesh, int channel) => mesh.GetVertexAttributeDimension(
@@ -949,41 +3272,253 @@ internal static class RacesContext
             if (!_meshes.TryGetValue(fingerprint, out var entry) || entry.mode != "authored" || string.IsNullOrEmpty(entry.bindingFile)) return null;
             if (!entry.Loaded || _bundles[entry.bundleFile].Owners <= 0)
                 throw new InvalidOperationException("An authored source attachment has no mesh pack owner.");
-            if (entry.LoadedBinding != null) return entry.LoadedBinding;
-            var path = System.IO.Path.Combine(_directory, entry.bindingFile);
-            var bytes = System.IO.File.ReadAllBytes(path);
-            using (var sha = CustomModels.CreateAssetSha256())
-                if (BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant() != entry.bindingSha256)
-                    throw new InvalidOperationException("An authored source attachment does not match its catalog.");
+            if (entry.LoadedBinding != null)
+            {
+                TouchBinding(entry);
+                return entry.LoadedBinding;
+            }
+            var bytes = ReadBinding(entry);
             var tangents = ReadNativeRestMesh(original, readable => readable.tangents);
-            var binding = ParseBinding(bytes, fingerprint, fingerprint + ":" + entry.authoredFingerprint + ":" + entry.bindingSha256,
-                original.vertexCount, entry.Loaded.vertexCount, entry.Loaded.subMeshCount, tangents);
-            return entry.LoadedBinding = binding;
+            ValidateBindingTangents(tangents, original.vertexCount);
+            var template = CachedBinding(entry, original.vertexCount, entry.Loaded.vertexCount, entry.Loaded.subMeshCount);
+            if (template == null)
+            {
+                template = ParseBindingTemplate(bytes, fingerprint, original.vertexCount, entry.Loaded.vertexCount, entry.Loaded.subMeshCount);
+                RememberBinding(entry, template);
+            }
+            return entry.LoadedBinding = template.Instantiate(BindingIdentity(entry, fingerprint), tangents);
         }
-        private static CustomModels.SkinMeshSource.SurfaceBinding ParseBinding(byte[] bytes, string fingerprint, string bindingIdentity,
-            int originalVertexCount, int authoredVertexCount, int subMeshCount, Vector4[] tangents)
+        internal CustomModels.SkinMeshSource.SurfaceBinding BaseBinding(Mesh original, string fingerprint)
+        {
+            if (!_meshes.TryGetValue(fingerprint, out var entry) || entry.mode != "authored" ||
+                !entry.Loaded || entry.Loaded.vertexCount != original.vertexCount || !string.IsNullOrEmpty(entry.bindingFile)) return null;
+            if (_bundles[entry.bundleFile].Owners <= 0) throw new InvalidOperationException("An authored base has no immutable mesh owner.");
+            if (entry.LoadedBaseBindingPrepared && ReferenceEquals(entry.LoadedBaseBindingTarget, entry.Loaded)) return entry.LoadedBaseBinding;
+            var binding = CreateAuthoredBaseBinding(original, entry.Loaded,
+                "authored-base:1:" + fingerprint + ":" + entry.authoredFingerprint);
+            if (binding != null) binding.CacheAuthoredBaseValidation = true;
+            entry.LoadedBaseBinding = binding; entry.LoadedBaseBindingTarget = entry.Loaded; entry.LoadedBaseBindingPrepared = true;
+            return binding;
+        }
+        private byte[] ReadBinding(CharacterModelMeshAsset entry)
+        {
+            var bytes = System.IO.File.ReadAllBytes(System.IO.Path.Combine(_directory, entry.bindingFile));
+            using var sha = CustomModels.CreateAssetSha256();
+            if (BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant() != entry.bindingSha256)
+                throw new InvalidOperationException("An authored source attachment does not match its catalog.");
+            return bytes;
+        }
+        private static string BindingIdentity(CharacterModelMeshAsset entry, string fingerprint) =>
+            fingerprint + ":" + entry.authoredFingerprint + ":" + entry.bindingSha256;
+        private CharacterModelBindingTemplate CachedBinding(CharacterModelMeshAsset entry, int originalCount, int authoredCount, int slots)
+        {
+            var template = entry.ParsedBinding;
+            if (template == null || template.OriginalCount != originalCount || template.AuthoredCount != authoredCount || template.Slots != slots) return null;
+            TouchBinding(entry);
+            return template;
+        }
+        private void TouchBinding(CharacterModelMeshAsset entry)
+        {
+            if (entry.ParsedBindingNode == null || ReferenceEquals(entry.ParsedBindingNode, _parsedBindings.Last)) return;
+            _parsedBindings.Remove(entry.ParsedBindingNode);
+            _parsedBindings.AddLast(entry.ParsedBindingNode);
+        }
+        private void RememberBinding(CharacterModelMeshAsset entry, CharacterModelBindingTemplate template)
+        {
+            if (entry.ParsedBindingNode != null)
+            {
+                _parsedBindings.Remove(entry.ParsedBindingNode);
+                _parsedBindingBytes -= entry.ParsedBinding.Bytes;
+            }
+            entry.ParsedBinding = null;
+            entry.ParsedBindingNode = null;
+            if (template.Bytes > MaximumParsedBindingBytes) return;
+            entry.ParsedBinding = template;
+            entry.ParsedBindingNode = _parsedBindings.AddLast(entry);
+            _parsedBindingBytes += template.Bytes;
+            while (_parsedBindings.Count > MaximumParsedBindings || _parsedBindingBytes > MaximumParsedBindingBytes)
+            {
+                var evicted = _parsedBindings.First.Value;
+                _parsedBindings.RemoveFirst();
+                _parsedBindingBytes -= evicted.ParsedBinding.Bytes;
+                evicted.ParsedBinding = null;
+                evicted.ParsedBindingNode = null;
+            }
+        }
+        private sealed class BindingPending(byte[] bytes, string fingerprint, int originalCount, int authoredCount, int slots)
+        {
+            internal readonly byte[] Bytes = bytes;
+            internal readonly string Fingerprint = fingerprint;
+            internal readonly int OriginalCount = originalCount, AuthoredCount = authoredCount, Slots = slots;
+            internal volatile bool Cancelled;
+            private int _references = 1;
+            internal void RetainWorker()
+            {
+                if (Interlocked.CompareExchange(ref _references, 2, 1) != 1)
+                    throw new InvalidOperationException("A binding packet has no exclusive preparing owner.");
+            }
+            internal void Release()
+            {
+                var remaining = Interlocked.Decrement(ref _references);
+                if (remaining < 0) throw new InvalidOperationException("A binding packet has no matching owner.");
+                if (remaining == 0) Interlocked.Exchange(ref _bindingPreparationBusy, 0);
+            }
+        }
+        private static Task<CharacterModelBindingTemplate> QueueBinding(BindingPending pending)
+        {
+            pending.RetainWorker();
+            try
+            {
+                return Task.Run(() =>
+                {
+                    try { return ParseBindingTemplate(pending.Bytes, pending.Fingerprint, pending.OriginalCount,
+                        pending.AuthoredCount, pending.Slots, () => pending.Cancelled, MaximumParsedBindingBytes); }
+                    finally { pending.Release(); }
+                });
+            }
+            catch { pending.Release(); throw; }
+        }
+        internal CustomModels.SkinMeshSource.SourceGraph.NativeSurfacePacket PreparedSurfacePacket(Mesh original, Mesh target,
+            CustomModels.SkinMeshSource.SurfaceBinding binding, CustomModels.SkinMeshSource.SourceGraph.NativeSurfacePlan plan)
+        {
+            if (!original || !CharacterModelFingerprints.TryGetValue(original, out var fingerprint) ||
+                binding == null || IsRetiring || !ReferenceEquals(this, _characterModelCatalog) ||
+                !_meshes.TryGetValue(fingerprint, out var entry) || entry.mode != "authored" ||
+                !ReferenceEquals(binding, entry.LoadedBinding) || binding.BoundaryOverrides != null || binding.AuthoredBase ||
+                !ReferenceEquals(target, entry.Loaded) || !target || plan == null || !ReferenceEquals(plan, binding.SurfacePlan) ||
+                string.IsNullOrEmpty(entry.bundleFile) || _bundles[entry.bundleFile].Owners <= 0 ||
+                binding.Fingerprint != BindingIdentity(entry, entry.sourceFingerprint)) return null;
+            var owner = (_bundles[entry.bundleFile].sha256, entry.authoredMeshAsset, entry.authoredFingerprint);
+            return entry.VerifiedContent == owner && entry.PreparedFinishPacket?.Matches(target, plan, binding.Fingerprint, owner) == true
+                ? entry.PreparedFinishPacket : null;
+        }
+        internal IEnumerator PrepareSurfacePacket(Mesh original, CustomModels.SkinMeshSource.SurfaceBinding binding,
+            PreparedSources preparation, Func<bool> current)
+        {
+            if (!original || !CharacterModelFingerprints.TryGetValue(original, out var fingerprint) ||
+                !_meshes.TryGetValue(fingerprint, out var entry) || entry.mode != "authored" || binding == null ||
+                !ReferenceEquals(entry.LoadedBinding, binding) || binding.BoundaryOverrides != null || binding.AuthoredBase ||
+                binding.SurfacePlan == null || string.IsNullOrEmpty(entry.bundleFile) || !preparation.Packs.Contains(entry.bundleFile)) yield break;
+            var target = entry.Loaded; var plan = binding.SurfacePlan;
+            var owner = (_bundles[entry.bundleFile].sha256, entry.authoredMeshAsset, entry.authoredFingerprint);
+            bool Current() => current() && !IsRetiring && ReferenceEquals(this, _characterModelCatalog) && target &&
+                ReferenceEquals(target, entry.Loaded) && ReferenceEquals(binding, entry.LoadedBinding) &&
+                ReferenceEquals(plan, binding.SurfacePlan) && entry.VerifiedContent == owner &&
+                _bundles[entry.bundleFile].Owners > 0 && binding.Fingerprint == BindingIdentity(entry, fingerprint) &&
+                CharacterModelFingerprints.TryGetValue(original, out var currentFingerprint) && currentFingerprint == fingerprint;
+            if (!Current() || PreparedSurfacePacket(original, target, binding, plan) != null) yield break;
+            while (Interlocked.CompareExchange(ref _bindingPreparationBusy, 1, 0) != 0)
+            { if (!Current()) yield break; yield return null; }
+            IEnumerator operation = null;
+            try
+            {
+                if (!Current() || PreparedSurfacePacket(original, target, binding, plan) != null) yield break;
+                operation = CustomModels.SkinMeshSource.SourceGraph.NativeSurfaceFinishState.PreparePacket(target, plan,
+                    binding.Fingerprint, owner, Current, packet => { if (Current()) entry.PreparedFinishPacket = packet; });
+                while (Current() && operation.MoveNext()) yield return operation.Current;
+            }
+            finally
+            {
+                try { (operation as IDisposable)?.Dispose(); }
+                finally { Interlocked.Exchange(ref _bindingPreparationBusy, 0); }
+            }
+        }
+
+        private IEnumerator PrepareBinding(Mesh original, string fingerprint, CharacterModelMeshAsset entry, Func<bool> current)
+        {
+            if (string.IsNullOrEmpty(entry.bindingFile) || !current()) yield break;
+            if (entry.LoadedBinding != null) { TouchBinding(entry); yield break; }
+            // The slot covers the input capture, worker and main-thread publication.
+            // Cancelled work returns it only after both coroutine and worker release it.
+            while (Interlocked.CompareExchange(ref _bindingPreparationBusy, 1, 0) != 0)
+            {
+                if (!current()) yield break;
+                yield return null;
+            }
+            BindingPending pending = null;
+            try
+            {
+                if (!current()) yield break;
+                if (entry.LoadedBinding != null) { TouchBinding(entry); yield break; }
+                var bytes = ReadBinding(entry);
+                var originalCount = original.vertexCount;
+                var authoredCount = entry.Loaded.vertexCount;
+                var slots = entry.Loaded.subMeshCount;
+                var tangents = ReadNativeRestMesh(original, readable => readable.tangents);
+                ValidateBindingTangents(tangents, originalCount);
+                var template = CachedBinding(entry, originalCount, authoredCount, slots);
+                if (template == null)
+                {
+                    if (bytes.LongLength > MaximumBindingPacketBytes) yield break;
+                    pending = new BindingPending(bytes, fingerprint, originalCount, authoredCount, slots);
+                    var job = QueueBinding(pending);
+                    while (!job.IsCompleted)
+                    {
+                        if (!current())
+                        {
+                            pending.Cancelled = true;
+                            _ = job.ContinueWith(failed => _ = failed.Exception, TaskContinuationOptions.OnlyOnFaulted);
+                            yield break;
+                        }
+                        yield return null;
+                    }
+                    if (job.IsFaulted && job.Exception.InnerException is CharacterModelBindingPacketLimit) yield break;
+                    template = job.GetAwaiter().GetResult();
+                    if (!current()) yield break;
+                    RememberBinding(entry, template);
+                }
+                if (current()) entry.LoadedBinding = template.Instantiate(BindingIdentity(entry, fingerprint), tangents);
+            }
+            finally
+            {
+                if (pending != null)
+                {
+                    pending.Cancelled = true;
+                    pending.Release();
+                    pending = null;
+                }
+                else Interlocked.Exchange(ref _bindingPreparationBusy, 0);
+            }
+        }
+        private static void ValidateBindingTangents(Vector4[] tangents, int originalVertexCount)
         {
             if (tangents == null || tangents.Length != originalVertexCount || tangents.Any(tangent => !BodyShapeFinite(tangent.x) || !BodyShapeFinite(tangent.y) ||
                     !BodyShapeFinite(tangent.z) || tangent.w is not (-1f or 1f)))
                 throw new InvalidOperationException("The native source has incomplete tangent frames.");
+        }
+        private static CharacterModelBindingTemplate ParseBindingTemplate(byte[] bytes, string fingerprint,
+            int originalVertexCount, int authoredVertexCount, int subMeshCount, Func<bool> cancelled = null, long maximumMemory = long.MaxValue)
+        {
+            CheckCancellation(cancelled);
+            var estimatedMemory = 256L + CustomModels.SkinMeshSource.SurfaceVertex.EstimatedBytes * authoredVertexCount;
+            Budget();
             using var stream = new System.IO.MemoryStream(bytes, false);
             using var compressed = new System.IO.Compression.GZipStream(stream, System.IO.Compression.CompressionMode.Decompress);
             using var reader = new System.IO.BinaryReader(compressed, new System.Text.UTF8Encoding(false, true));
-            Require(System.Text.Encoding.ASCII.GetString(reader.ReadBytes(8)) == "UBSFB001");
+            var magic = System.Text.Encoding.ASCII.GetString(reader.ReadBytes(8));
+            var multiSource = magic == "UBSFB002";
+            var geometryFrame = magic == "UBSFB004";
+            var explicitSurface = geometryFrame || magic == "UBSFB003";
+            Require(multiSource || explicitSurface || magic == "UBSFB001");
+            Require(!(multiSource || explicitSurface) || originalVertexCount > 0 && authoredVertexCount >= originalVertexCount);
             Require(BitConverter.ToString(reader.ReadBytes(32)).Replace("-", "").ToLowerInvariant() == fingerprint);
-            Boolean(); // Retain and validate the authored cloth-generation flag.
+            var clothGenerated = Boolean();
+            Require(!multiSource || !clothGenerated);
             var matrix = new Matrix4x4();
             for (var index = 0; index < 16; index++) matrix[index] = Number();
             var determinant = Vector3.Dot(Vector3.Cross((Vector3)matrix.GetColumn(0), (Vector3)matrix.GetColumn(1)), (Vector3)matrix.GetColumn(2));
             Require(BodyShapeFinite(determinant) && determinant != 0f &&
                 matrix[3] == 0f && matrix[7] == 0f && matrix[11] == 0f && matrix[15] == 1f);
+            if (explicitSurface) Require(reader.ReadInt32() == originalVertexCount);
             var roleCount = reader.ReadInt32();
             Require(roleCount > 0 && roleCount <= authoredVertexCount);
             var roles = new HashSet<string>(StringComparer.Ordinal);
             for (var index = 0; index < roleCount; index++)
             {
+                if ((index & 255) == 0) CheckCancellation(cancelled);
                 var length = reader.ReadInt32();
                 Require(length > 0 && length <= 4096);
+                estimatedMemory += 64L + 2L * length; Budget();
                 var encoded = reader.ReadBytes(length);
                 Require(encoded.Length == length);
                 var role = new System.Text.UTF8Encoding(false, true).GetString(encoded);
@@ -993,19 +3528,75 @@ internal static class RacesContext
             var vertices = new CustomModels.SkinMeshSource.SurfaceVertex[authoredVertexCount];
             for (var index = 0; index < vertices.Length; index++)
             {
+                if ((index & 255) == 0) CheckCancellation(cancelled);
                 var anchor = reader.ReadInt32(); var native = Boolean();
                 var role = reader.ReadInt32(); var slot = reader.ReadInt32();
                 Require(role >= 0 && role < roleCount && slot >= 0 && slot < subMeshCount);
-                Number(); Number(); // Source UVs remain part of the verified attachment format.
+                var sourceUv = new Vector2(Number(), Number());
                 var offset = Vector(); var normal = Vector(); var tangent = Vector();
-                Require(Number() is -1f or 1f);
+                var tangentW = Number();
+                Require(tangentW is -1f or 1f);
                 Require(anchor >= 0 && anchor < originalVertexCount && normal.sqrMagnitude >= 1e-8f && tangent.sqrMagnitude >= 1e-8f &&
                     Vector3.Cross(normal, tangent).sqrMagnitude >= 1e-8f &&
                     (!native || offset.Equals(Vector3.zero) && normal.Equals(Vector3.forward) && tangent.Equals(Vector3.right)));
-                vertices[index] = new CustomModels.SkinMeshSource.SurfaceVertex(anchor, offset, normal, tangent, native);
+                (int Anchor, float Weight)[] sources = null;
+                if (multiSource)
+                {
+                    Require(native == (index < originalVertexCount) && (!native || anchor == index));
+                    var count = reader.ReadInt32();
+                    Require(count >= 1 && count <= 4);
+                    estimatedMemory += 32L + 8L * count; Budget();
+                    sources = new (int Anchor, float Weight)[count];
+                    var total = 0d;
+                    for (var source = 0; source < count; source++)
+                    {
+                        var sourceAnchor = reader.ReadInt32(); var weight = Number();
+                        Require(sourceAnchor >= 0 && sourceAnchor < originalVertexCount && weight > 0f && weight <= 1f);
+                        for (var previous = 0; previous < source; previous++) Require(sources[previous].Anchor != sourceAnchor);
+                        sources[source] = (sourceAnchor, weight); total += weight;
+                    }
+                    Require(sources[0].Anchor == anchor && Math.Abs(total - 1d) <= 0.000001d &&
+                        (!native || count == 1 && sources[0].Anchor == index && sources[0].Weight == 1f));
+                }
+                (int A, int B, int C)? surfaceTriangle = null;
+                var surfaceBary = Vector3.zero;
+                if (explicitSurface)
+                {
+                    Require(index >= originalVertexCount || native && anchor == index);
+                    var present = Boolean();
+                    Require(present == (!native && index >= originalVertexCount));
+                    if (present)
+                    {
+                        var a = reader.ReadInt32(); var b = reader.ReadInt32(); var c = reader.ReadInt32();
+                        surfaceBary = Vector(); var total = surfaceBary.x + surfaceBary.y + surfaceBary.z;
+                        Require(a >= 0 && a < originalVertexCount && b >= 0 && b < originalVertexCount &&
+                            c >= 0 && c < originalVertexCount && a != b && a != c && b != c &&
+                            (anchor == a || anchor == b || anchor == c) &&
+                            surfaceBary.x >= 0f && surfaceBary.y >= 0f && surfaceBary.z >= 0f &&
+                            surfaceBary.x <= 1f && surfaceBary.y <= 1f && surfaceBary.z <= 1f &&
+                            Math.Abs(total - 1f) <= .000001f);
+                        surfaceTriangle = (a, b, c);
+                    }
+                }
+                (int A, int B, int C)? geometryTriangle = null;
+                var geometryBary = Vector3.zero;
+                if (geometryFrame && Boolean())
+                {
+                    var a = reader.ReadInt32(); var b = reader.ReadInt32(); var c = reader.ReadInt32();
+                    geometryBary = Vector();
+                    Require(!native && surfaceTriangle.HasValue && a >= 0 && a < originalVertexCount &&
+                        b >= 0 && b < originalVertexCount && c >= 0 && c < originalVertexCount &&
+                        a != b && a != c && b != c && geometryBary.x >= 0f && geometryBary.y >= 0f &&
+                        geometryBary.z >= 0f && geometryBary.x <= 1f && geometryBary.y <= 1f && geometryBary.z <= 1f &&
+                        Math.Abs(geometryBary.x + geometryBary.y + geometryBary.z - 1f) <= .000001f);
+                    geometryTriangle = (a, b, c);
+                }
+                vertices[index] = new CustomModels.SkinMeshSource.SurfaceVertex(anchor, offset, normal, tangent, native,
+                    sources, tangentW, sourceUv, slot, surfaceTriangle, surfaceBary, geometryTriangle, geometryBary);
             }
             Require(compressed.ReadByte() == -1);
-            return new CustomModels.SkinMeshSource.SurfaceBinding(bindingIdentity, matrix, tangents, vertices);
+            return new CharacterModelBindingTemplate(matrix, vertices, originalVertexCount, authoredVertexCount, subMeshCount);
+            void Budget() { if (estimatedMemory > maximumMemory) throw new CharacterModelBindingPacketLimit(); }
             void Require(bool valid)
             {
                 if (!valid) throw new InvalidOperationException("An authored source attachment has an invalid schema, coordinate or source identity.");
@@ -1020,22 +3611,124 @@ internal static class RacesContext
             }
             Vector3 Vector() => new(Number(), Number(), Number());
         }
+        private static CharacterModelMaterialAsset WithSharedTextures(CharacterModelMaterialAsset entry, CharacterModelProperty[] selectors)
+        {
+            var absolute = entry.properties.Where(property => property.kind is "texture" or "float")
+                .Select(property => property.name).ToHashSet(StringComparer.Ordinal);
+            return new CharacterModelMaterialAsset
+            {
+                sourceFingerprint = entry.sourceFingerprint, materialSlot = entry.materialSlot,
+                sourceShader = entry.sourceShader, bundleFile = entry.bundleFile,
+                // Conditional declarations retain their global fallback for other native sources.
+                properties = entry.properties.Concat(selectors.Where(property => !absolute.Contains(property.name))).ToArray()
+            };
+        }
         internal CharacterModelMaterialAsset Material(string fingerprint, int slot, Shader shader)
         {
             if (!shader) return null;
             var key = MaterialKey(fingerprint, slot, shader.name);
-            _materials.TryGetValue(key, out var entry);
-            if (entry?.authoredProfile != null || entry?.SharedTexturesAdded == true || !_textureProperties.TryGetValue(shader.name, out var selectors)) return entry;
+            if (_materials.TryGetValue(key, out var entry) || !_textureProperties.TryGetValue(shader.name, out var selectors)) return entry;
             entry = new CharacterModelMaterialAsset
             {
-                sourceFingerprint = fingerprint, materialSlot = slot, sourceShader = shader.name, bundleFile = entry?.bundleFile,
-                properties = (entry?.properties ?? []).Concat(selectors).ToArray(), SharedTexturesAdded = true
+                sourceFingerprint = fingerprint, materialSlot = slot, sourceShader = shader.name, properties = selectors
             };
             _materials[key] = entry;
             return entry;
         }
-        internal CharacterModelProperty TextureRemap(string shader, string property, string fingerprint) =>
-            fingerprint != null && _textureRemaps.TryGetValue((shader, property, fingerprint), out var entry) ? entry : null;
+        internal CharacterModelProperty TextureRemap(string shader, string property, string fingerprint, string bodyFingerprint) =>
+            fingerprint == null ? null : bodyFingerprint != null && _textureRemaps.TryGetValue((shader, property, fingerprint, bodyFingerprint), out var specific)
+                ? specific : _textureRemaps.TryGetValue((shader, property, fingerprint, null), out var fallback) ? fallback : null;
+        internal IEnumerator PrepareMaterialTextures(IEnumerable<GameObject> parts, IReadOnlyCollection<Texture> bodyTextures,
+            PreparedSources preparation, Func<bool> current,
+            IReadOnlyDictionary<int, IReadOnlyCollection<Texture>> nativeTextures)
+        {
+            var declarations = new Dictionary<Material, List<CharacterModelMaterialAsset>>();
+            var allRenderers = new HashSet<Renderer>();
+            foreach (var part in parts)
+            {
+                if (!current()) yield break;
+                foreach (var renderer in part.GetComponentsInChildren<Renderer>(true)) allRenderers.Add(renderer);
+                var sources = CustomModels.SkinMeshSource.CapturePrefab(part,
+                    part.GetComponentsInChildren<SkinnedMeshRenderer>(true).Where(renderer => renderer.sharedMesh));
+                if (sources == null) continue;
+                foreach (var pair in sources)
+                {
+                    if (!CharacterModelFingerprints.TryGetValue(pair.Value.Original, out var fingerprint)) continue;
+                    var materials = pair.Key.sharedMaterials;
+                    for (var slot = 0; slot < materials.Length; slot++)
+                    {
+                        var material = materials[slot];
+                        if (!material || !material.shader || Material(fingerprint, slot, material.shader) is not { } declaration) continue;
+                        // Prefab materials may be shared across native parts and LODs.
+                        // Only the final instantiated material has a single live owner.
+                        if (!declarations.TryGetValue(material, out var candidates))
+                            declarations.Add(material, candidates = []);
+                        if (!candidates.Any(previous => CharacterModelMaterial.SameDeclaration(previous, declaration)))
+                            candidates.Add(declaration);
+                    }
+                }
+            }
+            foreach (var renderer in allRenderers)
+            {
+                var materials = renderer.sharedMaterials;
+                for (var slot = 0; slot < materials.Length; slot++)
+                {
+                    var material = materials[slot];
+                    if (material && material.shader && !declarations.ContainsKey(material) &&
+                        Material(null, slot, material.shader) is { } declaration)
+                        declarations.Add(material, [declaration]);
+                }
+            }
+            // Unknown or ambiguous final pairing still needs its normal fallback prepared.
+            string[] unconstrained = [null];
+            var bodyFingerprints = bodyTextures.Count == 0 ? unconstrained : bodyTextures.Select(CharacterModelTextureFingerprint)
+                .Where(IsBodyTextureFingerprint).Concat(unconstrained).Distinct(StringComparer.Ordinal).ToArray();
+            foreach (var row in declarations)
+            foreach (var declaration in row.Value)
+            {
+                if (!current()) yield break;
+                Material profileMaterial = null;
+                if (declaration.authoredProfile is { } profile)
+                {
+                    RetainBundle(preparation.Packs, profile.bundleFile);
+                    if (!_bundles[profile.bundleFile].Loaded)
+                        yield return PrepareBundle(profile.bundleFile, current);
+                    if (!current()) yield break;
+                    profileMaterial = Profile(profile);
+                    yield return null;
+                }
+                foreach (var group in declaration.properties.GroupBy(property => property.name, StringComparer.Ordinal))
+                {
+                    if (!current()) yield break;
+                    var properties = group.ToArray();
+                    if (properties[0].kind == "float") continue;
+                    var id = Shader.PropertyToID(group.Key);
+                    // A new profile property has the authored default, while every
+                    // retained native channel keeps the exact native source texture.
+                    var native = row.Key.HasProperty(id) ? row.Key.GetTexture(id) :
+                        profileMaterial && profileMaterial.HasProperty(id) ? profileMaterial.GetTexture(id) : null;
+                    var nativeSources = nativeTextures.TryGetValue(id, out var overrides)
+                        ? overrides.Prepend(native).Distinct() : new[] { native };
+                    // Resolve the same declarations for prefab and native parameter sources.
+                    // Final pairing and texture writes remain with the live material owner.
+                    foreach (var source in nativeSources)
+                    foreach (var bodyFingerprint in HasBodyTextureConditions && declaration.UsesBodyTexture ? bodyFingerprints : unconstrained)
+                    {
+                        if (!current()) yield break;
+                        var selected = CharacterModelMaterialProperty.SelectTexture(properties, source, this,
+                            declaration.sourceShader, declaration.AssetBundleFile, bodyFingerprint);
+                        if (selected.Property == null) continue;
+                        RetainBundle(preparation.Packs, selected.Bundle);
+                        if (selected.Property.Loaded) continue;
+                        if (!_bundles[selected.Bundle].Loaded)
+                            yield return PrepareBundle(selected.Bundle, current);
+                        if (!current()) yield break;
+                        _ = Texture(selected.Bundle, selected.Property);
+                        yield return null;
+                    }
+                }
+            }
+        }
         internal Texture2D Texture(string bundle, CharacterModelProperty property)
         {
             if (_bundles[bundle].Owners <= 0) throw new InvalidOperationException("A custom character model texture has no active presentation owner.");
@@ -1059,6 +3752,250 @@ internal static class RacesContext
             RemoveUnusedBundle(entry);
             entry.Owners++;
         }
+        internal void RetainNativeSources(GraphicsCharacter graphics, HashSet<UnityEngine.Object> retained,
+            HashSet<UnityEngine.Object> required)
+        {
+            required.Clear();
+            foreach (var source in graphics.ShapeObjectPerBodySlot ?? []) RetainNativeSource(source, retained, required);
+            foreach (var source in graphics.ArmorObjectPerBodySlot ?? []) RetainNativeSource(source, retained, required);
+            foreach (var source in graphics.CustomArmorMaterialPerBodySlot ?? []) RetainNativeSource(source, retained, required);
+            RetainNativeSource(graphics.BDMainTex, retained, required);
+            RetainNativeSource(graphics.BDNormalMap, retained, required);
+            RetainNativeSource(graphics.BDMetallicGlossMap, retained, required);
+            RetainNativeSource(graphics.ScarsMainTex, retained, required);
+            RetainNativeSource(graphics.ScarsNormalMap, retained, required);
+            RetainNativeSource(graphics.EyeMainTex, retained, required);
+            RetainNativeSource(graphics.EyeColorMask, retained, required);
+            ReleaseNativeSources(retained, required);
+        }
+        internal void RetainCompletePartSources(GraphicsCharacter graphics, HashSet<UnityEngine.Object> retained,
+            GraphicsCharacterFactoryManager factory = null)
+        {
+            var required = new HashSet<UnityEngine.Object>();
+            void Keep(UnityEngine.Object source, Func<AsyncOperationHandle> acquire)
+            {
+                if (source) RetainNativeSource(source, acquire, retained, required);
+            }
+            void KeepLoaded(UnityEngine.Object source)
+            {
+                if (!source) return;
+                if (_nativeSources.ContainsKey(source))
+                {
+                    Keep(source, () => throw new InvalidOperationException("An owned resource lost its source handle."));
+                    return;
+                }
+                var cached = _retainedResources.Values.FirstOrDefault(entry => entry.Handle.IsValid() && entry.Handle.IsDone &&
+                    entry.Handle.Status == AsyncOperationStatus.Succeeded && entry.Handle.Result as UnityEngine.Object == source);
+                if (cached != null) Keep(source, () =>
+                {
+                    Addressables.ResourceManager.Acquire(cached.Handle);
+                    return cached.Handle;
+                });
+            }
+            foreach (var source in (graphics.ShapeObjectPerBodySlot ?? []).Concat(graphics.ArmorObjectPerBodySlot ?? []))
+            {
+                if (source.Value && source.Key?.StartsWith("UB/CharacterResources/", StringComparison.Ordinal) == true)
+                    Keep(source.Value, () => Addressables.LoadAssetAsync<GameObject>(source.Key));
+                else KeepLoaded(source.Value);
+            }
+            foreach (var source in graphics.CustomArmorMaterialPerBodySlot ?? []) KeepLoaded(source.Value);
+            if (graphics.Animator)
+            {
+                KeepLoaded(graphics.Animator.avatar);
+                var controller = graphics.Animator.runtimeAnimatorController;
+                while (controller)
+                {
+                    KeepLoaded(controller);
+                    if (controller is not AnimatorOverrideController overridden) break;
+                    controller = overridden.runtimeAnimatorController;
+                }
+            }
+            if (factory)
+            {
+                KeepPending(factory.shapePartsLoadOperations, factory.shapePartsToLoad);
+                KeepPending(factory.armorPartsLoadOperations, factory.armorPartsToLoad);
+                foreach (var handle in factory.customArmorMaterialLoadOperations.Values)
+                    if (handle.IsValid() && handle.IsDone && handle.Status == AsyncOperationStatus.Succeeded) KeepLoaded(handle.Result);
+            }
+            ReleaseNativeSources(retained, required);
+            return;
+            void KeepPending(IReadOnlyDictionary<GraphicsCharacterDefinitions.BodyPart, AsyncOperationHandle<GameObject>> pending, string[] keys)
+            {
+                foreach (var pair in pending)
+                {
+                    var index = (int)pair.Key;var handle = pair.Value;
+                    if (index < 0 || index >= keys.Length || keys[index]?.StartsWith("UB/CharacterResources/", StringComparison.Ordinal) != true ||
+                        !handle.IsValid() || !handle.IsDone || handle.Status != AsyncOperationStatus.Succeeded || !handle.Result) continue;
+                    Keep(handle.Result, () => { Addressables.ResourceManager.Acquire(handle); return handle; });
+                }
+            }
+        }
+        internal void RetainNativePrefabSources(GraphicsCharacterFactoryManager factory, GraphicsCharacter graphics,
+            HashSet<UnityEngine.Object> retained, bool includePending = true)
+        {
+            var required = new HashSet<UnityEngine.Object>();
+            if (!includePending)
+            {
+                RetainNativeSources(graphics, retained, required);
+                return;
+            }
+            foreach (var source in factory.shapePartsLoadOperations.Values.Concat(factory.armorPartsLoadOperations.Values))
+            {
+                if (!source.IsValid() || !source.IsDone ||
+                    source.Status != UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationStatus.Succeeded || !source.Result) continue;
+                UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle handle = source;
+                RetainNativeSource(source.Result, () => { Addressables.ResourceManager.Acquire(handle); return handle; }, retained, required);
+            }
+            // Unchanged parts have no pending factory handle. Keep their exact loaded
+            // prefab Result while a new adjacent source is prepared, just as live owners do.
+            if (_hasJointAttachments)
+            {
+                RetainUnchanged(factory.shapePartsLoadOperations, graphics.ShapeObjectPerBodySlot);
+                RetainUnchanged(factory.armorPartsLoadOperations, graphics.ArmorObjectPerBodySlot);
+            }
+            ReleaseNativeSources(retained, required);
+            return;
+
+            void RetainUnchanged(IReadOnlyDictionary<GraphicsCharacterDefinitions.BodyPart,
+                UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle<GameObject>> pending,
+                KeyValuePair<string, GameObject>[] native)
+            {
+                if (native == null) return;
+                for (var index = 0; index < native.Length; index++)
+                    if (native[index].Value && native[index].Value == CharacterModelPartSource(
+                        (GraphicsCharacterDefinitions.BodyPart)index, pending, native))
+                        RetainNativeSource(native[index], retained, required);
+            }
+        }
+        private void RetainNativeSource<T>(KeyValuePair<string, T> native,
+            HashSet<UnityEngine.Object> retained, HashSet<UnityEngine.Object> required) where T : UnityEngine.Object
+        {
+            if (!native.Value || string.IsNullOrEmpty(native.Key)) return;
+            RetainNativeSource(native.Value, () => Addressables.LoadAssetAsync<T>(native.Key), retained, required);
+        }
+        private void RetainNativeSource(UnityEngine.Object source,
+            Func<UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationHandle> acquire,
+            HashSet<UnityEngine.Object> retained, HashSet<UnityEngine.Object> required)
+        {
+            if (!_nativeSources.TryGetValue(source, out var entry))
+            {
+                // Acquire an actual completed Addressable result, never an identity
+                // inferred from its asset key or the instance currently using it.
+                var handle = acquire();
+                try
+                {
+                    if (!handle.IsValid() || !handle.IsDone ||
+                        handle.Status != UnityEngine.ResourceManagement.AsyncOperations.AsyncOperationStatus.Succeeded ||
+                        handle.Result as UnityEngine.Object != source) return;
+                    var acquired = new NativeSourceEntry(source, handle);
+                    _nativeSources.Add(source, acquired);
+                    entry = acquired;
+                }
+                finally
+                {
+                    if (entry == null && handle.IsValid()) Addressables.Release(handle);
+                }
+            }
+            required.Add(source);
+            if (!retained.Add(source)) return;
+            if (entry.Unused != null)
+            {
+                _unusedNativeSources.Remove(entry.Unused);
+                entry.Unused = null;
+            }
+            entry.Owners++;
+        }
+        internal void ReleaseNativeSources(HashSet<UnityEngine.Object> retained, ISet<UnityEngine.Object> keep = null)
+        {
+            var releasing = false;
+            foreach (var source in retained)
+                if (keep?.Contains(source) != true) { releasing = true; break; }
+            if (!releasing) return;
+            foreach (var source in retained.ToArray())
+            {
+                if (keep?.Contains(source) == true) continue;
+                var entry = _nativeSources[source];
+                if (entry.Owners <= 0) throw new InvalidOperationException("A native appearance source lease has no matching owner.");
+                retained.Remove(source);
+                if (--entry.Owners != 0) continue;
+                entry.Unused = _unusedNativeSources.AddLast(entry);
+            }
+            TrimUnusedNativeSources();
+        }
+        internal string NativeDataFingerprint(UnityEngine.Object source, Func<string> create)
+        {
+            // Only the original serialized data of an acquired prefab participates.
+            // Mutable runtime clones and shared-binding validation always hash fresh.
+            if (!source || !_nativeSources.Values.Any(entry => entry.Data.Contains(source))) return create();
+            if (_nativeDataFingerprints.TryGetValue(source, out var fingerprint)) return fingerprint;
+            fingerprint = create();
+            _nativeDataFingerprints.Add(source, fingerprint);
+            return fingerprint;
+        }
+        internal IEnumerator PrepareNativeFingerprint(UnityEngine.Object source, Func<bool> current)
+        {
+            if (!source || _nativeDataFingerprints.ContainsKey(source) ||
+                !_nativeSources.Values.Any(entry => entry.Owners > 0 && entry.Data.Contains(source))) yield break;
+            string fingerprint = null;
+            yield return CustomModels.SkinMeshSource.PrepareNativeFingerprint(source, current, value => fingerprint = value);
+            if (current() && fingerprint != null && _nativeSources.Values.Any(entry => entry.Owners > 0 && entry.Data.Contains(source)))
+                _ = NativeDataFingerprint(source, () => fingerprint);
+        }
+        internal bool HasPreparedBinding(string fingerprint) => _meshes.TryGetValue(fingerprint, out var entry) &&
+            entry.mode == "authored" && !string.IsNullOrEmpty(entry.bindingFile) && entry.LoadedBinding != null;
+        private static HashSet<UnityEngine.Object> NativeSourceAssets(UnityEngine.Object source)
+        {
+            var assets = new HashSet<UnityEngine.Object> { source };
+            if (source is Material nativeMaterial) AddMaterial(nativeMaterial);
+            if (source is not GameObject prefab) return assets;
+            foreach (var component in prefab.GetComponentsInChildren<Component>(true))
+            {
+                if (!component) continue;
+                assets.Add(component);
+                if (component is MeshFilter filter && filter.sharedMesh) assets.Add(filter.sharedMesh);
+                if (component is SkinnedMeshRenderer skin && skin.sharedMesh) assets.Add(skin.sharedMesh);
+                if (component is not Renderer renderer) continue;
+                foreach (var material in renderer.sharedMaterials) AddMaterial(material);
+            }
+            return assets;
+            void AddMaterial(Material material)
+            {
+                if (!material || !assets.Add(material) && material != source) return;
+                var shader = material.shader;
+                if (!shader) return;
+                assets.Add(shader);
+                for (var index = 0; index < shader.GetPropertyCount(); index++)
+                    if (shader.GetPropertyType(index) == UnityEngine.Rendering.ShaderPropertyType.Texture &&
+                        material.GetTexture(shader.GetPropertyName(index)) is { } texture && texture) assets.Add(texture);
+            }
+        }
+        private long UnusedNativeSourceBytes()
+        {
+            // Shared dependencies are counted once and active sources already own theirs.
+            var assets = new Dictionary<UnityEngine.Object, long>();
+            foreach (var entry in _unusedNativeSources)
+                foreach (var asset in entry.Assets) assets[asset.Key] = asset.Value;
+            foreach (var entry in _nativeSources.Values)
+                if (entry.Owners != 0)
+                    foreach (var asset in entry.Assets.Keys) assets.Remove(asset);
+            return assets.Values.Sum();
+        }
+        private void TrimUnusedNativeSources()
+        {
+            while (_unusedNativeSources.Count > MaximumUnusedNativeSources ||
+                   _unusedNativeSources.Count != 0 && UnusedNativeSourceBytes() > MaximumUnusedNativeSourceBytes)
+                ReleaseUnusedNativeSource(_unusedNativeSources.First.Value);
+        }
+        private void ReleaseUnusedNativeSource(NativeSourceEntry entry)
+        {
+            if (entry.Owners != 0) throw new InvalidOperationException("An active native appearance source cannot be evicted.");
+            _unusedNativeSources.Remove(entry.Unused);
+            entry.Unused = null;
+            _nativeSources.Remove(entry.Source);
+            foreach (var data in entry.Data)
+                if (!_nativeSources.Values.Any(source => source.Data.Contains(data))) _nativeDataFingerprints.Remove(data);
+            Addressables.Release(entry.Handle);
+        }
         internal void ReleaseBundles(HashSet<string> retained, ISet<string> keep = null)
         {
             var releasing = false;
@@ -1072,6 +4009,10 @@ internal static class RacesContext
                 if (entry.Owners <= 0) throw new InvalidOperationException("A custom character model pack lease has no matching owner.");
                 entry.Owners--;
                 retained.Remove(file);
+                if (entry.Owners == 0)
+                {
+                    entry.Verification?.Dispose(); entry.Verification = null;
+                }
                 if (entry.Owners == 0 && entry.Loaded)
                 {
                     if (_characterModelsUnloading) UnloadBundle(entry);
@@ -1089,6 +4030,7 @@ internal static class RacesContext
         {
             var assets = new HashSet<UnityEngine.Object> { entry.Loaded };
             foreach (var mesh in entry.Meshes) if (mesh.Loaded) assets.Add(mesh.Loaded);
+            foreach (var joint in entry.Joints) if (joint.Loaded) assets.Add(joint.Loaded);
             foreach (var property in entry.Textures) if (property.Loaded) assets.Add(property.Loaded);
             foreach (var profile in entry.Profiles)
             {
@@ -1102,7 +4044,14 @@ internal static class RacesContext
                         material.GetTexture(material.shader.GetPropertyName(index)) is { } texture && texture)
                         assets.Add(texture);
             }
-            return Math.Max(entry.StoredBytes, CharacterModelMemorySize(assets));
+            var skinBytes = entry.Meshes.Select(mesh => mesh.LoadedBinding?.SkinEncodingSource)
+                .Where(binding => binding != null).Distinct().Sum(binding => binding.SkinEncodingBytes);
+            var baseBytes = entry.Meshes.Select(mesh => mesh.LoadedBaseBinding).Where(binding => binding != null).Distinct()
+                .Sum(binding => binding.VertexBytes + binding.SourceTangents.LongLength * 16L + binding.AuthoredBaseProofBytes);
+            var surfaceBytes = entry.Meshes.Select(mesh => mesh.LoadedBinding?.SurfacePlanSource)
+                .Where(binding => binding != null).Distinct().Sum(binding => binding.NativeSurface?.Bytes ?? 0L);
+            var finishBytes = entry.Meshes.Select(mesh => mesh.PreparedFinishPacket).Where(packet => packet != null).Distinct().Sum(packet => packet.Bytes);
+            return Math.Max(entry.StoredBytes, CharacterModelMemorySize(assets)) + skinBytes + baseBytes + surfaceBytes + finishBytes;
         }
         private void RemoveUnusedBundle(CharacterModelBundle entry)
         {
@@ -1124,30 +4073,56 @@ internal static class RacesContext
             if (entry.Owners != 0)
                 throw new InvalidOperationException("An active custom character model pack cannot be evicted.");
             RemoveUnusedBundle(entry);
+            entry.Verification?.Dispose(); entry.Verification = null;
             if (entry.Loaded) entry.Loaded.Unload(true);
             entry.Loaded = null;
             foreach (var mesh in entry.Meshes)
             {
+                mesh.PreparedFinishPacket = null;
                 mesh.Loaded = null;
                 mesh.LoadedBinding = null;
+                mesh.LoadedBaseBinding = null; mesh.LoadedBaseBindingTarget = null; mesh.LoadedBaseBindingPrepared = false;
             }
+            foreach (var joint in entry.Joints) { joint.Loaded = null; joint.Verified.Clear(); }
             foreach (var property in entry.Textures) property.Loaded = null;
             foreach (var profile in entry.Profiles) profile.Loaded = null;
         }
         public void Dispose()
         {
+            if (_disposed) return;
+            if (HasPreparedSources) throw new InvalidOperationException("Custom character model native sources are still preparing.");
+            if (_nativeSources.Values.Any(entry => entry.Owners != 0))
+                throw new InvalidOperationException("Custom character model presentations still own native appearance sources.");
             if (_bundles.Values.Any(entry => entry.Owners != 0))
                 throw new InvalidOperationException("Custom character model presentations still own catalog packs.");
+            _disposed = true;
+            while (_unusedClothMeshes.First is { } unused) DestroyClothMesh(unused.Value);
+            if (UsesCompleteParts) Addressables.RemoveResourceLocator(this);
+            while (_retainedResourceOrder.First is { } retained) ReleaseRetainedResource(retained.Value);
+            _retainedResourceBytes = 0;
+            _resourceLocations.Clear();
+            _verifiedResourceFiles.Clear();
+            while (_unusedNativeSources.First != null) ReleaseUnusedNativeSource(_unusedNativeSources.First.Value);
+            _nativeDataFingerprints.Clear();
+            foreach (var entry in _parsedBindings)
+            {
+                entry.ParsedBinding = null;
+                entry.ParsedBindingNode = null;
+            }
+            _parsedBindings.Clear();
+            _parsedBindingBytes = 0;
             foreach (var entry in _bundles.Values) UnloadBundle(entry);
             foreach (var entry in _meshes.Values)
             {
+                entry.PreparedFinishPacket = null;
                 entry.LoadedBinding = null;
+                entry.LoadedBaseBinding = null; entry.LoadedBaseBindingTarget = null; entry.LoadedBaseBindingPrepared = false;
                 entry.VerifiedContent = default;
             }
         }
     }
 
-    private static void ValidateCharacterModelBinding(Mesh original, Mesh authored)
+    private static void ValidateCharacterModelBinding(Mesh original, Mesh authored, bool validateAuthored)
     {
         var originalPoses = original.bindposes; var authoredPoses = authored.bindposes;
         if (originalPoses.Length != authoredPoses.Length || original.blendShapeCount != authored.blendShapeCount)
@@ -1156,17 +4131,20 @@ internal static class RacesContext
             for (var element = 0; element < 16; element++)
                 if (!BitConverter.GetBytes(originalPoses[bone][element]).SequenceEqual(BitConverter.GetBytes(authoredPoses[bone][element])))
                     throw new InvalidOperationException("An authored character model changed a native bind pose.");
-        var weights = authored.boneWeights;
-        if (weights.Length != authored.vertexCount) throw new InvalidOperationException("An authored character model has incomplete skin weights.");
-        foreach (var weight in weights)
+        if (validateAuthored)
         {
-            var sum = weight.weight0 + weight.weight1 + weight.weight2 + weight.weight3;
-            if (!BodyShapeFinite(sum) || Mathf.Abs(sum - 1f) > 0.00001f)
-                throw new InvalidOperationException("An authored character model skin weight is not normalized.");
-            for (var influence = 0; influence < 4; influence++)
-                if (!BodyShapeFinite(BodyShapeWeight(weight, influence)) || BodyShapeWeight(weight, influence) < 0f || BodyShapeWeight(weight, influence) > 1f ||
-                    BodyShapeWeight(weight, influence) > 0f && (BodyShapeWeightIndex(weight, influence) < 0 || BodyShapeWeightIndex(weight, influence) >= originalPoses.Length))
-                    throw new InvalidOperationException("An authored character model references an invalid native bone.");
+            var weights = authored.boneWeights;
+            if (weights.Length != authored.vertexCount) throw new InvalidOperationException("An authored character model has incomplete skin weights.");
+            foreach (var weight in weights)
+            {
+                var sum = weight.weight0 + weight.weight1 + weight.weight2 + weight.weight3;
+                if (!BodyShapeFinite(sum) || Mathf.Abs(sum - 1f) > 0.00001f)
+                    throw new InvalidOperationException("An authored character model skin weight is not normalized.");
+                for (var influence = 0; influence < 4; influence++)
+                    if (!BodyShapeFinite(BodyShapeWeight(weight, influence)) || BodyShapeWeight(weight, influence) < 0f || BodyShapeWeight(weight, influence) > 1f ||
+                        BodyShapeWeight(weight, influence) > 0f && (BodyShapeWeightIndex(weight, influence) < 0 || BodyShapeWeightIndex(weight, influence) >= originalPoses.Length))
+                        throw new InvalidOperationException("An authored character model references an invalid native bone.");
+            }
         }
         for (var shape = 0; shape < original.blendShapeCount; shape++)
         {
@@ -1178,7 +4156,59 @@ internal static class RacesContext
         }
     }
     private static long CharacterModelMemorySize(IEnumerable<UnityEngine.Object> data) => data.Where(value => value)
-        .Distinct().Sum(value => Math.Max(0L, UnityEngine.Profiling.Profiler.GetRuntimeMemorySizeLong(value)));
+        .Distinct().Sum(CustomModels.SkinMeshSource.NativeDataMemorySize);
+
+    internal static CustomModels.SkinMeshSource.SourceGraph BeginCharacterModelNativeSurfaceFinish(object deformer, int bufferIndex)
+    {
+        var graphics = CustomModels.SkinMeshSource.NativeSourceGraphics(deformer);
+        var graph = graphics ? graphics.GetComponent<CharacterModelPresentation>()?._sourceGraph : null;
+        return graph?.BeginNativeSurfaceFinish(deformer, bufferIndex) == true ? graph : null;
+    }
+
+    private sealed class CharacterModelResourceLease : MonoBehaviour
+    {
+        internal GraphicsCharacter Graphics { get; private set; }
+        private CharacterModelCatalog _catalog;
+        private readonly HashSet<UnityEngine.Object> _sources = [];
+        private int _loading;
+        internal void Bind(GraphicsCharacter graphics, CharacterModelCatalog catalog)
+        {
+            if (_catalog != null && !ReferenceEquals(_catalog, catalog))
+            {
+                if (_sources.Count != 0) throw new InvalidOperationException("A live character still owns another resource catalog.");
+                Release();
+            }
+            Graphics = graphics;_catalog = catalog;
+            CharacterModelResourceOwners.Add(this);
+        }
+        internal void BeginLoad() => _loading++;
+        internal void EndLoad()
+        {
+            if (_loading <= 0) throw new InvalidOperationException("A character source load has no matching lease.");
+            _loading--;
+            Synchronize();
+        }
+        internal void Synchronize(GraphicsCharacterFactoryManager factory = null)
+        {
+            if (_catalog == null || !Graphics || _loading != 0 && !factory) return;
+            _catalog.RetainCompletePartSources(Graphics, _sources, factory);
+            ReleaseUnusedCharacterModelCatalog();
+        }
+        internal void Release()
+        {
+            var catalog = _catalog;_catalog = null;
+            catalog?.ReleaseNativeSources(_sources);
+            CharacterModelResourceOwners.Remove(this);
+            ReleaseUnusedCharacterModelCatalog();
+        }
+        // Cached previews remain owners while hidden; their meshes and material
+        // instances still use these assets when the preview is shown again.
+        private void LateUpdate()
+        {
+            if (_catalog?.IsRetiring == true) Synchronize();
+        }
+        private void OnDestroy() => Release();
+    }
 
     private sealed class CharacterModelPresentation : MonoBehaviour
     {
@@ -1194,24 +4224,34 @@ internal static class RacesContext
         private static readonly Dictionary<string, DerivedDataEntry> _derivedData = new(StringComparer.Ordinal);
         private static readonly LinkedList<string> _unusedDerivedData = new();
         private static long _unusedDerivedBytes;
-        private UnityEngine.Object[] RetainDerivedData(string key, Func<UnityEngine.Object[]> create)
+        private UnityEngine.Object[] RetainDerivedData(string key, Func<UnityEngine.Object[]> create) =>
+            RetainSourceData(_derivedKeys, key, create, null);
+        internal static bool RetainExistingSourceData(HashSet<string> retained, string key)
+        {
+            if (!_derivedData.TryGetValue(key, out var entry)) return false;
+            if (retained.Add(key)) { RemoveUnusedDerivedData(entry); entry.Owners++; }
+            return true;
+        }
+        internal static void RetainPreparedSourceData(HashSet<string> retained, string key, UnityEngine.Object[] data) =>
+            _ = RetainSourceData(retained, key, null, data);
+        private static UnityEngine.Object[] RetainSourceData(HashSet<string> retained, string key,
+            Func<UnityEngine.Object[]> create, UnityEngine.Object[] prepared)
         {
             if (!_derivedData.TryGetValue(key, out var entry))
             {
-                var data = create();
-                if (data == null || data.Length == 0 || data.Any(value => !value))
+                var data = prepared ?? create();
+                try
                 {
-                    foreach (var value in data ?? []) if (value) UnityEngine.Object.Destroy(value);
-                    throw new InvalidOperationException("Derived source binding construction did not return owned native data.");
+                    if (data == null || data.Length == 0 || data.Any(value => !value))
+                        throw new InvalidOperationException("Derived source binding construction did not return owned native data.");
+                    entry = new DerivedDataEntry(data);
+                    _derivedData.Add(key, entry);
                 }
-                entry = new DerivedDataEntry(data);
-                _derivedData.Add(key, entry);
+                catch { foreach (var value in data ?? []) if (value) UnityEngine.Object.Destroy(value); throw; }
             }
-            if (_derivedKeys.Add(key))
-            {
-                RemoveUnusedDerivedData(entry);
-                entry.Owners++;
-            }
+            else if (prepared != null)
+                foreach (var value in prepared) if (value) UnityEngine.Object.Destroy(value);
+            if (retained.Add(key)) { RemoveUnusedDerivedData(entry); entry.Owners++; }
             return entry.Data;
         }
         private static void RemoveUnusedDerivedData(DerivedDataEntry entry)
@@ -1239,9 +4279,10 @@ internal static class RacesContext
             while (_unusedDerivedData.Count > MaximumUnusedDerivedEntries || _unusedDerivedBytes > MaximumUnusedDerivedBytes)
                 DestroyUnusedDerivedData(_unusedDerivedData.First.Value);
         }
-        private void ReleaseDerivedData()
+        private void ReleaseDerivedData() => ReleaseSourceData(_derivedKeys);
+        internal static void ReleaseSourceData(HashSet<string> retained)
         {
-            foreach (var key in _derivedKeys.ToArray())
+            foreach (var key in retained.ToArray())
             {
                 var entry = _derivedData[key];
                 if (entry.Owners <= 0) throw new InvalidOperationException("A derived native binding has no active presentation owner.");
@@ -1253,7 +4294,7 @@ internal static class RacesContext
                     _unusedDerivedBytes += entry.Bytes;
                     if (_characterModelsUnloading) DestroyUnusedDerivedData(key);
                 }
-                _derivedKeys.Remove(key);
+                retained.Remove(key);
             }
             TrimUnusedDerivedData();
         }
@@ -1261,21 +4302,143 @@ internal static class RacesContext
         private GraphicsCharacter _graphics;
         private RulesetCharacter _actor;
         private readonly List<CharacterModelSkin> _skins = [];
-        private CustomModels.SkinMeshSource.SourceGraph _sourceGraph;
+        internal CustomModels.SkinMeshSource.SourceGraph _sourceGraph;
         private readonly HashSet<string> _derivedKeys = new(StringComparer.Ordinal);
         private readonly List<CharacterModelMaterial> _materials = [];
         private readonly HashSet<string> _packs = new(StringComparer.Ordinal);
+        private readonly HashSet<UnityEngine.Object> _nativeSources = [];
+        private readonly HashSet<UnityEngine.Object> _requiredNativeSources = [];
         private CharacterModelCatalog _catalog;
+        private CharacterModelCatalog.PreparedSources _preparedSources, _sourcePreparationReceipt;
+        private IEnumerator _sourcePreparation;
+        private Coroutine _sourcePreparationCoroutine;
+        private GraphicsCharacterFactoryManager _sourcePreparationFactory;
+        private int _sourcePreparationRequest;
         private bool _busy, _suspended, _initializationFailed, _refreshPending;
         private int _materialRefreshDepth;
         private bool _materialRefreshPending, _materialRefreshFailed;
         private int _initializationDepth;
         internal bool IsInitializing => _initializationDepth != 0;
         internal bool IsPending => _refreshPending;
-        internal bool HasSources => _skins.Count != 0 || _materials.Count != 0 || _packs.Count != 0;
-        internal bool HasCatalogSources => _catalog != null && HasSources;
+        internal bool HasSources => _skins.Count != 0 || _materials.Count != 0 || _packs.Count != 0 || _nativeSources.Count != 0;
+        internal bool HasCatalogSources => _catalog != null && HasSources || _preparedSources != null || _sourcePreparation != null;
+        internal void PrepareSources(CharacterModelCatalog.PreparedSources preparation)
+        {
+            CancelSourcePreparation();
+            ReleasePreparedSources(); _preparedSources = preparation; DeferRefresh();
+        }
+        internal void ReleasePreparedSources()
+        {
+            var preparation = _preparedSources; _preparedSources = null;
+            try { preparation?.Dispose(); }
+            catch { _preparedSources = preparation; throw; }
+        }
 
-        internal void Bind(GraphicsCharacter graphics) => _graphics = graphics;
+        internal void Bind(GraphicsCharacter graphics)
+        {
+            if (_graphics && !ReferenceEquals(_graphics, graphics)) CancelSourcePreparation();
+            _graphics = graphics;
+        }
+
+        private void CancelSourcePreparation()
+        {
+            _sourcePreparationRequest++;
+            var operation = _sourcePreparation;
+            var coroutine = _sourcePreparationCoroutine;
+            var factory = _sourcePreparationFactory;
+            _sourcePreparation = null; _sourcePreparationCoroutine = null; _sourcePreparationFactory = null;
+            try { if (factory && coroutine != null) factory.StopCoroutine(coroutine); }
+            finally { (operation as IDisposable)?.Dispose(); }
+        }
+
+        private bool EnsurePreparedSources(GraphicsCharacter graphics, CharacterModelCatalog catalog)
+        {
+            if (catalog == null) { CancelSourcePreparation(); return true; }
+            var factory = ServiceRepository.GetService<IGraphicsCharacterFactoryService>() as GraphicsCharacterFactoryManager;
+            if (_preparedSources is { Completed: true, Failed: false } prepared && ReferenceEquals(prepared.Catalog, catalog) &&
+                prepared.SourcesCurrent(factory, graphics, false)) return true;
+            if (_sourcePreparationReceipt is { } receipt && ReferenceEquals(receipt.Catalog, catalog) &&
+                receipt.SourcesCurrent(factory, graphics, false))
+            {
+                if (receipt.Completed && !receipt.Failed) return true;
+                _refreshPending = false;
+                SynchronizeCharacterModelRefreshPending();
+                return false;
+            }
+            if (_sourcePreparation != null) { DeferRefresh(); return false; }
+            ReleasePreparedSources();
+            _sourcePreparationReceipt = null;
+            if (!factory) { DeferRefresh(); return false; }
+            var preparation = catalog.PrepareSources();
+            preparation.CaptureSources(factory, graphics, false);
+            var request = ++_sourcePreparationRequest;
+            _sourcePreparationFactory = factory;
+            _sourcePreparation = PrepareLiveSources(factory, graphics, preparation, request);
+            try { _sourcePreparationCoroutine = factory.StartCoroutine(_sourcePreparation); }
+            catch { CancelSourcePreparation(); preparation.Dispose(); throw; }
+            DeferRefresh();
+            return false;
+        }
+
+        private IEnumerator PrepareLiveSources(GraphicsCharacterFactoryManager factory, GraphicsCharacter graphics,
+            CharacterModelCatalog.PreparedSources preparation, int request)
+        {
+            var requestedSources = preparation;
+            bool Current() => this && factory && graphics && isActiveAndEnabled && !_characterModelsUnloading &&
+                              SettingsContext.GuiModManagerInstance.EnableCustomFaces && !IsInitializing &&
+                              request == _sourcePreparationRequest && ReferenceEquals(_graphics, graphics) &&
+                              !factory.IsAbortingGraphicsCharacter(graphics) && requestedSources.SourcesCurrent(factory, graphics, false);
+            IEnumerator operation = null;
+            try
+            {
+                // Ensure StartCoroutine has returned its handle before completion can publish.
+                yield return null;
+                if (!Current()) yield break;
+                CharacterModelTextureReadback.SetEnabled(true);
+                operation = ObserveCharacterModelPreparation(PrepareCharacterModelAssets(factory, graphics, preparation, Current, false), () => requestedSources.Failed = true);
+                while (Current() && operation.MoveNext()) yield return operation.Current;
+                if (!Current()) yield break;
+                if (preparation.Completed && !preparation.Failed)
+                {
+                    _preparedSources = preparation;
+                    preparation = null;
+                    DeferRefresh();
+                }
+                else
+                {
+                    // Keep failed-source metadata, not its leases, until the source changes.
+                    _sourcePreparationReceipt = preparation;
+                    _refreshPending = false;
+                }
+            }
+            finally
+            {
+                try { (operation as IDisposable)?.Dispose(); }
+                finally
+                {
+                    try { preparation?.Dispose(); }
+                    finally
+                    {
+                        if (request == _sourcePreparationRequest)
+                        {
+                            _sourcePreparation = null; _sourcePreparationCoroutine = null; _sourcePreparationFactory = null;
+                            if (!this || !factory || !graphics || !isActiveAndEnabled || _characterModelsUnloading ||
+                                !SettingsContext.GuiModManagerInstance.EnableCustomFaces || IsInitializing ||
+                                graphics.RulesetCharacter == null || factory.IsAbortingGraphicsCharacter(graphics))
+                            {
+                                _refreshPending = false;
+                                if (!HasSources && _preparedSources == null) CharacterModelOwners.Remove(this);
+                            }
+                            SynchronizeCharacterModelRefreshPending();
+                        }
+                    }
+                }
+            }
+            // Outgame has no world-ready Update drain. Publish through the normal
+            // owner path only after this factory job has released its running scope.
+            if (ReferenceEquals(_preparedSources, requestedSources) && requestedSources.Completed &&
+                !requestedSources.Failed && Current()) RefreshCharacterModels(graphics);
+        }
 
         internal void DeferRefresh()
         {
@@ -1306,6 +4469,101 @@ internal static class RacesContext
             if (pending && !_materialRefreshFailed) RefreshMaterials();
         }
 
+        private bool TryPreparedJoint(GraphicsCharacter graphics, CharacterModelSkin head, CharacterModelSkin body,
+            Dictionary<SkinnedMeshRenderer, CustomModels.SkinMeshSource.SurfaceBinding> bindings,
+            GraphicsCharacterDefinitions.BodyPart donorPart, Mesh headBasis, Mesh bodyBasis)
+        {
+            if (_catalog == null || !_catalog.HasJointAttachments(head.Fingerprint) || head.Source.ClothOwner || body.Source.ClothOwner) return false;
+            try
+            {
+                var selected = _catalog.JointForPart(head.Fingerprint, body.Fingerprint, headBasis, bodyBasis, donorPart);
+                var declaration = selected.Declaration; var target = selected.Mesh; if (declaration == null || !target || !JointPeriodicSamplers(head.Renderer)) return false;
+                var hb = head.Renderer.bones; var bb = body.Renderer.bones;
+                var hp = headBasis.bindposes; var bp = bodyBasis.bindposes;
+                if (hb.Length != hp.Length || bb.Length != bp.Length) return false;
+                var frame = new Matrix4x4(); for (var i = 0; i < 16; i++) frame[i] = declaration.headToBody[i];
+                var palette = hb.Concat(declaration.donorBones.Select(i => bb[i])).ToArray();
+                var common = 0;
+                for (var i = 0; i < declaration.bodyToHead.Length; i++)
+                {
+                    var index = declaration.bodyToHead[i]; if (index < 0) continue;
+                    if (index >= palette.Length || !bb[i] || !ReferenceEquals(palette[index], bb[i]))
+                        throw new InvalidOperationException("A coupled joint's live bone reference differs from its source palette index.");
+                    if (index < hp.Length)
+                    {
+                        if (!JointPose(hp[index], bp[i] * frame)) throw new InvalidOperationException("A coupled joint has a different live common bind frame.");
+                        common++;
+                    }
+                }
+                if (common == 0 || palette.Any(v => !v)) return false;
+                var palettePoses = target.bindposes;
+                if (palettePoses.Length != palette.Length) return false;
+                // One live transform can have different native bind poses in the two
+                // source meshes. Their distinct skinning bindings need separate slots.
+                for (var index = 0; index < palette.Length; index++)
+                for (var previous = 0; previous < index; previous++)
+                    if (ReferenceEquals(palette[index], palette[previous]) &&
+                        JointPose(palettePoses[index], palettePoses[previous])) return false;
+                // Protected native samples may border the owned cut, but may not be
+                // consumed inside its removed patch. PN samples are derived geometry.
+                var native = ReadBodyShapeRest(headBasis);
+                var original = ReadBodyShapeRest(head.Source.Original);
+                var protectedBoundary = new BodyShapeCut(original.Vertices, original.Triangles).Points.ToHashSet();
+                var removed = declaration.removedTriangles.ToHashSet();
+                var retained = native.Triangles.Where((_, index) => !removed.Contains(index / 3)).ToArray();
+                protectedBoundary.UnionWith(new BodyShapeCut(native.Vertices, retained).Points);
+                foreach (var triangle in declaration.removedTriangles)
+                for (var corner = 0; corner < 3; corner++)
+                {
+                    var vertex = native.Triangles[triangle * 3 + corner];
+                    if (vertex >= original.Vertices.Length || protectedBoundary.Contains(native.Vertices[vertex])) continue;
+                    var weight = native.Weights[vertex];
+                    for (var slot = 0; slot < 4; slot++)
+                        if (BodyShapeWeight(weight, slot) > 0f && IsProtectedBodyBone(hb[BodyShapeWeightIndex(weight, slot)]))
+                            throw new InvalidOperationException("A coupled joint consumes a protected native articulation.");
+                }
+                var count = headBasis.vertexCount; var normals = target.normals; var tangents = target.tangents;
+                var canonical = ReadJointCanonicalWeights(target);
+                bindings.TryGetValue(head.Renderer, out var headBinding);
+                headBinding ??= _catalog.BaseBinding(head.Source.Original, head.Fingerprint);
+                if (headBinding != null && headBinding.Vertices.Length != count ||
+                    count != head.Source.Original.vertexCount && headBinding == null)
+                    throw new InvalidOperationException("A coupled receiver has no complete native-to-authored base binding.");
+                var vertices = new CustomModels.SkinMeshSource.SurfaceVertex[target.vertexCount];
+                var overrides = new Dictionary<int, (BoneWeight Weights, Vector3 Normal, Vector4 Tangent)>();
+                for (var i = 0; i < vertices.Length; i++)
+                {
+                    var origin = declaration.origins[i]; var anchor = origin >= 0 ? origin : 0;
+                    vertices[i] = origin >= 0 && headBinding != null ? headBinding.Vertices[origin] :
+                        new CustomModels.SkinMeshSource.SurfaceVertex(anchor, Vector3.zero, Vector3.forward, Vector3.right, origin >= 0);
+                    if (i >= count && vertices[i].Native && vertices[i].Sources != null)
+                    {
+                        var source = vertices[i];
+                        vertices[i] = new CustomModels.SkinMeshSource.SurfaceVertex(source.Anchor, source.Offset,
+                            source.Normal, source.Tangent, false, source.Sources, source.TangentW, source.SourceUv,
+                            source.SourceSlot, source.SurfaceTriangle, source.SurfaceBary, source.GeometryTriangle, source.GeometryBary);
+                    }
+                    if (i >= count) overrides.Add(i, (canonical[i], normals[i], tangents[i]));
+                }
+                var additions = declaration.donorBones.Select(i => (body.Renderer, body.Source, i, frame)).ToArray();
+                var identity = "skin-joint:coupled:1:" + head.Fingerprint + ":" + body.Fingerprint + ":" +
+                    declaration.headFingerprint + ":" + declaration.bodyFingerprint + ":" + declaration.authoredFingerprint;
+                var attachment = new CustomModels.SkinMeshSource.SurfaceBinding(identity, Matrix4x4.identity,
+                    headBinding?.SourceTangents ?? ReadNativeRestMesh(head.Source.Original, m => m.tangents), vertices, target, overrides,
+                    paletteAdditions: additions, paletteSource: (body.Renderer, body.Source, frame, declaration.bodyToHead), skinEncodingSource: headBinding, authoredBase: headBinding?.AuthoredBase);
+                _catalog.RetainBundle(_packs, declaration.bundleFile);
+                bindings[head.Renderer] = attachment;
+                head.SetAuthored(target);
+                return true;
+            }
+            catch (Exception e) { ReportCharacterModelError("joint-presentation", e); return false; }
+        }
+        private static BoneWeight[] ReadJointCanonicalWeights(Mesh mesh)
+        {
+            var canonical = CustomModels.SkinMeshSource.ReadSkinWeights(mesh, Enumerable.Range(0, mesh.vertexCount));
+            return Enumerable.Range(0, mesh.vertexCount).Select(index => canonical[index]).ToArray();
+        }
+
         private void PrepareJoints(GraphicsCharacter graphics,
             Dictionary<SkinnedMeshRenderer, CustomModels.SkinMeshSource.SurfaceBinding> bindings)
         {
@@ -1315,7 +4573,6 @@ internal static class RacesContext
             var heads = Part(slots, GraphicsCharacterDefinitions.BodyPart.Head).ToHashSet();
             var bodies = Part(slots, GraphicsCharacterDefinitions.BodyPart.Body)
                 .Concat(Part(graphics.ArmorSkinnedMeshRenderersPerBodySlot, GraphicsCharacterDefinitions.BodyPart.Body)).ToHashSet();
-            if (heads.Count == 0 || bodies.Count == 0) return;
             var lodGroup = AccessTools.Field(graphics.GetType(), "sharedLodGroup")?.GetValue(graphics) as LODGroup;
             var lods = lodGroup ? lodGroup.GetLODs() : [];
             var changes = new Dictionary<CharacterModelSkin, Dictionary<int,
@@ -1324,10 +4581,30 @@ internal static class RacesContext
                 (Vector3 Original, Vector3 Position, float MaximumDistance)>>();
             var blendShapePositions = new Dictionary<CharacterModelSkin, Dictionary<int, Vector3>>();
             var dependencies = new List<string>();
+            var coupled = new HashSet<CharacterModelSkin>();
+            // Resolve every declaration against the immutable initial authored bases.
+            // A Body receiver may also be the donor of a Head joint in this refresh.
+            var jointBases = _skins.ToDictionary(skin => skin, skin => skin.Authored);
+            foreach (var receiver in _skins.Where(skin => _catalog?.HasJointAttachments(skin.Fingerprint) == true && IsJointSkin(skin.Renderer)))
+            foreach (var donorPart in _catalog.JointDonorParts(receiver.Fingerprint))
+            {
+                var donors = Part(slots, donorPart).Concat(Part(graphics.ArmorSkinnedMeshRenderersPerBodySlot, donorPart)).ToHashSet();
+                foreach (var donor in _skins.Where(skin => skin != receiver && donors.Contains(skin.Renderer) && IsJointSkin(skin.Renderer)))
+                {
+                    if (coupled.Contains(receiver)) break;
+                    if (lods.Length != 0 && !lods.Any(lod => lod.renderers.Contains(receiver.Renderer) && lod.renderers.Contains(donor.Renderer))) continue;
+                    if (TryPreparedJoint(graphics, receiver, donor, bindings, donorPart, jointBases[receiver], jointBases[donor])) coupled.Add(receiver);
+                }
+            }
             foreach (var head in _skins.Where(skin => heads.Contains(skin.Renderer) && IsJointSkin(skin.Renderer)))
             foreach (var body in _skins.Where(skin => bodies.Contains(skin.Renderer) && skin != head && IsJointSkin(skin.Renderer)))
             {
                 if (lods.Length != 0 && !lods.Any(lod => lod.renderers.Contains(head.Renderer) && lod.renderers.Contains(body.Renderer))) continue;
+                if (coupled.Contains(head)) continue;
+                // Retopology requires its original source map. A joint must not
+                // invent authored-count identity anchors for a smaller native source.
+                if (head.Authored.vertexCount != head.Source.Original.vertexCount && !bindings.ContainsKey(head.Renderer) ||
+                    body.Authored.vertexCount != body.Source.Original.vertexCount && !bindings.ContainsKey(body.Renderer)) continue;
                 var hBones = head.Renderer.bones; var bBones = body.Renderer.bones;
                 var hRest = ReadBodyShapeRest(head.Authored); var bRest = ReadBodyShapeRest(body.Authored);
                 if (hBones.Length < hRest.BindPoses.Length || bBones.Length < bRest.BindPoses.Length) continue;
@@ -1439,7 +4716,7 @@ internal static class RacesContext
                             owned.bounds = bounds;
                         }
                         CopyFrames(readable, owned, row.Value, blendShapePositionOverrides);
-                        VerifyBoundaryEncoding(owned, row.Value.ToDictionary(pair => pair.Key, pair => pair.Value.Weights));
+                        CustomModels.SkinMeshSource.VerifySkinEncoding(owned, row.Value.ToDictionary(pair => pair.Key, pair => pair.Value.Weights));
                         return baseline.isReadable ? [owned] : [owned, readable];
                     }
                     catch
@@ -1452,16 +4729,17 @@ internal static class RacesContext
                 var replacement = (Mesh)retained[0];
                 var boundarySource = baseline.isReadable ? baseline : (Mesh)retained[1];
                 bindings.TryGetValue(skin.Renderer, out var binding);
+                binding ??= _catalog?.BaseBinding(skin.Source.Original, skin.Fingerprint);
                 var vertices = binding?.Vertices ?? Enumerable.Range(0, baseline.vertexCount)
                     .Select(index => new CustomModels.SkinMeshSource.SurfaceVertex(index, Vector3.zero, Vector3.forward, Vector3.right, true)).ToArray();
-                var canonicalWeights = ReadBoundaryWeights(replacement, row.Value.Keys);
+                var canonicalWeights = CustomModels.SkinMeshSource.ReadSkinWeights(replacement, row.Value.Keys);
                 var declared = row.Value.ToDictionary(pair => pair.Key,
                     pair => (canonicalWeights[pair.Key], pair.Value.Normal, pair.Value.Tangent));
                 var declaredBlendShapePositions = blendShapePositionOverrides?.ToDictionary(pair => pair.Key,
                     pair => (ReadBodyShapeRest(boundarySource).Muscular[pair.Key], pair.Value));
                 bindings[skin.Renderer] = new CustomModels.SkinMeshSource.SurfaceBinding(binding?.Fingerprint ?? skin.Fingerprint,
-                    binding?.RendererToPrefab ?? Matrix4x4.identity, binding?.SourceTangents ?? rest.Tangents, vertices,
-                    boundarySource, declared, "Muscular", positionOverrides, null, declaredBlendShapePositions);
+                    binding?.RendererToPrefab ?? Matrix4x4.identity, binding?.SourceTangents ?? ReadNativeRestMesh(skin.Source.Original, mesh => mesh.tangents), vertices,
+                    boundarySource, declared, "Muscular", positionOverrides, null, declaredBlendShapePositions, skinEncodingSource: binding, authoredBase: binding?.AuthoredBase);
                 skin.SetAuthored(replacement);
             }
             return;
@@ -1507,56 +4785,8 @@ internal static class RacesContext
                 }
                 values.Add(vertex, (weight, normal, tangent, deltaNormal, deltaTangent));
             }
-            static Dictionary<int, BoneWeight> ReadBoundaryWeights(Mesh mesh, IEnumerable<int> vertices)
-            {
-                var selected = vertices.ToHashSet();
-                var result = new Dictionary<int, BoneWeight>();
-                var counts = mesh.GetBonesPerVertex(); var weights = mesh.GetAllBoneWeights();
-                var offset = 0;
-                for (var vertex = 0; vertex < counts.Length; vertex++)
-                {
-                    var count = counts[vertex];
-                    if (selected.Contains(vertex))
-                    {
-                        if (count is < 1 or > 4 || offset > weights.Length - count)
-                            throw new InvalidOperationException("A skin boundary has an unsupported canonical influence count.");
-                        var indices = new int[4]; var values = new float[4];
-                        for (var influence = 0; influence < count; influence++)
-                        { indices[influence] = weights[offset + influence].boneIndex; values[influence] = weights[offset + influence].weight; }
-                        result.Add(vertex, new BoneWeight { boneIndex0 = indices[0], boneIndex1 = indices[1], boneIndex2 = indices[2], boneIndex3 = indices[3],
-                            weight0 = values[0], weight1 = values[1], weight2 = values[2], weight3 = values[3] });
-                    }
-                    offset += count;
-                }
-                if (offset != weights.Length || result.Count != selected.Count)
-                    throw new InvalidOperationException("A skin boundary has an incomplete canonical influence stream.");
-                return result;
-            }
-            static void VerifyBoundaryEncoding(Mesh mesh, Dictionary<int, BoneWeight> intended)
-            {
-                var vertices = intended.Keys.OrderBy(index => index).ToArray();
-                Mesh encoding = null;
-                try
-                {
-                    // The native setter defines its own influence ordering and stored precision.
-                    // Encode only the boundary once per retained source, then compare its exact result.
-                    encoding = new Mesh { hideFlags = HideFlags.HideAndDontSave, vertices = new Vector3[vertices.Length],
-                        bindposes = mesh.bindposes, boneWeights = vertices.Select(index => intended[index]).ToArray() };
-                    var expected = ReadBoundaryWeights(encoding, Enumerable.Range(0, vertices.Length));
-                    var actual = ReadBoundaryWeights(mesh, vertices);
-                    for (var index = 0; index < vertices.Length; index++)
-                    {
-                        var source = intended[vertices[index]]; var canonical = expected[index];
-                        var sourceBones = Enumerable.Range(0, 4).Where(slot => BodyShapeWeight(source, slot) > 0f)
-                            .Select(slot => BodyShapeWeightIndex(source, slot)).OrderBy(bone => bone);
-                        var encodedBones = Enumerable.Range(0, 4).Where(slot => BodyShapeWeight(canonical, slot) > 0f)
-                            .Select(slot => BodyShapeWeightIndex(canonical, slot)).OrderBy(bone => bone);
-                        if (!sourceBones.SequenceEqual(encodedBones) || !canonical.Equals(actual[vertices[index]]))
-                            throw new InvalidOperationException("A skin boundary changed its intended bone set or canonical weight encoding.");
-                    }
-                }
-                finally { if (encoding) UnityEngine.Object.Destroy(encoding); }
-            }
+
+
             static void CopyFrames(Mesh source, Mesh target, Dictionary<int,
                 (BoneWeight Weights, Vector3 Normal, Vector4 Tangent, Vector3? DeltaNormal, Vector3? DeltaTangent)> overrides,
                 IReadOnlyDictionary<int, Vector3> musclePositions = null)
@@ -1583,6 +4813,9 @@ internal static class RacesContext
         internal void Refresh(GraphicsCharacter graphics, CharacterModelCatalog catalog)
         {
             if (_busy || IsInitializing || !isActiveAndEnabled) return;
+            if (!EnsurePreparedSources(graphics, catalog)) return;
+            var published = false;
+            var preparedSources = _preparedSources; _preparedSources = null;
             _busy = true;
             _refreshPending = false;
             CharacterModelOwners.Add(this);
@@ -1597,7 +4830,7 @@ internal static class RacesContext
                 }
                 var sources = CustomModels.SkinMeshSource.Capture(graphics, renderers);
                 if (sources == null) throw new InvalidOperationException("Native face source ownership could not be resolved.");
-                if (ReferenceEquals(_actor, graphics.RulesetCharacter) && _catalog == catalog &&
+                if (preparedSources == null && ReferenceEquals(_actor, graphics.RulesetCharacter) && _catalog == catalog &&
                     renderers.Count == _skins.Count && _skins.All(skin => sources.TryGetValue(skin.Renderer, out var source) && skin.IsCurrent(graphics, source)))
                 {
                     RefreshMaterials();
@@ -1605,6 +4838,8 @@ internal static class RacesContext
                 }
                 Release(false, false);
                 if (HasSources) throw new InvalidOperationException("Previous custom character model sources have not finished restoring.");
+                // Release removes the previous registration before this owner acquires new sources.
+                CharacterModelOwners.Add(this);
                 _actor = graphics.RulesetCharacter;
                 _catalog = catalog;
                 ReleaseBodyShape(graphics);
@@ -1619,7 +4854,7 @@ internal static class RacesContext
                     var fingerprint = CharacterModelFingerprint(source.Original);
                     string bundleFile = null;
                     var authored = catalog?.Mesh(source.Original, fingerprint, _packs, out bundleFile) ?? source.Original;
-                    _skins.Add(new CharacterModelSkin(graphics, renderer, source, fingerprint, authored, bundleFile));
+                    _skins.Add(new CharacterModelSkin(graphics, renderer, source, fingerprint, authored, bundleFile, catalog?.HasJointAttachments(fingerprint) == true));
                 }
                 var bindings = new Dictionary<SkinnedMeshRenderer, CustomModels.SkinMeshSource.SurfaceBinding>();
                 foreach (var skin in _skins.Where(skin => skin.ChangesSource))
@@ -1630,13 +4865,16 @@ internal static class RacesContext
                     skin => (skin.Source, skin.Authored));
                 if (changes.Count != 0)
                 {
+                    _catalog?.RetainNativeSources(_graphics, _nativeSources, _requiredNativeSources);
                     _sourceGraph = CustomModels.SkinMeshSource.PrepareMeshes(graphics, changes, bindings,
-                        RetainDerivedData);
+                        RetainDerivedData, _catalog == null ? null : _catalog.NativeDataFingerprint,
+                        _catalog == null ? null : _catalog.PreparedSurfacePacket);
                     _sourceGraph.Apply();
                 }
                 foreach (var skin in _skins) skin.Apply(_sourceGraph?.Installed);
                 RefreshMaterials();
                 RefreshBodyShape(graphics);
+                published = true;
             }
             catch
             {
@@ -1644,7 +4882,16 @@ internal static class RacesContext
                 if (_graphics) RefreshBodyShape(_graphics);
                 throw;
             }
-            finally { _busy = false; }
+            finally
+            {
+                _busy = false;
+                try
+                {
+                    if (published && preparedSources != null) _sourcePreparationReceipt = preparedSources;
+                    preparedSources?.Dispose();
+                }
+                finally { SynchronizeCharacterModelRefreshPending(); }
+            }
         }
 
         internal void RefreshMaterials()
@@ -1657,7 +4904,8 @@ internal static class RacesContext
             }
             var renderers = new HashSet<Renderer>(_graphics.Renderers ?? []);
             var nativeMaterials = NativeCharacterModelMaterialOwners(_graphics);
-            var declarations = new Dictionary<Material, (CharacterModelMaterialAsset Declaration, Shader Shader, CharacterModelMaterial.NativeProfile Native)>();
+            var declarations = new Dictionary<Material, (CharacterModelMaterialAsset Declaration, Shader Shader, CharacterModelMaterial.NativeProfile Native, string Body)>();
+            Dictionary<Renderer, string> bodyContexts = null;
             var nativeProfiles = new Dictionary<Material, CharacterModelMaterial.NativeProfile>();
             foreach (var skin in _skins)
             {
@@ -1673,14 +4921,15 @@ internal static class RacesContext
                     if (declaration == null) continue;
                     if (_graphics.EyeMaterials.Contains(material) && declaration.properties.Any(property => property.name == "_MainTex" && property.kind == "texture"))
                         throw new InvalidOperationException("A custom appearance cannot replace a native eye-style texture.");
+                    var body = _catalog.HasBodyTextureConditions && declaration.UsesBodyTexture ? BodyTextureFingerprint(skin.Renderer, bodyContexts ??= []) : null;
                     if (declarations.TryGetValue(material, out var previous) &&
-                        !CharacterModelMaterial.SameDeclaration(previous.Declaration, declaration))
+                        !CharacterModelMaterial.SameSelection(material, shader, _catalog, previous.Declaration, previous.Body, declaration, body))
                         throw new InvalidOperationException("A shared native character model material has conflicting authored properties.");
                     CharacterModelMaterial.NativeProfile native = null;
                     if (declaration.authoredProfile != null)
                         if (!nativeProfiles.TryGetValue(material, out native))
                             nativeProfiles.Add(material, native = CharacterModelMaterial.CaptureNativeProfile(material));
-                    declarations[material] = (declaration, shader, native);
+                    declarations[material] = (declaration, shader, native, body);
                 }
             }
             // Geometry and material scope differ: body surfaces can own separate skin atlases.
@@ -1696,9 +4945,11 @@ internal static class RacesContext
                     CharacterModelMaterial.TryGet(material, out var existing);
                     var shader = existing?.SourceShader ?? material.shader;
                     if (_catalog.Material(null, slot, shader) is { } declaration)
-                        declarations.Add(material, (declaration, shader, null));
+                        declarations.Add(material, (declaration, shader, null, _catalog.HasBodyTextureConditions && declaration.UsesBodyTexture ? BodyTextureFingerprint(renderer, bodyContexts ??= []) : null));
                 }
             }
+            if (declarations.Count != 0) _catalog.RetainNativeSources(_graphics, _nativeSources, _requiredNativeSources);
+            else _catalog.ReleaseNativeSources(_nativeSources);
             var requiredPacks = new HashSet<string>(_skins.Select(skin => skin.BundleFile).Where(file => file != null), StringComparer.Ordinal);
             foreach (var owner in _materials.ToArray())
             {
@@ -1711,16 +4962,59 @@ internal static class RacesContext
                 var owner = _materials.FirstOrDefault(item => item.Material == row.Key);
                 if (owner == null)
                 {
-                    owner = CharacterModelMaterial.Acquire(row.Key, row.Value.Shader, row.Value.Declaration, _catalog, row.Value.Native);
+                    owner = CharacterModelMaterial.Acquire(row.Key, row.Value.Shader, row.Value.Declaration, _catalog, row.Value.Native, row.Value.Body);
                     _materials.Add(owner);
                 }
-                owner.Apply();
+                owner.Apply(row.Value.Body);
             }
+            _sourceGraph?.RefreshNativeSurfaceMaterials();
             _catalog.ReleaseBundles(_packs, requiredPacks);
+        }
+
+        private string BodyTextureFingerprint(Renderer target, Dictionary<Renderer, string> resolved)
+        {
+            if (!_catalog.HasBodyTextureConditions) return null;
+            if (resolved.TryGetValue(target, out var cached)) return cached;
+            var group = AccessTools.Field(_graphics.GetType(), "sharedLodGroup")?.GetValue(_graphics) as LODGroup;
+            var lods = group ? group.GetLODs() : [];
+            var id = Shader.PropertyToID("_MainTex");
+            string fingerprint = null;
+            var ambiguous = false;
+            foreach (var slots in new[] { _graphics.ShapeSkinnedMeshRenderersPerBodySlot, _graphics.ArmorSkinnedMeshRenderersPerBodySlot })
+            {
+                if (slots == null) continue;
+                for (var index = 0; index < slots.Length; index++)
+                {
+                    if (index == (int)GraphicsCharacterDefinitions.BodyPart.Head || slots[index] == null) continue;
+                    foreach (var renderer in slots[index])
+                    {
+                        if (!renderer ||
+                            lods.Length != 0 && !lods.Any(lod => lod.renderers.Contains(target) && lod.renderers.Contains(renderer))) continue;
+                        foreach (var material in renderer.sharedMaterials)
+                        {
+                            if (!material) continue;
+                            CharacterModelMaterial.TryGet(material, out var owner);
+                            var shader = owner?.SourceShader ?? material.shader;
+                            if (!shader || !shader.name.StartsWith("Lux/Human/Skin", StringComparison.Ordinal) || !material.HasProperty(id)) continue;
+                            var texture = CharacterModelMaterial.NativeTexture(material, id);
+                            if (!texture || texture.dimension != UnityEngine.Rendering.TextureDimension.Tex2D) continue;
+                            var current = CharacterModelTextureFingerprint(texture);
+                            // An exposed limb is a body context only by exact content
+                            // equality with a body source registered by this catalog.
+                            if (!_catalog.IsBodyTextureFingerprint(current)) continue;
+                            if (fingerprint != null && fingerprint != current) ambiguous = true;
+                            fingerprint = current;
+                        }
+                    }
+                }
+            }
+            resolved.Add(target, ambiguous ? null : fingerprint);
+            return ambiguous ? null : fingerprint;
         }
 
         internal void Suspend()
         {
+            CancelSourcePreparation();
             if (++_initializationDepth != 1) return;
             _initializationFailed = false;
             if (!HasSources) return;
@@ -1778,7 +5072,7 @@ internal static class RacesContext
                     (_sourceGraph == null || _sourceGraph.CanReapply());
                 if (!same)
                 {
-                    Release(false, false);
+                    ReleaseCore(false, false, true);
                     _busy = false;
                     RefreshCharacterModels(_graphics);
                     return;
@@ -1797,8 +5091,14 @@ internal static class RacesContext
             finally { _busy = false; }
         }
 
-        internal void Release(bool destroying, bool reapplyBody)
+        internal void Release(bool destroying, bool reapplyBody) => ReleaseCore(destroying, reapplyBody, false);
+
+        private void ReleaseCore(bool destroying, bool reapplyBody, bool preservePreparedSources)
         {
+            CancelSourcePreparation();
+            _sourcePreparationReceipt = null;
+            try
+            {
             _refreshPending = false;
             _suspended = false;
             if (_graphics) ReleaseBodyShape(_graphics);
@@ -1821,9 +5121,19 @@ internal static class RacesContext
             }
             if (_packs.Count != 0)
                 (_catalog ?? throw new InvalidOperationException("Owned custom character model packs lost their catalog.")).ReleaseBundles(_packs);
+            if (_nativeSources.Count != 0)
+                (_catalog ?? throw new InvalidOperationException("Owned native appearance sources lost their catalog.")).ReleaseNativeSources(_nativeSources);
+            _requiredNativeSources.Clear();
             if (!HasSources) { _catalog = null; _actor = null; CharacterModelOwners.Remove(this); }
             if (reapplyBody && !destroying && _graphics) RefreshBodyShape(_graphics);
+            }
+            finally
+            {
+                try { if (!preservePreparedSources) ReleasePreparedSources(); }
+                finally { SynchronizeCharacterModelRefreshPending(); }
+            }
         }
+
         private void OnEnable() { if (!_characterModelsUnloading && _graphics && !_busy) RefreshCharacterModels(_graphics); }
         private void OnDisable() { try { Release(false, false); } catch (Exception exception) { ReportCharacterModelError("disable", exception); } }
         private void OnDestroy() { try { Release(true, false); } catch (Exception exception) { ReportCharacterModelError("destroy", exception); } }
@@ -1842,17 +5152,17 @@ internal static class RacesContext
     {
         var result = new HashSet<SkinnedMeshRenderer>();
         var slots = graphics.ShapeSkinnedMeshRenderersPerBodySlot;
-        if (slots != null)
-            foreach (var part in new[] { GraphicsCharacterDefinitions.BodyPart.Head, GraphicsCharacterDefinitions.BodyPart.Hair, GraphicsCharacterDefinitions.BodyPart.Beard, GraphicsCharacterDefinitions.BodyPart.Body })
+        // Native slot arrays define source ownership for every body surface and wearable.
+        // Keep the same complete set for refresh, source counts and animator suspension.
+        foreach (var collection in new[] { slots, graphics.ArmorSkinnedMeshRenderersPerBodySlot })
+        {
+            if (collection == null) continue;
+            foreach (var part in collection)
             {
-                var slot = (int)part;
-                if (slot < slots.Length && slots[slot] != null)
-                    foreach (var renderer in slots[slot]) if (renderer && renderer.sharedMesh) result.Add(renderer);
+                if (part == null) continue;
+                foreach (var renderer in part) if (renderer && renderer.sharedMesh) result.Add(renderer);
             }
-        var armor = graphics.ArmorSkinnedMeshRenderersPerBodySlot;
-        var bodySlot = (int)GraphicsCharacterDefinitions.BodyPart.Body;
-        if (armor != null && bodySlot < armor.Length && armor[bodySlot] != null)
-            foreach (var renderer in armor[bodySlot]) if (renderer && renderer.sharedMesh) result.Add(renderer);
+        }
         if (slots != null && slots.Any(part => part is { Length: > 0 })) return result;
         // Classic models own an entire skin hierarchy. The catalog explicitly
         // distinguishes authored surfaces from native ones; anatomy is not guessed.
@@ -1866,26 +5176,29 @@ internal static class RacesContext
     private static bool IsJointSkin(SkinnedMeshRenderer renderer) => renderer.sharedMaterials.Any(material => material && material.shader &&
         material.shader.name.StartsWith("Lux/Human/Skin", StringComparison.Ordinal));
 
-    private sealed class CharacterModelSkin(GraphicsCharacter graphics, SkinnedMeshRenderer renderer, CustomModels.SkinMeshSource source, string fingerprint, Mesh authored, string bundleFile)
+    private sealed class CharacterModelSkin(GraphicsCharacter graphics, SkinnedMeshRenderer renderer, CustomModels.SkinMeshSource source, string fingerprint, Mesh authored, string bundleFile, bool jointSamplerCondition = false)
     {
         internal readonly SkinnedMeshRenderer Renderer = renderer;
         internal readonly string Fingerprint = fingerprint;
         internal readonly string BundleFile = bundleFile;
         private readonly Mesh _original = source.Original;
         private readonly bool _jointSkin = IsJointSkin(renderer);
+        private readonly bool _trackJointSampler = jointSamplerCondition;
+        private readonly bool _jointSamplerState = !jointSamplerCondition || JointPeriodicSamplers(renderer);
         private readonly Transform[] _bones = renderer.bones;
+        private Transform[] _appliedBones = renderer.bones;
         private readonly Bounds _nativeBounds = renderer.localBounds;
         private Bounds _appliedBounds;
         private CustomModels.SkinMeshSource _source = source;
         private bool _clothInstalled;
         internal bool IsCurrent(GraphicsCharacter owner, CustomModels.SkinMeshSource current) => Renderer &&
-            _jointSkin == IsJointSkin(Renderer) &&
-            current.MatchesBones(_bones) && current.OwnerCurrent && current.AcceptsCurrentMesh() &&
+            _jointSkin == IsJointSkin(Renderer) && (!_trackJointSampler || _jointSamplerState == JointPeriodicSamplers(Renderer)) &&
+            current.MatchesBones(_appliedBones) && current.OwnerCurrent && current.AcceptsCurrentMesh() &&
             (current.Original == authored || owner.GetComponent<BodyShapePresentation>()?.IsBodyOverlayOf(Renderer, authored, current) == true);
         internal bool IsNativeCurrent(CustomModels.SkinMeshSource current) => Renderer && _original && authored &&
             _jointSkin == IsJointSkin(Renderer) &&
             current.Original == _original && current.OwnerCurrent && current.AcceptsCurrentMesh() &&
-            current.MatchesBones(_bones);
+            (!_trackJointSampler || _jointSamplerState == JointPeriodicSamplers(Renderer)) && current.MatchesBones(_bones);
         internal bool ChangesSource => authored != _original;
         internal CustomModels.SkinMeshSource Source => _source;
         internal Mesh Authored => authored;
@@ -1907,13 +5220,14 @@ internal static class RacesContext
             if (sources == null || !sources.TryGetValue(Renderer, out var source) || source.Original != authored)
                 throw new InvalidOperationException("A native character model changed before its authored source could be installed.");
             _source = source;
+            _appliedBones = Renderer.bones;
             _clothInstalled = source.ClothOwner;
             _appliedBounds = _nativeBounds;
             _appliedBounds.Encapsulate(authored.bounds);
             Renderer.localBounds = _appliedBounds;
         }
         private CustomModels.SkinMeshSource.SourceGraph _restoreGraph;
-        internal void SourceRestored() => _clothInstalled = false;
+        internal void SourceRestored() { _clothInstalled = false; _appliedBones = _bones; }
         internal void Restore(bool destroying)
         {
             if (authored == _original) return;
@@ -1960,25 +5274,27 @@ internal static class RacesContext
         private readonly HashSet<string> _packs = new(StringComparer.Ordinal);
         private readonly HashSet<string> _requiredPacks = new(StringComparer.Ordinal);
         private int _leases;
+        private string _bodyFingerprint;
         internal static bool TryGet(Material material, out CharacterModelMaterial owner)
         {
             owner = null;
             return material && Shared.TryGetValue(material, out owner);
         }
-        internal static CharacterModelMaterial Acquire(Material material, Shader shader, CharacterModelMaterialAsset declaration, CharacterModelCatalog catalog, NativeProfile native)
+        internal static CharacterModelMaterial Acquire(Material material, Shader shader, CharacterModelMaterialAsset declaration, CharacterModelCatalog catalog, NativeProfile native, string bodyFingerprint)
         {
             if (!Shared.TryGetValue(material, out var owner))
             {
-                owner = new CharacterModelMaterial(material, shader, declaration, catalog, native);
+                owner = new CharacterModelMaterial(material, shader, declaration, catalog, native, bodyFingerprint);
                 Shared.Add(material, owner);
             }
-            else if (!ReferenceEquals(owner._catalog, catalog) || owner.SourceShader != shader || !SameDeclaration(owner.Declaration, declaration))
+            else if (!ReferenceEquals(owner._catalog, catalog) || owner.SourceShader != shader || !SameSelection(material, shader, catalog, owner.Declaration, owner._bodyFingerprint, declaration, bodyFingerprint))
                 throw new InvalidOperationException("A shared native material has incompatible custom character model owners.");
             owner._leases++;
             return owner;
         }
-        private CharacterModelMaterial(Material material, Shader shader, CharacterModelMaterialAsset declaration, CharacterModelCatalog catalog, NativeProfile native)
+        private CharacterModelMaterial(Material material, Shader shader, CharacterModelMaterialAsset declaration, CharacterModelCatalog catalog, NativeProfile native, string bodyFingerprint)
         {
+            _bodyFingerprint = bodyFingerprint;
             Material = material; SourceShader = shader; Declaration = declaration; _catalog = catalog;
             _nativeProfile = native;
             try
@@ -2019,14 +5335,53 @@ internal static class RacesContext
              first.authoredProfile.bundleFile == second.authoredProfile.bundleFile && first.authoredProfile.materialAsset == second.authoredProfile.materialAsset &&
              first.authoredProfile.shader == second.authoredProfile.shader && first.authoredProfile.layout.sourceUv == second.authoredProfile.layout.sourceUv &&
              first.authoredProfile.layout.groomUv == second.authoredProfile.layout.groomUv &&
+             first.authoredProfile.layout.groomCodec == second.authoredProfile.layout.groomCodec &&
              first.authoredProfile.layout.preservedUv.SequenceEqual(second.authoredProfile.layout.preservedUv)) &&
             first.properties.Length == second.properties.Length &&
             first.properties.Zip(second.properties, (a, b) => a.name == b.name && a.kind == b.kind && a.value.Equals(b.value) &&
-                a.textureAsset == b.textureAsset && a.sourceTextureFingerprint == b.sourceTextureFingerprint &&
+                a.textureAsset == b.textureAsset && a.sourceTextureFingerprint == b.sourceTextureFingerprint && a.sourceBodyTextureFingerprint == b.sourceBodyTextureFingerprint &&
                 a.sourceWidth == b.sourceWidth && a.sourceHeight == b.sourceHeight && a.bundleFile == b.bundleFile).All(value => value);
-        internal void Apply()
+        internal static Texture NativeTexture(Material material, int id)
+        {
+            if (TryGet(material, out var owner))
+                foreach (var property in owner._properties)
+                    if (property.Id == id) return property.NativeTexture(material);
+            return material.GetTexture(id);
+        }
+        internal static bool SameSelection(Material material, Shader shader, CharacterModelCatalog catalog,
+            CharacterModelMaterialAsset first, string firstBody, CharacterModelMaterialAsset second, string secondBody)
+        {
+            if (!SameDeclaration(first, second)) return false;
+            if (firstBody == secondBody || !first.UsesBodyTexture) return true;
+            HashSet<string> retained = null;
+            try
+            {
+                foreach (var group in first.properties.GroupBy(property => property.name, StringComparer.Ordinal))
+                {
+                    var properties = group.ToArray();
+                    if (properties[0].kind == "float") continue;
+                    var id = Shader.PropertyToID(group.Key);
+                    var native = material.HasProperty(id) ? NativeTexture(material, id) : null;
+                    if (!material.HasProperty(id) && first.authoredProfile is { } profile)
+                    {
+                        catalog.RetainBundle(retained ??= [], profile.bundleFile);
+                        var authored = catalog.Profile(profile);
+                        if (authored.HasProperty(id)) native = authored.GetTexture(id);
+                    }
+                    var a = CharacterModelMaterialProperty.SelectTexture(properties, native, catalog, shader.name, first.AssetBundleFile, firstBody);
+                    var b = CharacterModelMaterialProperty.SelectTexture(properties, native, catalog, shader.name, second.AssetBundleFile, secondBody);
+                    if (a.Property?.textureAsset != b.Property?.textureAsset || a.Bundle != b.Bundle) return false;
+                }
+                return true;
+            }
+            finally { if (retained != null) catalog.ReleaseBundles(retained); }
+        }
+        internal void Apply(string bodyFingerprint)
         {
             if (!Material) return;
+            if (_leases > 1 && !SameSelection(Material, SourceShader, _catalog, Declaration, _bodyFingerprint, Declaration, bodyFingerprint))
+                throw new InvalidOperationException("A shared native material has incompatible body-dependent texture owners.");
+            _bodyFingerprint = bodyFingerprint;
             if (_authoredProfile != null)
             {
                 if (!_profileApplied)
@@ -2049,7 +5404,7 @@ internal static class RacesContext
             required.Clear();
             if (Declaration.authoredProfile is { } profile) required.Add(profile.bundleFile);
             foreach (var property in _properties)
-                if (property.Resolve(Material, _catalog, SourceShader.name, Declaration.AssetBundleFile) is { } file) required.Add(file);
+                if (property.Resolve(Material, _catalog, SourceShader.name, Declaration.AssetBundleFile, _bodyFingerprint) is { } file) required.Add(file);
             foreach (var file in required) _catalog.RetainBundle(_packs, file);
             foreach (var property in _properties) property.Apply(Material, _catalog);
             _catalog.ReleaseBundles(_packs, required);
@@ -2204,14 +5559,21 @@ internal static class RacesContext
     private sealed class CharacterModelMaterialProperty(CharacterModelProperty[] declarations)
     {
         private readonly int _id = Shader.PropertyToID(declarations[0].name);
+        internal int Id => _id;
+        internal Texture NativeTexture(Material material)
+        {
+            var current = material.GetTexture(_id);
+            return _applied && current == _appliedTexture ? _nativeTexture : current;
+        }
         private bool _applied;
         private Texture _nativeTexture, _appliedTexture;
         private float _nativeFloat, _appliedFloat;
         private bool _resolved;
         private Texture _resolvedNativeTexture;
+        private string _resolvedBodyFingerprint;
         private CharacterModelProperty _selected;
         private string _selectedBundle;
-        private bool HasSourceDimensions(int width, int height)
+        private static bool HasSourceDimensions(CharacterModelProperty[] declarations, int width, int height)
         {
             foreach (var declaration in declarations)
             {
@@ -2222,31 +5584,41 @@ internal static class RacesContext
             }
             return false;
         }
-        internal string Resolve(Material material, CharacterModelCatalog catalog, string shader, string bundle)
+        internal string Resolve(Material material, CharacterModelCatalog catalog, string shader, string bundle, string bodyFingerprint)
         {
             var declaration = declarations[0];
             if (declaration.kind == "float") return null;
             var current = material.GetTexture(_id);
             if (!_applied || current != _appliedTexture) _nativeTexture = current;
-            if (_resolved && ReferenceEquals(_resolvedNativeTexture, _nativeTexture)) return _selectedBundle;
-            _selected = declarations.FirstOrDefault(value => value.kind == "texture");
-            _selectedBundle = _selected == null ? null : _selected.bundleFile ?? bundle;
-            if (_selected == null)
-            {
-                var fingerprint = _nativeTexture && _nativeTexture.dimension == UnityEngine.Rendering.TextureDimension.Tex2D &&
-                    HasSourceDimensions(_nativeTexture.width, _nativeTexture.height)
-                    ? CharacterModelTextureFingerprint(_nativeTexture) : null;
-                _selected = declarations.FirstOrDefault(value => value.kind == "texture-remap" && value.sourceTextureFingerprint == fingerprint);
-                if (_selected != null) _selectedBundle = _selected.bundleFile ?? bundle;
-                else if (declarations.Any(value => value.kind == "texture-index"))
-                {
-                    _selected = catalog.TextureRemap(shader, declarations[0].name, fingerprint);
-                    _selectedBundle = _selected?.bundleFile;
-                }
-            }
+            if (_resolved && ReferenceEquals(_resolvedNativeTexture, _nativeTexture) && _resolvedBodyFingerprint == bodyFingerprint) return _selectedBundle;
+            (_selected, _selectedBundle) = SelectTexture(declarations, _nativeTexture, catalog, shader, bundle, bodyFingerprint);
             _resolvedNativeTexture = _nativeTexture;
+            _resolvedBodyFingerprint = bodyFingerprint;
             _resolved = true;
             return _selectedBundle;
+        }
+        internal static (CharacterModelProperty Property, string Bundle) SelectTexture(CharacterModelProperty[] declarations,
+            Texture native, CharacterModelCatalog catalog, string shader, string bundle, string bodyFingerprint)
+        {
+            var selected = declarations.FirstOrDefault(value => value.kind == "texture");
+            var selectedBundle = selected == null ? null : selected.bundleFile ?? bundle;
+            if (selected == null)
+            {
+                var fingerprint = native && native.dimension == UnityEngine.Rendering.TextureDimension.Tex2D &&
+                    HasSourceDimensions(declarations, native.width, native.height)
+                    ? CharacterModelTextureFingerprint(native) : null;
+                selected = bodyFingerprint == null ? null : declarations.FirstOrDefault(value => value.kind == "texture-remap" &&
+                    value.sourceTextureFingerprint == fingerprint && value.sourceBodyTextureFingerprint == bodyFingerprint);
+                selected ??= declarations.FirstOrDefault(value => value.kind == "texture-remap" &&
+                    value.sourceTextureFingerprint == fingerprint && value.sourceBodyTextureFingerprint == null);
+                if (selected != null) selectedBundle = selected.bundleFile ?? bundle;
+                else if (declarations.Any(value => value.kind == "texture-index"))
+                {
+                    selected = catalog.TextureRemap(shader, declarations[0].name, fingerprint, bodyFingerprint);
+                    selectedBundle = selected?.bundleFile;
+                }
+            }
+            return (selected, selectedBundle);
         }
         internal void Apply(Material material, CharacterModelCatalog catalog)
         {
@@ -2363,12 +5735,66 @@ internal static class RacesContext
     private static bool BodyShapeFinite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
     private static bool BodyShapeFinite(Vector3 value) => BodyShapeFinite(value.x) && BodyShapeFinite(value.y) && BodyShapeFinite(value.z);
 
+    private static CustomModels.SkinMeshSource.SurfaceBinding CreateAuthoredBaseBinding(Mesh original, Mesh authored, string identity)
+    {
+        if (!original || !authored || original == authored || original.vertexCount != authored.vertexCount) return null;
+        var native = ReadBodyShapeRest(original); var target = ReadBodyShapeRest(authored);
+        var count = original.vertexCount;
+        if (native.Tangents.Length != count || target.Tangents.Length != count ||
+            !native.BindPoses.SequenceEqual(target.BindPoses) || !native.Weights.SequenceEqual(target.Weights) ||
+            original.blendShapeCount != authored.blendShapeCount)
+            throw new InvalidOperationException("An authored base changed its native skin, palette or physical layout.");
+        var changed = Enumerable.Range(0, count).Select(index =>
+            !native.Vertices[index].Equals(target.Vertices[index]) || !native.Normals[index].Equals(target.Normals[index]) ||
+            !native.Tangents[index].Equals(target.Tangents[index])).ToArray();
+        var sp = new Vector3[count]; var sn = new Vector3[count]; var st = new Vector3[count];
+        var tp = new Vector3[count]; var tn = new Vector3[count]; var tt = new Vector3[count];
+        for (var channel = 0; channel < original.blendShapeCount; channel++)
+        {
+            if (original.GetBlendShapeName(channel) != authored.GetBlendShapeName(channel) ||
+                original.GetBlendShapeFrameCount(channel) != authored.GetBlendShapeFrameCount(channel))
+                throw new InvalidOperationException("An authored base changed a native physical channel.");
+            for (var frame = 0; frame < original.GetBlendShapeFrameCount(channel); frame++)
+            {
+                if (original.GetBlendShapeFrameWeight(channel, frame) != authored.GetBlendShapeFrameWeight(channel, frame))
+                    throw new InvalidOperationException("An authored base changed a native physical frame range.");
+                original.GetBlendShapeFrameVertices(channel, frame, sp, sn, st);
+                authored.GetBlendShapeFrameVertices(channel, frame, tp, tn, tt);
+                for (var index = 0; index < count; index++)
+                    changed[index] |= !sp[index].Equals(tp[index]) || !sn[index].Equals(tn[index]) || !st[index].Equals(tt[index]);
+            }
+        }
+        if (!changed.Any(value => value)) return null;
+        var vertices = new CustomModels.SkinMeshSource.SurfaceVertex[count];
+        for (var index = 0; index < count; index++)
+        {
+            if (!changed[index])
+            {
+                vertices[index] = new CustomModels.SkinMeshSource.SurfaceVertex(index, Vector3.zero, Vector3.forward, Vector3.right, true);
+                continue;
+            }
+            var normal = native.Normals[index].normalized; var tangent = (Vector3)native.Tangents[index];
+            tangent = (tangent - normal * Vector3.Dot(normal, tangent)).normalized;
+            var handedness = native.Tangents[index].w; var bitangent = Vector3.Cross(normal, tangent) * handedness;
+            if (normal.sqrMagnitude < 0.99f || tangent.sqrMagnitude < 0.99f || bitangent.sqrMagnitude < 0.99f ||
+                handedness is not (-1f or 1f) || target.Tangents[index].w != handedness)
+                throw new InvalidOperationException("An authored base has no compatible native tangent frame.");
+            Vector3 Coordinates(Vector3 value) => new(Vector3.Dot(value, tangent), Vector3.Dot(value, bitangent), Vector3.Dot(value, normal));
+            vertices[index] = new CustomModels.SkinMeshSource.SurfaceVertex(index,
+                Coordinates(target.Vertices[index] - native.Vertices[index]), Coordinates(target.Normals[index]),
+                Coordinates((Vector3)target.Tangents[index]), false);
+        }
+        return new CustomModels.SkinMeshSource.SurfaceBinding(identity, Matrix4x4.identity, native.Tangents, vertices, authoredBase: authored);
+    }
+
     private sealed class BodyShapeRest
     {
         internal Vector3[] Vertices, Normals, Muscular, MuscularNormals, MuscularTangents;
         internal Vector4[] Tangents;
         internal Matrix4x4[] BindPoses;
         internal BoneWeight[] Weights;
+        internal int[] WeightedBones;
+        internal bool AllVerticesWeighted;
         internal int[] Triangles;
         internal bool[] Boundary;
         private BodyShapeCut _cut;
@@ -2554,14 +5980,24 @@ internal static class RacesContext
                 !result.Normals.All(BodyShapeFinite) || result.Triangles.Length % 3 != 0 ||
                 result.Triangles.Any(index => index < 0 || index >= mesh.vertexCount))
                 throw new InvalidOperationException("Native rest channels are incomplete: " + mesh.name);
+            var weightedBones = new HashSet<int>();
+            result.AllVerticesWeighted = true;
             foreach (var weights in result.Weights)
-            for (var influence = 0; influence < 4; influence++)
             {
-                var weight = BodyShapeWeight(weights, influence);
-                var index = BodyShapeWeightIndex(weights, influence);
-                if (!BodyShapeFinite(weight) || weight < 0f || weight > 0f && (index < 0 || index >= result.BindPoses.Length))
-                    throw new InvalidOperationException("A body skin weight references an invalid bindpose: " + mesh.name);
+                var total = 0f;
+                for (var influence = 0; influence < 4; influence++)
+                {
+                    var weight = BodyShapeWeight(weights, influence);
+                    var index = BodyShapeWeightIndex(weights, influence);
+                    if (!BodyShapeFinite(weight) || weight < 0f || weight > 0f && (index < 0 || index >= result.BindPoses.Length))
+                        throw new InvalidOperationException("A body skin weight references an invalid bindpose: " + mesh.name);
+                    if (weight <= 0f) continue;
+                    weightedBones.Add(index);
+                    total += weight;
+                }
+                result.AllVerticesWeighted &= BodyShapeFinite(total) && total > 0f;
             }
+            result.WeightedBones = weightedBones.ToArray();
             result.Boundary = BodyShapeBoundary(result.Vertices.Length, result.Triangles);
             var muscular = mesh.GetBlendShapeIndex("Muscular");
             if (muscular >= 0)
@@ -2587,7 +6023,7 @@ internal static class RacesContext
         }));
     }
 
-    private static T ReadNativeRestMesh<T>(Mesh mesh, Func<Mesh, T> read)
+    internal static T ReadNativeRestMesh<T>(Mesh mesh, Func<Mesh, T> read)
     {
         GameObject host = null;
         Mesh baked = null;
@@ -3015,6 +6451,7 @@ internal static class RacesContext
         private float _value;
         private float _default;
         private bool _busy, _refreshPending;
+        internal bool IsPending => _refreshPending;
         internal void Bind(GraphicsCharacter graphics) => _graphics = graphics;
         internal void DeferRefresh()
         {
@@ -3103,24 +6540,33 @@ internal static class RacesContext
                     _fieldSources.AddRange(sources.Select(row => new FieldSource(row)));
                     _fieldSourcesReady = true;
                 }
-                var seams = supplemental ? new BodyShapeSeams() : null;
-                if (supplemental) foreach (var row in rows)
+                BodyShapeSeams seams = null;
+                var readingSeams = false;
+                BodyShapeSeams GetSeams()
                 {
-                    if (row.Identity || !row.UseNativeFrame || row.Original.GetBlendShapeIndex("Muscular") < 0) continue;
-                    var bones = row.Renderer.bones;
-                    var rest = ReadBodyShapeRest(row.Original);
-                    var protectedBones = bones.Select(IsProtectedBodyBone).ToArray();
-                    for (var vertex = 0; vertex < rest.Vertices.Length; vertex++)
+                    if (seams != null) return seams;
+                    readingSeams = true;
+                    seams = new BodyShapeSeams();
+                    foreach (var row in rows)
                     {
-                        if (!rest.Boundary[vertex]) continue;
-                        var dominant = BodyShapeDominantBone(rest.Weights[vertex], bones);
-                        if (dominant < 0) continue;
-                        var body = BodyShapeBodyWeight(rest.Weights[vertex], protectedBones, out _);
-                        seams.Add(bones[dominant].name, rest.BindPoses[dominant].MultiplyPoint3x4(rest.Vertices[vertex]),
-                            rest.BindPoses[dominant].MultiplyVector(rest.Muscular[vertex] * body),
-                            rest.BindPoses[dominant].inverse.transpose.MultiplyVector(rest.MuscularNormals[vertex] * body),
-                            rest.BindPoses[dominant].MultiplyVector(rest.MuscularTangents[vertex] * body), true);
+                        if (row.Identity || !row.UseNativeFrame || row.Original.GetBlendShapeIndex("Muscular") < 0) continue;
+                        var bones = row.Renderer.bones;
+                        var rest = ReadBodyShapeRest(row.Original);
+                        var protectedBones = bones.Select(IsProtectedBodyBone).ToArray();
+                        for (var vertex = 0; vertex < rest.Vertices.Length; vertex++)
+                        {
+                            if (!rest.Boundary[vertex]) continue;
+                            var dominant = BodyShapeDominantBone(rest.Weights[vertex], bones);
+                            if (dominant < 0) continue;
+                            var body = BodyShapeBodyWeight(rest.Weights[vertex], protectedBones, out _);
+                            seams.Add(bones[dominant].name, rest.BindPoses[dominant].MultiplyPoint3x4(rest.Vertices[vertex]),
+                                rest.BindPoses[dominant].MultiplyVector(rest.Muscular[vertex] * body),
+                                rest.BindPoses[dominant].inverse.transpose.MultiplyVector(rest.MuscularNormals[vertex] * body),
+                                rest.BindPoses[dominant].MultiplyVector(rest.MuscularTangents[vertex] * body), true);
+                        }
                     }
+                    readingSeams = false;
+                    return seams;
                 }
                 foreach (var row in rows)
                 {
@@ -3132,13 +6578,17 @@ internal static class RacesContext
                         var baseline = row.PreserveNativeWeight ? row.Renderer.GetBlendShapeWeight(native) : defaultValue;
                         if (value == baseline) continue;
                     }
-                    try { BodyShapePiece.Create(graphics, row, _field, seams, _pieces, supplemental); }
-                    catch (Exception exception) { ReportBodyShapeError(row.Original.name, exception); }
+                    try { BodyShapePiece.Create(graphics, row, _field, GetSeams, _pieces, supplemental); }
+                    catch (Exception exception)
+                    {
+                        if (readingSeams) throw;
+                        ReportBodyShapeError(row.Original.name, exception);
+                    }
                 }
                 foreach (var piece in _pieces) piece.SetValue(value, defaultValue);
             }
             catch (Exception exception) { ReportBodyShapeError("presentation", exception); }
-            finally { _busy = false; }
+            finally { _busy = false; SynchronizeCharacterModelRefreshPending(); }
         }
         internal void Release(bool destroying)
         {
@@ -3156,6 +6606,7 @@ internal static class RacesContext
             _fieldSourcesReady = false;
             _supplemental = false;
             if (_pieces.Count == 0 && _bodyShapesUnloading) BodyShapeOwners.Remove(this);
+            SynchronizeCharacterModelRefreshPending();
         }
         private void OnEnable() { if (!_bodyShapesUnloading && _graphics && !_busy) RefreshBodyShape(_graphics); }
         private void OnDisable() { Release(false); }
@@ -3219,7 +6670,7 @@ internal static class RacesContext
             bounds.Expand(expansion * 2f);
             _appliedBounds = bounds;
         }
-        internal static void Create(GraphicsCharacter graphics, BodyShapeRenderer row, BodyShapeField field, BodyShapeSeams seams,
+        internal static void Create(GraphicsCharacter graphics, BodyShapeRenderer row, BodyShapeField field, Func<BodyShapeSeams> getSeams,
             List<BodyShapePiece> pieces, bool supplemental)
         {
             var hasNativeFrame = row.UseNativeFrame && row.Original.GetBlendShapeIndex("Muscular") >= 0;
@@ -3230,6 +6681,9 @@ internal static class RacesContext
             var bones = row.Renderer.bones.Take(rest.BindPoses.Length).ToArray();
             if (bones.Length < rest.BindPoses.Length) throw new InvalidOperationException("The body's original bone mapping is incomplete.");
             var protectedBones = bones.Select(IsProtectedBodyBone).ToArray();
+            // With no protected positive influences, native correction has body / total = 1 everywhere.
+            if (hasNativeFrame && !row.PreserveNativeWeight && rest.AllVerticesWeighted &&
+                rest.WeightedBones is { } usedBones && usedBones.All(index => !protectedBones[index])) return;
             var lengths = !hasNativeFrame ? bones.Select(BodyShapeBoneLength).ToArray() : null;
             var inverse = !hasNativeFrame ? rest.BindPoses.Select(matrix => matrix.inverse).ToArray() : null;
             var anchors = !hasNativeFrame ? Enumerable.Repeat(-1, bones.Length).ToArray() : null;
@@ -3269,6 +6723,7 @@ internal static class RacesContext
                     {
                         var basis = rest.BindPoses[dominant];
                         var point = basis.MultiplyPoint3x4(rest.Vertices[vertex]);
+                        var seams = getSeams();
                         if (!seams.TryGet(bones[dominant].name, point, out var seam))
                         {
                             // Different pieces share this deformation derivative at their physical cut.

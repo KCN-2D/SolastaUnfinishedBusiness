@@ -1,0 +1,4 @@
+deep-translator==1.11.4
+openai==3.46.0
+python-dotenv==1.2.4
+rich==15.0.0

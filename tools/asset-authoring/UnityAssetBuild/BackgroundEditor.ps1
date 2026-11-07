@@ -221,6 +221,119 @@ function Find-AssetCliChildren([int]$CliPid, [string]$Cli, [DateTime]$LaunchedUt
     $identities | Sort-Object { [int]$_.pid },{ [string]$_.path },{ ([DateTime]$_.startTimeUtc).ToUniversalTime().Ticks } -Unique
 }
 
+function Protect-AssetBackgroundLog([string]$RunDirectory,[string]$OwnerId,$ReleasedState=$null) {
+    $directory=Get-AssetStoragePath $RunDirectory
+    $sessions=Split-Path -Parent $directory;$jobs=Split-Path -Parent $sessions
+    if($OwnerId -cnotmatch '^[a-f0-9]{32}$' -or (Split-Path -Leaf $directory) -cne $OwnerId -or
+        (Split-Path -Leaf $sessions) -cne 'BackgroundSessions' -or (Split-Path -Leaf $jobs) -cne '.asset-authoring-jobs'){
+        throw 'Authentication log redaction requires its exact owned authoring session.'
+    }
+    $context=Get-AssetStorageProject (Split-Path -Parent $jobs)
+    if(-not $directory.Equals((Join-Path $context.jobs ('BackgroundSessions/'+$OwnerId)),[StringComparison]::OrdinalIgnoreCase)){throw 'Authentication log redaction escaped its authoring owner.'}
+    if($null -eq $ReleasedState){$ReleasedState=Read-AssetWorkerJson (Join-Path $directory 'session.json')}
+    foreach($name in @('ownerId','editor','cli','cliChildren','editorReleased','cliReleased','cliChildrenReleased')){
+        $present=if($ReleasedState -is [Collections.IDictionary]){$ReleasedState.Contains($name)}else{$null -ne $ReleasedState.PSObject.Properties[$name]}
+        if(-not $present){throw 'Authentication log redaction requires a complete release receipt.'}
+    }
+    if($ReleasedState.ownerId -cne $OwnerId){throw 'Authentication log redaction has a different session owner.'}
+    foreach($name in @('editorReleased','cliReleased','cliChildrenReleased')){
+        if($ReleasedState.$name -isnot [bool] -or -not $ReleasedState.$name){throw 'Authentication log redaction requires released native processes.'}
+    }
+    foreach($identity in @($ReleasedState.editor,$ReleasedState.cli)+@($ReleasedState.cliChildren)){
+        if($identity -and (Get-AssetOwnedProcess $identity)){throw 'Authentication log redaction cannot change a live native process log.'}
+    }
+    $encoding=[Text.UTF8Encoding]::new($false,$true)
+    $patterns=@(
+        '(?im)(?<prefix>^[\t ]*--?accessToken[\t ]*\r?\n[\t ]*)(?<value>[^\r\n]+)',
+        '(?i)(?<prefix>--?accessToken(?:[\t ]*=[\t ]*|[\t ]+))(?<value>"[^"\r\n]*"|''[^''\r\n]*''|[^\t \r\n]+)',
+        '(?i)(?<prefix>"accessToken"\s*:\s*")(?<value>(?:\\.|[^"\\])*)(?<suffix>")',
+        '(?i)(?<prefix>"--?accessToken"\s*,\s*")(?<value>(?:\\.|[^"\\])*)(?<suffix>")'
+    )
+    $files=[Collections.Generic.List[object]]::new();$total=0
+    foreach($name in @('Editor.log','CLI.json','CLI.stderr.txt')){
+        $path=Join-Path $directory $name
+        if(-not [IO.File]::Exists($path)){continue}
+        [void](Get-AssetStoragePath $path)
+        for($attempt=0;;$attempt++){
+            $stream=$null;$copy=$null
+            try{
+                $stream=[IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::Read,
+                    ([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+                $copy=[IO.MemoryStream]::new();$stream.CopyTo($copy);$content=$encoding.GetString($copy.ToArray());break
+            }
+            catch{
+                $cause=$_.Exception.GetBaseException();$code=$cause.HResult -band 0xffff
+                if($cause -isnot [IO.IOException] -or $code -notin @(32,33) -or $attempt -ge 40){throw}
+                Start-Sleep -Milliseconds 25
+            }finally{if($copy){$copy.Dispose()};if($stream){$stream.Dispose()}}
+        }
+        $redacted=$content
+        $counter=[pscustomobject]@{Redactions=0}
+        $replacement=[Text.RegularExpressions.MatchEvaluator]({param($entry)
+            $value=$entry.Groups['value'].Value
+            if($value -in @('[REDACTED]','"[REDACTED]"',"'[REDACTED]'" ) -or $value.Trim('"',"'") -match '^\*+$'){return $entry.Value}
+            $counter.Redactions++
+            $masked='[REDACTED]'
+            if($value.Length -ge 2 -and $value.Substring(0,1) -in @('"',"'") -and $value.Substring(0,1) -ceq $value.Substring($value.Length-1)){
+                $masked=$value.Substring(0,1)+$masked+$value.Substring($value.Length-1)
+            }
+            return $entry.Groups['prefix'].Value+$masked+$entry.Groups['suffix'].Value
+        }.GetNewClosure())
+        foreach($pattern in $patterns){$redacted=[regex]::Replace($redacted,$pattern,$replacement)}
+        if($redacted -cne $content){
+            $temporary=$path+'.redacted-'+[guid]::NewGuid().ToString('N')
+            try{
+                [IO.File]::WriteAllBytes($temporary,$encoding.GetBytes($redacted))
+                # The temporary contains only redacted text. Never create a raw backup.
+                for($attempt=0;;$attempt++){
+                    try{[IO.File]::Replace($temporary,$path,[Management.Automation.Language.NullString]::Value);break}
+                    catch{
+                        $cause=$_.Exception.GetBaseException();$code=$cause.HResult -band 0xffff
+                        # Windows may report a reader-held rename as access
+                        # denied. Retry only this owned atomic replacement;
+                        # persistent ACL failures still terminate the operation.
+                        if(($cause -isnot [IO.IOException] -and $cause -isnot [UnauthorizedAccessException]) -or $code -notin @(5,32,33)){throw}
+                        if($attempt -ge 120){
+                            if($code -notin @(32,33)){throw}
+                            # An auxiliary process can inherit the released
+                            # Editor's append handle without sharing deletion.
+                            # Mask only the observed argument byte spans; retain
+                            # file length, append offsets and every other byte.
+                            $original=$encoding.GetBytes($content);$expected=[byte[]]$original.Clone();$spans=@{}
+                            foreach($pattern in $patterns){foreach($match in [regex]::Matches($content,$pattern)){
+                                $value=$match.Groups['value'];$start=$value.Index;$length=$value.Length
+                                if($value.Value -in @('[REDACTED]','"[REDACTED]"',"'[REDACTED]'" ) -or $value.Value.Trim('"',"'") -match '^\*+$'){continue}
+                                if($length -ge 2 -and $value.Value.Substring(0,1) -in @('"',"'") -and
+                                    $value.Value.Substring(0,1) -ceq $value.Value.Substring($length-1)){$start++;$length-=2}
+                                $offset=$encoding.GetByteCount($content.Substring(0,$start));$bytes=$encoding.GetByteCount($content.Substring($start,$length))
+                                if($bytes){$spans[($offset.ToString()+':'+$bytes)]=@{offset=$offset;bytes=$bytes}}
+                            }}
+                            foreach($span in $spans.Values){for($index=0;$index -lt $span.bytes;$index++){$expected[$span.offset+$index]=42}}
+                            $shared=$null
+                            try{
+                                $shared=[IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+                                if($shared.Length -lt $original.Length){throw 'The owned log shrank before argument redaction.'}
+                                $observed=[byte[]]::new($original.Length);$read=0
+                                while($read -lt $observed.Length){$count=$shared.Read($observed,$read,$observed.Length-$read);if(!$count){throw 'The owned log prefix ended early.'};$read+=$count}
+                                if(-not[Collections.StructuralComparisons]::StructuralEqualityComparer.Equals($original,$observed)){throw 'The owned log prefix changed before argument redaction.'}
+                                foreach($span in $spans.Values){$shared.Position=$span.offset;$masked=[byte[]]::new($span.bytes);for($index=0;$index -lt $masked.Length;$index++){$masked[$index]=42};$shared.Write($masked,0,$masked.Length)}
+                                $shared.Flush($true);$shared.Position=0;$read=0
+                                while($read -lt $observed.Length){$count=$shared.Read($observed,$read,$observed.Length-$read);if(!$count){throw 'The redacted log prefix ended early.'};$read+=$count}
+                                if(-not[Collections.StructuralComparisons]::StructuralEqualityComparer.Equals($expected,$observed)){throw 'The argument spans or unrelated log bytes changed during redaction.'}
+                            }finally{if($shared){$shared.Dispose()}}
+                            break
+                        }
+                        Start-Sleep -Milliseconds 25
+                    }
+                }
+            }finally{if([IO.File]::Exists($temporary)){[IO.File]::Delete($temporary)}}
+        }
+        $total+=$counter.Redactions
+        $files.Add([ordered]@{path=$path;redactedArgumentValues=$counter.Redactions})
+    }
+    return [ordered]@{completed=$true;argumentKinds=@('accessToken');redactedArgumentValues=$total;files=@($files.ToArray())}
+}
+
 function Invoke-AssetBackgroundHost([string]$ConfigPath) {
     $ErrorActionPreference = 'Stop'
     $cfg = Read-AssetWorkerJson $ConfigPath
@@ -228,7 +341,7 @@ function Invoke-AssetBackgroundHost([string]$ConfigPath) {
     $desktop = Get-VerificationDesktop
     $statePath = Join-Path $cfg.run 'session.json'
     $state = [ordered]@{status='starting';ownerId=$cfg.ownerId;startedUtc=[DateTime]::UtcNow.ToString('O');desktop=$cfg.desktop;
-        wrapperPid=$PID;wrapperDesktop=$desktop;worker=$null;shutdownWorker=$null;shutdownRequest=$null;editor=$null;editorReleased=$false;cliReleased=$false;cliChildren=@();cliChildrenReleased=$false;forcedExit=$false;
+        wrapperPid=$PID;wrapperDesktop=$desktop;worker=$null;shutdownWorker=$null;shutdownRequest=$null;editor=$null;cli=$null;editorReleased=$false;cliReleased=$false;cliChildren=@();cliChildrenReleased=$false;forcedExit=$false;
         shutdownRequestedUtc=$null;shutdownExitObservedUtc=$null;shutdownForcedUtc=$null;editorExitCode=$null}
     $cli = $null
     try {
@@ -335,6 +448,10 @@ function Invoke-AssetBackgroundHost([string]$ConfigPath) {
             }
         }
         $state.cliChildrenReleased=@($state.cliChildren | Where-Object { Get-AssetOwnedProcess $_ }).Count -eq 0
+        if($state.editorReleased -and $state.cliReleased -and $state.cliChildrenReleased){
+            try{$state.logSanitization=Protect-AssetBackgroundLog $cfg.run $cfg.ownerId $state}
+            catch{$state.status='failed';if(-not $state.Contains('error') -or -not $state.error){$state.error='Owned authoring authentication log redaction failed.'};$state.logSanitization=@{completed=$false;errorType=$_.Exception.GetType().FullName}}
+        }
         $state.finishedUtc=[DateTime]::UtcNow.ToString('O')
         Write-AssetWorkerJson $statePath $state
         if ($cli) { $cli.Dispose() }
@@ -421,6 +538,10 @@ function Stop-AssetBackgroundEditor($Session, [switch]$AllowFailedSession) {
             $state.editorReleased=!(Get-AssetOwnedProcess $state.editor)
             $state.cliReleased=!(Get-AssetOwnedProcess $state.cli)
             $state.cliChildrenReleased=@($state.cliChildren | Where-Object { Get-AssetOwnedProcess $_ }).Count -eq 0
+            if($state.editorReleased -and $state.cliReleased -and $state.cliChildrenReleased){
+                try{$state.logSanitization=Protect-AssetBackgroundLog $Session.RunDirectory $Session.OwnerId $state}
+                catch{$state.error='Owned authoring authentication log redaction failed.';$state.logSanitization=@{completed=$false;errorType=$_.Exception.GetType().FullName}}
+            }
             $state.forcedExit=$true;$state.status='failed';$state.finishedUtc=[DateTime]::UtcNow.ToString('O')
             Write-AssetWorkerJson $path $state
         }
@@ -602,15 +723,27 @@ function Complete-AssetAuthoringJob {
     }finally{$storageOperation.ReleaseMutex();$storageOperation.Dispose()}
 }
 function Select-AssetStorageUnits {
-    param([array]$Units,$References,[int]$KeepLatest=2,[double]$MaxAgeDays=0,[long]$MaxRetainedBytes=0)
+    param([array]$Units,$References,[int]$KeepLatest=2,[double]$MaxAgeDays=0,[long]$MaxRetainedBytes=0,[long]$FixedRetainedBytes=0)
     $reasons=@{};$owners=[Collections.Generic.Dictionary[string,object]]::new([StringComparer]::OrdinalIgnoreCase)
+    $referencePaths=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $referenceAncestors=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach($reference in $References.paths){
+        [void]$referencePaths.Add($reference.TrimEnd('\'))
+        for($cursor=$reference;$cursor;$cursor=[IO.Path]::GetDirectoryName($cursor)){
+            [void]$referenceAncestors.Add($cursor.TrimEnd('\'))
+        }
+    }
     foreach ($unit in $Units) {
         $unit.completedUtc=if($unit.completedUtc){([DateTimeOffset]$unit.completedUtc).UtcDateTime}
             else{[DateTime]::SpecifyKind([DateTime]::MinValue,[DateTimeKind]::Utc)}
         foreach ($root in $unit.roots) {$owners[$root]=$unit}
         if ($unit.hardReason) {$reasons[$unit.path]=$unit.hardReason}
-        foreach ($reference in $References.paths) {
-            if (@($unit.roots|Where-Object{(Test-AssetStorageWithin $reference $_)-or(Test-AssetStorageWithin $_ $reference)}).Count) {$reasons[$unit.path]='explicit-reference';break}
+        foreach($root in $unit.roots){
+            $referenced=$referenceAncestors.Contains($root.TrimEnd('\'))
+            for($cursor=$root;-not $referenced -and $cursor;$cursor=[IO.Path]::GetDirectoryName($cursor)){
+                $referenced=$referencePaths.Contains($cursor.TrimEnd('\'))
+            }
+            if($referenced){$reasons[$unit.path]='explicit-reference';break}
         }
     }
     foreach ($group in @($Units|Where-Object{-not $_.PSObject.Properties['kind'] -or $_.kind -ne 'session'}|Group-Object {if($_.PSObject.Properties['kind']){$_.kind}else{'output'}})) {
@@ -637,7 +770,7 @@ function Select-AssetStorageUnits {
     }
     while($true){
         $kept=Get-DependencyClosure
-        $bytes=[long]($Units|Where-Object{$kept.ContainsKey($_.path)}|Measure-Object bytes -Sum|ForEach-Object{$_.Sum})
+        $bytes=$FixedRetainedBytes+[long]($Units|Where-Object{$kept.ContainsKey($_.path)}|Measure-Object bytes -Sum|ForEach-Object{$_.Sum})
         if($MaxRetainedBytes -eq 0 -or $bytes -le $MaxRetainedBytes){break}
         $next=@($Units|Where-Object{$reasons.ContainsKey($_.path)-and $reasons[$_.path] -eq 'latest'}|Sort-Object completedUtc,path|Select-Object -First 1)
         if(-not $next.Count){break};[void]$reasons.Remove($next[0].path)
@@ -656,9 +789,33 @@ function Get-AssetStorageConsumers([array]$Units) {
     }}
     return ,$consumers
 }
-function Get-AssetStorageRemainingBytes([array]$Units,$Planned,[bool]$Apply) {
+function Get-AssetStorageRemainingBytes([array]$Units,$Planned,[bool]$Apply,[string[]]$Roots=@()) {
+    if(-not $Roots.Count){
+        $remaining=[long]0
+        foreach($unit in $Units){if(([IO.File]::Exists($unit.path)-or[IO.Directory]::Exists($unit.path))-and ($Apply -or -not $Planned.Contains($unit.path))){$remaining+=$unit.bytes}}
+        return $remaining
+    }
+    $excluded=@(if(-not $Apply){foreach($unit in $Units){if($Planned.Contains($unit.path)){$unit.roots}}})
+    $excludedExact=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $excludedAncestors=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach($root in $excluded){[void]$excludedExact.Add($root);[void]$excludedAncestors.Add($root.TrimEnd('\'))}
+    $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $pending=[Collections.Generic.Stack[string]]::new();foreach($root in $Roots){$pending.Push((Get-AssetStoragePath $root))}
     $remaining=[long]0
-    foreach($unit in $Units){if(([IO.File]::Exists($unit.path)-or[IO.Directory]::Exists($unit.path))-and ($Apply -or -not $Planned.Contains($unit.path))){$remaining+=$unit.bytes}}
+    while($pending.Count){
+        $path=$pending.Pop()
+        $excludedPath=$excludedExact.Contains($path)
+        if(-not $excludedPath -and $path.EndsWith('\')){$excludedPath=$excludedAncestors.Contains($path.TrimEnd('\'))}
+        for($cursor=[IO.Path]::GetDirectoryName($path);-not $excludedPath -and $cursor;$cursor=[IO.Path]::GetDirectoryName($cursor)){
+            $excludedPath=$excludedAncestors.Contains($cursor.TrimEnd('\'))
+        }
+        if($excludedPath){continue}
+        if(-not $seen.Add($path)){continue}
+        try{$item=Get-Item -LiteralPath $path -Force -ErrorAction Stop}catch [Management.Automation.ItemNotFoundException]{continue}
+        if($item.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Storage accounting cannot measure a reparse point.'}
+        if($item.PSIsContainer){foreach($child in Get-ChildItem -LiteralPath $path -Force -ErrorAction Stop){$pending.Push($child.FullName)}}
+        else{$remaining+=[long]$item.Length}
+    }
     return $remaining
 }
 function Test-AssetStorageProcess($Identity,$Snapshot) {
@@ -666,8 +823,9 @@ function Test-AssetStorageProcess($Identity,$Snapshot) {
     if(-not $Snapshot.ContainsKey([int]$Identity.pid)){return $false}
     $process=$Snapshot[[int]$Identity.pid]
     if($process.HasExited){return $false}
-    $path=$process.Path;$started=$process.StartTime.ToUniversalTime()
-    if([string]::IsNullOrEmpty($path)){throw 'A live authoring process identity is unavailable.'}
+    $path=$process.Path;$started=$process.StartTime
+    if([string]::IsNullOrEmpty($path) -or $started -isnot [DateTime]){throw 'A live authoring process identity is unavailable.'}
+    $started=$started.ToUniversalTime()
     return $path -eq $Identity.path -and [Math]::Abs(($started-([DateTime]$Identity.startTimeUtc).ToUniversalTime()).TotalSeconds) -lt 1
 }
 function Clear-AssetAuthoringJobs {
@@ -685,17 +843,22 @@ function Clear-AssetAuthoringJobs {
     $directory=Join-Path $context.workspace ('StorageCleanup/'+[guid]::NewGuid().ToString('N'));[void][IO.Directory]::CreateDirectory($directory)
     $journal=Join-Path $directory 'Journal.jsonl';$reportPath=Join-Path $directory 'Result.json'
     $units=[Collections.Generic.List[object]]::new();$retained=[Collections.Generic.List[object]]::new();$actions=[Collections.Generic.List[object]]::new()
+    $accountingRoots=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase);$unresolvedOwners=0
+    $planned=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     $report=[ordered]@{schemaVersion=1;status='planning';scope='Registered completed Unity outputs and imported working copies, with separate ownership roles. Unregistered project data is retained.';
-        project=$context.project;applied=[bool]$Apply;referenceInputs=$references.inputs;retainedBytes=$null;budgetSatisfied=$null;actions=@();retained=@();journal='Journal.jsonl'}
+        project=$context.project;applied=[bool]$Apply;referenceInputs=$references.inputs;retainedBytes=$null;budgetSatisfied=$null;maxRetainedBytes=$MaxRetainedBytes;
+        budgetScope='Registered job/import/session roots, including outputs retained before lifecycle verification; project cache and unregistered data are outside the budget.';
+        registeredRetainedBytes=$null;unverifiedRetainedBytes=$null;storageScope='Project and registered job/import/session roots.';storageBytes=$null;projectCacheBytes=$null;unmanagedRetainedBytes=$null;storageAccountingComplete=$false;actions=@();retained=@();journal='Journal.jsonl'}
     try {
         if([IO.Directory]::Exists($context.jobs)){
             foreach($file in Get-ChildItem -LiteralPath $context.jobs -Filter storage-owner.json -Recurse -File){
-                $data=$null
+                $data=$null;$accounted=$false
                 try{
                     [void](Get-AssetStoragePath $file.FullName)
                     $snapshot=Read-AssetStorageJson $file.FullName;$data=$snapshot.value
                     [void](Assert-AssetStorageOwner $data $file.FullName)
                     if($data.project -ne $context.project){throw 'Unknown job ownership.'}
+                    foreach($root in @($data.jobDirectory,$data.assetDirectory,($data.assetDirectory+'.meta'))){[void]$accountingRoots.Add((Get-AssetStoragePath $root))};$accounted=$true
                     $job=Get-AssetStoragePath $data.jobDirectory;$assets=Get-AssetStoragePath $data.assetDirectory
                     if($data.disposableProject){if($context.project -ne (Join-Path $job 'Project') -or $job -eq $context.workspace -or -not(Test-AssetStorageWithin $job $context.workspace)){throw 'Invalid disposable project ownership.'}}
                     elseif($job -eq $context.jobs -or -not(Test-AssetStorageWithin $job $context.jobs) -or $file.DirectoryName -ne $job){throw 'Invalid job directory ownership.'}
@@ -720,9 +883,9 @@ function Clear-AssetAuthoringJobs {
                     }
                     foreach($unit in $ownerUnits){$units.Add($unit)}
                 }catch{
-                    $failure=$_.Exception.Message
+                    $failure=$_.Exception.Message;if(-not $accounted){$unresolvedOwners++}
                     if($null -ne (Get-Variable -Name data -ErrorAction SilentlyContinue)-and $data -and $data.PSObject.Properties['dependencies']){
-                        foreach($dependency in @($data.dependencies)){try{[void]$references.paths.Add((Get-AssetStoragePath $dependency))}catch{}}
+                        foreach($dependency in @($data.dependencies)){try{[void]$references.paths.Add((Get-AssetStoragePath $dependency -ReadOnlyReference))}catch{$failure+=" Dependency reference could not be resolved: $($_.Exception.Message)"}}
                     }
                     $retained.Add([ordered]@{path=$file.FullName;reason=$failure})
                 }
@@ -732,6 +895,7 @@ function Clear-AssetAuthoringJobs {
         if([IO.Directory]::Exists($sessionRoot)){
             foreach($sessionDirectory in Get-ChildItem -LiteralPath $sessionRoot -Directory){
                 $statePath=Join-Path $sessionDirectory.FullName 'session.json'
+                [void]$accountingRoots.Add($sessionDirectory.FullName)
                 try{
                     [void](Get-AssetStoragePath $statePath)
                     $state=Read-AssetWorkerJson $statePath
@@ -758,11 +922,15 @@ function Clear-AssetAuthoringJobs {
                 foreach($owned in $units){if($owned.identityPath -eq $unit.identityPath){$owned.hardReason='Authoring outputs changed after completion.'}}
             }
         }
-        $selection=Select-AssetStorageUnits $units.ToArray() $references $KeepLatest $MaxAgeDays $MaxRetainedBytes
+        $allPlanned=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        $unverifiedBytes=0L
+        try{$unverifiedBytes=[Math]::Max(0L,[long]((Get-AssetStorageRemainingBytes $units.ToArray() $allPlanned $true @($accountingRoots))-[long]($units|Measure-Object bytes -Sum|ForEach-Object{$_.Sum})))}
+        catch{$report['storageAccountingError']=$_.Exception.Message}
+        $selection=Select-AssetStorageUnits $units.ToArray() $references $KeepLatest $MaxAgeDays $MaxRetainedBytes $unverifiedBytes
         $report.retainedBytes=$selection.retainedBytes;$report.budgetSatisfied=$selection.budgetSatisfied
         foreach($unit in $units){if($selection.reasons.ContainsKey($unit.path)){$retained.Add([ordered]@{path=$unit.path;reason=$selection.reasons[$unit.path]})}}
         $pending=[Collections.Generic.List[object]]::new();foreach($unit in @($units|Where-Object{-not $selection.reasons.ContainsKey($_.path)}|Sort-Object completedUtc,path)){$pending.Add($unit)}
-        $consumers=Get-AssetStorageConsumers $units.ToArray();$planned=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        $consumers=Get-AssetStorageConsumers $units.ToArray()
         while($pending.Count){
             $next=@($pending|Where-Object{
                 $candidate=$_
@@ -793,10 +961,17 @@ function Clear-AssetAuthoringJobs {
         $report.status='complete'
     }catch{$report.status='failed';$report['error']=$_.Exception.Message;throw}
     finally{
-        if($null -ne (Get-Variable -Name planned -ErrorAction SilentlyContinue)){
-            $report.retainedBytes=Get-AssetStorageRemainingBytes $units.ToArray() $planned ([bool]$Apply)
-            $report.budgetSatisfied=if($MaxRetainedBytes -gt 0){$report.retainedBytes -le $MaxRetainedBytes}else{$null}
-        }
+        try{
+            $report.registeredRetainedBytes=Get-AssetStorageRemainingBytes $units.ToArray() $planned ([bool]$Apply) @($units|ForEach-Object roots)
+            $report.retainedBytes=if($accountingRoots.Count){Get-AssetStorageRemainingBytes $units.ToArray() $planned ([bool]$Apply) @($accountingRoots)}else{0L}
+            $report.unverifiedRetainedBytes=[Math]::Max(0L,[long]($report.retainedBytes-$report.registeredRetainedBytes))
+            $report.storageBytes=Get-AssetStorageRemainingBytes $units.ToArray() $planned ([bool]$Apply) (@($context.project)+@($accountingRoots))
+            $report.projectCacheBytes=Get-AssetStorageRemainingBytes $units.ToArray() $planned ([bool]$Apply) @((Join-Path $context.project 'Library'))
+            $report.unmanagedRetainedBytes=[Math]::Max(0L,[long]($report.storageBytes-$report.retainedBytes))
+            $report.storageAccountingComplete=$unresolvedOwners -eq 0 -and -not $report.Contains('storageAccountingError')
+            $report.budgetSatisfied=if($MaxRetainedBytes -gt 0){if($report.retainedBytes -gt $MaxRetainedBytes){$false}elseif($report.storageAccountingComplete){$true}else{$null}}else{$null}
+        }catch{$report['storageAccountingError']=$_.Exception.Message;$report.retainedBytes=$null;$report.budgetSatisfied=$null}
+        $report['unresolvedOwners']=$unresolvedOwners
         $report.actions=@($actions.ToArray());$report.retained=@($retained.ToArray());Write-AssetWorkerJson $reportPath $report
         foreach($process in $processSnapshot.Values){$process.Dispose()}
     }

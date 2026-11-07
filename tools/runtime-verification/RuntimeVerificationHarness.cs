@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Security.Cryptography;
+using System.Threading;
 using UnityEngine;
 using UnityModManagerNet;
 
@@ -24,12 +25,24 @@ public sealed class RuntimeVerificationHarness : MonoBehaviour
     private float nextExecutionSample;
     private string executionPhase = "startup";
     private bool executionObservationFailed;
+    private readonly object executionQueueLock = new object();
+    private readonly Queue<ExecutionObservation> executionQueue = new Queue<ExecutionObservation>();
+    private readonly AutoResetEvent executionSignal = new AutoResetEvent(false);
+    private Thread executionWorker;
+    private bool executionWorkerStopping;
+    private string executionWorkerFailure;
     private int processId;
     private uint mainThreadId;
     private long focusCallbackSequence;
     private long lastFocusLossSequence = -1;
     private long focusLossBoundarySequence = -1;
     private readonly List<Action> startupCleanups = new List<Action>();
+
+    private sealed class ExecutionObservation
+    {
+        internal ExecutionSample Sample;
+        internal UBVerification.DesktopSnapshot Desktop;
+    }
 
     internal static void AssertMainThread()
     {
@@ -546,8 +559,11 @@ public sealed class RuntimeVerificationHarness : MonoBehaviour
 
     private void Finish()
     {
+        if (finished) return;
         RemoveSelectedStartupHooks();
         WriteExecution("finished");
+        StopExecutionObserver();
+        ReportExecutionObserverFailure();
         RestoreBackgroundExecution();
         lock (LogLock)
         {
@@ -588,6 +604,9 @@ public sealed class RuntimeVerificationHarness : MonoBehaviour
     private void OnDestroy()
     {
         WriteExecution("destroy");
+        StopExecutionObserver();
+        executionSignal.Dispose();
+        ReportExecutionObserverFailure();
         RemoveSelectedStartupHooks();
         RestoreBackgroundExecution();
         Application.logMessageReceived -= OnUnityLog;
@@ -606,6 +625,7 @@ public sealed class RuntimeVerificationHarness : MonoBehaviour
     [DataContract]
     private sealed class ExecutionSample
     {
+        [DataMember] public double mainThreadObservationMilliseconds;
         [DataMember] public string utc;
         [DataMember] public string eventName;
         [DataMember] public string phase;
@@ -646,6 +666,7 @@ public sealed class RuntimeVerificationHarness : MonoBehaviour
 
     private void Update()
     {
+        ReportExecutionObserverFailure();
         if (!finished && Time.realtimeSinceStartup >= nextExecutionSample)
         {
             nextExecutionSample = Time.realtimeSinceStartup + 1f;
@@ -666,6 +687,8 @@ public sealed class RuntimeVerificationHarness : MonoBehaviour
         if (!(RuntimeVerificationConfiguration.RequireOtherAppForeground || RuntimeVerificationConfiguration.RequireNonInputDesktop) || executionObservationFailed) return;
         try
         {
+            lock (executionQueueLock) if (executionWorkerStopping) return;
+            var captureStarted = System.Diagnostics.Stopwatch.GetTimestamp();
             var sample = new ExecutionSample {
                 utc = DateTime.UtcNow.ToString("O"), eventName = eventName, phase = executionPhase,
                 processId = processId, frame = Time.frameCount, realtime = Time.realtimeSinceStartup,
@@ -679,29 +702,84 @@ public sealed class RuntimeVerificationHarness : MonoBehaviour
                 graphicsDeviceAvailable = SystemInfo.graphicsDeviceType != UnityEngine.Rendering.GraphicsDeviceType.Null,
                 screenWidth = Screen.width, screenHeight = Screen.height
             };
-            using (var stream = new MemoryStream())
-            {
-                new DataContractJsonSerializer(typeof(ExecutionSample)).WriteObject(stream, sample);
-                File.AppendAllText(Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory, "Runtime-Execution.jsonl"),
-                    System.Text.Encoding.UTF8.GetString(stream.ToArray()) + Environment.NewLine);
-            }
-            var desktop = UBVerification.DesktopReader.ReadCurrent(RuntimeVerificationConfiguration.ExpectedDesktopName,
+            var desktop = UBVerification.DesktopReader.ReadCurrentIdentity(RuntimeVerificationConfiguration.ExpectedDesktopName,
                 "game-main-thread");
-            using (var stream = new MemoryStream())
+            sample.mainThreadObservationMilliseconds = (System.Diagnostics.Stopwatch.GetTimestamp() - captureStarted) *
+                1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            lock (executionQueueLock)
             {
-                new DataContractJsonSerializer(typeof(UBVerification.DesktopSnapshot)).WriteObject(stream, desktop);
-                File.AppendAllText(Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory, "Runtime-Desktop.jsonl"),
-                    System.Text.Encoding.UTF8.GetString(stream.ToArray()) + Environment.NewLine);
+                if (executionQueue.Count >= 64) throw new InvalidOperationException("The execution observation collector did not keep up.");
+                executionQueue.Enqueue(new ExecutionObservation { Sample = sample, Desktop = desktop });
+                if (executionWorker == null)
+                {
+                    executionWorker = new Thread(CollectExecutionObservations) { IsBackground = true, Name = "UB verification window census" };
+                    executionWorker.Start();
+                }
             }
-            if (!UBVerification.DesktopReader.HasNonInputOwnershipProof(desktop, RuntimeVerificationConfiguration.ExpectedDesktopName, processId, mainThreadId) ||
-                RuntimeVerificationConfiguration.RequireOtherAppForeground && (!desktop.complete || !desktop.isolated))
-                throw new InvalidOperationException("The main-thread desktop observation is incomplete or no longer non-input.");
+            executionSignal.Set();
         }
         catch (Exception ex)
         {
             executionObservationFailed = true;
             Log("INCOMPLETE: Main-thread execution observation failed: " + ex.Message);
         }
+    }
+
+    private void CollectExecutionObservations()
+    {
+        try
+        {
+            while (true)
+            {
+                ExecutionObservation observation;
+                lock (executionQueueLock)
+                {
+                    if (executionQueue.Count != 0) observation = executionQueue.Dequeue();
+                    else if (executionWorkerStopping) return;
+                    else observation = null;
+                }
+                if (observation == null) { executionSignal.WaitOne(); continue; }
+                var desktop = observation.Desktop;
+                UBVerification.DesktopReader.CompleteProcessUiObservation(desktop);
+                using (var stream = new MemoryStream())
+                {
+                    new DataContractJsonSerializer(typeof(ExecutionSample)).WriteObject(stream, observation.Sample);
+                    File.AppendAllText(Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory, "Runtime-Execution.jsonl"),
+                        System.Text.Encoding.UTF8.GetString(stream.ToArray()) + Environment.NewLine);
+                }
+                using (var stream = new MemoryStream())
+                {
+                    new DataContractJsonSerializer(typeof(UBVerification.DesktopSnapshot)).WriteObject(stream, desktop);
+                    File.AppendAllText(Path.Combine(RuntimeVerificationConfiguration.EvidenceDirectory, "Runtime-Desktop.jsonl"),
+                        System.Text.Encoding.UTF8.GetString(stream.ToArray()) + Environment.NewLine);
+                }
+                if (!UBVerification.DesktopReader.HasNonInputOwnershipProof(desktop, RuntimeVerificationConfiguration.ExpectedDesktopName, processId, mainThreadId) ||
+                    RuntimeVerificationConfiguration.RequireOtherAppForeground && (!desktop.complete || !desktop.isolated))
+                    throw new InvalidOperationException("The main-thread desktop observation is incomplete or no longer non-input.");
+            }
+        }
+        catch (Exception ex)
+        {
+            lock (executionQueueLock) { executionWorkerFailure = ex.ToString(); executionWorkerStopping = true; }
+        }
+    }
+
+    private void StopExecutionObserver()
+    {
+        Thread worker;
+        lock (executionQueueLock) { executionWorkerStopping = true; worker = executionWorker; }
+        executionSignal.Set();
+        if (worker != null && !worker.Join(3000))
+            lock (executionQueueLock) executionWorkerFailure = "The execution observation collector did not finish within three seconds.";
+    }
+
+    private void ReportExecutionObserverFailure()
+    {
+        string error;
+        lock (executionQueueLock) error = executionWorkerFailure;
+        if (error == null || executionObservationFailed) return;
+        executionObservationFailed = true;
+        Log("INCOMPLETE: Execution observation collector failed: " + error);
     }
 
     private bool RecordDesktopReceipt()

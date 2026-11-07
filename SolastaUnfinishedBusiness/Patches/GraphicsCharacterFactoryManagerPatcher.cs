@@ -13,12 +13,95 @@ using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
 [UsedImplicitly]
 public static class GraphicsCharacterFactoryManagerPatcher
 {
+    private static IEnumerable<MethodBase> CharacterRootCreationMethods()
+    {
+        foreach (var name in new[]
+                 {
+                     "CreateGraphicsCharacterHero", "CreateGraphicsCharacterEffectProxy",
+                     "CreateGraphicsCharacterClassicMonster", "CreateGraphicsCharacterHumanoidMonster",
+                     "RefreshGraphicsCharacterClassicMonsterAsync"
+                 })
+            yield return AccessTools.Method(typeof(GraphicsCharacterFactoryManager), name);
+    }
+
+    [HarmonyPatch]
+    [UsedImplicitly]
+    public static class CreateGraphicsCharacter_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<MethodBase> TargetMethods() => CharacterRootCreationMethods();
+
+        [UsedImplicitly]
+        public static void Postfix(GraphicsCharacterFactoryManager __instance, object[] __args, ref IEnumerator __result)
+        {
+            __result = RacesContext.PrepareCharacterModelCreation(__instance, __result,
+                __args[0] is int requestId ? requestId : -1, __args[0] as GraphicsCharacter);
+        }
+    }
+
+    [HarmonyPatch]
+    [UsedImplicitly]
+    public static class LoadCharacterResources_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<MethodBase> TargetMethods() => CharacterRootCreationMethods()
+            .Append(AccessTools.Method(typeof(GraphicsCharacterFactoryManager), "LoadAndInstantiateBodyPartsFromCollectedData"))
+            .Select(AccessTools.EnumeratorMoveNext);
+
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var selected = AccessTools.Method(typeof(RacesContext), nameof(RacesContext.LoadCharacterModelResourceAsync));
+            var wrapped = AccessTools.Method(typeof(RacesContext), nameof(RacesContext.LoadCharacterModelResource));
+            foreach (var instruction in instructions)
+            {
+                if (instruction.operand is MethodInfo { IsGenericMethod: true } method &&
+                    method.DeclaringType == typeof(Addressables) && method.Name == nameof(Addressables.LoadAssetAsync) &&
+                    method.GetParameters().Length == 1 && method.GetParameters()[0].ParameterType == typeof(object))
+                    instruction.operand = selected.MakeGenericMethod(method.GetGenericArguments());
+                else if (instruction.operand is MethodInfo wrapper && wrapper.Name == "LoadAsset" &&
+                         wrapper.DeclaringType is { IsGenericType: true } wrapperType &&
+                         wrapperType.GetGenericTypeDefinition() == typeof(GraphicsCharacterFactoryManager.LoadAssetWrapper<>))
+                    instruction.operand = wrapped.MakeGenericMethod(wrapperType.GetGenericArguments());
+                yield return instruction;
+            }
+        }
+    }
+
+    [HarmonyPatch(typeof(GraphicsCharacterFactoryManager), "LoadAndInstantiateBodyPartsFromCollectedData")]
+    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
+    [UsedImplicitly]
+    public static class LoadAndInstantiateBodyPartsFromCollectedData_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GraphicsCharacterFactoryManager __instance,
+            [HarmonyArgument(0)] GraphicsCharacter graphicsCharacter, ref IEnumerator __result)
+        {
+            __result = RacesContext.PrepareCharacterModelSources(__instance, graphicsCharacter, __result);
+        }
+    }
+
+    [HarmonyPatch(typeof(GraphicsCharacterFactoryManager), "InstantiateBodyPart")]
+    [UsedImplicitly]
+    public static class InstantiateBodyPart_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(GraphicsCharacterFactoryManager __instance,
+            [HarmonyArgument(0)] GraphicsCharacter graphicsCharacter,
+            [HarmonyArgument(2)] GraphicsCharacterDefinitions.BodyPart bodyPart,
+            [HarmonyArgument(3)] bool shape)
+        {
+            RacesContext.BindCharacterPartParameters(__instance, graphicsCharacter, bodyPart, shape);
+        }
+    }
+
     [HarmonyPatch(typeof(GraphicsCharacterFactoryManager), nameof(GraphicsCharacterFactoryManager.DestroyBodyPart))]
     [UsedImplicitly]
     public static class DestroyBodyPart_Patch
@@ -46,9 +129,58 @@ public static class GraphicsCharacterFactoryManagerPatcher
         }
 
         [UsedImplicitly]
-        public static void Postfix([HarmonyArgument(0)] GraphicsCharacter graphicsCharacter)
+        public static void Postfix([HarmonyArgument(0)] GraphicsCharacter graphicsCharacter,
+            [HarmonyArgument(1)] MorphotypeElementDefinition.ElementCategory category)
         {
+            RefreshNativeFallbackHairColor(graphicsCharacter, category);
             RacesContext.RefreshCharacterModelMaterials(graphicsCharacter);
+        }
+
+        private static void RefreshNativeFallbackHairColor(GraphicsCharacter graphics,
+            MorphotypeElementDefinition.ElementCategory category)
+        {
+            if (category != MorphotypeElementDefinition.ElementCategory.HairColor || !graphics ||
+                graphics.CharacterType == GraphicsCharacterDefinitions.CharacterType.ActionChainGhost ||
+                graphics?.RulesetCharacter is not RulesetCharacterHero hero ||
+                !hero.MorphotypeElements.TryGetValue(category, out var selected))
+            {
+                return;
+            }
+
+            var definition = DatabaseRepository.GetDatabase<MorphotypeElementDefinition>().GetElement(selected, false);
+            var parts = graphics.ShapeMaterialsPerBodySlot;
+            if (definition == null || parts == null)
+            {
+                return;
+            }
+
+            var color = Shader.PropertyToID("_Color");
+            var main = Shader.PropertyToID("_MainTex");
+            var metallic = Shader.PropertyToID("_Metallic");
+            foreach (var part in new[] { GraphicsCharacterDefinitions.BodyPart.Hair, GraphicsCharacterDefinitions.BodyPart.Beard })
+            {
+                var index = (int)part;
+                if (index >= parts.Length || parts[index] == null)
+                {
+                    continue;
+                }
+
+                foreach (var material in parts[index])
+                {
+                    // Native instancing owns each material. Its shader-name test omits
+                    // untextured Standard LOD placeholders from the native dye sets.
+                    // Keep textured surfaces, metallic ornaments and native dye owners.
+                    if (!material || graphics.HairMaterials.Contains(material) || graphics.BeardMaterials.Contains(material) ||
+                        !material.shader || material.shader.name != "Standard" || !material.HasProperty(color) ||
+                        !material.HasProperty(main) || material.GetTexture(main) ||
+                        !material.HasProperty(metallic) || material.GetFloat(metallic) != 0f)
+                    {
+                        continue;
+                    }
+
+                    material.SetColor(color, definition.MainColor);
+                }
+            }
         }
     }
 
@@ -526,24 +658,6 @@ public static class GraphicsCharacterFactoryManagerPatcher
         public static bool Prefix(GraphicsCharacterMonster __instance)
         {
             return !ApplySimulacrumWeaponStance(__instance);
-        }
-    }
-
-    [HarmonyPatch(typeof(CharacterViewport), "GraphicsCharacterCreated")]
-    [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
-    [UsedImplicitly]
-    public static class CharacterViewportGraphicsCharacterCreated_Patch
-    {
-        [UsedImplicitly]
-        public static void Postfix(GraphicsCharacter __0)
-        {
-            if (__0 is GraphicsCharacterMonster
-                {
-                    RulesetCharacterMonster: RulesetCharacterSimulacrum
-                } graphicsCharacter)
-            {
-                ApplySimulacrumWeaponStance(graphicsCharacter);
-            }
         }
     }
 

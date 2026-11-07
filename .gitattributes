@@ -1,3 +1,7 @@
 # Preserve validated runtime resource bytes across checkouts.
 /SolastaUnfinishedBusiness/BlenderModels/**/*.json -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 /SolastaUnfinishedBusiness/BlenderModels/**/*.bundle -text
+
+# Authoring recipes verify these source assets by their exact byte hashes.
+/tools/blender-models/CharacterHair/*.cginc -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+/tools/blender-models/CharacterHair/*.shader -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

@@ -67,4 +67,6 @@ UI/&PermanentDefenseConditionalFormat={0} ({1})
 UI/&PermanentDefenseWhileRaging=While raging
 UI/&PermanentDefenseWithoutHeavyArmor=While not wearing heavy armor
 UI/&PermanentDefenseCreatureSourceFormat=from {0}
+ModUi/&CharacterModelsDownloadProgress=Downloading character models: {0}%
+ModUi/&CharacterModelsDownloadFailed=Character model download failed: {0}\nDisable and enable custom character models to retry.
 Feature/&ListSeparatorTitle=, 

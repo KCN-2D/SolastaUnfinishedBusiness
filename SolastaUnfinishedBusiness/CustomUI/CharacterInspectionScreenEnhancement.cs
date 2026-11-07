@@ -28,6 +28,7 @@ internal static class CharacterInspectionScreenEnhancement
     {
         internal RulesetCharacterHero Hero;
         internal ProficiencyBaseItem.OnItemClickedHandler Callback;
+        internal ProficienciesSubPanel[] Panels;
         internal int Frame;
         internal bool ExtendedProficiencies;
         internal bool PermanentDefenses;
@@ -39,7 +40,27 @@ internal static class CharacterInspectionScreenEnhancement
 
     internal static int GetInitialProficiencyItemCount(int catalogCount, ProficienciesSubPanel panel)
     {
-        return IsInspectionProficiencyPanel(panel) ? 0 : catalogCount;
+        return IsInspectionProficiencyPanel(panel) || IsNativeCreationProficiencyPanel(panel) ? 0 : catalogCount;
+    }
+
+    internal static bool IsNativeCreationProficiencyPanel(ProficienciesSubPanel panel)
+    {
+        var owner = panel ? panel.GetComponentInParent<ProficienciesPanel>() : null;
+        var stage = panel ? panel.GetComponentInParent<CharacterStageProficiencySelectionPanel>() : null;
+        return owner && stage && stage.proficienciesPanel == owner &&
+               owner.SubPanels != null && owner.SubPanels.Contains(panel);
+    }
+
+    internal static bool HasCreationSelectionContext(ProficienciesSubPanel panel, RulesetCharacterHero hero)
+    {
+        if (hero == null || !IsNativeCreationProficiencyPanel(panel))
+        {
+            return false;
+        }
+
+        var owner = panel.GetComponentInParent<ProficienciesPanel>();
+        var stage = panel.GetComponentInParent<CharacterStageProficiencySelectionPanel>();
+        return ReferenceEquals(owner.InspectedCharacter, hero) && ReferenceEquals(stage.currentHero, hero);
     }
 
     internal static void InvalidateProficiencyBindRefresh(ProficienciesPanel panel)
@@ -49,8 +70,14 @@ internal static class CharacterInspectionScreenEnhancement
 
     internal static void CompleteProficiencyBindRefresh(ProficienciesPanel panel)
     {
-        if (panel.InspectedCharacter == null || panel.subPanels.Length == 0 ||
-            !IsInspectionProficiencyPanel(panel.subPanels[0]))
+        if (panel.InspectedCharacter == null || panel.subPanels.Length == 0)
+        {
+            return;
+        }
+
+        var selection = panel.GetComponentInParent<CharacterStageProficiencySelectionPanel>();
+        if (!IsInspectionProficiencyPanel(panel.subPanels[0]) &&
+            (!selection || selection.proficienciesPanel != panel))
         {
             return;
         }
@@ -58,6 +85,7 @@ internal static class CharacterInspectionScreenEnhancement
         var state = ProficiencyBindRefreshes.GetValue(panel, _ => new ProficiencyBindRefresh());
         state.Hero = panel.InspectedCharacter;
         state.Callback = panel.onItemClicked;
+        state.Panels = panel.subPanels.ToArray();
         state.Frame = Time.frameCount;
         state.ExtendedProficiencies = Main.Settings.EnableExtendedProficienciesPanelDisplay;
         state.PermanentDefenses = Main.Settings.EnablePermanentDefensesPanelDisplay;
@@ -69,9 +97,15 @@ internal static class CharacterInspectionScreenEnhancement
         var wasBound = ProficiencyBindRefreshes.TryGetValue(panel, out var state);
         ProficiencyBindRefreshes.Remove(panel);
 
+        var samePanels = wasBound && state.Panels.Length == panel.subPanels.Length;
+        for (var index = 0; samePanels && index < state.Panels.Length; index++)
+        {
+            samePanels = ReferenceEquals(state.Panels[index], panel.subPanels[index]);
+        }
+
         // Native Bind has already refreshed every section before SetState. Consume
         // that work only for its immediate Show; all later and explicit refreshes run.
-        if (wasBound && state.Frame == Time.frameCount && ReferenceEquals(state.Hero, panel.InspectedCharacter) &&
+        if (wasBound && samePanels && state.Frame == Time.frameCount && ReferenceEquals(state.Hero, panel.InspectedCharacter) &&
             ReferenceEquals(state.Callback, panel.onItemClicked) &&
             state.ExtendedProficiencies == Main.Settings.EnableExtendedProficienciesPanelDisplay &&
             state.PermanentDefenses == Main.Settings.EnablePermanentDefensesPanelDisplay)

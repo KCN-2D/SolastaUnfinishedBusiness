@@ -35,7 +35,6 @@ if($CyclesBackend -or $CyclesDeviceId){
     }
     $cyclesRequest=[ordered]@{backend=$CyclesBackend.ToUpperInvariant();deviceId=$CyclesDeviceId}
 }
-$repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $workbench = Join-Path $PSScriptRoot 'workspace'
 . (Join-Path $PSScriptRoot 'UnityAssetBuild/BackgroundEditor.ps1')
 function Clear-BlenderAuthoringOutputs {
@@ -143,7 +142,7 @@ function Clear-BlenderAuthoringOutputs {
             }catch{
                 $failure=$_.Exception.Message
                 if($null -ne (Get-Variable -Name data -ErrorAction SilentlyContinue)-and $data -and $data.PSObject.Properties['dependencies']){
-                    foreach($dependency in @($data.dependencies)){try{[void]$references.paths.Add((Get-AssetStoragePath $dependency -ReadOnlyReference))}catch{}}
+                    foreach($dependency in @($data.dependencies)){try{[void]$references.paths.Add((Get-AssetStoragePath $dependency -ReadOnlyReference))}catch{$failure+=" Dependency reference could not be resolved: $($_.Exception.Message)"}}
                 }
                 $retained.Add([ordered]@{path=$manifest;reason=$failure})
             }
@@ -409,12 +408,13 @@ catch {
     if ($stage -and $stage -notin $run.completed_stages) {
         $failedReport = Join-Path $runDirectory "reports\$stage.json"
         $measurements = $null
+        $reportReadError = $null
         if (Test-Path -LiteralPath $failedReport -PathType Leaf) {
-            try { $measurements = Get-Content -LiteralPath $failedReport -Raw | ConvertFrom-Json } catch { }
+            try { $measurements = Get-Content -LiteralPath $failedReport -Raw | ConvertFrom-Json } catch { $reportReadError=$_.Exception.Message }
         }
         $stageTimer.Stop()
         $run.stage_results += [ordered]@{stage=$stage;status='failed';report=$failedReport;
-            log=$stageLog;elapsed_seconds=$stageTimer.Elapsed.TotalSeconds;measurements=$measurements}
+            log=$stageLog;elapsed_seconds=$stageTimer.Elapsed.TotalSeconds;measurements=$measurements;report_read_error=$reportReadError}
     }
     throw
 }

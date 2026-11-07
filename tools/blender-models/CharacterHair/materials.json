@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "bundleName": "source_groom_native_hair_clean.materials.bundle",
+  "assets": [
+    {
+      "path": "NativeFamilyFx.cginc",
+      "sha256": "5d08fcf4057d37766e15f09d5146cca4379655883f443a4ef5d1bf70d4440773"
+    },
+    {
+      "path": "NativeHairSourceGroom.shader",
+      "sha256": "fda7fa3b933d70d827e76590542683d9a0efb7d597107aaa726239d37ba02784"
+    },
+    {
+      "path": "SourceGroom.cginc",
+      "sha256": "7f22fc7d6edee53bc36af965956bd8db3cd7253c45104f32c81e613d4c911875"
+    },
+    {
+      "path": "SourceGroomProgram.cginc",
+      "sha256": "4a7de109226fa9480879ad59d77e1df6ea45c4643a7dbe160bb656456bae109c"
+    }
+  ],
+  "materials": [
+    {
+      "name": "SourceGroomNativeHair",
+      "shader": "NativeHairSourceGroom.shader",
+      "requiredPasses": [
+        "FORWARD",
+        "ShadowCaster"
+      ],
+      "renderQueue": 2450,
+      "properties": [
+        {
+          "name": "_NativePigmentMean",
+          "kind": "float",
+          "value": 0
+        },
+        {
+          "name": "_HP_Normal_Intensity",
+          "kind": "float",
+          "value": 1
+        },
+        {
+          "name": "_Normal_Intensity",
+          "kind": "float",
+          "value": 0.5
+        },
+        {
+          "name": "_Cutoff",
+          "kind": "float",
+          "value": 0.5
+        },
+        {
+          "name": "_CharacterHeight",
+          "kind": "float",
+          "value": 1
+        },
+        {
+          "name": "_FiberSmoothness",
+          "kind": "float",
+          "value": 0.42
+        },
+        {
+          "name": "_FiberAnisotropy",
+          "kind": "float",
+          "value": 0.65
+        },
+        {
+          "name": "_MacroNormalStrength",
+          "kind": "float",
+          "value": 0.12
+        },
+        {
+          "name": "_BakedColorDetail",
+          "kind": "float",
+          "value": 0.55
+        },
+        {
+          "name": "_BakedColorMipBias",
+          "kind": "float",
+          "value": 0.5
+        },
+        {
+          "name": "_FiberColorStrength",
+          "kind": "float",
+          "value": 0.18
+        },
+        {
+          "name": "_FiberAlphaCutoff",
+          "kind": "float",
+          "value": 0
+        },
+        {
+          "name": "_CoreFineStrength",
+          "kind": "float",
+          "value": 1
+        },
+        {
+          "name": "_AiryVisibility",
+          "kind": "float",
+          "value": 1
+        },
+        {
+          "name": "_AiryDensity",
+          "kind": "float",
+          "value": 1
+        },
+        {
+          "name": "_CoreResponse",
+          "kind": "float",
+          "value": 1
+        },
+        {
+          "name": "_FineAlphaCutoff",
+          "kind": "float",
+          "value": 0.35
+        },
+        {
+          "name": "_CoreReliefStrength",
+          "kind": "float",
+          "value": 0.12
+        },
+        {
+          "name": "_FineReliefStrength",
+          "kind": "float",
+          "value": 0.35
+        },
+        {
+          "name": "_CoreGroomPigmentStrength",
+          "kind": "float",
+          "value": 0.1
+        },
+        {
+          "name": "_NativeCoreCull",
+          "kind": "float",
+          "value": 0
+        },
+        {
+          "name": "_UBSurfaceProjection",
+          "kind": "float",
+          "value": 0.0
+        }
+      ]
+    }
+  ]
+}

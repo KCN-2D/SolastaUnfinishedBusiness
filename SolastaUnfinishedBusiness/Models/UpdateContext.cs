@@ -1,14 +1,17 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using JetBrains.Annotations;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -44,6 +47,312 @@ internal static class UpdateContext
     private static bool Unloading { get; set; }
 
     private static bool ShouldUpdate;
+
+    private static CancellationTokenSource _characterModelDownloadCancellation;
+    private static readonly object CharacterModelDownloadGate = new();
+    private static readonly SemaphoreSlim CharacterModelContentGate = new(1, 1);
+    private static long _characterModelDownloadBytes, _characterModelDownloadTotal;
+    private static volatile bool _characterModelsDownloading;
+    internal static bool CharacterModelsDownloading => _characterModelsDownloading;
+    internal static int CharacterModelsDownloadProgress => (int)Math.Min(100,
+        100d * Interlocked.Read(ref _characterModelDownloadBytes) /
+        Math.Max(1, Interlocked.Read(ref _characterModelDownloadTotal)));
+
+    internal static void CancelCharacterModelDownload()
+    {
+        lock (CharacterModelDownloadGate) _characterModelDownloadCancellation?.Cancel();
+    }
+
+    private static string ContentSha(string path)
+    {
+        using var input = File.OpenRead(path);
+        using var hash = SHA256.Create();
+        return BitConverter.ToString(hash.ComputeHash(input)).Replace("-", "").ToLowerInvariant();
+    }
+
+    private static void AssertContentLeaf(string name)
+    {
+        if (string.IsNullOrEmpty(name) || name != Path.GetFileName(name) ||
+            name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || name.EndsWith(".") || name.EndsWith(" "))
+            throw new InvalidDataException("Invalid character content filename.");
+    }
+
+    private static void AssertContentPath(string path)
+    {
+        for (var current = Path.GetFullPath(path); current != null; current = Path.GetDirectoryName(current))
+            if ((File.Exists(current) || Directory.Exists(current)) &&
+                (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidDataException("Character content traverses a reparse point.");
+    }
+
+    private static string[] OwnedCharacterContentEntries(string directory)
+    {
+        AssertContentPath(directory);
+        var marker = JObject.Parse(File.ReadAllText(Path.Combine(directory, "ContentOwner.json")));
+        if ((string)marker["kind"] != "SolastaUnfinishedBusiness.CharacterModels" || (int?)marker["schemaVersion"] != 1)
+            throw new InvalidDataException("Unknown character content directory.");
+        var names = new HashSet<string>(((JArray)marker["files"]).Values<string>(), StringComparer.OrdinalIgnoreCase)
+            { "ContentOwner.json", "ContentOwner.writing", "CharacterModels.manifest.json", "CharacterModels.packs.json", "Download.partial" };
+        foreach (var name in names) AssertContentLeaf(name);
+        var entries = Directory.GetFileSystemEntries(directory);
+        foreach (var path in entries)
+            if (!File.Exists(path) || !names.Contains(Path.GetFileName(path)) ||
+                (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidDataException("Unowned files occupy a character content directory.");
+        return entries;
+    }
+
+    private static void RemoveOwnedCharacterContent(string directory)
+    {
+        if (!Directory.Exists(directory)) return;
+        foreach (var path in OwnedCharacterContentEntries(directory)) File.Delete(path);
+        Directory.Delete(directory);
+    }
+
+    private static void WriteCharacterContentOwner(string directory, JObject value)
+    {
+        var path = Path.Combine(directory, "ContentOwner.json");
+        var temporary = Path.Combine(directory, "ContentOwner.writing");
+        File.WriteAllText(temporary, value.ToString());
+        if (File.Exists(path)) File.Replace(temporary, path, null);
+        else File.Move(temporary, path);
+    }
+
+    private static void DownloadCharacterModelPack(Uri uri, string path, long bytes, CancellationToken cancellation)
+    {
+        var request = (HttpWebRequest)WebRequest.Create(uri);
+        request.UserAgent = "SolastaUnfinishedBusiness";
+        request.Timeout = 30000;
+        request.ReadWriteTimeout = 30000;
+        using var registration = cancellation.Register(request.Abort);
+        using var response = request.GetResponse();
+        using var input = response.GetResponseStream();
+        using var output = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 131072);
+        var buffer = new byte[131072];
+        long total = 0;
+        int count;
+        while ((count = input.Read(buffer, 0, buffer.Length)) > 0)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            total += count;
+            if (total > bytes) throw new InvalidDataException("A character content pack exceeds its declared size.");
+            output.Write(buffer, 0, count);
+            Interlocked.Add(ref _characterModelDownloadBytes, count);
+        }
+        if (total != bytes) throw new InvalidDataException("A character content pack is incomplete.");
+    }
+
+    // Runs on the catalog worker. Verified content survives UMM updates beside
+    // the mod directory, and one complete generation is exposed to rendering.
+    internal static string PrepareCharacterModelFiles(string directory, CancellationToken cancellation)
+    {
+        if (!File.Exists(Path.Combine(directory, "CharacterModels.packs.json"))) return directory;
+        CancellationTokenSource source;
+        lock (CharacterModelDownloadGate)
+        {
+            if (Unloading) throw new OperationCanceledException();
+            source = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
+            _characterModelDownloadCancellation = source;
+        }
+        var entered = false;
+        try
+        {
+            CharacterModelContentGate.Wait(source.Token);
+            entered = true;
+            return InstallCharacterModelFiles(directory, source.Token);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception exception)
+        {
+            if (source.IsCancellationRequested) throw new OperationCanceledException(source.Token);
+            QueueMainThread(() => ShowMessage(
+                Gui.Format("ModUi/&CharacterModelsDownloadFailed", exception.Message), "Message/&MessageOkTitle",
+                title: "Setting/&EnableCustomFacesTitle", severity: MessageModal.Severity.Serious3), UpdateGeneration);
+            throw;
+        }
+        finally
+        {
+            if (entered)
+            {
+                _characterModelsDownloading = false;
+                CharacterModelContentGate.Release();
+            }
+            lock (CharacterModelDownloadGate)
+            {
+                if (ReferenceEquals(_characterModelDownloadCancellation, source)) _characterModelDownloadCancellation = null;
+                source.Dispose();
+            }
+        }
+    }
+
+    private static string InstallCharacterModelFiles(string directory, CancellationToken cancellation)
+    {
+        cancellation.ThrowIfCancellationRequested();
+        const string catalogName = "CharacterModels.manifest.json";
+        const string metadataName = "CharacterModels.packs.json";
+        directory = Path.GetFullPath(directory);
+        AssertContentPath(directory);
+        var metadataPath = Path.Combine(directory, metadataName);
+        var specification = JObject.Parse(File.ReadAllText(metadataPath));
+        var identity = ContentSha(metadataPath);
+        var catalog = JObject.Parse(File.ReadAllText(Path.Combine(directory, catalogName)));
+        if ((int?)specification["schemaVersion"] != 1 || (int?)catalog["schemaVersion"] != 3 ||
+            ContentSha(Path.Combine(directory, catalogName)) != (string)specification["catalogSha256"])
+            throw new InvalidDataException("Character content metadata and catalog differ.");
+        var files = new Dictionary<string, JObject>(StringComparer.OrdinalIgnoreCase);
+        var declarations = ((JArray)catalog["bundles"]).OfType<JObject>()
+            .ToDictionary(row => (string)row["file"], row => (string)row["sha256"], StringComparer.OrdinalIgnoreCase);
+        foreach (var row in ((JArray)specification["files"]).OfType<JObject>())
+        {
+            var name = (string)row["file"];
+            AssertContentLeaf(name);
+            if (!name.EndsWith(".bundle", StringComparison.Ordinal) || (long?)row["bytes"] is not > 0 ||
+                !declarations.TryGetValue(name, out var hash) || hash != (string)row["sha256"] ||
+                !Regex.IsMatch(hash, "^[a-f0-9]{64}$"))
+                throw new InvalidDataException("Invalid character content declaration.");
+            files.Add(name, row);
+        }
+        if (files.Count != declarations.Count || files.Count == 0)
+            throw new InvalidDataException("Incomplete character content declarations.");
+        var packs = ((JArray)specification["packs"]).OfType<JObject>().ToArray();
+        var packedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pack in packs)
+        {
+            AssertContentLeaf((string)pack["file"]);
+            if (!Regex.IsMatch((string)pack["file"], "^CharacterModels-[0-9]{2}\\.zip$") ||
+                (long?)pack["bytes"] is not > 0 || (long?)pack["bytes"] > 1024L * 1024 * 1024 ||
+                !Regex.IsMatch((string)pack["sha256"] ?? "", "^[a-f0-9]{64}$"))
+                throw new InvalidDataException("Invalid character content pack.");
+            foreach (var name in ((JArray)pack["files"]).Values<string>())
+                if (!files.ContainsKey(name) || !packedFiles.Add(name))
+                    throw new InvalidDataException("Missing or duplicate packed character file.");
+        }
+        if (!packedFiles.SetEquals(files.Keys)) throw new InvalidDataException("The character pack closure is incomplete.");
+        var baseUri = new Uri((string)specification["baseUrl"], UriKind.Absolute);
+        if (baseUri.Scheme != Uri.UriSchemeHttps || baseUri.Host != "github.com" ||
+            !baseUri.AbsolutePath.StartsWith("/KCN-2D/SolastaUnfinishedBusiness/releases/download/", StringComparison.Ordinal) ||
+            !baseUri.AbsolutePath.EndsWith("/", StringComparison.Ordinal) || baseUri.Query.Length != 0 || baseUri.Fragment.Length != 0)
+            throw new InvalidDataException("Invalid character content release address.");
+        var modDirectory = Directory.GetParent(Directory.GetParent(directory)!.FullName)!.FullName;
+        var cacheRoot = Path.Combine(Directory.GetParent(modDirectory)!.FullName, "SolastaUnfinishedBusinessContent");
+        var installed = Path.Combine(cacheRoot, "CharacterModels");
+        var staging = Path.Combine(cacheRoot, "CharacterModels.installing");
+        var previous = Path.Combine(cacheRoot, "CharacterModels.previous");
+        AssertContentPath(cacheRoot);
+        var owner = new JObject { ["schemaVersion"] = 1, ["kind"] = "SolastaUnfinishedBusiness.CharacterModels",
+            ["distributionSha256"] = identity, ["files"] = new JArray(files.Keys), ["completed"] = false };
+        bool Complete(string folder)
+        {
+            var path = Path.Combine(folder, "ContentOwner.json");
+            return File.Exists(path) && JObject.Parse(File.ReadAllText(path)) is var state &&
+                   (string)state["kind"] == "SolastaUnfinishedBusiness.CharacterModels" &&
+                   (string)state["distributionSha256"] == identity && (bool?)state["completed"] == true &&
+                   File.Exists(Path.Combine(folder, catalogName)) &&
+                   ContentSha(Path.Combine(folder, catalogName)) == (string)specification["catalogSha256"] &&
+                   files.All(pair => File.Exists(Path.Combine(folder, pair.Key)) &&
+                       new FileInfo(Path.Combine(folder, pair.Key)).Length == (long)pair.Value["bytes"]);
+        }
+        cancellation.ThrowIfCancellationRequested();
+        if (Complete(installed)) return installed;
+        if (!Directory.Exists(installed) && Directory.Exists(previous)) Directory.Move(previous, installed);
+        if (Directory.Exists(staging))
+        {
+            _ = OwnedCharacterContentEntries(staging);
+            var marker = JObject.Parse(File.ReadAllText(Path.Combine(staging, "ContentOwner.json")));
+            if ((string)marker["distributionSha256"] != identity) RemoveOwnedCharacterContent(staging);
+        }
+        Directory.CreateDirectory(staging);
+        WriteCharacterContentOwner(staging, owner);
+        File.Copy(Path.Combine(directory, catalogName), Path.Combine(staging, catalogName), true);
+        File.Copy(metadataPath, Path.Combine(staging, metadataName), true);
+        bool Valid(string folder, string name) => File.Exists(Path.Combine(folder, name)) &&
+            new FileInfo(Path.Combine(folder, name)).Length == (long)files[name]["bytes"] &&
+            ContentSha(Path.Combine(folder, name)) == (string)files[name]["sha256"];
+        foreach (var pair in files)
+        {
+            cancellation.ThrowIfCancellationRequested();
+            var destination = Path.Combine(staging, pair.Key);
+            AssertContentPath(destination);
+            if (Valid(staging, pair.Key)) continue;
+            if (File.Exists(destination)) File.Delete(destination);
+            foreach (var seed in new[] { directory, installed })
+            {
+                AssertContentPath(Path.Combine(seed, pair.Key));
+                if (!Valid(seed, pair.Key)) continue;
+                File.Copy(Path.Combine(seed, pair.Key), destination);
+                break;
+            }
+        }
+        _characterModelsDownloading = true;
+        Interlocked.Exchange(ref _characterModelDownloadBytes, 0);
+        Interlocked.Exchange(ref _characterModelDownloadTotal, packs.Sum(pack => (long)pack["bytes"]));
+        var download = Path.Combine(staging, "Download.partial");
+        try
+        {
+            foreach (var pack in packs)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                var expected = new HashSet<string>(((JArray)pack["files"]).Values<string>(), StringComparer.OrdinalIgnoreCase);
+                if (expected.All(name => Valid(staging, name)))
+                {
+                    Interlocked.Add(ref _characterModelDownloadBytes, (long)pack["bytes"]);
+                    continue;
+                }
+                DownloadCharacterModelPack(new Uri(baseUri, (string)pack["file"]), download, (long)pack["bytes"], cancellation);
+                if (ContentSha(download) != (string)pack["sha256"]) throw new InvalidDataException("Character pack checksum differs.");
+                using (var archive = ZipFile.OpenRead(download))
+                {
+                    var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var entry in archive.Entries)
+                    {
+                        cancellation.ThrowIfCancellationRequested();
+                        AssertContentLeaf(entry.FullName);
+                        if (!expected.Contains(entry.FullName) || !seen.Add(entry.FullName) ||
+                            entry.Length != (long)files[entry.FullName]["bytes"])
+                            throw new InvalidDataException("Unexpected character pack entry.");
+                        if (Valid(staging, entry.FullName)) continue;
+                        var destination = Path.Combine(staging, entry.FullName);
+                        if (File.Exists(destination)) File.Delete(destination);
+                        using var input = entry.Open();
+                        using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                        var buffer = new byte[131072];
+                        long written = 0;
+                        int count;
+                        while ((count = input.Read(buffer, 0, buffer.Length)) > 0)
+                        {
+                            cancellation.ThrowIfCancellationRequested();
+                            written += count;
+                            if (written > entry.Length) throw new InvalidDataException("Oversized character pack entry.");
+                            output.Write(buffer, 0, count);
+                        }
+                    }
+                    if (!seen.SetEquals(expected)) throw new InvalidDataException("A character pack omits declared files.");
+                }
+                if (!expected.All(name => Valid(staging, name))) throw new InvalidDataException("Extracted character checksums differ.");
+                File.Delete(download);
+            }
+            cancellation.ThrowIfCancellationRequested();
+            owner["completed"] = true;
+            WriteCharacterContentOwner(staging, owner);
+            RemoveOwnedCharacterContent(previous);
+            if (Directory.Exists(installed)) Directory.Move(installed, previous);
+            try { Directory.Move(staging, installed); }
+            catch
+            {
+                if (Directory.Exists(previous) && !Directory.Exists(installed)) Directory.Move(previous, installed);
+                throw;
+            }
+            RemoveOwnedCharacterContent(previous);
+            foreach (var name in files.Keys)
+            {
+                var legacy = Path.Combine(directory, name);
+                AssertContentPath(legacy);
+                if (File.Exists(legacy)) File.Delete(legacy);
+            }
+            return installed;
+        }
+        finally { if (File.Exists(download)) File.Delete(download); }
+    }
 
     internal static void Load()
     {
@@ -84,6 +393,7 @@ internal static class UpdateContext
 
     internal static void Unload()
     {
+        CancelCharacterModelDownload();
         Unloading = true;
         NextUpdateGeneration();
         InProgress = false;

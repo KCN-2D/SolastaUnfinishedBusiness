@@ -1,3 +1,5 @@
+using System.Threading.Tasks;
+using System.Threading;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -649,12 +651,206 @@ public static class CustomModels
                  renderer.sharedMesh == CurrentRuntimeMesh && actual.SequenceEqual(runtimeBones));
         }
 
+        internal static Dictionary<int, BoneWeight> ReadSkinWeights(Mesh mesh, IEnumerable<int> vertices)
+        {
+            var selected = vertices.ToHashSet();
+            var result = new Dictionary<int, BoneWeight>();
+            var counts = mesh.GetBonesPerVertex(); var weights = mesh.GetAllBoneWeights(); var boneCount = mesh.bindposes.Length;
+            if (counts.Length != mesh.vertexCount || selected.Any(index => index < 0 || index >= counts.Length))
+                throw new InvalidOperationException("A native skin has incomplete vertex influence counts.");
+            var offset = 0;
+            for (var vertex = 0; vertex < counts.Length; vertex++)
+            {
+                var count = counts[vertex];
+                if (offset > weights.Length - count)
+                    throw new InvalidOperationException("A native skin has an incomplete influence span.");
+                if (selected.Contains(vertex))
+                {
+                    if (count is < 1 or > 4)
+                        throw new InvalidOperationException("A native skin has unsupported canonical influence support.");
+                    var indices = new int[4]; var values = new float[4];
+                    for (var influence = 0; influence < count; influence++)
+                    {
+                        var value = weights[offset + influence];
+                        if (float.IsNaN(value.weight) || float.IsInfinity(value.weight) || value.weight <= 0f ||
+                            value.boneIndex < 0 || value.boneIndex >= boneCount)
+                            throw new InvalidOperationException("A native skin has an invalid canonical bone influence.");
+                        indices[influence] = value.boneIndex; values[influence] = value.weight;
+                    }
+                    result.Add(vertex, new BoneWeight { boneIndex0 = indices[0], boneIndex1 = indices[1], boneIndex2 = indices[2], boneIndex3 = indices[3],
+                        weight0 = values[0], weight1 = values[1], weight2 = values[2], weight3 = values[3] });
+                }
+                offset += count;
+            }
+            if (offset != weights.Length || result.Count != selected.Count)
+                throw new InvalidOperationException("A native skin has unused or missing canonical influences.");
+            return result;
+        }
+
+        internal static Dictionary<int, BoneWeight> EncodeSkinWeights(Mesh mesh, IReadOnlyDictionary<int, BoneWeight> intended)
+        {
+            if (intended.Count == 0) return [];
+            var vertices = intended.Keys.OrderBy(index => index).ToArray();
+            var boneCount = mesh.bindposes.Length;
+            foreach (var vertex in vertices)
+            {
+                if (vertex < 0 || vertex >= mesh.vertexCount) throw new InvalidOperationException("A native skin declaration has an invalid vertex.");
+                var source = intended[vertex];
+                var ids = new[] { source.boneIndex0, source.boneIndex1, source.boneIndex2, source.boneIndex3 };
+                var values = new[] { source.weight0, source.weight1, source.weight2, source.weight3 };
+                var total = 0d; var support = new HashSet<int>();
+                for (var slot = 0; slot < values.Length; slot++)
+                {
+                    var value = values[slot];
+                    if (float.IsNaN(value) || float.IsInfinity(value) || value < 0f || value > 1f ||
+                        value > 0f && (ids[slot] < 0 || ids[slot] >= boneCount))
+                        throw new InvalidOperationException("A native skin declaration has invalid positive support.");
+                    if (value > 0f) support.Add(ids[slot]);
+                    total += value;
+                }
+                if (support.Count == 0 || Math.Abs(total - 1d) > 0.00001d)
+                    throw new InvalidOperationException("A native skin declaration is empty or unnormalized.");
+            }
+            Mesh encoding = null;
+            try
+            {
+                // Unity's stored/readback representation is separate from the ideal
+                // source calculation. One owned witness covers this entire binding.
+                encoding = new Mesh { hideFlags = HideFlags.HideAndDontSave, vertices = new Vector3[vertices.Length],
+                    bindposes = mesh.bindposes, boneWeights = vertices.Select(index => intended[index]).ToArray() };
+                var expected = ReadSkinWeights(encoding, Enumerable.Range(0, vertices.Length));
+                var result = new Dictionary<int, BoneWeight>();
+                for (var index = 0; index < vertices.Length; index++)
+                {
+                    var source = intended[vertices[index]]; var canonical = expected[index];
+                    var sourceBones = new[] { (source.boneIndex0, source.weight0), (source.boneIndex1, source.weight1),
+                        (source.boneIndex2, source.weight2), (source.boneIndex3, source.weight3) }.Where(value => value.Item2 > 0f).Select(value => value.Item1).OrderBy(value => value);
+                    var encodedBones = new[] { (canonical.boneIndex0, canonical.weight0), (canonical.boneIndex1, canonical.weight1),
+                        (canonical.boneIndex2, canonical.weight2), (canonical.boneIndex3, canonical.weight3) }.Where(value => value.Item2 > 0f).Select(value => value.Item1).OrderBy(value => value);
+                    if (!sourceBones.SequenceEqual(encodedBones))
+                        throw new InvalidOperationException("A native skin encoding lost its intended positive bone support.");
+                    result.Add(vertices[index], canonical);
+                }
+                return result;
+            }
+            finally { if (encoding) UnityEngine.Object.Destroy(encoding); }
+        }
+
+        internal static void VerifySkinEncoding(Mesh mesh, IReadOnlyDictionary<int, BoneWeight> intended)
+        {
+            if (intended.Count == 0) return;
+            var expected = EncodeSkinWeights(mesh, intended);
+            var actual = ReadSkinWeights(mesh, intended.Keys);
+            foreach (var pair in expected)
+                if (!pair.Value.Equals(actual[pair.Key]))
+                    throw new InvalidOperationException("A native skin changed its intended order or canonical weight encoding.");
+        }
+
+        internal sealed class SurfaceSkinEncoding(byte[] counts, BoneWeight1[] weights, BoneWeight[] storedSource,
+            IReadOnlyDictionary<int, BoneWeight> storedTarget, IReadOnlyDictionary<int, BoneWeight> expected, int bones, SurfaceVertex[] vertices)
+        {
+            internal readonly byte[] Counts = counts;
+            internal readonly BoneWeight1[] Weights = weights;
+            internal readonly BoneWeight[] StoredSource = storedSource;
+            internal readonly IReadOnlyDictionary<int, BoneWeight> StoredTarget = storedTarget;
+            internal readonly IReadOnlyDictionary<int, BoneWeight> Expected = expected;
+            internal readonly int BoneCount = bones;
+            internal readonly SurfaceVertex[] Vertices = vertices;
+            internal readonly byte[] ContributionCounts = vertices.Select(vertex => (byte)(vertex.Sources?.Length ?? 0)).ToArray();
+            internal readonly (int Anchor, float Weight)[] Contributions = vertices.SelectMany(vertex => vertex.Sources ?? []).ToArray();
+            internal long Bytes => 320L + Counts.Length + 8L * Weights.Length + 32L * StoredSource.Length +
+                128L * Expected.Count + ContributionCounts.Length + 8L * Contributions.Length;
+            internal bool MatchesContributions(SurfaceVertex[] current)
+            {
+                if (!ReferenceEquals(Vertices, current)) return false;
+                var at = 0;
+                for (var index = 0; index < current.Length; index++)
+                {
+                    var values = current[index].Sources;
+                    if ((values?.Length ?? 0) != ContributionCounts[index]) return false;
+                    for (var slot = 0; slot < (values?.Length ?? 0); slot++)
+                        if (!Contributions[at++].Equals(values[slot])) return false;
+                }
+                return at == Contributions.Length;
+            }
+        }
+
+        internal static SurfaceSkinEncoding PrepareSurfaceSkinEncoding(Mesh original, Mesh target,
+            SurfaceBinding binding, byte[] counts, BoneWeight1[] weights, int boneCount)
+        {
+            var starts = new int[counts.Length];
+            for (var index = 1; index < starts.Length; index++) starts[index] = starts[index - 1] + counts[index - 1];
+            if (counts.Length == 0 || starts[starts.Length - 1] + counts[counts.Length - 1] != weights.Length)
+                throw new InvalidOperationException("A multi-source native skin has an incomplete source stream.");
+            var intended = new Dictionary<int, BoneWeight>();
+            for (var index = 0; index < binding.Vertices.Length; index++)
+            {
+                var vertex = binding.Vertices[index]; if (vertex.Native) continue;
+                if (binding.IsForeignBoundaryVertex(index, counts.Length))
+                {
+                    intended.Add(index, binding.BoundaryOverrides[index].Weights);
+                    continue;
+                }
+                var mixed = new Dictionary<int, double>();
+                foreach (var contribution in vertex.Sources)
+                {
+                    var anchor = contribution.Anchor;
+                    if (anchor < 0 || anchor >= counts.Length || starts[anchor] > weights.Length - counts[anchor])
+                        throw new InvalidOperationException("A native surface contribution has an incomplete influence span.");
+                    var nativeTotal = 0d;
+                    for (var influence = 0; influence < counts[anchor]; influence++)
+                    {
+                        var value = weights[starts[anchor] + influence];
+                        if (float.IsNaN(value.weight) || float.IsInfinity(value.weight) || value.weight <= 0f || value.weight > 1f ||
+                            value.boneIndex < 0 || value.boneIndex >= boneCount)
+                            throw new InvalidOperationException("A native surface contribution has an invalid positive influence.");
+                        nativeTotal += value.weight;
+                        mixed.TryGetValue(value.boneIndex, out var previous);
+                        mixed[value.boneIndex] = previous + (double)value.weight * contribution.Weight;
+                    }
+                    if (Math.Abs(nativeTotal - 1d) > 0.00001d)
+                        throw new InvalidOperationException("A native surface contribution has unnormalized influences.");
+                }
+                var ordered = mixed.OrderByDescending(pair => pair.Value).ThenBy(pair => pair.Key).ToArray();
+                var total = ordered.Sum(pair => pair.Value);
+                if (ordered.Length is < 1 or > 4 || double.IsNaN(total) || double.IsInfinity(total) || total <= 0d)
+                    throw new InvalidOperationException("A multi-source surface exceeds its canonical positive skin support.");
+                var ids = new int[4]; var values = new float[4];
+                for (var slot = 0; slot < ordered.Length; slot++)
+                {
+                    ids[slot] = ordered[slot].Key; values[slot] = (float)(ordered[slot].Value / total);
+                    if (float.IsNaN(values[slot]) || float.IsInfinity(values[slot]) || values[slot] <= 0f)
+                        throw new InvalidOperationException("A multi-source surface lost positive support during canonical calculation.");
+                }
+                intended.Add(index, new BoneWeight { boneIndex0=ids[0],boneIndex1=ids[1],boneIndex2=ids[2],boneIndex3=ids[3],
+                    weight0=values[0],weight1=values[1],weight2=values[2],weight3=values[3] });
+            }
+            return new SurfaceSkinEncoding(counts, weights, original.boneWeights, intended,
+                EncodeSkinWeights(target, intended), boneCount, binding.Vertices);
+        }
+
         // One transition owns every native consumer of the changed render surfaces.
-        internal sealed class SurfaceVertex(int anchor, Vector3 offset, Vector3 normal, Vector3 tangent, bool native)
+        internal sealed class SurfaceVertex(int anchor, Vector3 offset, Vector3 normal, Vector3 tangent, bool native,
+            (int Anchor, float Weight)[] sources = null, float tangentW = 0f, Vector2? sourceUv = null, int sourceSlot = -1,
+            (int A, int B, int C)? surfaceTriangle = null, Vector3 surfaceBary = default,
+            (int A, int B, int C)? geometryTriangle = null, Vector3 geometryBary = default)
         {
             internal readonly int Anchor = anchor;
             internal readonly Vector3 Offset = offset, Normal = normal, Tangent = tangent;
             internal readonly bool Native = native;
+            // Absent for v1. V2 retains immutable native skin provenance separately
+            // from its primary anchor's geometric surface frame.
+            internal readonly (int Anchor, float Weight)[] Sources = sources == null ? null :
+                ((int Anchor, float Weight)[])sources.Clone();
+            internal readonly float TangentW = tangentW;
+            internal readonly Vector2? SourceUv = sourceUv;
+            internal readonly int SourceSlot = sourceSlot;
+            internal readonly (int A, int B, int C)? SurfaceTriangle = surfaceTriangle;
+            internal readonly Vector3 SurfaceBary = surfaceBary;
+            internal readonly (int A, int B, int C)? GeometryTriangle = geometryTriangle;
+            internal readonly Vector3 GeometryBary = geometryBary;
+            internal const long EstimatedBytes = 176L;
+            internal long EstimatedMemory => EstimatedBytes + (Sources == null ? 0L : 32L + 8L * Sources.Length);
         }
         internal sealed class SurfaceBinding
         {
@@ -662,8 +858,60 @@ public static class CustomModels
             internal readonly Matrix4x4 RendererToPrefab;
             internal readonly Vector4[] SourceTangents;
             internal readonly SurfaceVertex[] Vertices;
+            internal readonly long VertexBytes;
+            internal readonly SurfaceBinding SkinEncodingSource;
+            internal SurfaceSkinEncoding PreparedSkin;
+            internal readonly SurfaceBinding SurfacePlanSource;
+            internal SourceGraph.NativeSurfacePlan NativeSurface;
+            internal SourceGraph.NativeSurfacePlan SurfacePlan => SurfacePlanSource.NativeSurface;
+            internal long SkinEncodingBytes => SkinEncodingSource.PreparedSkin?.Bytes ?? 0L;
             internal readonly Mesh BoundarySource;
+            internal readonly Mesh AuthoredBase;
+            // Only the immutable catalog enables this proof cache. Mutable caller-created
+            // bindings still validate all source channels on each use.
+            internal bool CacheAuthoredBaseValidation;
+            internal AuthoredBaseProof BaseProof;
+            internal long AuthoredBaseProofBytes => BaseProof?.Bytes ?? 0L;
+            internal sealed class AuthoredBaseProof
+            {
+                private readonly WeakReference<Mesh> _source;
+                private readonly Mesh _base;
+                private readonly SurfaceVertex[] _prefix;
+                private readonly Vector4[] _tangents;
+                private readonly string _sourceFingerprint;
+                internal long Bytes => 192L + _sourceFingerprint.Length * 2L + _prefix.LongLength * IntPtr.Size + _tangents.LongLength * 16L;
+                internal AuthoredBaseProof(Mesh source, Mesh basis, SurfaceBinding binding)
+                {
+                    _source = new WeakReference<Mesh>(source); _base = basis;
+                    _prefix = binding.Vertices.Take(source.vertexCount).ToArray();
+                    _tangents = (Vector4[])binding.SourceTangents.Clone();
+                    _sourceFingerprint = RacesContext.CharacterModelCurrentFingerprint(source);
+                }
+                internal bool Matches(Mesh source, Mesh basis, SurfaceBinding binding)
+                {
+                    if (!_source.TryGetTarget(out var previous) || !previous || !ReferenceEquals(previous, source) ||
+                        !ReferenceEquals(_base, basis) || _prefix.Length != source.vertexCount ||
+                        binding.Vertices.Length < _prefix.Length || !binding.SourceTangents.SequenceEqual(_tangents) ||
+                        _prefix.Where((vertex, index) => !ReferenceEquals(vertex, binding.Vertices[index])).Any()) return false;
+                    // A native mesh reference is not a content epoch. Validate complete
+                    // current content on source-graph transitions, never on frame updates.
+                    if (RacesContext.CharacterModelCurrentFingerprint(source) != _sourceFingerprint)
+                        throw new InvalidOperationException("A validated native source changed its complete mesh content.");
+                    return true;
+                }
+            }
+
             internal readonly IReadOnlyDictionary<int, (BoneWeight Weights, Vector3 Normal, Vector4 Tangent)> BoundaryOverrides;
+            // Coupled donor samples are owned by PaletteSource and their exact boundary
+            // declarations; they carry no receiver-native interpolation stencil.
+            internal bool IsForeignBoundaryVertex(int index, int nativeCount) => index >= nativeCount &&
+                !Vertices[index].Native && Vertices[index].Sources == null && PaletteSource.HasValue &&
+                PaletteSource.Value.Renderer && PaletteSource.Value.Source != null && PaletteSource.Value.Source.Original &&
+                BoundaryOverrides != null && BoundaryOverrides.ContainsKey(index);
+            // Optional append-only native palette. Every entry names an already owned source,
+            // its actual renderer bone index, and the receiver-to-donor bind-space transform.
+            internal readonly (SkinnedMeshRenderer Renderer, SkinMeshSource Source, int Bone, Matrix4x4 ToSource)[] PaletteAdditions;
+            internal readonly (SkinnedMeshRenderer Renderer, SkinMeshSource Source, Matrix4x4 ToSource, int[] ToTarget)? PaletteSource;
             internal readonly string BoundaryBlendShapeName;
             internal readonly IReadOnlyDictionary<int, (Vector3 Original, Vector3 Position, float MaximumDistance)> BoundaryPositions;
             internal readonly Matrix4x4 BoundaryPositionFrame;
@@ -675,13 +923,26 @@ public static class CustomModels
                 string boundaryBlendShapeName = null,
                 IReadOnlyDictionary<int, (Vector3 Original, Vector3 Position, float MaximumDistance)> boundaryPositions = null,
                 Matrix4x4? boundaryPositionFrame = null,
-                IReadOnlyDictionary<int, (Vector3 Original, Vector3 Position)> boundaryBlendShapePositions = null)
+                IReadOnlyDictionary<int, (Vector3 Original, Vector3 Position)> boundaryBlendShapePositions = null,
+                (SkinnedMeshRenderer Renderer, SkinMeshSource Source, int Bone, Matrix4x4 ToSource)[] paletteAdditions = null,
+                (SkinnedMeshRenderer Renderer, SkinMeshSource Source, Matrix4x4 ToSource, int[] ToTarget)? paletteSource = null,
+                SurfaceBinding skinEncodingSource = null, Mesh authoredBase = null)
             {
-                Fingerprint = fingerprint;
+                Fingerprint = authoredBase ? fingerprint + ":base:1:" + RacesContext.CharacterModelFingerprint(authoredBase) : fingerprint;
                 RendererToPrefab = rendererToPrefab;
                 SourceTangents = sourceTangents;
                 Vertices = vertices;
+                VertexBytes = skinEncodingSource != null && ReferenceEquals(vertices, skinEncodingSource.Vertices)
+                    ? skinEncodingSource.VertexBytes : vertices.Sum(vertex => vertex.EstimatedMemory);
+                SkinEncodingSource = skinEncodingSource?.SkinEncodingSource ?? this;
+                SurfacePlanSource = skinEncodingSource != null && ReferenceEquals(vertices, skinEncodingSource.Vertices) &&
+                    ReferenceEquals(sourceTangents, skinEncodingSource.SourceTangents) && rendererToPrefab.Equals(skinEncodingSource.RendererToPrefab)
+                    ? skinEncodingSource.SurfacePlanSource : this;
                 BoundarySource = boundarySource;
+                AuthoredBase = authoredBase;
+                PaletteAdditions = paletteAdditions?.ToArray();
+                PaletteSource = paletteSource.HasValue ? (paletteSource.Value.Renderer, paletteSource.Value.Source,
+                    paletteSource.Value.ToSource, paletteSource.Value.ToTarget?.ToArray()) : null;
                 BoundaryBlendShapeName = boundaryBlendShapeName;
                 BoundaryPositionFrame = boundaryPositionFrame ?? Matrix4x4.identity;
                 if (boundaryPositions is { Count: > 0 })
@@ -753,9 +1014,17 @@ public static class CustomModels
         internal static SourceGraph PrepareMeshes(GraphicsCharacter graphics,
             IReadOnlyDictionary<SkinnedMeshRenderer, (SkinMeshSource Source, Mesh Mesh)> changes,
             IReadOnlyDictionary<SkinnedMeshRenderer, SurfaceBinding> bindings,
-            Func<string, Func<UnityEngine.Object[]>, UnityEngine.Object[]> retainData)
+            Func<string, Func<UnityEngine.Object[]>, UnityEngine.Object[]> retainData,
+            Func<UnityEngine.Object, Func<string>, string> sourceFingerprint = null,
+            Func<Mesh, Mesh, SurfaceBinding, SourceGraph.NativeSurfacePlan, SourceGraph.NativeSurfacePacket> preparedPacket = null)
         {
-            return new SourceGraph(graphics, changes, bindings, retainData);
+            return new SourceGraph(graphics, changes, bindings, retainData, sourceFingerprint, preparedPacket);
+        }
+
+        internal static GraphicsCharacter NativeSourceGraphics(object deformer)
+        {
+            var target = SourceTargetObject?.GetValue(deformer) as GameObject;
+            return target ? target.GetComponentInParent<GraphicsCharacter>() : null;
         }
 
         internal sealed class SourceGraph
@@ -764,16 +1033,1119 @@ public static class CustomModels
             private static readonly Type VirtualType = Type.GetType("MagicaCloth.MagicaVirtualDeformer, MagicaCloth", false);
             private static readonly Type ClothBaseType = Type.GetType("MagicaCloth.BaseCloth, MagicaCloth", false);
             private static readonly Type ManagerType = Type.GetType("MagicaCloth.MagicaPhysicsManager, MagicaCloth", false);
+            internal sealed class NativeSurfacePacket
+            {
+                internal readonly Mesh Target;
+                internal readonly NativeSurfacePlan Plan;
+                internal readonly string BindingIdentity;
+                internal readonly (string BundleSha256, string Asset, string Fingerprint) Owner;
+                internal readonly Vector3[] Normals;
+                internal readonly Vector4[] Tangents;
+                internal readonly byte[] Counts;
+                internal readonly NativeSurfaceFinishState.FinishMorphChannel[] Morphs;
+                internal readonly long Bytes;
+                internal NativeSurfacePacket(Mesh target, NativeSurfacePlan plan, string bindingIdentity,
+                    (string BundleSha256, string Asset, string Fingerprint) owner, Vector3[] normals,
+                    Vector4[] tangents, byte[] counts, NativeSurfaceFinishState.FinishMorphChannel[] morphs, long bytes)
+                { Target = target; Plan = plan; BindingIdentity = bindingIdentity; Owner = owner;
+                    Normals = normals; Tangents = tangents; Counts = counts; Morphs = morphs; Bytes = bytes; }
+                internal bool Matches(Mesh target, NativeSurfacePlan plan, string bindingIdentity,
+                    (string BundleSha256, string Asset, string Fingerprint) owner) =>
+                    ReferenceEquals(Target, target) && ReferenceEquals(Plan, plan) && BindingIdentity == bindingIdentity && Owner == owner;
+                private static unsafe int Bits(float value) => *(int*)&value;
+                internal bool SameSchema(Mesh source)
+                {
+                    if (source.blendShapeCount != Morphs.Length) return false;
+                    for (var channel = 0; channel < Morphs.Length; channel++)
+                    {
+                        var frames = Morphs[channel].Frames;
+                        if (source.GetBlendShapeFrameCount(channel) != frames.Length) return false;
+                        for (var frame = 0; frame < frames.Length; frame++)
+                            if (Bits(source.GetBlendShapeFrameWeight(channel, frame)) != Bits(frames[frame].Weight)) return false;
+                    }
+                    return true;
+                }
+            }
+
+            internal sealed class NativeSurfaceFinishState : IDisposable
+            {
+                private const long Limit = 32L * 1024 * 1024;
+                private readonly NativeSurfacePlan _plan;
+                private readonly object _deformer;
+                private readonly SkinnedMeshRenderer _renderer;
+                private readonly Mesh _sharedMesh, _mesh;
+                private readonly Transform[] _bones;
+                private readonly Matrix4x4[] _bindposes, _boneMatrices;
+                private readonly Matrix4x4 _sourceInverse, _sourceNormal, _sourceTranspose;
+                private readonly byte[] _boneCounts;
+                private readonly int[] _boneStarts;
+                private readonly Vector3[] _restNormals, _finalPositions, _finalNormals, _finalTangents;
+                private readonly Vector4[] _restTangents;
+                private readonly Vector3[] _fallbackNormals, _morphPositions, _morphNormals, _morphTangents;
+                private readonly Vector3[] _finePositions;
+                private readonly Vector4[] _fallbackTangents;
+                private readonly FinishMorphChannel[] _morphs;
+                private readonly float[] _lastMorphWeights, _currentMorphWeights;
+                private bool _morphValid;
+                private FinishNativeArray _positions, _normals, _tangents, _weights;
+                private object _meshData;
+                private int _finishedBuffer = -1;
+                private int _finishedMode;
+                private bool _inFinish;
+                internal long Bytes { get; private set; }
+                private GpuSurface _gpu;
+                private int _cpuFineBuffers;
+                private bool _gpuFinish;
+                private bool _disposed;
+
+                internal bool IsCurrent => !_disposed && _renderer && _sharedMesh && _mesh &&
+                    _renderer.sharedMesh == _mesh &&
+                    ReferenceEquals(Get(_deformer, "sharedMesh"), _sharedMesh) &&
+                    ReferenceEquals(Get(_deformer, "mesh"), _mesh);
+
+                public void Dispose()
+                {
+                    if (_disposed) return;
+                    _disposed = true;
+                    _gpu?.Dispose();
+                    _gpu = null;
+                }
+
+                private readonly int _fineSliceCount;
+                private readonly Action<int> _fineSliceAction;
+                private readonly ParallelOptions _fineParallelOptions;
+
+                internal NativeSurfaceFinishState(NativeSurfacePlan plan, object deformer,
+                    SkinnedMeshRenderer renderer, Func<Mesh, NativeSurfacePlan, NativeSurfacePacket> preparedPacket = null)
+                {
+                    _plan = plan ?? throw new ArgumentNullException(nameof(plan));
+                    var sourceDeterminant = Vector3.Dot(Vector3.Cross((Vector3)plan.SourceFrame.GetColumn(0),
+                        (Vector3)plan.SourceFrame.GetColumn(1)), (Vector3)plan.SourceFrame.GetColumn(2));
+                    if (!FinishFinite(sourceDeterminant) || sourceDeterminant == 0f)
+                        throw new InvalidOperationException("A final surface source frame is singular.");
+                    _sourceInverse = plan.SourceFrame.inverse; _sourceNormal = _sourceInverse.transpose;
+                    _sourceTranspose = plan.SourceFrame.transpose;
+                    _deformer = deformer ?? throw new ArgumentNullException(nameof(deformer));
+                    _renderer = renderer ? renderer : throw new ArgumentNullException(nameof(renderer));
+                    _sharedMesh = Get(deformer, "sharedMesh") as Mesh;
+                    _mesh = Get(deformer, "mesh") as Mesh;
+                    if (!_sharedMesh || !_mesh || _sharedMesh.vertexCount != plan.TargetCount ||
+                        _mesh.vertexCount != plan.TargetCount || plan.NativeCount <= 0 ||
+                        plan.NativeCount > plan.TargetCount)
+                        throw new InvalidOperationException("A final surface owner has incompatible native meshes.");
+                    var samples = checked(plan.NativeCount + plan.Points.Length);
+                    var morphCount = _sharedMesh.blendShapeCount;
+                    long bytes = plan.Bytes + 1216L + (long)plan.TargetCount * 61L +
+                        (long)plan.NativeCount * 36L + (long)plan.Points.Length * 12L +
+                        (morphCount == 0 ? 0L : (long)samples * 36L + (long)morphCount * 80L);
+                    var captureBytes = (long)plan.Points.Length * 32L +
+                        (morphCount == 0 ? 0L : (long)plan.TargetCount * 36L + (long)samples * sizeof(int) + 32L);
+                    if (bytes + captureBytes > Limit) throw new NativeDataPacketLimit();
+                    _bones = (Transform[])Get(deformer, "boneList");
+                    _bindposes = _mesh.bindposes;
+                    if (_bones.Length == 0 || _bones.Length != _bindposes.Length)
+                        throw new InvalidOperationException("A final surface owner has an incomplete skin palette.");
+                    _boneMatrices = new Matrix4x4[_bones.Length];
+                    bytes = checked(bytes + _bones.LongLength * 144L);
+                    if (bytes + captureBytes > Limit) throw new NativeDataPacketLimit();
+                    using (var counts = _sharedMesh.GetBonesPerVertex()) _boneCounts = counts.ToArray();
+                    if (_boneCounts.Length != plan.TargetCount)
+                        throw new InvalidOperationException("A final surface owner has incomplete skin counts.");
+                    _boneStarts = new int[plan.TargetCount + 1];
+                    for (var index = 0; index < plan.TargetCount; index++)
+                    {
+                        if (_boneCounts[index] == 0)
+                            throw new InvalidOperationException("A final surface vertex has no skin influences.");
+                        _boneStarts[index + 1] = checked(_boneStarts[index] + _boneCounts[index]);
+                    }
+                    var packet = preparedPacket?.Invoke(_sharedMesh, plan);
+                    if (packet != null && (!ReferenceEquals(packet.Target, _sharedMesh) || !ReferenceEquals(packet.Plan, plan) ||
+                        !packet.Counts.SequenceEqual(_boneCounts) || !packet.SameSchema(_sharedMesh))) packet = null;
+                    _restNormals = packet?.Normals ?? _sharedMesh.normals;
+                    _restTangents = packet?.Tangents ?? _sharedMesh.tangents;
+                    if (_restNormals.Length != plan.TargetCount || _restTangents.Length != plan.TargetCount)
+                        throw new InvalidOperationException("A final surface owner has incomplete normal/tangent channels.");
+                    _finalPositions = new Vector3[plan.NativeCount];
+                    _finalNormals = new Vector3[plan.NativeCount];
+                    _finalTangents = new Vector3[plan.NativeCount];
+                    _fallbackNormals = (Vector3[])_restNormals.Clone();
+                    _fallbackTangents = (Vector4[])_restTangents.Clone();
+                    _finePositions = new Vector3[plan.Points.Length];
+                    _fineSliceCount = Math.Min(Math.Min(4, Math.Max(1, Environment.ProcessorCount / 2)),
+                        Math.Max(1, 1 + (plan.Points.Length - 1) / 8192));
+                    _fineSliceAction = FinishFineSlice;
+                    _fineParallelOptions = new ParallelOptions { MaxDegreeOfParallelism = _fineSliceCount };
+                    _morphPositions = morphCount == 0 ? Array.Empty<Vector3>() : new Vector3[samples];
+                    _morphNormals = morphCount == 0 ? Array.Empty<Vector3>() : new Vector3[samples];
+                    _morphTangents = morphCount == 0 ? Array.Empty<Vector3>() : new Vector3[samples];
+                    _lastMorphWeights = new float[morphCount]; _currentMorphWeights = new float[morphCount];
+                    _morphs = packet?.Morphs ?? new FinishMorphChannel[morphCount];
+                    if (_morphs.Length != _mesh.blendShapeCount)
+                        throw new InvalidOperationException("A final surface owner changed its physical channels.");
+                    if (packet == null)
+                    {
+                    if (_morphs.Length != 0)
+                    {
+                        var p = new Vector3[plan.TargetCount]; var n = new Vector3[p.Length]; var t = new Vector3[p.Length];
+                        var selectedSamples = new int[samples];
+                        for (var channel = 0; channel < _morphs.Length; channel++)
+                        {
+                            var frames = new FinishMorphFrame[_sharedMesh.GetBlendShapeFrameCount(channel)];
+                            if (frames.Length == 0) throw new InvalidOperationException("A final surface morph has no frames.");
+                            for (var frame = 0; frame < frames.Length; frame++)
+                            {
+                                var weight = _sharedMesh.GetBlendShapeFrameWeight(channel, frame);
+                                if (!FinishFinite(weight) || (frame != 0 && weight <= frames[frame - 1].Weight) ||
+                                    weight != _mesh.GetBlendShapeFrameWeight(channel, frame))
+                                    throw new InvalidOperationException("A final surface morph has an invalid frame range.");
+                                _sharedMesh.GetBlendShapeFrameVertices(channel, frame, p, n, t);
+                                var count = 0;
+                                for (var sample = 0; sample < samples; sample++)
+                                {
+                                    var vertex = SampleVertex(sample);
+                                    if (!FinishFinite(p[vertex]) || !FinishFinite(n[vertex]) || !FinishFinite(t[vertex]))
+                                        throw new InvalidOperationException("A final surface morph is not finite.");
+                                    if (Nonzero(p[vertex]) || Nonzero(n[vertex]) || Nonzero(t[vertex])) selectedSamples[count++] = sample;
+                                }
+                                bytes = checked(bytes + count * 40L + 160L);
+                                if (bytes + captureBytes > Limit) throw new NativeDataPacketLimit();
+                                var indices = new int[count]; var sp = new Vector3[count];
+                                var sn = new Vector3[count]; var st = new Vector3[count];
+                                for (var used = 0; used < count; used++)
+                                {
+                                    var sample = selectedSamples[used]; var vertex = SampleVertex(sample);
+                                    indices[used] = sample; sp[used] = p[vertex]; sn[used] = n[vertex]; st[used] = t[vertex];
+                                }
+                                frames[frame] = new FinishMorphFrame(weight, indices, sp, sn, st);
+                            }
+                            _morphs[channel] = new FinishMorphChannel(channel, frames);
+                        }
+                    }
+                    }
+                    else
+                    {
+                        foreach (var channel in _morphs)
+                        {
+                            var frames = channel.Frames;
+                            for (var frame = 0; frame < frames.Length; frame++)
+                            {
+                                var weight = frames[frame].Weight;
+                                if (!FinishFinite(weight) || (frame != 0 && weight <= frames[frame - 1].Weight) ||
+                                    weight != _mesh.GetBlendShapeFrameWeight(channel.Index, frame))
+                                    throw new InvalidOperationException("A final surface morph has an invalid frame range.");
+                                bytes = checked(bytes + frames[frame].Indices.LongLength * 40L + 160L);
+                                if (bytes + captureBytes > Limit) throw new NativeDataPacketLimit();
+                            }
+                        }
+                    }
+                    Bytes = bytes;
+                }
+
+                internal void RefreshMaterials()
+                {
+                    if (!IsCurrent) { Dispose(); return; }
+                    // Source installation precedes the final native material profile.
+                    // Acquire the GPU buffers after that profile has been applied.
+                    if (_gpu == null)
+                    {
+                        _gpu = GpuSurface.Create(this, Bytes);
+                        Bytes = checked(Bytes + (_gpu?.Bytes ?? 0L));
+                    }
+                    else if (!_gpu.CanProject()) _gpu.Suspend();
+                }
+
+                private sealed class GpuSurface : IDisposable
+                {
+                    private static readonly int EnabledId = Shader.PropertyToID("_UBSurfaceProjection");
+                    private static readonly int CountId = Shader.PropertyToID("_UBSurfacePointCount");
+                    private static readonly int PointsId = Shader.PropertyToID("_UBSurfacePoints");
+                    private static readonly int PositionsId = Shader.PropertyToID("_UBSurfacePositions");
+                    private static readonly int NormalsId = Shader.PropertyToID("_UBSurfaceNormals");
+                    private static readonly int TangentsId = Shader.PropertyToID("_UBSurfaceTangents");
+                    private static readonly int InverseId = Shader.PropertyToID("_UBSurfaceSourceInverse");
+                    private static readonly int TransposeId = Shader.PropertyToID("_UBSurfaceSourceTranspose");
+                    private static readonly int OwnerId = Shader.PropertyToID("_UBSurfaceOwnerToObject");
+                    private readonly NativeSurfaceFinishState _state;
+                    private readonly List<Material> _materials = [];
+                    private readonly MaterialPropertyBlock _properties = new();
+                    private readonly Bounds _originalBounds;
+                    private readonly Vector2[] _originalIds;
+                    private readonly float _offsetExtent;
+                    private readonly GpuSurfaceRenderer _view;
+                    private ComputeBuffer _points, _positions, _normals, _tangents;
+                    private Bounds _sourceBounds;
+                    private int _rendererBone;
+                    private bool _active, _disposed;
+                    internal readonly Vector3[] RestPositions;
+                    internal readonly BoneWeight1[] RestWeights;
+                    internal readonly long Bytes;
+
+                    private GpuSurface(NativeSurfaceFinishState state, long bytes)
+                    {
+                        _state = state; Bytes = bytes;
+                        _originalBounds = state._renderer.localBounds;
+                        _originalIds = state._mesh.uv4;
+                        RestPositions = state._sharedMesh.vertices;
+                        using (var weights = state._sharedMesh.GetAllBoneWeights()) RestWeights = weights.ToArray();
+                        if (RestPositions.Length != state._plan.TargetCount ||
+                            RestWeights.Length != state._boneStarts[state._plan.TargetCount])
+                            throw new InvalidOperationException("A GPU surface has incomplete authored fallback data.");
+                        var ids = new Vector2[state._plan.TargetCount];
+                        for (var index = 0; index < state._plan.Points.Length; index++)
+                        {
+                            var point = state._plan.Points[index];
+                            ids[point.Index].x = index + 1;
+                            _offsetExtent = Math.Max(_offsetExtent,
+                                Math.Abs(point.Offset.x) + Math.Abs(point.Offset.y) + Math.Abs(point.Offset.z));
+                        }
+                        try
+                        {
+                            _points = new ComputeBuffer(state._plan.Points.Length, 72);
+                            _positions = new ComputeBuffer(state._plan.NativeCount, 12);
+                            _normals = new ComputeBuffer(state._plan.NativeCount, 12);
+                            _tangents = new ComputeBuffer(state._plan.NativeCount, 12);
+                            _points.SetData(state._plan.Points);
+                            state._mesh.uv4 = ids;
+                            _view = state._renderer.gameObject.AddComponent<GpuSurfaceRenderer>();
+                            _view.Surface = this;
+                        }
+                        catch
+                        {
+                            Dispose();
+                            throw;
+                        }
+                    }
+
+                    internal static GpuSurface Create(NativeSurfaceFinishState state, long usedBytes)
+                    {
+                        if (!SystemInfo.supportsComputeShaders || SystemInfo.graphicsShaderLevel < 45 ||
+                            SystemInfo.graphicsDeviceType != GraphicsDeviceType.Direct3D11 ||
+                            state._plan.Points.Length == 0 || state._mesh.HasVertexAttribute(VertexAttribute.TexCoord3) ||
+                            Marshal.SizeOf(typeof(NativeSurfacePoint)) != 72) return null;
+                        var materials = new List<Material>();
+                        state._renderer.GetSharedMaterials(materials);
+                        if (materials.Count == 0 || materials.Any(material => !Supports(material, state._plan.GeometryFrames))) return null;
+                        var bytes = checked(2048L + state._plan.Points.LongLength * 72L +
+                            state._plan.NativeCount * 36L + state._plan.TargetCount * 20L +
+                            state._boneStarts[state._plan.TargetCount] * 8L);
+                        if (usedBytes + bytes > Limit) return null;
+                        return new GpuSurface(state, bytes);
+                    }
+
+                    private static bool Supports(Material material, bool geometryFrames) => material && material.shader &&
+                        material.shader.isSupported && material.HasProperty(EnabledId) &&
+                        string.Equals(material.GetTag("UBNativeSurface", false, string.Empty), "true", StringComparison.OrdinalIgnoreCase) &&
+                        (!geometryFrames || string.Equals(material.GetTag("UBGeometrySurface", false, string.Empty), "true", StringComparison.OrdinalIgnoreCase));
+
+                    internal bool CanProject()
+                    {
+                        if (_disposed || !_state.IsCurrent) return false;
+                        _state._renderer.GetSharedMaterials(_materials);
+                        return _materials.Count > 0 && _materials.All(material => Supports(material, _state._plan.GeometryFrames));
+                    }
+
+                    internal void Suspend()
+                    {
+                        _active = false;
+                        if (_state._renderer) SetProperties(false);
+                    }
+
+                    internal void Upload(int rendererBone)
+                    {
+                        _rendererBone = rendererBone;
+                        _positions.SetData(_state._finalPositions);
+                        _normals.SetData(_state._finalNormals);
+                        _tangents.SetData(_state._finalTangents);
+                        var low = _state._finalPositions[0]; var high = low;
+                        foreach (var position in _state._finalPositions)
+                        {
+                            low = Vector3.Min(low, position); high = Vector3.Max(high, position);
+                        }
+                        var extent = Vector3.one * _offsetExtent;
+                        _sourceBounds.SetMinMax(low - extent, high + extent);
+                    }
+
+                    internal void Publish()
+                    {
+                        if (!CanProject()) return;
+                        _active = true;
+                        UpdatePresentation();
+                    }
+
+                    internal void UpdatePresentation()
+                    {
+                        if (!_active || _disposed) return;
+                        if (!CanProject() || !_state._bones[_rendererBone]) { Suspend(); return; }
+                        SetProperties(true);
+                    }
+
+                    private void SetProperties(bool enabled)
+                    {
+                        var renderer = _state._renderer;
+                        var owner = enabled ? renderer.worldToLocalMatrix *
+                            _state._bones[_rendererBone].localToWorldMatrix * _state._bindposes[_rendererBone] : Matrix4x4.identity;
+                        renderer.GetPropertyBlock(_properties);
+                        WriteProperties(enabled, owner);
+                        renderer.SetPropertyBlock(_properties);
+                        renderer.GetSharedMaterials(_materials);
+                        for (var slot = 0; slot < _materials.Count; slot++)
+                        {
+                            renderer.GetPropertyBlock(_properties, slot);
+                            // A new per-slot block would mask native renderer-wide palette values.
+                            if (_properties.isEmpty) continue;
+                            WriteProperties(enabled, owner);
+                            renderer.SetPropertyBlock(_properties, slot);
+                        }
+                        if (!enabled) { renderer.localBounds = _originalBounds; return; }
+                        var transform = owner * _state._sourceInverse;
+                        var first = transform.MultiplyPoint3x4(_sourceBounds.min);
+                        var bounds = new Bounds(first, Vector3.zero);
+                        for (var corner = 1; corner < 8; corner++)
+                        {
+                            var point = new Vector3((corner & 1) == 0 ? _sourceBounds.min.x : _sourceBounds.max.x,
+                                (corner & 2) == 0 ? _sourceBounds.min.y : _sourceBounds.max.y,
+                                (corner & 4) == 0 ? _sourceBounds.min.z : _sourceBounds.max.z);
+                            bounds.Encapsulate(transform.MultiplyPoint3x4(point));
+                        }
+                        renderer.localBounds = bounds;
+                    }
+
+                    private void WriteProperties(bool enabled, Matrix4x4 owner)
+                    {
+                        _properties.SetFloat(EnabledId, enabled ? 1f : 0f);
+                        _properties.SetInt(CountId, _state._plan.Points.Length);
+                        _properties.SetBuffer(PointsId, enabled ? _points : null);
+                        _properties.SetBuffer(PositionsId, enabled ? _positions : null);
+                        _properties.SetBuffer(NormalsId, enabled ? _normals : null);
+                        _properties.SetBuffer(TangentsId, enabled ? _tangents : null);
+                        _properties.SetMatrix(InverseId, _state._sourceInverse);
+                        _properties.SetMatrix(TransposeId, _state._sourceTranspose);
+                        _properties.SetMatrix(OwnerId, owner);
+                    }
+
+                    internal static void ClearClone(SkinnedMeshRenderer renderer, MaterialPropertyBlock properties)
+                    {
+                        if (!renderer) return;
+                        renderer.GetPropertyBlock(properties); properties.SetFloat(EnabledId, 0f);
+                        renderer.SetPropertyBlock(properties);
+                        var slots = renderer.sharedMaterials.Length;
+                        for (var slot = 0; slot < slots; slot++)
+                        {
+                            renderer.GetPropertyBlock(properties, slot);
+                            if (properties.isEmpty) continue;
+                            properties.SetFloat(EnabledId, 0f); renderer.SetPropertyBlock(properties, slot);
+                        }
+                    }
+
+                    public void Dispose() => Release(true);
+                    internal void ViewDestroyed() => Release(false);
+
+                    private void Release(bool destroyView)
+                    {
+                        if (_disposed) return;
+                        _disposed = true; _active = false;
+                        if (_state._renderer) SetProperties(false);
+                        if (destroyView && _view)
+                        {
+                            _view.Surface = null; _view.Retired = true; _view.enabled = false;
+                            UnityEngine.Object.Destroy(_view);
+                        }
+                        if (_state._mesh) _state._mesh.uv4 = _originalIds;
+                        _points?.Dispose(); _positions?.Dispose(); _normals?.Dispose(); _tangents?.Dispose();
+                    }
+                }
+
+                private sealed class GpuSurfaceRenderer : MonoBehaviour
+                {
+                    [NonSerialized] internal GpuSurface Surface;
+                    [NonSerialized] internal bool Retired;
+                    private SkinnedMeshRenderer _renderer;
+                    private MaterialPropertyBlock _properties;
+                    private void OnEnable()
+                    {
+                        if (Retired) return;
+                        _renderer = GetComponent<SkinnedMeshRenderer>();
+                        _properties ??= new MaterialPropertyBlock();
+                        if (Surface == null) GpuSurface.ClearClone(_renderer, _properties);
+                    }
+                    private void LateUpdate() => Surface?.UpdatePresentation();
+                    private void OnWillRenderObject()
+                    {
+                        if (Retired) return;
+                        if (Surface == null) GpuSurface.ClearClone(_renderer, _properties);
+                        else Surface.UpdatePresentation();
+                    }
+                    private void OnDestroy()
+                    {
+                        var surface = Surface; Surface = null;
+                        surface?.ViewDestroyed();
+                    }
+                }
+
+
+                internal static IEnumerator PreparePacket(Mesh target, NativeSurfacePlan plan, string identity,
+                    (string BundleSha256, string Asset, string Fingerprint) owner, Func<bool> current, Action<NativeSurfacePacket> receive)
+                {
+                    if (!current() || !target || plan == null || target.vertexCount != plan.TargetCount ||
+                        plan.NativeCount <= 0 || plan.NativeCount > plan.TargetCount) yield break;
+                    var samples = checked(plan.NativeCount + plan.Points.Length); var morphCount = target.blendShapeCount;
+                    long bytes = plan.Bytes + 1216L + (long)plan.TargetCount * 61L +
+                        (long)plan.NativeCount * 36L + (long)plan.Points.Length * 12L +
+                        (morphCount == 0 ? 0L : (long)samples * 36L + (long)morphCount * 80L);
+                    var captureBytes = (long)plan.Points.Length * 32L +
+                        (morphCount == 0 ? 0L : (long)plan.TargetCount * 36L + (long)samples * sizeof(int) + 32L);
+                    var sliceStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+                    var sliceTicks = Math.Max(1L, System.Diagnostics.Stopwatch.Frequency * 3L / 1000L);
+                    // Native owner bones are not available yet. The ctor retains its
+                    // complete original logical cap with the actual live bone count.
+                    if (bytes + captureBytes > Limit) yield break;
+                    Vector3[] normals = null, p = null, n = null, t = null;
+                    Vector4[] tangents = null; byte[] counts = null; int[] selected = null;
+                    FinishMorphChannel[] morphs = null;
+                    try
+                    {
+                        normals = target.normals; tangents = target.tangents;
+                        using (var nativeCounts = target.GetBonesPerVertex()) counts = nativeCounts.ToArray();
+                        if (normals.Length != plan.TargetCount || tangents.Length != plan.TargetCount || counts.Length != plan.TargetCount || counts.Any(value => value == 0))
+                            throw new InvalidOperationException("A prepared surface packet has incomplete authored channels.");
+                        morphs = new FinishMorphChannel[morphCount];
+                        long retained = 512L + (long)plan.TargetCount * 29L + (long)morphCount * 128L;
+                        if (retained + plan.Bytes + captureBytes > Limit) yield break;
+                        if (System.Diagnostics.Stopwatch.GetTimestamp() - sliceStarted >= sliceTicks)
+                        { yield return null; sliceStarted = System.Diagnostics.Stopwatch.GetTimestamp(); }
+                        if (!current()) yield break;
+                        if (morphCount != 0)
+                        { p = new Vector3[plan.TargetCount]; n = new Vector3[p.Length]; t = new Vector3[p.Length]; selected = new int[samples]; }
+                        for (var channel = 0; channel < morphCount; channel++)
+                        {
+                            if (!current()) yield break;
+                            var frameCount = target.GetBlendShapeFrameCount(channel);
+                            retained = checked(retained + (long)frameCount * 8L);
+                            if (retained + plan.Bytes + captureBytes > Limit) yield break;
+                            var frames = new FinishMorphFrame[frameCount];
+                            if (frames.Length == 0) throw new InvalidOperationException("A final surface morph has no frames.");
+                            for (var frame = 0; frame < frames.Length; frame++)
+                            {
+                                if (!current()) yield break;
+                                var weight = target.GetBlendShapeFrameWeight(channel, frame);
+                                if (!FinishFinite(weight) || (frame != 0 && weight <= frames[frame - 1].Weight))
+                                    throw new InvalidOperationException("A final surface morph has an invalid frame range.");
+                                target.GetBlendShapeFrameVertices(channel, frame, p, n, t);
+                                var count = 0;
+                                for (var sample = 0; sample < samples; sample++)
+                                {
+                                    var vertex = sample < plan.NativeCount ? sample : plan.Points[sample - plan.NativeCount].Index;
+                                    if (!FinishFinite(p[vertex]) || !FinishFinite(n[vertex]) || !FinishFinite(t[vertex]))
+                                        throw new InvalidOperationException("A final surface morph is not finite.");
+                                    if (Nonzero(p[vertex]) || Nonzero(n[vertex]) || Nonzero(t[vertex])) selected[count++] = sample;
+                                }
+                                bytes = checked(bytes + count * 40L + 160L); retained = checked(retained + count * 40L + 384L);
+                                if (bytes + captureBytes > Limit || retained + plan.Bytes + captureBytes > Limit) yield break;
+                                var indices = new int[count]; var sp = new Vector3[count];
+                                var sn = new Vector3[count]; var st = new Vector3[count];
+                                for (var used = 0; used < count; used++)
+                                {
+                                    var sample = selected[used]; var vertex = sample < plan.NativeCount ? sample : plan.Points[sample - plan.NativeCount].Index;
+                                    indices[used] = sample; sp[used] = p[vertex]; sn[used] = n[vertex]; st[used] = t[vertex];
+                                }
+                                frames[frame] = new FinishMorphFrame(weight, indices, sp, sn, st);
+                                if (System.Diagnostics.Stopwatch.GetTimestamp() - sliceStarted >= sliceTicks)
+                                { yield return null; sliceStarted = System.Diagnostics.Stopwatch.GetTimestamp(); }
+                            }
+                            morphs[channel] = new FinishMorphChannel(channel, frames);
+                        }
+                        if (current()) receive(new NativeSurfacePacket(target, plan, identity, owner, normals, tangents, counts, morphs, retained));
+                    }
+                    finally { p = n = t = normals = null; tangents = null; counts = null; selected = null; morphs = null; }
+                }
+
+                private int SampleVertex(int sample) => sample < _plan.NativeCount ? sample : _plan.Points[sample - _plan.NativeCount].Index;
+                private static bool Nonzero(Vector3 value) => value.x != 0f || value.y != 0f || value.z != 0f;
+
+                // The ready gate is the same as Finish. This must run at native Finish's existing
+                // completed-job boundary; buffer 1 is the previous completed buffer in delay mode.
+                internal unsafe bool BeforeFinish(object meshData, int bufferIndex)
+                {
+                    if (_inFinish) throw new InvalidOperationException("A final surface Finish was reentered.");
+                    if (bufferIndex != 0 && bufferIndex != 1) throw new ArgumentOutOfRangeException(nameof(bufferIndex));
+                    if (!IsCurrent) return false;
+                    if (!FinishIsMeshUse(_deformer)) return false;
+                    var meshIndex = (int)Get(_deformer, "MeshIndex");
+                    var states = (IDictionary)Get(meshData, "renderMeshStateDict");
+                    if (!states.Contains(meshIndex)) return false;
+                    var state = states[meshIndex]; var flags = (uint)Get(state, "flag");
+                    if (bufferIndex == 1 && (flags & 256u) == 0u) return false;
+                    if ((flags & 1u) == 0u || (flags & 6u) != 6u) { _gpu?.Suspend(); return false; }
+                    var info = FinishItem(Get(meshData, "renderMeshInfoList"), meshIndex);
+                    var shared = FinishItem(Get(meshData, "sharedRenderMeshInfoList"), (int)Get(info, "renderSharedMeshIndex"));
+                    var rendererBone = (int)Get(shared, "rendererBoneIndex");
+                    if (rendererBone < 0 || rendererBone >= _bones.Length)
+                        throw new InvalidOperationException("A final surface renderer bone is outside its palette.");
+                    var vertexStart = (int)Get(state, "VertexChunkStart");
+                    var weightStart = (int)Get(state, "BoneWeightChunkStart");
+                    if ((int)Get(Get(info, "vertexChunk"), "dataLength") != _plan.TargetCount ||
+                        (int)Get(state, "BoneWeightChunkLength") != _boneStarts[_plan.TargetCount])
+                        throw new InvalidOperationException("A final surface native allocation changed its span.");
+                    var mode = Convert.ToInt32(Get(_deformer, "normalAndTangentUpdateMode"));
+                    if (mode < 0 || mode > 2) throw new InvalidOperationException("An unknown native normal/tangent mode was selected.");
+                    if (!ReferenceEquals(_meshData, meshData))
+                    {
+                        _positions = new FinishNativeArray(Get(meshData, "renderPosList"), "Unity.Mathematics.float3", 12);
+                        _normals = new FinishNativeArray(Get(meshData, "renderNormalList"), "Unity.Mathematics.float3", 12);
+                        _tangents = new FinishNativeArray(Get(meshData, "renderTangentList"), "Unity.Mathematics.float4", 16);
+                        _weights = new FinishNativeArray(Get(meshData, "renderBoneWeightList"), "UnityEngine.BoneWeight1", 8);
+                        _meshData = meshData;
+                    }
+                    // A native allocator may replace either backing array. Borrow anew each call.
+                    var positions = (Vector3*)_positions.Borrow(bufferIndex, vertexStart, _plan.TargetCount);
+                    var normals = (Vector3*)_normals.Borrow(bufferIndex, vertexStart, _plan.TargetCount);
+                    var tangents = (Vector4*)_tangents.Borrow(bufferIndex, vertexStart, _plan.TargetCount);
+                    var weights = (FinishBoneWeight*)_weights.Borrow(bufferIndex, weightStart, _boneStarts[_plan.TargetCount]);
+                    for (var bone = 0; bone < _bones.Length; bone++)
+                    {
+                        if (!_bones[bone]) throw new InvalidOperationException("A final surface skin bone was destroyed.");
+                        _boneMatrices[bone] = _bones[bone].localToWorldMatrix * _bindposes[bone];
+                    }
+                    var ownerFrame = _boneMatrices[rendererBone];
+                    var ownerDeterminant = Vector3.Dot(Vector3.Cross((Vector3)ownerFrame.GetColumn(0),
+                        (Vector3)ownerFrame.GetColumn(1)), (Vector3)ownerFrame.GetColumn(2));
+                    var ownerInverse = ownerFrame.inverse;
+                    if (!FinishFinite(ownerDeterminant) || ownerDeterminant == 0f || !FinishFinite(ownerInverse.MultiplyPoint3x4(Vector3.zero)))
+                        throw new InvalidOperationException("A final surface renderer frame is singular.");
+                    for (var bone = 0; bone < _boneMatrices.Length; bone++)
+                        _boneMatrices[bone] = ownerInverse * _boneMatrices[bone];
+                    UpdateMorphs();
+                    var hasMorph = _morphs.Length != 0;
+                    var influenceLimit = FinishInfluenceLimit(_renderer);
+                    // Resolve each native corner with the CURRENT BUFFER's actual skin weights.
+                    // No native virtual-use flags are altered and no native vertex is written.
+                    for (var index = 0; index < _plan.NativeCount; index++)
+                    {
+                        var p = positions[index] + (hasMorph ? _morphPositions[index] : Vector3.zero);
+                        var n = (mode >= 1 ? normals[index] : _restNormals[index]) + (hasMorph ? _morphNormals[index] : Vector3.zero);
+                        var t = (Vector3)(mode == 2 ? tangents[index] : _restTangents[index]) + (hasMorph ? _morphTangents[index] : Vector3.zero);
+                        var fp = Vector3.zero; var fn = Vector3.zero; var ft = Vector3.zero;
+                        var start = _boneStarts[index]; var available = _boneStarts[index + 1] - start;
+                        var end = start + Math.Min(available, influenceLimit);
+                        var sum = 0f; var previous = float.PositiveInfinity;
+                        for (var entry = start; entry < _boneStarts[index + 1]; entry++)
+                        {
+                            var weight = weights[entry];
+                            if (weight.Index < 0 || weight.Index >= _boneMatrices.Length || !FinishFinite(weight.Weight) ||
+                                weight.Weight < 0f || weight.Weight > previous)
+                                throw new InvalidOperationException("A final surface native skin weight is invalid.");
+                            previous = weight.Weight;
+                            if (entry < end) sum += weight.Weight;
+                        }
+                        if (!(sum > 0f) || !FinishFinite(sum))
+                            throw new InvalidOperationException("A final surface native skin has no effective influence.");
+                        // Quality selects the current buffer's leading weights, not the immutable
+                        // source mesh's weights (native cloth replaces its first entry dynamically).
+                        var normalization = available > influenceLimit || influenceLimit == 1 ? 1f / sum : 1f;
+                        for (var entry = start; entry < end; entry++)
+                        {
+                            var weight = weights[entry]; var factor = weight.Weight * normalization;
+                            var matrix = _boneMatrices[weight.Index];
+                            fp += matrix.MultiplyPoint3x4(p) * factor;
+                            fn += matrix.MultiplyVector(n) * factor;
+                            ft += matrix.MultiplyVector(t) * factor;
+                        }
+                        // Plan residuals are measured in the immutable renderer-to-prefab frame,
+                        // including its scale. Perform the interpolation in that same metric.
+                        _finalPositions[index] = _plan.SourceFrame.MultiplyPoint3x4(fp);
+                        _finalNormals[index] = _sourceNormal.MultiplyVector(fn).normalized;
+                        _finalTangents[index] = _plan.SourceFrame.MultiplyVector(ft);
+                    }
+                    if (_gpu != null && _gpu.CanProject())
+                    {
+                        if ((_cpuFineBuffers & (1 << bufferIndex)) != 0)
+                        {
+                            var changed = false;
+                            foreach (var point in _plan.Points)
+                            {
+                                positions[point.Index] = _gpu.RestPositions[point.Index];
+                                normals[point.Index] = _restNormals[point.Index];
+                                tangents[point.Index] = _restTangents[point.Index];
+                                for (var entry = _boneStarts[point.Index]; entry < _boneStarts[point.Index + 1]; entry++)
+                                {
+                                    var original = _gpu.RestWeights[entry];
+                                    if (weights[entry].Index == original.boneIndex && weights[entry].Weight == original.weight) continue;
+                                    weights[entry].Index = original.boneIndex; weights[entry].Weight = original.weight; changed = true;
+                                }
+                            }
+                            if (changed) Put(_deformer, "IsChangeBoneWeights", true);
+                            _cpuFineBuffers &= ~(1 << bufferIndex);
+                        }
+                        _gpu.Upload(rendererBone);
+                        _gpuFinish = true;
+                        _inFinish = true; _finishedBuffer = bufferIndex; _finishedMode = mode;
+                        return true;
+                    }
+                    _gpu?.Suspend(); _gpuFinish = false;
+                    // Validate/calculations complete before publishing any fine data to native buffers.
+                    // Scratch fallback arrays retain the exact original prefix in modes with no N/T upload.
+                    // Only independent managed fine-point calculations run on workers.
+                    // Native reads precede the join; native buffer publication follows it.
+                    if (_fineSliceCount == 1)
+                    {
+                        FinishFineSlice(0);
+                    }
+                    else
+                    {
+                        Parallel.For(0, _fineSliceCount, _fineParallelOptions, _fineSliceAction);
+                    }
+                    var changedWeights = false;
+                    for (var index = 0; index < _plan.Points.Length; index++)
+                    {
+                        var point = _plan.Points[index];
+                        positions[point.Index] = _finePositions[index];
+                        normals[point.Index] = _fallbackNormals[point.Index];
+                        tangents[point.Index] = _fallbackTangents[point.Index];
+                        for (var entry = _boneStarts[point.Index]; entry < _boneStarts[point.Index + 1]; entry++)
+                        {
+                            // Match native active-cloth skin output. Counts/spans stay immutable;
+                            // a single renderer influence is valid for every renderer quality.
+                            var factor = entry == _boneStarts[point.Index] ? 1f : 0f;
+                            if (weights[entry].Index == rendererBone && weights[entry].Weight == factor) continue;
+                            weights[entry].Index = rendererBone; weights[entry].Weight = factor; changedWeights = true;
+                        }
+                    }
+                    if (changedWeights) Put(_deformer, "IsChangeBoneWeights", true);
+                    _cpuFineBuffers |= 1 << bufferIndex;
+                    _inFinish = true; _finishedBuffer = bufferIndex; _finishedMode = mode;
+                    return true;
+                }
+
+                private void FinishFineSlice(int slice)
+                {
+                    var start = (int)((long)_plan.Points.Length * slice / _fineSliceCount);
+                    var end = (int)((long)_plan.Points.Length * (slice + 1) / _fineSliceCount);
+                    var hasMorph = _morphs.Length != 0;
+                    var sourceInverse = _sourceInverse; var sourceTranspose = _sourceTranspose;
+                    Vector3 framePosition = default, n = default, t = default, b = default;
+                    for (var index = start; index < end; index++)
+                    {
+                        ref readonly var point = ref _plan.Points[index]; var bary = point.Bary;
+                        // Each typed field store is the original operator-return float32 boundary.
+                        Vector3 first = default, second = default, third = default, sum = default;
+                        Vector3 p = default, projected = default;
+                        Vector3 fineNormal = default, fineTangent = default;
+                        float dot;
+                        if (index == start || !_plan.ReusePreviousFrame[index])
+                        {
+                            var a = _finalPositions[point.A]; var c = _finalPositions[point.C]; var bb = _finalPositions[point.B];
+                            first.x = a.x * bary.x; first.y = a.y * bary.x; first.z = a.z * bary.x;
+                            second.x = bb.x * bary.y; second.y = bb.y * bary.y; second.z = bb.z * bary.y;
+                            third.x = c.x * bary.z; third.y = c.y * bary.z; third.z = c.z * bary.z;
+                            sum.x = first.x + second.x; sum.y = first.y + second.y; sum.z = first.z + second.z;
+                            p.x = sum.x + third.x; p.y = sum.y + third.y; p.z = sum.z + third.z;
+                            if (point.Hand == 2f)
+                            {
+                                t = GeometryUnit(bb - a);
+                                n = GeometryUnit(Vector3.Cross(bb - a, c - a));
+                                b = Vector3.Cross(n, t);
+                            }
+                            else
+                            {
+                                a = _finalNormals[point.A]; c = _finalNormals[point.C]; bb = _finalNormals[point.B];
+                                first.x = a.x * bary.x; first.y = a.y * bary.x; first.z = a.z * bary.x;
+                                second.x = bb.x * bary.y; second.y = bb.y * bary.y; second.z = bb.z * bary.y;
+                                third.x = c.x * bary.z; third.y = c.y * bary.z; third.z = c.z * bary.z;
+                                sum.x = first.x + second.x; sum.y = first.y + second.y; sum.z = first.z + second.z;
+                                n.x = sum.x + third.x; n.y = sum.y + third.y; n.z = sum.z + third.z;
+                                // Input fields are already binary32. Match installed Magnitude/Normalize order.
+                                first.x = (float)Math.Sqrt(n.x * n.x + n.y * n.y + n.z * n.z);
+                                if (first.x > 1E-05f)
+                                {
+                                    n.x = n.x / first.x; n.y = n.y / first.x; n.z = n.z / first.x;
+                                }
+                                else
+                                {
+                                    n.x = 0f; n.y = 0f; n.z = 0f;
+                                }
+                                a = _finalTangents[point.A]; c = _finalTangents[point.C]; bb = _finalTangents[point.B];
+                                first.x = a.x * bary.x; first.y = a.y * bary.x; first.z = a.z * bary.x;
+                                second.x = bb.x * bary.y; second.y = bb.y * bary.y; second.z = bb.z * bary.y;
+                                third.x = c.x * bary.z; third.y = c.y * bary.z; third.z = c.z * bary.z;
+                                sum.x = first.x + second.x; sum.y = first.y + second.y; sum.z = first.z + second.z;
+                                t.x = sum.x + third.x; t.y = sum.y + third.y; t.z = sum.z + third.z;
+                                first.x = n.x * t.x + n.y * t.y + n.z * t.z;
+                                dot = first.x;
+                                first.x = n.x * dot; first.y = n.y * dot; first.z = n.z * dot;
+                                projected.x = t.x - first.x; projected.y = t.y - first.y; projected.z = t.z - first.z;
+                                // Input fields are already binary32. Match installed Magnitude/Normalize order.
+                                first.x = (float)Math.Sqrt(projected.x * projected.x + projected.y * projected.y + projected.z * projected.z);
+                                if (first.x > 1E-05f)
+                                {
+                                    t.x = projected.x / first.x; t.y = projected.y / first.x; t.z = projected.z / first.x;
+                                }
+                                else
+                                {
+                                    t.x = 0f; t.y = 0f; t.z = 0f;
+                                }
+                                Vector3 cross = default;
+                                cross.x = n.y * t.z - n.z * t.y;
+                                cross.y = n.z * t.x - n.x * t.z;
+                                cross.z = n.x * t.y - n.y * t.x;
+                                b.x = cross.x * point.Hand; b.y = cross.y * point.Hand; b.z = cross.z * point.Hand;
+                            }
+                            if (!FinishFinite(p) || !FinishFinite(n) || !FinishFinite(t) || n.sqrMagnitude < .99f || t.sqrMagnitude < .99f)
+                                throw new InvalidOperationException("A final surface frame is singular or not finite.");
+                            framePosition = p;
+                        }
+                        p = framePosition;
+                        var sample = _plan.NativeCount + index;
+                        // Transfer preserves three product stores and both ordered sum stores.
+                        var value = point.Offset;
+                        first.x = t.x * value.x; first.y = t.y * value.x; first.z = t.z * value.x;
+                        second.x = b.x * value.y; second.y = b.y * value.y; second.z = b.z * value.y;
+                        third.x = n.x * value.z; third.y = n.y * value.z; third.z = n.z * value.z;
+                        sum.x = first.x + second.x; sum.y = first.y + second.y; sum.z = first.z + second.z;
+                        projected.x = sum.x + third.x; projected.y = sum.y + third.y; projected.z = sum.z + third.z;
+                        p.x = p.x + projected.x; p.y = p.y + projected.y; p.z = p.z + projected.z;
+                        value = point.Normal;
+                        first.x = t.x * value.x; first.y = t.y * value.x; first.z = t.z * value.x;
+                        second.x = b.x * value.y; second.y = b.y * value.y; second.z = b.z * value.y;
+                        third.x = n.x * value.z; third.y = n.y * value.z; third.z = n.z * value.z;
+                        sum.x = first.x + second.x; sum.y = first.y + second.y; sum.z = first.z + second.z;
+                        fineNormal.x = sum.x + third.x; fineNormal.y = sum.y + third.y; fineNormal.z = sum.z + third.z;
+                        // Input fields are already binary32. Match installed Magnitude/Normalize order.
+                        first.x = (float)Math.Sqrt(fineNormal.x * fineNormal.x + fineNormal.y * fineNormal.y + fineNormal.z * fineNormal.z);
+                        if (first.x > 1E-05f)
+                        {
+                            fineNormal.x = fineNormal.x / first.x; fineNormal.y = fineNormal.y / first.x; fineNormal.z = fineNormal.z / first.x;
+                        }
+                        else
+                        {
+                            fineNormal.x = 0f; fineNormal.y = 0f; fineNormal.z = 0f;
+                        }
+                        value = point.Tangent;
+                        first.x = t.x * value.x; first.y = t.y * value.x; first.z = t.z * value.x;
+                        second.x = b.x * value.y; second.y = b.y * value.y; second.z = b.z * value.y;
+                        third.x = n.x * value.z; third.y = n.y * value.z; third.z = n.z * value.z;
+                        sum.x = first.x + second.x; sum.y = first.y + second.y; sum.z = first.z + second.z;
+                        fineTangent.x = sum.x + third.x; fineTangent.y = sum.y + third.y; fineTangent.z = sum.z + third.z;
+                        first.x = fineNormal.x * fineTangent.x + fineNormal.y * fineTangent.y + fineNormal.z * fineTangent.z;
+                        dot = first.x;
+                        first.x = fineNormal.x * dot; first.y = fineNormal.y * dot; first.z = fineNormal.z * dot;
+                        projected.x = fineTangent.x - first.x; projected.y = fineTangent.y - first.y; projected.z = fineTangent.z - first.z;
+                        // Input fields are already binary32. Match installed Magnitude/Normalize order.
+                        first.x = (float)Math.Sqrt(projected.x * projected.x + projected.y * projected.y + projected.z * projected.z);
+                        if (first.x > 1E-05f)
+                        {
+                            fineTangent.x = projected.x / first.x; fineTangent.y = projected.y / first.x; fineTangent.z = projected.z / first.x;
+                        }
+                        else
+                        {
+                            fineTangent.x = 0f; fineTangent.y = 0f; fineTangent.z = 0f;
+                        }
+                        // Transport keeps original component grouping and float32 result fields.
+                        projected.x = sourceInverse.m00 * p.x + sourceInverse.m01 * p.y + sourceInverse.m02 * p.z + sourceInverse.m03;
+                        projected.y = sourceInverse.m10 * p.x + sourceInverse.m11 * p.y + sourceInverse.m12 * p.z + sourceInverse.m13;
+                        projected.z = sourceInverse.m20 * p.x + sourceInverse.m21 * p.y + sourceInverse.m22 * p.z + sourceInverse.m23;
+                        p = projected;
+                        projected.x = sourceTranspose.m00 * fineNormal.x + sourceTranspose.m01 * fineNormal.y + sourceTranspose.m02 * fineNormal.z;
+                        projected.y = sourceTranspose.m10 * fineNormal.x + sourceTranspose.m11 * fineNormal.y + sourceTranspose.m12 * fineNormal.z;
+                        projected.z = sourceTranspose.m20 * fineNormal.x + sourceTranspose.m21 * fineNormal.y + sourceTranspose.m22 * fineNormal.z;
+                        fineNormal = projected;
+                        // Input fields are already binary32. Match installed Magnitude/Normalize order.
+                        first.x = (float)Math.Sqrt(fineNormal.x * fineNormal.x + fineNormal.y * fineNormal.y + fineNormal.z * fineNormal.z);
+                        if (first.x > 1E-05f)
+                        {
+                            fineNormal.x = fineNormal.x / first.x; fineNormal.y = fineNormal.y / first.x; fineNormal.z = fineNormal.z / first.x;
+                        }
+                        else
+                        {
+                            fineNormal.x = 0f; fineNormal.y = 0f; fineNormal.z = 0f;
+                        }
+                        projected.x = sourceInverse.m00 * fineTangent.x + sourceInverse.m01 * fineTangent.y + sourceInverse.m02 * fineTangent.z;
+                        projected.y = sourceInverse.m10 * fineTangent.x + sourceInverse.m11 * fineTangent.y + sourceInverse.m12 * fineTangent.z;
+                        projected.z = sourceInverse.m20 * fineTangent.x + sourceInverse.m21 * fineTangent.y + sourceInverse.m22 * fineTangent.z;
+                        fineTangent = projected;
+                        first.x = fineNormal.x * fineTangent.x + fineNormal.y * fineTangent.y + fineNormal.z * fineTangent.z;
+                        dot = first.x;
+                        first.x = fineNormal.x * dot; first.y = fineNormal.y * dot; first.z = fineNormal.z * dot;
+                        projected.x = fineTangent.x - first.x; projected.y = fineTangent.y - first.y; projected.z = fineTangent.z - first.z;
+                        // Input fields are already binary32. Match installed Magnitude/Normalize order.
+                        first.x = (float)Math.Sqrt(projected.x * projected.x + projected.y * projected.y + projected.z * projected.z);
+                        if (first.x > 1E-05f)
+                        {
+                            fineTangent.x = projected.x / first.x; fineTangent.y = projected.y / first.x; fineTangent.z = projected.z / first.x;
+                        }
+                        else
+                        {
+                            fineTangent.x = 0f; fineTangent.y = 0f; fineTangent.z = 0f;
+                        }
+                        Vector3 morphPosition = default, morphNormal = default, morphTangent = default;
+                        if (hasMorph)
+                        {
+                            morphPosition = _morphPositions[sample]; morphNormal = _morphNormals[sample]; morphTangent = _morphTangents[sample];
+                        }
+                        projected.x = p.x - morphPosition.x; projected.y = p.y - morphPosition.y; projected.z = p.z - morphPosition.z;
+                        _finePositions[index] = projected;
+                        projected.x = fineNormal.x - morphNormal.x; projected.y = fineNormal.y - morphNormal.y; projected.z = fineNormal.z - morphNormal.z;
+                        _fallbackNormals[point.Index] = projected;
+                        projected.x = fineTangent.x - morphTangent.x; projected.y = fineTangent.y - morphTangent.y; projected.z = fineTangent.z - morphTangent.z;
+                        Vector4 outputTangent = default;
+                        outputTangent.x = projected.x; outputTangent.y = projected.y; outputTangent.z = projected.z; outputTangent.w = point.TangentHand;
+                        _fallbackTangents[point.Index] = outputTangent;
+                    }
+                }
+
+                // Call from postfix/finalizer with the original native exception, without swallowing it.
+                // Native mode 0 restores rest N/T; mode 1 does not upload tangents. Supply only their
+                // owned fine tails AFTER native Finish, retaining exact rest prefix and mode/flags.
+                internal void AfterFinish(int bufferIndex, Exception nativeFailure)
+                {
+                    if (!_inFinish) return;
+                    try
+                    {
+                        if (nativeFailure != null) { _gpu?.Suspend(); return; }
+                        if (bufferIndex != _finishedBuffer || !_mesh || !_renderer || _renderer.sharedMesh != _mesh)
+                            throw new InvalidOperationException("A final surface upload changed its native owner.");
+                        if (_gpuFinish) { _gpu.Publish(); return; }
+                        if (_finishedMode == 0) _mesh.normals = _fallbackNormals;
+                        if (_finishedMode <= 1) _mesh.tangents = _fallbackTangents;
+                    }
+                    finally { _inFinish = false; _finishedBuffer = -1; _gpuFinish = false; }
+                }
+
+                private void UpdateMorphs()
+                {
+                    if (_morphs.Length == 0) return;
+                    var changed = !_morphValid;
+                    for (var index = 0; index < _morphs.Length; index++)
+                    {
+                        var weight = _renderer.GetBlendShapeWeight(_morphs[index].Index);
+                        if (!FinishFinite(weight)) throw new InvalidOperationException("A final surface morph weight is not finite.");
+                        _currentMorphWeights[index] = weight;
+                        if (weight != _lastMorphWeights[index]) changed = true;
+                    }
+                    if (!changed) return;
+                    _morphValid = false;
+                    Array.Clear(_morphPositions, 0, _morphPositions.Length);
+                    Array.Clear(_morphNormals, 0, _morphNormals.Length);
+                    Array.Clear(_morphTangents, 0, _morphTangents.Length);
+                    foreach (var channel in _morphs)
+                    {
+                        var weight = _currentMorphWeights[channel.Index];
+                        if (weight == 0f) continue;
+                        var frames = channel.Frames;
+                        // Unity's neutral zero is the implicit endpoint before/after the first/last
+                        // same-sign frame. Outside the last interval the endpoint interval extrapolates.
+                        FinishMorphFrame first = null, second = null; float firstWeight = 0f, secondWeight = 0f;
+                        if (frames[0].Weight > 0f && weight <= frames[0].Weight)
+                        { second = frames[0]; secondWeight = second.Weight; }
+                        else if (frames[frames.Length - 1].Weight < 0f && weight >= frames[frames.Length - 1].Weight)
+                        { first = frames[frames.Length - 1]; firstWeight = first.Weight; }
+                        else if (frames.Length == 1)
+                        { second = frames[0]; secondWeight = second.Weight; }
+                        else
+                        {
+                            var upper = 1;
+                            while (upper < frames.Length - 1 && weight > frames[upper].Weight) upper++;
+                            first = frames[upper - 1]; second = frames[upper];
+                            firstWeight = first.Weight; secondWeight = second.Weight;
+                        }
+                        if (firstWeight == secondWeight)
+                            throw new InvalidOperationException("A final surface morph has a singular interpolation interval.");
+                        var factor = (weight - firstWeight) / (secondWeight - firstWeight);
+                        AddMorph(first, 1f - factor); AddMorph(second, factor);
+                    }
+                    Array.Copy(_currentMorphWeights, _lastMorphWeights, _lastMorphWeights.Length);
+                    _morphValid = true;
+                }
+                private void AddMorph(FinishMorphFrame frame, float factor)
+                {
+                    if (frame == null || factor == 0f) return;
+                    for (var index = 0; index < frame.Indices.Length; index++)
+                    {
+                        var sample = frame.Indices[index];
+                        _morphPositions[sample] += frame.Position[index] * factor;
+                        _morphNormals[sample] += frame.Normal[index] * factor;
+                        _morphTangents[sample] += frame.Tangent[index] * factor;
+                    }
+                }
+                internal sealed class FinishMorphChannel(int index, FinishMorphFrame[] frames)
+                { internal readonly int Index = index; internal readonly FinishMorphFrame[] Frames = frames; }
+                internal sealed class FinishMorphFrame(float weight, int[] indices, Vector3[] position, Vector3[] normal, Vector3[] tangent)
+                {
+                    internal readonly float Weight = weight;
+                    internal readonly int[] Indices = indices;
+                    internal readonly Vector3[] Position = position, Normal = normal, Tangent = tangent;
+                }
+            }
+
+            [StructLayout(LayoutKind.Sequential, Pack = 4)]
+            private struct FinishBoneWeight { internal float Weight; internal int Index; }
+
+            // NativeArray layout and its pointer-load program depend only on the closed
+            // value type. No backing array, borrowed address or mutable owner is retained.
+            private sealed class FinishNativeArrayLayout
+            {
+                internal readonly string ElementName;
+                internal readonly int Stride;
+                internal readonly FieldInfo Length;
+                internal readonly Func<object, IntPtr> ReadPointer;
+
+                internal unsafe FinishNativeArrayLayout(Type arrayType, string elementName, int stride)
+                {
+                    ElementName = elementName; Stride = stride;
+                    var element = arrayType.GetGenericArguments()[0];
+                    if (element.FullName != elementName || Marshal.SizeOf(element) != stride ||
+                        Marshal.SizeOf(typeof(Vector3)) != 12 || Marshal.SizeOf(typeof(Vector4)) != 16 ||
+                        Marshal.SizeOf(typeof(FinishBoneWeight)) != 8)
+                        throw new InvalidOperationException("A final surface native element has an unsupported stride.");
+                    if (elementName == "UnityEngine.BoneWeight1")
+                    {
+                        if ((int)Marshal.OffsetOf(element, "m_Weight") != 0 || (int)Marshal.OffsetOf(element, "m_BoneIndex") != 4)
+                            throw new InvalidOperationException("A final surface native bone weight layout changed.");
+                    }
+                    else if ((int)Marshal.OffsetOf(element, "x") != 0 || (int)Marshal.OffsetOf(element, "y") != 4 ||
+                             (int)Marshal.OffsetOf(element, "z") != 8 || (stride == 16 && (int)Marshal.OffsetOf(element, "w") != 12))
+                        throw new InvalidOperationException("A final surface native vector layout changed.");
+                    var pointer = NativeField(arrayType, "m_Buffer");
+                    Length = NativeField(arrayType, "m_Length");
+                    if (pointer == null || !pointer.FieldType.IsPointer || Length?.FieldType != typeof(int))
+                        throw new InvalidOperationException("A final surface native array has no borrowed buffer.");
+                    // Mono reflection pointer boxing dereferences this generic struct field.
+                    // Load the pointer value directly, and share only the resulting program.
+                    var reader = new System.Reflection.Emit.DynamicMethod("ReadNativeSurfaceBuffer", typeof(IntPtr),
+                        new[] { typeof(object) }, typeof(FinishNativeArray).Module, true);
+                    var il = reader.GetILGenerator();
+                    il.Emit(System.Reflection.Emit.OpCodes.Ldarg_0);
+                    il.Emit(System.Reflection.Emit.OpCodes.Unbox, arrayType);
+                    il.Emit(System.Reflection.Emit.OpCodes.Ldfld, pointer);
+                    il.Emit(System.Reflection.Emit.OpCodes.Conv_I);
+                    il.Emit(System.Reflection.Emit.OpCodes.Newobj, typeof(IntPtr).GetConstructor(new[] { typeof(void*) }));
+                    il.Emit(System.Reflection.Emit.OpCodes.Ret);
+                    ReadPointer = (Func<object, IntPtr>)reader.CreateDelegate(typeof(Func<object, IntPtr>));
+                }
+            }
+
+            // Field metadata is cached per owner/array, never per vertex. The borrowed pointer is
+            // scoped to one already-completed native Finish call and is never retained or disposed.
+            private sealed class FinishNativeArray
+            {
+                private readonly object _chunks;
+                private readonly FieldInfo _first, _second, _length;
+                private readonly Func<object, IntPtr> _readPointer;
+                private readonly int _stride;
+                internal FinishNativeArray(object chunks, string elementName, int stride)
+                {
+                    _chunks = chunks; _stride = stride;
+                    _first = NativeField(chunks.GetType(), "nativeArray0");
+                    _second = NativeField(chunks.GetType(), "nativeArray1");
+                    if (_first == null || _second == null || _first.FieldType != _second.FieldType ||
+                        !_first.FieldType.IsGenericType || _first.FieldType.GetGenericTypeDefinition().FullName != "Unity.Collections.NativeArray`1")
+                        throw new InvalidOperationException("A final surface native array has an unsupported layout.");
+                    var layout = NativeSurfaceArrayLayout(_first.FieldType, elementName, stride);
+                    _length = layout.Length;
+                    _readPointer = layout.ReadPointer;
+                }
+                internal unsafe void* Borrow(int bufferIndex, int start, int count)
+                {
+                    var array = (bufferIndex == 0 ? _first : _second).GetValue(_chunks);
+                    var length = (int)_length.GetValue(array);
+                    if (start < 0 || count < 0 || (long)start + count > length)
+                        throw new InvalidOperationException("A final surface native buffer span is outside its allocation.");
+                    var pointer = _readPointer(array).ToPointer();
+                    if (pointer == null) throw new InvalidOperationException("A final surface native buffer was disposed.");
+                    return (byte*)pointer + checked(start * _stride);
+                }
+            }
+            private static object FinishItem(object list, int index) =>
+                list.GetType().GetProperty("Item", Fields)?.GetValue(list, new object[] { index }) ??
+                throw new MissingMemberException(list.GetType().FullName, "Item");
+            private static bool FinishFinite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
+            private static bool FinishFinite(Vector3 value) => FinishFinite(value.x) && FinishFinite(value.y) && FinishFinite(value.z);
+            private static Vector3 FinishTransfer(Vector3 tangent, Vector3 bitangent, Vector3 normal, Vector3 value) =>
+                tangent * value.x + bitangent * value.y + normal * value.z;
+            private static int FinishInfluenceLimit(SkinnedMeshRenderer renderer)
+            {
+                switch (renderer.quality)
+                {
+                    case SkinQuality.Bone1: return 1;
+                    case SkinQuality.Bone2: return 2;
+                    case SkinQuality.Bone4: return 4;
+                    case SkinQuality.Auto:
+                        var limit = (int)QualitySettings.skinWeights;
+                        if (limit == 1 || limit == 2 || limit == 4 || limit == 255) return limit;
+                        break;
+                }
+                throw new InvalidOperationException("An unknown native skin quality was selected.");
+            }
+
             private readonly GraphicsCharacter _graphics;
             private readonly Dictionary<SkinnedMeshRenderer, (SkinMeshSource Source, Mesh Mesh)> _changes;
             private readonly List<NativeOwner> _owners = [];
             private readonly List<NativeData> _data = [];
             private readonly List<NativeSkin> _skins = [];
             private readonly Dictionary<SkinnedMeshRenderer, SkinMeshSource> _installed = [];
+            private readonly Dictionary<SkinnedMeshRenderer, SurfaceBinding> _paletteBindings = [];
+            private readonly Dictionary<SkinnedMeshRenderer, Dictionary<(string Name, int Occurrence), float>> _donorWeights = [];
             private readonly HashSet<Component> _boundaryVirtualOwners = [];
             private readonly HashSet<Component> _boundaryRenderOwners = [];
             private readonly Dictionary<NativeOwner, int[]> _boundaryClothVertices = [];
             private bool _applied, _started;
+            private readonly Func<Mesh, Mesh, SurfaceBinding, NativeSurfacePlan, NativeSurfacePacket> _preparedPacket;
+            private readonly Dictionary<SkinnedMeshRenderer, SurfaceBinding> _finishBindings;
+            private readonly Dictionary<object, NativeSurfacePlan> _nativeSurfacePlans = new(new NativeDataReferences());
+            private readonly Dictionary<object, NativeSurfaceFinishState> _nativeSurfaceFinishes = new(new NativeDataReferences());
+
+            internal void RefreshNativeSurfaceMaterials()
+            {
+                foreach (var pair in _nativeSurfaceFinishes.ToArray())
+                {
+                    if (pair.Value.IsCurrent) pair.Value.RefreshMaterials();
+                    else
+                    {
+                        pair.Value.Dispose();
+                        _nativeSurfaceFinishes.Remove(pair.Key);
+                    }
+                }
+            }
+
+            private NativeSurfacePacket PreparedFinishPacket(SkinnedMeshRenderer renderer, Mesh target, NativeSurfacePlan plan) =>
+                _preparedPacket != null && _finishBindings != null && _finishBindings.TryGetValue(renderer, out var binding) &&
+                _changes.TryGetValue(renderer, out var change) && ReferenceEquals(change.Mesh, target)
+                    ? _preparedPacket(change.Source.Original, target, binding, plan) : null;
+            private void PrepareNativeSurfaceFinishes()
+            {
+                foreach (var skin in _skins)
+                {
+                    if (skin.Deformer == null || skin.Renderer is not SkinnedMeshRenderer renderer ||
+                        !_nativeSurfacePlans.TryGetValue(skin.Deformer, out var plan) ||
+                        !Flag(Get(skin.Deformer, "Status"), "IsInitSuccess")) continue;
+                    if (_nativeSurfaceFinishes.TryGetValue(skin.Deformer, out var previous)) previous.Dispose();
+                    _nativeSurfaceFinishes[skin.Deformer] = new NativeSurfaceFinishState(plan, skin.Deformer, renderer,
+                        (target, expected) => PreparedFinishPacket(renderer, target, expected));
+                }
+            }
+            internal bool BeginNativeSurfaceFinish(object deformer, int bufferIndex)
+            {
+                if (!_applied || !_nativeSurfacePlans.TryGetValue(deformer, out var plan)) return false;
+                if (_nativeSurfaceFinishes.TryGetValue(deformer, out var state) && !state.IsCurrent)
+                {
+                    state.Dispose();
+                    _nativeSurfaceFinishes.Remove(deformer);
+                    state = null;
+                }
+                if (state == null)
+                {
+                    var skin = _skins.FirstOrDefault(candidate => ReferenceEquals(candidate.Deformer, deformer));
+                    if (skin?.Renderer is not SkinnedMeshRenderer renderer || !renderer) return false;
+                    state = new NativeSurfaceFinishState(plan, deformer, renderer,
+                        (target, expected) => PreparedFinishPacket(renderer, target, expected));
+                    state.RefreshMaterials();
+                    _nativeSurfaceFinishes.Add(deformer, state);
+                }
+                return state.BeforeFinish(Get(GetStatic(ManagerType, "Instance"), "Mesh"), bufferIndex);
+            }
+            internal void EndNativeSurfaceFinish(object deformer, int bufferIndex, Exception failure)
+            {
+                if (_nativeSurfaceFinishes.TryGetValue(deformer, out var state)) state.AfterFinish(bufferIndex, failure);
+            }
 
             private sealed class NativeOwner(Component component, object deformer, int order)
             {
@@ -785,13 +2157,14 @@ public static class CustomModels
                     ? ((IEnumerable)Get(deformer, "renderDeformerList")).Cast<Component>().ToArray() : [];
                 internal readonly Component Parent = order == 0 ? Optional(component, "virtualDeformer") as Component : null;
                 internal readonly Renderer Target = order == 2 ? ResolveNativeRenderer(component, deformer) : null;
-                internal readonly bool Initialized = Flag(Get(component, "Status"), "IsInitComplete");
-                internal readonly bool UserEnabled = (bool)Get(Get(component, "Status"), "userEnable");
-                internal readonly bool DeformerUserEnabled = deformer == null || (bool)Get(Get(deformer, "Status"), "userEnable");
-                internal readonly bool DeformerEnabled = deformer == null || (bool)Get(Get(deformer, "Status"), "enable");
+                internal bool Initialized = Flag(Get(component, "Status"), "IsInitComplete");
+                internal bool UserEnabled = (bool)Get(Get(component, "Status"), "userEnable");
+                internal bool DeformerUserEnabled = deformer == null || (bool)Get(Get(deformer, "Status"), "userEnable");
+                internal bool DeformerEnabled = deformer == null || (bool)Get(Get(deformer, "Status"), "enable");
                 internal readonly int Hash = (int)Get(component, "dataHash");
                 internal readonly int Version = (int)Get(component, "dataVersion");
                 internal readonly int VerificationResult = Convert.ToInt32(Invoke(component, "VerifyData"));
+                internal bool PreservesRejectedCloth => Order == 0 && !Initialized && VerificationResult != 0;
                 internal readonly object ClothData = Optional(component, "ClothData");
                 internal readonly object ClothSelection = Optional(component, "ClothSelection");
                 internal readonly Dictionary<string, object> ClothDataIdentity = Optional(component, "ClothData") is { } clothData
@@ -821,7 +2194,12 @@ public static class CustomModels
                 internal readonly Mesh Replacement = replacement;
                 internal readonly object Deformer = deformer;
                 internal readonly Transform[] Bones = renderer is SkinnedMeshRenderer skin ? skin.bones : [];
+                internal Transform[] ReplacementBones;
+                internal readonly Transform RootBone = renderer is SkinnedMeshRenderer skin ? skin.rootBone : null;
                 internal bool Superseded;
+                internal (string Name, int Occurrence)[] WeightChannels = PhysicalWeightChannels(original);
+                internal (string Name, int Occurrence)[] OriginalWeightChannels;
+                internal float[] OriginalWeights;
                 internal float[] Weights = Enumerable.Range(0, original.blendShapeCount)
                     .Select(index => renderer is SkinnedMeshRenderer skin ? skin.GetBlendShapeWeight(index) : 0f).ToArray();
             }
@@ -832,8 +2210,11 @@ public static class CustomModels
             internal SourceGraph(GraphicsCharacter graphics,
                 IReadOnlyDictionary<SkinnedMeshRenderer, (SkinMeshSource Source, Mesh Mesh)> changes,
                 IReadOnlyDictionary<SkinnedMeshRenderer, SurfaceBinding> bindings,
-                Func<string, Func<UnityEngine.Object[]>, UnityEngine.Object[]> retainData)
+                Func<string, Func<UnityEngine.Object[]>, UnityEngine.Object[]> retainData,
+                Func<UnityEngine.Object, Func<string>, string> sourceFingerprint,
+                Func<Mesh, Mesh, SurfaceBinding, NativeSurfacePlan, NativeSurfacePacket> preparedPacket = null)
             {
+                _preparedPacket = preparedPacket;
                 _graphics = graphics;
                 _changes = changes.ToDictionary(pair => pair.Key, pair => pair.Value);
                 foreach (var pair in _changes)
@@ -877,9 +2258,10 @@ public static class CustomModels
                     {
                         var deformer = Optional(component, "Deformer");
                         var order = ClothBaseType.IsInstanceOfType(component) ? 0 : VirtualType.IsInstanceOfType(component) ? 1 : 2;
-                        if (Flag(Get(component, "Status"), "IsInitError"))
+                        var owner = new NativeOwner(component, order == 0 ? null : deformer, order);
+                        if (Flag(Get(component, "Status"), "IsInitError") && !owner.PreservesRejectedCloth)
                             throw new InvalidOperationException("An invalid native cloth owner cannot be replaced as an ordinary skin.");
-                        _owners.Add(new NativeOwner(component, order == 0 ? null : deformer, order));
+                        _owners.Add(owner);
                         if (order == 2)
                         {
                             var renderer = ResolveNativeRenderer(component, deformer);
@@ -897,7 +2279,17 @@ public static class CustomModels
                 {
                     if (retainData == null)
                         throw new InvalidOperationException("A derived source binding requires its catalog owner.");
-                    PrepareBindings(bindings, retainData);
+                    PrepareBindings(bindings, retainData, sourceFingerprint);
+                    if (preparedPacket != null)
+                        foreach (var skin in _skins)
+                            if (skin.Renderer is SkinnedMeshRenderer renderer && skin.Deformer != null &&
+                                _nativeSurfacePlans.TryGetValue(skin.Deformer, out var plan) &&
+                                bindings.TryGetValue(renderer, out var binding) && _changes.TryGetValue(renderer, out var change) &&
+                                preparedPacket(change.Source.Original, skin.Replacement, binding, plan) != null)
+                            {
+                                _finishBindings ??= new();
+                                _finishBindings.Add(renderer, binding);
+                            }
                 }
                 foreach (var skin in _skins.Where(skin => skin.Deformer != null && skin.Original != skin.Replacement &&
                              !_data.Any(data => ReferenceEquals(data.Deformer, skin.Deformer))))
@@ -912,81 +2304,267 @@ public static class CustomModels
             }
 
             private void PrepareBindings(IReadOnlyDictionary<SkinnedMeshRenderer, SurfaceBinding> bindings,
-                Func<string, Func<UnityEngine.Object[]>, UnityEngine.Object[]> retainData)
+                Func<string, Func<UnityEngine.Object[]>, UnityEngine.Object[]> retainData,
+                Func<UnityEngine.Object, Func<string>, string> sourceFingerprint)
             {
+                string Fingerprint(object source) => sourceFingerprint != null && source is UnityEngine.Object native
+                    ? sourceFingerprint(native, () => HashNativeData(source)) : HashNativeData(source);
                 foreach (var pair in bindings)
                 {
                     if (!_changes.TryGetValue(pair.Key, out var change) || pair.Value == null ||
                         pair.Value.Vertices.Length != change.Mesh.vertexCount ||
                         pair.Value.SourceTangents.Length != change.Source.Original.vertexCount)
                         throw new InvalidOperationException("An authored source attachment does not match its render source.");
+                    var skin = _skins.Single(value => value.Renderer == pair.Key);
+                    skin.ReplacementBones = PreparePalette(pair.Key, change, pair.Value);
+                    if (pair.Value.PaletteSource.HasValue) _paletteBindings.Add(pair.Key, pair.Value);
                     ValidateBinding(change.Source.Original, change.Mesh, pair.Value, change.Source.ClothOwner,
                         change.Source.ClothOwner ? NativeSkinBoundaryVertices(change.Source, pair.Value) : null);
                 }
                 foreach (var owner in _owners.Where(owner => owner.Order == 1))
                 {
-                    var children = owner.Children;
-                    var changed = children.Select((component, index) => (component, index,
-                            skin: _skins.Single(skin => ReferenceEquals(skin.Deformer, Get(component, "Deformer")))))
-                        .Where(row => row.skin.Renderer is SkinnedMeshRenderer skin && bindings.ContainsKey(skin)).ToArray();
-                    if (changed.Length == 0) continue;
-                    var original = Get(owner.Deformer, "MeshData") as UnityEngine.Object;
-                    var originalHash = HashNativeData(original);
-                    var key = originalHash + ":" + string.Join(":", children.Select(child =>
-                        HashNativeData(Get(Get(child, "Deformer"), "MeshData")))) + ":" + string.Join(":", changed.Select(row =>
-                        row.index + ":" + bindings[(SkinnedMeshRenderer)row.skin.Renderer].Fingerprint));
-                    var derived = retainData(key, () =>
-                    {
-                        var created = new List<UnityEngine.Object>();
-                        try
-                        {
-                            var virtualData = CreateNativeData(original);
-                            created.Add(virtualData);
-                            var oldChildren = (IList)Get(original, "childDataList");
-                            var childData = (IList)Activator.CreateInstance(oldChildren.GetType());
-                            foreach (var child in oldChildren) childData.Add(child);
-                            Put(virtualData, "childDataList", childData);
-                            foreach (var row in changed)
-                            {
-                                var binding = bindings[(SkinnedMeshRenderer)row.skin.Renderer];
-                                var sourceData = Get(row.skin.Deformer, "MeshData") as UnityEngine.Object;
-                                var renderData = CreateNativeData(sourceData);
-                                created.Add(renderData);
-                                RebuildRenderData(renderData, row.skin.Replacement);
-                                var prediction = typeof(object).GetMethod("MemberwiseClone", Fields).Invoke(row.skin.Deformer, null);
-                                SourceMesh.SetValue(prediction, row.skin.Replacement);
-                                Put(prediction, "MeshData", renderData);
-                                var child = RebuildChildData(childData[row.index], binding, row.skin.Original,
-                                    (Vector3)Get(renderData, "baseScale"), (int)Get(virtualData, "vertexCount"));
-                                Put(child, "childDataHash", (int)Invoke(prediction, "GetDataHash"));
-                                childData[row.index] = child;
-                            }
-                            Invoke(virtualData, "CreateVerifyData");
-                            if (HashNativeData(original) != originalHash)
-                                throw new InvalidOperationException("Derived native binding construction modified its immutable source.");
-                            return created.ToArray();
-                        }
-                        catch
-                        {
-                            foreach (var data in created) if (data) UnityEngine.Object.Destroy(data);
-                            throw;
-                        }
-                    });
-                    if (derived.Length != changed.Length + 1)
+                    var recipe = DescribeNativeBinding(owner.Deformer, owner.Children, _changes, bindings);
+                    if (recipe == null) continue;
+                    var key = recipe.Key(Fingerprint);
+                    var derived = retainData(key, () => recipe.Create());
+                    if (derived.Length != recipe.Changed.Length + 1)
                         throw new InvalidOperationException("The retained native binding has a different child layout.");
-                    _data.Add(new NativeData(owner.Deformer, original, derived[0]));
-                    for (var index = 0; index < changed.Length; index++)
+                    _data.Add(new NativeData(owner.Deformer, recipe.Original, derived[0]));
+                    for (var index = 0; index < recipe.Changed.Length; index++)
                     {
-                        var native = changed[index].skin.Deformer;
-                        _data.Add(new NativeData(native, Get(native, "MeshData") as UnityEngine.Object, derived[index + 1]));
+                        var row = recipe.Changed[index];
+                        _data.Add(new NativeData(row.Deformer, row.Source, derived[index + 1]));
+                        if (row.Binding.SurfacePlan is { Points.Length: > 0 } plan)
+                            _nativeSurfacePlans.Add(row.Deformer, plan);
                     }
+                }
+            }
+            private Transform[] PreparePalette(SkinnedMeshRenderer renderer,
+                (SkinMeshSource Source, Mesh Mesh) change, SurfaceBinding binding)
+            {
+                var original = change.Source.Original.bindposes; var authored = change.Mesh.bindposes;
+                var current = renderer.bones; var additions = binding.PaletteAdditions ?? [];
+                if (binding.PaletteSource is not { } source)
+                {
+                    if (additions.Length != 0 || !original.SequenceEqual(authored))
+                        throw new InvalidOperationException("An undeclared source palette changed.");
+                    // Ordinary native/hair/cloth bindings keep their existing palette lifecycle.
+                    return null;
+                }
+                var captured = _skins.Single(skin => skin.Renderer == renderer);
+                if (change.Source.ClothOwner || current.Length != original.Length || !current.SequenceEqual(captured.Bones) ||
+                    !ReferenceEquals(renderer.rootBone, captured.RootBone) || authored.Length != original.Length + additions.Length ||
+                    !authored.Take(original.Length).SequenceEqual(original) ||
+                    !source.Renderer || source.Source == null || source.Source.ClothOwner || !source.Source.OwnerCurrent ||
+                    !source.Source.AcceptsCurrentMesh() || !source.Renderer.transform.IsChildOf(_graphics.transform))
+                    throw new InvalidOperationException("A coupled source palette has an incompatible native owner or generation.");
+                var donorBones = source.Renderer.bones; var donorPoses = source.Source.Original.bindposes;
+                if (donorBones.Length != donorPoses.Length || source.ToTarget == null || source.ToTarget.Length != donorBones.Length)
+                    throw new InvalidOperationException("A coupled donor has incomplete palette correspondence.");
+                var result = current.ToList();
+                foreach (var row in additions)
+                {
+                    if (!ReferenceEquals(row.Renderer, source.Renderer) || !ReferenceEquals(row.Source, source.Source) ||
+                        !SamePose(row.ToSource, source.ToSource) || row.Bone < 0 || row.Bone >= donorPoses.Length ||
+                        !donorBones[row.Bone] ||
+                        Enumerable.Range(0, result.Count).Any(index =>
+                            ReferenceEquals(result[index], donorBones[row.Bone]) &&
+                            SamePose(authored[index], donorPoses[row.Bone] * source.ToSource)) ||
+                        source.ToTarget[row.Bone] != result.Count || !SamePose(authored[result.Count], donorPoses[row.Bone] * source.ToSource))
+                        throw new InvalidOperationException("An appended native bone differs from its actual donor binding.");
+                    result.Add(donorBones[row.Bone]);
+                }
+                var common = 0;
+                for (var index = 0; index < donorBones.Length; index++)
+                {
+                    var mapped = source.ToTarget[index]; if (mapped == -1) continue;
+                    if (mapped < 0 || mapped >= result.Count || !donorBones[index] ||
+                        !ReferenceEquals(result[mapped], donorBones[index]) ||
+                        !SamePose(authored[mapped], donorPoses[index] * source.ToSource))
+                        throw new InvalidOperationException("A coupled donor's live bone reference or bind pose changed.");
+                    if (mapped < original.Length) common++;
+                }
+                if (common == 0) throw new InvalidOperationException("A coupled donor has no proven common native frame.");
+                return additions.Length == 0 ? null : result.ToArray();
+
+                static bool SamePose(Matrix4x4 a, Matrix4x4 b) => Enumerable.Range(0, 16).All(index =>
+                    Finite(a[index]) && Finite(b[index]) && Mathf.Abs(a[index] - b[index]) <= 0.000001f);
+            }
+
+            private sealed class NativeBindingRow
+            {
+                internal int Index;
+                internal object Deformer;
+                internal UnityEngine.Object Source;
+                internal Mesh Original, Replacement;
+                internal SurfaceBinding Binding;
+            }
+            private sealed class NativeBindingRecipe
+            {
+                internal object Deformer;
+                internal UnityEngine.Object Original;
+                internal Component[] Children;
+                internal UnityEngine.Object[] Sources;
+                internal NativeBindingRow[] Changed;
+                private string _originalHash;
+                private int[] _contexts;
+                internal string Key(Func<object, string> fingerprint)
+                {
+                    _originalHash = fingerprint(Original);
+                    _contexts = Children.Select(child => (int)Invoke(Get(child, "Deformer"), "GetDataHash")).ToArray();
+                    return _originalHash + ":" + string.Join(":", Sources.Select(fingerprint)) + ":" +
+                           string.Join(":", Changed.Select(row => row.Index + ":" + row.Binding.Fingerprint)) +
+                           ":context:" + string.Join(":", _contexts);
+                }
+                internal bool IsCurrent()
+                {
+                    if (!Original || !ReferenceEquals(Get(Deformer, "MeshData"), Original)) return false;
+                    var children = ((IEnumerable)Get(Deformer, "renderDeformerList")).Cast<Component>().ToArray();
+                    return children.SequenceEqual(Children) && Changed.All(row => row.Original && row.Replacement &&
+                        ReferenceEquals(Get(row.Deformer, "MeshData"), row.Source) && SourceMesh.GetValue(row.Deformer) as Mesh == row.Original);
+                }
+                internal bool HasSameContext() => _contexts.SequenceEqual(Children.Select(child => (int)Invoke(Get(child, "Deformer"), "GetDataHash")));
+                internal UnityEngine.Object[] Create()
+                {
+                    UnityEngine.Object[] result = null;
+                    var values = Create(false, () => true, data => result = data);
+                    try
+                    {
+                        while (values.MoveNext()) throw new InvalidOperationException("A synchronous native binding unexpectedly requested worker preparation.");
+                    }
+                    finally { (values as IDisposable)?.Dispose(); }
+                    return result;
+                }
+                internal IEnumerator Create(bool asynchronous, Func<bool> current, Action<UnityEngine.Object[]> receive)
+                {
+                    var created = new List<UnityEngine.Object>();
+                    var transferred = false;
+                    try
+                    {
+                        if (!current()) yield break;
+                        var virtualData = CreateNativeData(Original);
+                        created.Add(virtualData);
+                        var oldChildren = (IList)Get(Original, "childDataList");
+                        var childData = (IList)Activator.CreateInstance(oldChildren.GetType());
+                        foreach (var child in oldChildren) childData.Add(child);
+                        Put(virtualData, "childDataList", childData);
+                        foreach (var row in Changed)
+                        {
+                            if (!current()) yield break;
+                            var renderData = CreateNativeData(row.Source);
+                            created.Add(renderData);
+                            RebuildRenderData(renderData, row.Replacement);
+                            var prediction = typeof(object).GetMethod("MemberwiseClone", Fields).Invoke(row.Deformer, null);
+                            SourceMesh.SetValue(prediction, row.Replacement);
+                            Put(prediction, "MeshData", renderData);
+                            object rebuilt = null;
+                            if (asynchronous)
+                                yield return PrepareNativeChild(childData[row.Index], row.Binding, row.Original,
+                                    (Vector3)Get(renderData, "baseScale"), (int)Get(virtualData, "vertexCount"), current, value => rebuilt = value);
+                            if (!current()) yield break;
+                            rebuilt ??= RebuildChildData(childData[row.Index], row.Binding, row.Original,
+                                (Vector3)Get(renderData, "baseScale"), (int)Get(virtualData, "vertexCount"));
+                            Put(rebuilt, "childDataHash", (int)Invoke(prediction, "GetDataHash"));
+                            childData[row.Index] = rebuilt;
+                        }
+                        Invoke(virtualData, "CreateVerifyData");
+                        string originalAfter = null;
+                        if (asynchronous) yield return PrepareNativeFingerprint(Original, current, value => originalAfter = value);
+                        if (!current()) yield break;
+                        originalAfter ??= HashNativeData(Original);
+                        if (originalAfter != _originalHash)
+                            throw new InvalidOperationException("Derived native binding construction modified its immutable source.");
+                        if (asynchronous && !HasSameContext()) yield break;
+                        transferred = true;
+                        receive(created.ToArray());
+                    }
+                    finally
+                    {
+                        if (!transferred) foreach (var data in created) if (data) UnityEngine.Object.Destroy(data);
+                    }
+                }
+            }
+            private static NativeBindingRecipe DescribeNativeBinding(object deformer, Component[] children,
+                IReadOnlyDictionary<SkinnedMeshRenderer, (SkinMeshSource Source, Mesh Mesh)> changes,
+                IReadOnlyDictionary<SkinnedMeshRenderer, SurfaceBinding> bindings)
+            {
+                var rows = new List<NativeBindingRow>();
+                for (var index = 0; index < children.Length; index++)
+                {
+                    var component = children[index];
+                    var child = Get(component, "Deformer");
+                    var renderer = ResolveNativeRenderer(component, child) as SkinnedMeshRenderer;
+                    if (!renderer || !changes.TryGetValue(renderer, out var change) || !bindings.TryGetValue(renderer, out var binding)) continue;
+                    rows.Add(new NativeBindingRow { Index = index, Deformer = child, Source = Get(child, "MeshData") as UnityEngine.Object,
+                        Original = change.Source.Original, Replacement = change.Mesh, Binding = binding });
+                }
+                return rows.Count == 0 ? null : new NativeBindingRecipe { Deformer = deformer,
+                    Original = Get(deformer, "MeshData") as UnityEngine.Object, Children = children,
+                    Sources = children.Select(child => Get(Get(child, "Deformer"), "MeshData") as UnityEngine.Object).ToArray(), Changed = rows.ToArray() };
+            }
+            internal static IEnumerator PrepareNativeBindings(IEnumerable<GameObject> roots,
+                IReadOnlyDictionary<SkinnedMeshRenderer, (SkinMeshSource Source, Mesh Mesh)> changes,
+                IReadOnlyDictionary<SkinnedMeshRenderer, SurfaceBinding> bindings,
+                Func<string, bool> retainExisting, Action<string, UnityEngine.Object[]> retainPrepared,
+                Func<UnityEngine.Object, IEnumerator> prepareFingerprint,
+                Func<UnityEngine.Object, Func<string>, string> sourceFingerprint, Func<bool> current)
+            {
+                if (VirtualType == null || changes.Count == 0) yield break;
+                foreach (var pair in bindings)
+                {
+                    if (!changes.TryGetValue(pair.Key, out var change) || pair.Value == null ||
+                        pair.Value.Vertices.Length != change.Mesh.vertexCount || pair.Value.SourceTangents.Length != change.Source.Original.vertexCount)
+                        throw new InvalidOperationException("An authored source attachment does not match its render source.");
+                    ValidateBinding(change.Source.Original, change.Mesh, pair.Value, change.Source.ClothOwner, null);
+                }
+                string Fingerprint(object source) => source is UnityEngine.Object native
+                    ? sourceFingerprint(native, () => HashNativeData(source)) : HashNativeData(source);
+                foreach (var component in roots.Where(root => root).SelectMany(root => root.GetComponentsInChildren(VirtualType, true)).Cast<Component>().Distinct())
+                {
+                    if (!current()) yield break;
+                    var deformer = Optional(component, "Deformer");
+                    // A removed part can remain in the hierarchy until native Destroy
+                    // finishes this frame. Only fully resolved current recipes qualify.
+                    if (deformer == null || Optional(deformer, "renderDeformerList") is not IEnumerable values) continue;
+                    var children = values.Cast<Component>().ToArray();
+                    if (children.Any(child => !child || Optional(child, "Deformer") == null)) continue;
+                    var recipe = DescribeNativeBinding(deformer, children, changes, bindings);
+                    if (recipe == null) continue;
+                    bool RecipeCurrent() => current() && recipe.IsCurrent();
+                    if (!RecipeCurrent()) continue;
+                    foreach (var source in new[] { recipe.Original }.Concat(recipe.Sources).Where(source => source).Distinct())
+                    {
+                        if (!RecipeCurrent()) break;
+                        yield return prepareFingerprint(source);
+                    }
+                    if (!RecipeCurrent()) continue;
+                    var key = recipe.Key(Fingerprint);
+                    if (retainExisting(key))
+                    {
+                        var originalChildren = (IList)Get(recipe.Original, "childDataList");
+                        foreach (var row in recipe.Changed)
+                        {
+                            if (!RecipeCurrent()) break;
+                            if (row.Binding.SurfacePlan != null || !row.Binding.Vertices.Any(vertex =>
+                                    !vertex.Native && vertex.Sources == null && vertex.SourceUv.HasValue)) continue;
+                            yield return PrepareNativeChild(originalChildren[row.Index], row.Binding, row.Original,
+                                (Vector3)Get(row.Source, "baseScale"), (int)Get(recipe.Original, "vertexCount"), RecipeCurrent,
+                                _ => { }, true);
+                        }
+                        continue;
+                    }
+                    yield return recipe.Create(true, RecipeCurrent, data => retainPrepared(key, data));
                 }
             }
 
             private HashSet<int> NativeSkinBoundaryVertices(SkinMeshSource source, SurfaceBinding binding)
             {
-                if (binding.BoundaryOverrides == null) return null;
-                var result = new HashSet<int>(binding.BoundaryOverrides.Keys);
+                var requested = new HashSet<int>(binding.BoundaryOverrides?.Keys ?? Enumerable.Empty<int>());
+                if (binding.AuthoredBase)
+                    for (var index = 0; index < source.Original.vertexCount; index++)
+                        if (!binding.Vertices[index].Native) requested.Add(index);
+                if (requested.Count == 0) return null;
+                var result = new HashSet<int>(requested);
                 var linked = _owners.Where(owner => owner.Order == 1 && owner.Children.Contains(source.ClothOwner)).ToArray();
                 if (linked.Length == 0) return [];
                 foreach (var owner in linked)
@@ -1005,7 +2583,7 @@ public static class CustomModels
                     var data = Get(owner.Deformer, "MeshData");
                     var children = (IList)Get(data, "childDataList");
                     var child = children[Array.IndexOf(owner.Children, source.ClothOwner)];
-                    result.IntersectWith(NativeSkinOnlyBoundaryVertices(binding, child, (int)Get(data, "vertexCount"), registrations));
+                    result.IntersectWith(NativeSkinOnlyBoundaryVertices(binding, child, (int)Get(data, "vertexCount"), registrations, requested));
                     _boundaryVirtualOwners.Add(owner.Component);
                     _boundaryRenderOwners.Add(source.ClothOwner);
                 }
@@ -1013,7 +2591,7 @@ public static class CustomModels
             }
 
             private static HashSet<int> NativeSkinOnlyBoundaryVertices(SurfaceBinding binding, object child,
-                int virtualCount, IEnumerable<IEnumerable<int>> registrations)
+                int virtualCount, IEnumerable<IEnumerable<int>> registrations, IEnumerable<int> requestedVertices = null)
             {
                 if (child == null || registrations == null)
                     throw new InvalidOperationException("A boundary cloth binding has unresolved native consumers.");
@@ -1033,7 +2611,7 @@ public static class CustomModels
                 var info = (uint[])Get(child, "vertexInfoList");
                 var weights = (Array)Get(child, "vertexWeightList");
                 var result = new HashSet<int>();
-                foreach (var index in binding.BoundaryOverrides.Keys)
+                foreach (var index in requestedVertices ?? binding.BoundaryOverrides.Keys)
                 {
                     var anchor = binding.Vertices[index].Anchor;
                     if (anchor < 0 || anchor >= info.Length)
@@ -1057,14 +2635,38 @@ public static class CustomModels
             private static void ValidateBinding(Mesh original, Mesh authored, SurfaceBinding binding, bool nativeCloth,
                 ISet<int> nativeSkinOnlyVertices = null)
             {
+                var multiSource = binding.Vertices.Any(vertex => vertex.Sources != null);
+                if (multiSource && nativeCloth)
+                    throw new InvalidOperationException("Multi-source surface attachments require a noncloth source owner.");
+                if (multiSource) ValidateSurfaceSources(original, binding.BoundarySource ? binding.BoundarySource : authored, binding);
+                if (binding.AuthoredBase) ValidateAuthoredBase(original, binding);
                 if (binding.BoundaryOverrides != null) ValidateBoundary(original, authored, binding);
                 var sourceCounts = original.GetBonesPerVertex(); var sourceWeights = original.GetAllBoneWeights();
                 var targetCounts = authored.GetBonesPerVertex(); var targetWeights = authored.GetAllBoneWeights();
-                var boneCount = original.bindposes.Length;
+                var boneCount = binding.PaletteAdditions is { Length: > 0 } ? authored.bindposes.Length : original.bindposes.Length;
                 if (sourceCounts.Length != original.vertexCount || targetCounts.Length != binding.Vertices.Length)
                     throw new InvalidOperationException("An authored source skin has incomplete per-vertex influence counts.");
                 var sourceStarts = new int[sourceCounts.Length];
                 for (var index = 1; index < sourceStarts.Length; index++) sourceStarts[index] = sourceStarts[index - 1] + sourceCounts[index - 1];
+                var encodingSource = binding.SkinEncodingSource;
+                var prepared = multiSource ? encodingSource.PreparedSkin : null;
+                if (prepared != null)
+                {
+                    if (prepared.BoneCount != boneCount || !prepared.MatchesContributions(binding.Vertices) ||
+                        prepared.Counts.Length != sourceCounts.Length || prepared.Weights.Length != sourceWeights.Length) prepared = null;
+                    else
+                    {
+                        for (var index = 0; index < sourceCounts.Length; index++) if (prepared.Counts[index] != sourceCounts[index]) { prepared = null; break; }
+                        if (prepared != null)
+                            for (var index = 0; index < sourceWeights.Length; index++) if (!prepared.Weights[index].Equals(sourceWeights[index])) { prepared = null; break; }
+                    }
+                }
+                var preparedNow = false;
+                if (multiSource && prepared == null)
+                {
+                    prepared = PrepareSurfaceSkinEncoding(original, authored, binding, sourceCounts.ToArray(), sourceWeights.ToArray(), boneCount);
+                    preparedNow = true;
+                }
                 var targetOffset = 0;
                 for (var index = 0; index < binding.Vertices.Length; index++)
                 {
@@ -1113,6 +2715,20 @@ public static class CustomModels
                             (nativeSkinOnlyVertices == null || !nativeSkinOnlyVertices.Contains(index)))
                             throw new InvalidOperationException("A boundary cloth frame position change requires native-only skin binding data.");
                     }
+                    else if (multiSource && !binding.Vertices[index].Native)
+                    {
+                        var expected = prepared.Expected[index];
+                        var count = (expected.weight0 > 0f ? 1 : 0) + (expected.weight1 > 0f ? 1 : 0) +
+                            (expected.weight2 > 0f ? 1 : 0) + (expected.weight3 > 0f ? 1 : 0);
+                        if (targetCounts[index] != count) throw new InvalidOperationException("A multi-source surface changed canonical positive support.");
+                        for (var slot = 0; slot < count; slot++)
+                        {
+                            var bone = slot switch { 0 => expected.boneIndex0, 1 => expected.boneIndex1, 2 => expected.boneIndex2, _ => expected.boneIndex3 };
+                            var value = slot switch { 0 => expected.weight0, 1 => expected.weight1, 2 => expected.weight2, _ => expected.weight3 };
+                            if (targetWeights[targetOffset + slot].boneIndex != bone || targetWeights[targetOffset + slot].weight != value)
+                                throw new InvalidOperationException("A multi-source surface changed its canonical native skin weight or order.");
+                        }
+                    }
                     else
                     {
                         if (sourceCounts[anchor] != targetCounts[index])
@@ -1128,16 +2744,252 @@ public static class CustomModels
                 {
                     // New surfaces use the native worker basis; unchanged native vertices keep their original frame.
                     var tangents = authored.tangents;
+                    var frameHand = Mathf.Sign(binding.RendererToPrefab.determinant);
                     if (tangents.Length != authored.vertexCount)
                         throw new InvalidOperationException("An authored cloth attachment has incomplete tangent frames.");
                     for (var index = 0; index < tangents.Length; index++)
-                        if (binding.BoundaryOverrides != null && binding.BoundaryOverrides.TryGetValue(index, out var boundary)
+                        if (binding.AuthoredBase && index < original.vertexCount && !binding.Vertices[index].Native &&
+                            (nativeSkinOnlyVertices == null || !nativeSkinOnlyVertices.Contains(index)))
+                            throw new InvalidOperationException("An authored native base changed a surface consumed by cloth simulation.");
+                        else if (binding.BoundaryOverrides != null && binding.BoundaryOverrides.TryGetValue(index, out var boundary)
                                 ? !tangents[index].Equals(boundary.Tangent)
                                 : binding.Vertices[index].Native
                                 ? !tangents[index].Equals(binding.SourceTangents[binding.Vertices[index].Anchor])
-                                : tangents[index].w != -1f)
+                                : binding.AuthoredBase && index < original.vertexCount
+                                ? tangents[index].w != binding.SourceTangents[index].w
+                                : tangents[index].w != OwnedTangentHand(frameHand, binding.Vertices[index]))
                             throw new InvalidOperationException("An authored cloth attachment changed its owned or native tangent frame.");
                 }
+                if (preparedNow && ReferenceEquals(encodingSource.Vertices, binding.Vertices))
+                    encodingSource.PreparedSkin = prepared;
+            }
+
+            private static float OwnedTangentHand(float frameHand, SurfaceVertex vertex)
+            {
+                if (!vertex.SourceUv.HasValue) return -1f;
+                if (vertex.TangentW is not (-1f or 1f))
+                    throw new InvalidOperationException("An owned source surface has invalid tangent handedness.");
+                return vertex.TangentW * frameHand;
+            }
+
+            private static Vector3 GeometryUnit(Vector3 value)
+            {
+                // Cross products carry square metres. Unity's vector epsilon
+                // would reject valid small hair triangles based on model size.
+                var scale = Mathf.Max(Mathf.Abs(value.x), Mathf.Max(Mathf.Abs(value.y), Mathf.Abs(value.z)));
+                if (!Finite(scale) || scale <= 0f) return Vector3.zero;
+                value /= scale;
+                return value / (float)Math.Sqrt(value.x * value.x + value.y * value.y + value.z * value.z);
+            }
+
+            private static void ValidateAuthoredBase(Mesh original, SurfaceBinding binding)
+            {
+                var authored = binding.AuthoredBase; var count = original.vertexCount;
+                if (!authored || !authored.isReadable || authored.vertexCount != count || binding.Vertices.Length < count ||
+                    original.subMeshCount != authored.subMeshCount || !original.bindposes.SequenceEqual(authored.bindposes) ||
+                    !original.boneWeights.SequenceEqual(authored.boneWeights) || original.blendShapeCount != authored.blendShapeCount)
+                    throw new InvalidOperationException("An authored base has no exact native topology, skin and physical source layout.");
+                var proofOwner = binding.SkinEncodingSource;
+                var cache = proofOwner.CacheAuthoredBaseValidation && ReferenceEquals(proofOwner.AuthoredBase, authored);
+                if (cache && proofOwner.BaseProof?.Matches(original, authored, binding) == true) return;
+                RacesContext.ReadNativeRestMesh(original, source =>
+                {
+                    var positions = source.vertices; var normals = source.normals; var tangents = binding.SourceTangents;
+                    var targetPositions = authored.vertices; var targetNormals = authored.normals; var targetTangents = authored.tangents;
+                    if (positions.Length != count || normals.Length != count || tangents.Length != count ||
+                        targetPositions.Length != count || targetNormals.Length != count || targetTangents.Length != count)
+                        throw new InvalidOperationException("An authored base has incomplete geometric frames.");
+                    for (var slot = 0; slot < source.subMeshCount; slot++)
+                        if (source.GetTopology(slot) != authored.GetTopology(slot) || !source.GetIndices(slot).SequenceEqual(authored.GetIndices(slot)))
+                            throw new InvalidOperationException("An authored base changed native submesh topology.");
+                    for (var index = 0; index < count; index++)
+                    {
+                        var vertex = binding.Vertices[index];
+                        if (vertex.Anchor != index || vertex.Sources != null || !Finite(vertex.Offset) || !Finite(vertex.Normal) || !Finite(vertex.Tangent) ||
+                            !Finite(positions[index]) || !Finite(normals[index]) || !Finite((Vector3)tangents[index]) ||
+                            !Finite(targetPositions[index]) || !Finite(targetNormals[index]) || !Finite((Vector3)targetTangents[index]) ||
+                            targetTangents[index].w != tangents[index].w)
+                            throw new InvalidOperationException("An authored base has no finite identity native anchor and handedness.");
+                        if (vertex.Native)
+                        {
+                            if (!vertex.Offset.Equals(Vector3.zero) || !vertex.Normal.Equals(Vector3.forward) || !vertex.Tangent.Equals(Vector3.right) ||
+                                !positions[index].Equals(targetPositions[index]) || !normals[index].Equals(targetNormals[index]) || !tangents[index].Equals(targetTangents[index]))
+                                throw new InvalidOperationException("An authored base marked a changed native sample as unchanged.");
+                            continue;
+                        }
+                        var normal = normals[index].normalized; var tangent = (Vector3)tangents[index];
+                        tangent = (tangent - normal * Vector3.Dot(normal, tangent)).normalized;
+                        var bitangent = Vector3.Cross(normal, tangent) * tangents[index].w;
+                        if (normal.sqrMagnitude < 0.99f || tangent.sqrMagnitude < 0.99f || bitangent.sqrMagnitude < 0.99f || tangents[index].w is not (-1f or 1f))
+                            throw new InvalidOperationException("An authored base has a singular native frame.");
+                        Vector3 Transfer(Vector3 value) => tangent * value.x + bitangent * value.y + normal * value.z;
+                        if (!SameSurface(positions[index] + Transfer(vertex.Offset), targetPositions[index]) ||
+                            !SameSurface(Transfer(vertex.Normal), targetNormals[index]) || !SameSurface(Transfer(vertex.Tangent), (Vector3)targetTangents[index]))
+                            throw new InvalidOperationException("An authored base differs from its declared native frame reconstruction.");
+                    }
+                    var a = new List<Vector4>(); var b = new List<Vector4>();
+                    for (var channel = 0; channel < 8; channel++)
+                    {
+                        source.GetUVs(channel, a); authored.GetUVs(channel, b);
+                        if (a.Count != b.Count || !a.SequenceEqual(b) || a.Count != 0 &&
+                            source.GetVertexAttributeDimension((VertexAttribute)((int)VertexAttribute.TexCoord0 + channel)) !=
+                            authored.GetVertexAttributeDimension((VertexAttribute)((int)VertexAttribute.TexCoord0 + channel)))
+                            throw new InvalidOperationException("An authored base changed a native UV channel.");
+                    }
+                    if (!source.colors.SequenceEqual(authored.colors)) throw new InvalidOperationException("An authored base changed native colours.");
+                    return true;
+                });
+                var sp = new Vector3[count]; var sn = new Vector3[count]; var st = new Vector3[count];
+                var tp = new Vector3[count]; var tn = new Vector3[count]; var tt = new Vector3[count];
+                for (var channel = 0; channel < original.blendShapeCount; channel++)
+                {
+                    var frames = original.GetBlendShapeFrameCount(channel);
+                    if (original.GetBlendShapeName(channel) != authored.GetBlendShapeName(channel) || frames != authored.GetBlendShapeFrameCount(channel))
+                        throw new InvalidOperationException("An authored base changed its native physical layout.");
+                    for (var frame = 0; frame < frames; frame++)
+                    {
+                        var weight = original.GetBlendShapeFrameWeight(channel, frame);
+                        if (!Finite(weight) || weight != authored.GetBlendShapeFrameWeight(channel, frame)) throw new InvalidOperationException("An authored base changed a native physical frame range.");
+                        original.GetBlendShapeFrameVertices(channel, frame, sp, sn, st); authored.GetBlendShapeFrameVertices(channel, frame, tp, tn, tt);
+                        for (var index = 0; index < count; index++)
+                            if (!Finite(tp[index]) || !Finite(tn[index]) || !Finite(tt[index]) || binding.Vertices[index].Native &&
+                                (!sp[index].Equals(tp[index]) || !sn[index].Equals(tn[index]) || !st[index].Equals(tt[index])))
+                                throw new InvalidOperationException("An authored base changed an undeclared native physical sample.");
+                    }
+                }
+                if (cache) proofOwner.BaseProof = new SurfaceBinding.AuthoredBaseProof(original, authored, binding);
+                return;
+                // Same existing binary32 surface-wire round-trip bound as ValidateSurfaceSources.
+                static bool SameSurface(Vector3 a, Vector3 b) => Same(a.x, b.x) && Same(a.y, b.y) && Same(a.z, b.z);
+                static bool Same(float a, float b) => Finite(a) && Finite(b) && Mathf.Abs(a - b) <= 0.000002f * Mathf.Max(1f, Mathf.Abs(a));
+            }
+
+            private static void ValidateSurfaceSources(Mesh original, Mesh authored, SurfaceBinding binding)
+            {
+                var nativeCount = original.vertexCount;
+                if (nativeCount <= 0 || binding.Vertices.Length < nativeCount || authored.vertexCount != binding.Vertices.Length ||
+                    !(binding.PaletteAdditions is { Length: > 0 }
+                        ? authored.bindposes.Length == original.bindposes.Length + binding.PaletteAdditions.Length &&
+                          original.bindposes.SequenceEqual(authored.bindposes.Take(original.bindposes.Length))
+                        : original.bindposes.SequenceEqual(authored.bindposes)) || binding.SourceTangents.Length != nativeCount)
+                    throw new InvalidOperationException("A multi-source surface changed its native prefix or bind poses.");
+                for (var index = 0; index < binding.Vertices.Length; index++)
+                {
+                    var vertex = binding.Vertices[index]; var sources = vertex.Sources;
+                    if (binding.IsForeignBoundaryVertex(index, nativeCount)) continue;
+                    if (sources == null || sources.Length is < 1 or > 4 || vertex.Native != (index < nativeCount) ||
+                        vertex.Anchor != sources[0].Anchor || vertex.TangentW is not (-1f or 1f) ||
+                        vertex.Native && (vertex.Anchor != index || sources.Length != 1 || sources[0].Weight != 1f ||
+                            !vertex.Offset.Equals(Vector3.zero) || !vertex.Normal.Equals(Vector3.forward) || !vertex.Tangent.Equals(Vector3.right)))
+                        throw new InvalidOperationException("A multi-source surface has no exact native prefix or primary frame.");
+                    var total = 0d;
+                    for (var source = 0; source < sources.Length; source++)
+                    {
+                        var contribution = sources[source];
+                        if (contribution.Anchor < 0 || contribution.Anchor >= nativeCount ||
+                            !Finite(contribution.Weight) || contribution.Weight <= 0f || contribution.Weight > 1f)
+                            throw new InvalidOperationException("A multi-source surface has an invalid native contribution.");
+                        for (var previous = 0; previous < source; previous++)
+                            if (sources[previous].Anchor == contribution.Anchor)
+                                throw new InvalidOperationException("A multi-source surface repeats a native contribution.");
+                        total += contribution.Weight;
+                    }
+                    if (Math.Abs(total - 1d) > 0.000001d)
+                        throw new InvalidOperationException("A multi-source surface has unnormalized native contributions.");
+                }
+                RacesContext.ReadNativeRestMesh(original, readable =>
+                {
+                    var positions = readable.vertices; var normals = readable.normals;
+                    var tangents = binding.SourceTangents;
+                    var targetPositions = authored.vertices; var targetNormals = authored.normals; var targetTangents = authored.tangents;
+                    if (positions.Length != nativeCount || normals.Length != nativeCount || targetPositions.Length != authored.vertexCount ||
+                        targetNormals.Length != authored.vertexCount || targetTangents.Length != authored.vertexCount)
+                        throw new InvalidOperationException("A multi-source surface has incomplete geometric frames.");
+                    for (var index = 0; index < binding.Vertices.Length; index++)
+                    {
+                        var vertex = binding.Vertices[index]; var anchor = vertex.Anchor;
+                        if (binding.IsForeignBoundaryVertex(index, nativeCount))
+                        {
+                            if (!Finite(targetPositions[index]) || !Finite(targetNormals[index]) ||
+                                !Finite((Vector3)targetTangents[index]) || targetTangents[index].w is not (-1f or 1f))
+                                throw new InvalidOperationException("A coupled donor boundary has an invalid geometric sample.");
+                            continue;
+                        }
+                        if (!Finite(positions[anchor]) || !Finite(normals[anchor]) || !Finite((Vector3)tangents[anchor]) ||
+                            !Finite(vertex.Offset) || !Finite(vertex.Normal) || !Finite(vertex.Tangent) ||
+                            !Finite(targetPositions[index]) || !Finite(targetNormals[index]) || !Finite((Vector3)targetTangents[index]) ||
+                            targetTangents[index].w != vertex.TangentW)
+                            throw new InvalidOperationException("A multi-source surface has a nonfinite or incompatible tangent frame.");
+                        if (vertex.Native)
+                        {
+                            if (!positions[index].Equals(targetPositions[index]) || !normals[index].Equals(targetNormals[index]) ||
+                                !tangents[index].Equals(targetTangents[index]))
+                                throw new InvalidOperationException("A multi-source surface changed a native geometric sample.");
+                            continue;
+                        }
+                        var normal = normals[anchor].normalized;
+                        var tangent = ((Vector3)tangents[anchor]).normalized;
+                        var bitangent = Vector3.Cross(normal, tangent) * tangents[anchor].w;
+                        if (normal.sqrMagnitude < 0.99f || tangent.sqrMagnitude < 0.99f || bitangent.sqrMagnitude < 0.00000001f ||
+                            tangents[anchor].w is not (-1f or 1f))
+                            throw new InvalidOperationException("A multi-source surface has a singular primary native frame.");
+                        Vector3 Transfer(Vector3 value) => tangent * value.x + bitangent * value.y + normal * value.z;
+                        if (!SameSurface(positions[anchor] + Transfer(vertex.Offset), targetPositions[index]) ||
+                            !SameSurface(Transfer(vertex.Normal), targetNormals[index]) ||
+                            !SameSurface(Transfer(vertex.Tangent), (Vector3)targetTangents[index]))
+                            throw new InvalidOperationException("A multi-source surface differs from its declared primary native frame.");
+                    }
+                    // V2 appends samples; every original UV/color sample remains owned
+                    // by the immutable native prefix, independent of the new topology.
+                    var sourceUv = new List<Vector4>(); var targetUv = new List<Vector4>();
+                    for (var channel = 0; channel < 8; channel++)
+                    {
+                        readable.GetUVs(channel, sourceUv); authored.GetUVs(channel, targetUv);
+                        if (sourceUv.Count == 0 && targetUv.Count == 0) continue;
+                        if (sourceUv.Count != nativeCount || targetUv.Count != authored.vertexCount ||
+                            readable.GetVertexAttributeDimension((VertexAttribute)((int)VertexAttribute.TexCoord0 + channel)) !=
+                            authored.GetVertexAttributeDimension((VertexAttribute)((int)VertexAttribute.TexCoord0 + channel)) ||
+                            sourceUv.Where((value, index) => !value.Equals(targetUv[index])).Any())
+                            throw new InvalidOperationException("A multi-source surface changed a native UV sample or channel.");
+                    }
+                    var colors = readable.colors; var targetColors = authored.colors;
+                    if (colors.Length != 0 || targetColors.Length != 0)
+                        if (colors.Length != nativeCount || targetColors.Length != authored.vertexCount ||
+                            colors.Where((value, index) => !value.Equals(targetColors[index])).Any())
+                            throw new InvalidOperationException("A multi-source surface changed a native color sample.");
+                    return true;
+                });
+                if (original.blendShapeCount != authored.blendShapeCount)
+                    throw new InvalidOperationException("A multi-source surface changed its native physical channels.");
+                var sourcePosition = new Vector3[nativeCount]; var sourceNormal = new Vector3[nativeCount]; var sourceTangent = new Vector3[nativeCount];
+                var targetPosition = new Vector3[authored.vertexCount]; var targetNormal = new Vector3[authored.vertexCount]; var targetTangent = new Vector3[authored.vertexCount];
+                for (var shape = 0; shape < original.blendShapeCount; shape++)
+                {
+                    var frames = original.GetBlendShapeFrameCount(shape);
+                    if (original.GetBlendShapeName(shape) != authored.GetBlendShapeName(shape) || frames != authored.GetBlendShapeFrameCount(shape))
+                        throw new InvalidOperationException("A multi-source surface changed its physical frame layout.");
+                    for (var frame = 0; frame < frames; frame++)
+                    {
+                        var weight = original.GetBlendShapeFrameWeight(shape, frame);
+                        if (!Finite(weight) || weight != authored.GetBlendShapeFrameWeight(shape, frame))
+                            throw new InvalidOperationException("A multi-source surface changed its physical frame weight.");
+                        original.GetBlendShapeFrameVertices(shape, frame, sourcePosition, sourceNormal, sourceTangent);
+                        authored.GetBlendShapeFrameVertices(shape, frame, targetPosition, targetNormal, targetTangent);
+                        for (var index = 0; index < authored.vertexCount; index++)
+                        {
+                            if (!Finite(targetPosition[index]) || !Finite(targetNormal[index]) || !Finite(targetTangent[index]) ||
+                                index < nativeCount && (!sourcePosition[index].Equals(targetPosition[index]) ||
+                                    !sourceNormal[index].Equals(targetNormal[index]) || !sourceTangent[index].Equals(targetTangent[index])))
+                                throw new InvalidOperationException("A multi-source surface changed or invalidated a native physical sample.");
+                        }
+                    }
+                }
+                // The wire uses binary32 coordinates computed from a double-precision
+                // native frame. Allow only its bounded float arithmetic round trip.
+                static bool SameSurface(Vector3 expected, Vector3 actual) =>
+                    Finite(expected) && Finite(actual) && Same(expected.x, actual.x) && Same(expected.y, actual.y) && Same(expected.z, actual.z);
+                static bool Same(float expected, float actual) => Mathf.Abs(expected - actual) <=
+                    0.000002f * Mathf.Max(1f, Mathf.Abs(expected));
             }
 
             private static void ValidateBoundary(Mesh original, Mesh authored, SurfaceBinding binding)
@@ -1145,7 +2997,9 @@ public static class CustomModels
                 var source = binding.BoundarySource;
                 if (!source || source.vertexCount != authored.vertexCount || source.subMeshCount != authored.subMeshCount ||
                     !source.bindposes.SequenceEqual(authored.bindposes) ||
-                    !source.bindposes.SequenceEqual(original.bindposes))
+                    !(binding.PaletteAdditions is { Length: > 0 }
+                        ? source.bindposes.Take(original.bindposes.Length).SequenceEqual(original.bindposes)
+                        : source.bindposes.SequenceEqual(original.bindposes)))
                     throw new InvalidOperationException("A boundary attachment changed its positions, topology, or bind poses.");
                 var sourcePositions = source.vertices; var positions = authored.vertices;
                 if (sourcePositions.Length != source.vertexCount || positions.Length != source.vertexCount)
@@ -1251,6 +3105,22 @@ public static class CustomModels
                     source * (100f / Mathf.Abs(frameWeight)) == Vector3.zero;
             }
 
+            private static readonly Dictionary<Assembly, Func<Vector3, ulong>> NativeVectorHashes = new();
+
+            private static Func<Vector3, ulong> NativeVectorHash(Assembly assembly)
+            {
+                lock (NativeVectorHashes)
+                {
+                    if (NativeVectorHashes.TryGetValue(assembly, out var hash)) return hash;
+                    var type = assembly.GetType("MagicaCloth.DataHashExtensions", true);
+                    var method = type.GetMethod("GetVectorDataHash", BindingFlags.Public | BindingFlags.Static,
+                        null, new[] { typeof(Vector3) }, null) ?? throw new MissingMethodException(type.FullName, "GetVectorDataHash");
+                    hash = (Func<Vector3, ulong>)Delegate.CreateDelegate(typeof(Func<Vector3, ulong>), method);
+                    NativeVectorHashes.Add(assembly, hash);
+                    return hash;
+                }
+            }
+
             private static void RebuildRenderData(UnityEngine.Object data, Mesh replacement)
             {
                 foreach (var name in new[] { "vertexInfoList", "vertexWeightList", "uvList", "lineList", "triangleList",
@@ -1259,19 +3129,930 @@ public static class CustomModels
                         throw new InvalidOperationException("The native render-data layout has unsupported embedded binding channels.");
                 Put(data, "vertexCount", replacement.vertexCount);
                 Put(data, "triangleCount", replacement.triangles.Length / 3);
-                var hashType = data.GetType().Assembly.GetType("MagicaCloth.DataHashExtensions", true);
-                var hashMethod = hashType.GetMethod("GetVectorDataHash", BindingFlags.Public | BindingFlags.Static,
-                    null, new[] { typeof(Vector3) }, null) ?? throw new MissingMethodException(hashType.FullName, "GetVectorDataHash");
-                Put(data, "vertexHashList", replacement.vertices.Select(point => (ulong)hashMethod.Invoke(null, new object[] { point })).ToArray());
+                Put(data, "vertexHashList", replacement.vertices.Select(NativeVectorHash(data.GetType().Assembly)).ToArray());
                 Invoke(data, "CreateVerifyData");
             }
 
+            private static readonly Dictionary<Type, Func<NativeChildInput, NativeDataWork, object>> NativeChildDataBuilders = new();
+            private static Type _nativeChildType, _nativeWeightType;
+            private sealed class NativeChildBinding(SurfaceBinding source, bool copy)
+            {
+                internal readonly SurfaceVertex[] Vertices = copy ? (SurfaceVertex[])source.Vertices.Clone() : source.Vertices;
+                internal readonly Vector4[] SourceTangents = copy ? (Vector4[])source.SourceTangents.Clone() : source.SourceTangents;
+                internal readonly Matrix4x4 RendererToPrefab = source.RendererToPrefab;
+                internal readonly IReadOnlyDictionary<int, (BoneWeight Weights, Vector3 Normal, Vector4 Tangent)> BoundaryOverrides =
+                    copy && source.BoundaryOverrides != null
+                        ? source.BoundaryOverrides.ToDictionary(pair => pair.Key, pair => pair.Value) : source.BoundaryOverrides;
+            }
+            internal readonly struct NativeSurfacePoint(int index, int a, int b, int c, Vector3 bary,
+                Vector3 offset, Vector3 normal, Vector3 tangent, float hand, float tangentHand)
+            {
+                internal readonly int Index = index, A = a, B = b, C = c;
+                internal readonly Vector3 Bary = bary, Offset = offset, Normal = normal, Tangent = tangent;
+                internal readonly float Hand = hand;
+                internal readonly float TangentHand = tangentHand;
+            }
+            internal sealed class NativeSurfacePlan
+            {
+                internal readonly NativeSurfacePoint[] Points;
+                internal readonly bool[] ReusePreviousFrame;
+                internal readonly int NativeCount, TargetCount;
+                internal readonly Matrix4x4 SourceFrame;
+                internal readonly bool GeometryFrames;
+                internal long Bytes => 224L + Points.LongLength * 72L + ReusePreviousFrame.LongLength;
+
+                internal NativeSurfacePlan(NativeSurfacePoint[] points, int nativeCount, int targetCount,
+                    Matrix4x4 sourceFrame)
+                {
+                    var seen = new HashSet<int>(points.Length);
+                    foreach (var point in points)
+                    {
+                        if (point.Index < nativeCount || point.Index >= targetCount || !seen.Add(point.Index) ||
+                            point.A < 0 || point.A >= nativeCount || point.B < 0 || point.B >= nativeCount ||
+                            point.C < 0 || point.C >= nativeCount || !Finite(point.Bary) ||
+                            point.Bary.x < 0 || point.Bary.y < 0 || point.Bary.z < 0 ||
+                            Mathf.Abs(point.Bary.x + point.Bary.y + point.Bary.z - 1f) > .000002f ||
+                            !Finite(point.Offset) || !Finite(point.Normal) || !Finite(point.Tangent) ||
+                            (point.Hand != 1f && point.Hand != -1f && point.Hand != 2f) ||
+                            (point.TangentHand != 1f && point.TangentHand != -1f))
+                            throw new InvalidOperationException("A final surface plan has an invalid owned point.");
+                    }
+                    Points = points;
+                    GeometryFrames = points.Any(point => point.Hand == 2f);
+                    NativeCount = nativeCount;
+                    TargetCount = targetCount;
+                    SourceFrame = sourceFrame;
+                    // Adjacent points share only the exact source interpolant; local
+                    // residuals, output order and per-point morphs remain independent.
+                    ReusePreviousFrame = new bool[points.Length];
+                    for (var index = 1; index < points.Length; index++)
+                        ReusePreviousFrame[index] = SameFrame(in points[index - 1], in points[index]);
+                }
+
+                private static unsafe int FrameBits(float value) => *(int*)&value;
+
+                private static bool SameFrame(in NativeSurfacePoint first, in NativeSurfacePoint second) =>
+                    first.A == second.A && first.B == second.B && first.C == second.C &&
+                    FrameBits(first.Bary.x) == FrameBits(second.Bary.x) &&
+                    FrameBits(first.Bary.y) == FrameBits(second.Bary.y) &&
+                    FrameBits(first.Bary.z) == FrameBits(second.Bary.z) &&
+                    FrameBits(first.Hand) == FrameBits(second.Hand);
+            }
+            private static NativeSurfacePlan PrepareNativeSurfacePlan(NativeChildInput input, NativeDataWork work)
+            {
+                CheckNativeWork(work);
+                var owner = input.SurfaceOwner;
+                if (owner?.NativeSurface != null) return owner.NativeSurface;
+                if (input.Surface == null) return null;
+                PrepareNativeSurface(input, work);
+                var nativeCount = input.Binding.SourceTangents.Length;
+                // Point capture, uniqueness validation and the adjacent-frame flags coexist until publication.
+                var peak = input.Bytes + (long)Math.Max(0, input.Binding.Vertices.Length - nativeCount) * 177L +
+                    (long)nativeCount * 48L + 288L;
+                if (peak > MaximumNativeWorkBytes) throw new NativeDataPacketLimit();
+                var source = input.Surface.Frames; var authored = new NativeSurfaceFrame[nativeCount];
+                for (var index = 0; index < nativeCount; index++)
+                {
+                    if ((index & 255) == 0) CheckNativeWork(work);
+                    var vertex = input.Binding.Vertices[index]; var frame = source[vertex.Anchor];
+                    if (vertex.Native) { authored[index] = source[index]; continue; }
+                    var normal = frame.Transfer(vertex.Normal).normalized; var tangent = frame.Transfer(vertex.Tangent);
+                    tangent = (tangent - normal * Vector3.Dot(normal, tangent)).normalized;
+                    var hand = Vector3.Dot(Vector3.Cross(frame.Normal, frame.Tangent), frame.Bitangent) < 0f ? -1f : 1f;
+                    authored[index] = new NativeSurfaceFrame(frame.Position + frame.Transfer(vertex.Offset), normal,
+                        tangent, Vector3.Cross(normal, tangent) * hand);
+                }
+                var points = new List<NativeSurfacePoint>(Math.Max(0, input.Binding.Vertices.Length - nativeCount));
+                var frameHand = Mathf.Sign(input.Binding.RendererToPrefab.determinant);
+                var contributions = new NativeSurfaceContribution[3];
+                for (var index = nativeCount; index < input.Binding.Vertices.Length; index++)
+                {
+                    if ((index & 255) == 0) CheckNativeWork(work);
+                    var vertex = input.Binding.Vertices[index];
+                    if (vertex.Native || vertex.Sources != null || !vertex.SourceUv.HasValue) continue;
+                    var count = NativeSurfaceContributions(input, vertex, contributions);
+                    var a = contributions[0].Anchor; var b = count > 1 ? contributions[1].Anchor : a;
+                    var c = count > 2 ? contributions[2].Anchor : a;
+                    var bary = new Vector3(contributions[0].Factor, count > 1 ? contributions[1].Factor : 0f,
+                        count > 2 ? contributions[2].Factor : 0f);
+                    var position = authored[a].Position * bary.x + authored[b].Position * bary.y + authored[c].Position * bary.z;
+                    var normal = (authored[a].Normal * bary.x + authored[b].Normal * bary.y + authored[c].Normal * bary.z).normalized;
+                    var tangent = authored[a].Tangent * bary.x + authored[b].Tangent * bary.y + authored[c].Tangent * bary.z;
+                    tangent = (tangent - normal * Vector3.Dot(normal, tangent)).normalized;
+                    var hand = Vector3.Dot(Vector3.Cross(authored[a].Normal, authored[a].Tangent), authored[a].Bitangent) < 0f ? -1f : 1f;
+                    var bitangent = Vector3.Cross(normal, tangent) * hand;
+                    if (vertex.GeometryTriangle is { } geometry)
+                    {
+                        var sourcePosition = position;
+                        a = geometry.A; b = geometry.B; c = geometry.C; bary = vertex.GeometryBary;
+                        // Geometry connectivity and deformation use positions. Shading
+                        // normal morphs at coincident UV aliases are independent data.
+                        var incident = input.Surface.Incident[a];
+                        var found = false;
+                        if (incident != null)
+                            foreach (var item in incident)
+                                if (SameTriangle(input.Surface.Triangles[item.Slot], item.Triangle, a, b, c)) { found = true; break; }
+                        if (!found)
+                            throw new InvalidOperationException("A geometry frame does not name a native source triangle.");
+                        position = authored[a].Position * bary.x + authored[b].Position * bary.y + authored[c].Position * bary.z;
+                        if ((position - sourcePosition).sqrMagnitude > .000002f * .000002f)
+                            throw new InvalidOperationException("A geometry driver does not share its source surface position.");
+                        tangent = GeometryUnit(authored[b].Position - authored[a].Position);
+                        normal = GeometryUnit(Vector3.Cross(authored[b].Position - authored[a].Position,
+                            authored[c].Position - authored[a].Position));
+                        bitangent = Vector3.Cross(normal, tangent);
+                        hand = 2f;
+                    }
+                    if (normal.sqrMagnitude < .99f || tangent.sqrMagnitude < .99f)
+                        throw new InvalidOperationException("A native source-UV surface has a singular interpolated rest frame.");
+                    var primary = source[vertex.Anchor];
+                    if (vertex.TangentW is not (-1f or 1f))
+                        throw new InvalidOperationException("A fine source tangent has invalid handedness.");
+                    Vector3 Coordinates(Vector3 value) => new(Vector3.Dot(value, tangent), Vector3.Dot(value, bitangent), Vector3.Dot(value, normal));
+                    points.Add(new NativeSurfacePoint(index, a, b, c, bary,
+                        Coordinates(primary.Position + primary.Transfer(vertex.Offset) - position),
+                        Coordinates(primary.Transfer(vertex.Normal)), Coordinates(primary.Transfer(vertex.Tangent)), hand, OwnedTangentHand(frameHand, vertex)));
+                }
+                CheckNativeWork(work);
+                var result = new NativeSurfacePlan(points.ToArray(), nativeCount, input.Binding.Vertices.Length,
+                    input.Binding.RendererToPrefab);
+                CheckNativeWork(work);
+                if (input.Bytes + result.Bytes > MaximumNativeWorkBytes) throw new NativeDataPacketLimit();
+                if (owner == null) return result;
+                Interlocked.CompareExchange(ref owner.NativeSurface, result, null);
+                return owner.NativeSurface;
+
+                static bool SameTriangle(int[] indices, int triangle, int a, int b, int c)
+                {
+                    return Matches(indices[triangle]) && Matches(indices[triangle + 1]) && Matches(indices[triangle + 2]);
+                    bool Matches(int value) => value == a || value == b || value == c;
+                }
+            }
+
+            private sealed class NativeSurfaceInput
+            {
+                internal Vector3[] Positions, Normals;
+                internal Vector2[] Uv;
+                internal int[][] Triangles;
+                internal NativeSurfaceFrame[] Frames;
+                internal List<(int Slot, int Triangle)>[] Incident;
+                internal readonly NativeSurfaceAggregate[] FirstEquivalent = new NativeSurfaceAggregate[15], SecondEquivalent = new NativeSurfaceAggregate[15];
+            }
+            private readonly struct NativeSurfaceFrame(Vector3 position, Vector3 normal, Vector3 tangent, Vector3 bitangent)
+            {
+                internal readonly Vector3 Position = position, Normal = normal, Tangent = tangent, Bitangent = bitangent;
+                internal Vector3 Transfer(Vector3 value) => Tangent * value.x + Bitangent * value.y + Normal * value.z;
+                internal Vector3 Coordinates(Vector3 value) => new(Vector3.Dot(value, Tangent), Vector3.Dot(value, Bitangent), Vector3.Dot(value, Normal));
+            }
+            private readonly struct NativeSurfaceContribution(int anchor, float factor, Vector3 offset, Vector3 normal, Vector3 tangent)
+            {
+                internal readonly int Anchor = anchor;
+                internal readonly float Factor = factor;
+                internal readonly Vector3 Offset = offset, Normal = normal, Tangent = tangent;
+            }
+            private static NativeSurfaceInput CaptureNativeSurface(Mesh nativeMesh, SurfaceBinding binding)
+            {
+                if (binding.SurfacePlan != null || !binding.Vertices.Any(vertex => !vertex.Native && vertex.Sources == null && vertex.SourceUv.HasValue)) return null;
+                return RacesContext.ReadNativeRestMesh(nativeMesh, readable => new NativeSurfaceInput
+                {
+                    Positions = readable.vertices, Normals = readable.normals, Uv = readable.uv,
+                    Triangles = Enumerable.Range(0, readable.subMeshCount).Select(slot => readable.GetTriangles(slot)).ToArray()
+                });
+            }
+            private static void PrepareNativeSurface(NativeChildInput input, NativeDataWork work)
+            {
+                var surface = input.Surface;
+                if (surface == null || surface.Frames != null) return;
+                var count = input.Binding.SourceTangents.Length;
+                if (surface.Positions.Length != count || surface.Normals.Length != count || surface.Uv.Length != count)
+                    throw new InvalidOperationException("A native cloth surface has incomplete rest or source UV channels.");
+                var matrix = input.Binding.RendererToPrefab; var normalMatrix = matrix.inverse.transpose;
+                var determinant = Vector3.Dot(Vector3.Cross((Vector3)matrix.GetColumn(0), (Vector3)matrix.GetColumn(1)), (Vector3)matrix.GetColumn(2));
+                var sign = Mathf.Sign(determinant);
+                surface.Frames = new NativeSurfaceFrame[count];
+                surface.Incident = new List<(int Slot, int Triangle)>[count];
+                for (var index = 0; index < count; index++)
+                {
+                    if ((index & 255) == 0) CheckNativeWork(work);
+                    var normal = normalMatrix.MultiplyVector(surface.Normals[index]).normalized;
+                    var tangent = matrix.MultiplyVector((Vector3)input.Binding.SourceTangents[index]);
+                    tangent = (tangent - normal * Vector3.Dot(normal, tangent)).normalized;
+                    var bitangent = Vector3.Cross(normal, tangent) * input.Binding.SourceTangents[index].w * sign;
+                    if (normal.sqrMagnitude < .99f || tangent.sqrMagnitude < .99f || bitangent.sqrMagnitude < .99f)
+                        throw new InvalidOperationException("A native cloth surface has a singular rest frame.");
+                    surface.Frames[index] = new NativeSurfaceFrame(matrix.MultiplyPoint3x4(surface.Positions[index]), normal, tangent, bitangent);
+                    surface.Incident[index] = new List<(int, int)>();
+                }
+                for (var slot = 0; slot < surface.Triangles.Length; slot++)
+                {
+                    var triangles = surface.Triangles[slot];
+                    if (triangles.Length % 3 != 0) throw new InvalidOperationException("A native cloth surface has invalid triangles.");
+                    for (var triangle = 0; triangle < triangles.Length; triangle += 3)
+                    {
+                        if ((triangle & 255) == 0) CheckNativeWork(work);
+                        for (var corner = 0; corner < 3; corner++)
+                        {
+                            var anchor = triangles[triangle + corner];
+                            if (anchor < 0 || anchor >= count) throw new InvalidOperationException("A native cloth surface triangle is out of range.");
+                            surface.Incident[anchor].Add((slot, triangle));
+                        }
+                    }
+                }
+            }
+            private static bool TryDegenerateNativeSurface(NativeSurfaceInput surface, int[] triangles, int offset,
+                Vector3 point, Vector2 uv, out Vector3 bary)
+            {
+                bary = Vector3.zero;
+                var a = surface.Frames[triangles[offset]].Position;
+                var b = surface.Frames[triangles[offset + 1]].Position;
+                var c = surface.Frames[triangles[offset + 2]].Position;
+                var ab = b - a; var ac = c - a; var ap = point - a;
+                static double Dot(Vector3 first, Vector3 second) =>
+                    (double)first.x * second.x + (double)first.y * second.y + (double)first.z * second.z;
+                var aa = Dot(ab, ab); var bb = Dot(ac, ac); var cross = Dot(ab, ac);
+                var area = aa * bb - cross * cross;
+                if (area <= 0d || double.IsNaN(area) || double.IsInfinity(area)) return false;
+                var first = surface.Uv[triangles[offset]];
+                var second = surface.Uv[triangles[offset + 1]];
+                var third = surface.Uv[triangles[offset + 2]];
+                var rangeX = Math.Max(first.x, Math.Max(second.x, third.x)) - Math.Min(first.x, Math.Min(second.x, third.x));
+                var rangeY = Math.Max(first.y, Math.Max(second.y, third.y)) - Math.Min(first.y, Math.Min(second.y, third.y));
+                if (rangeX == 0f && rangeY == 0f)
+                {
+                    // A constant source UV leaves the physical triangle as the constraint.
+                    var u = (bb * Dot(ap, ab) - cross * Dot(ap, ac)) / area;
+                    var v = (aa * Dot(ap, ac) - cross * Dot(ap, ab)) / area;
+                    if (u >= 0d && v >= 0d && 1d - u - v >= 0d)
+                    {
+                        bary = new Vector3((float)(1d - u - v), (float)u, (float)v);
+                        return true;
+                    }
+                    var closest = double.PositiveInfinity;
+                    for (var edge = 0; edge < 3; edge++)
+                    {
+                        var next = (edge + 1) % 3;
+                        var start = edge == 0 ? a : edge == 1 ? b : c;
+                        var end = next == 0 ? a : next == 1 ? b : c;
+                        var delta = end - start; var length = Dot(delta, delta);
+                        var fraction = length == 0d ? 0d : Math.Max(0d, Math.Min(1d, Dot(point - start, delta) / length));
+                        var weights = Vector3.zero; weights[edge] = (float)(1d - fraction); weights[next] = (float)fraction;
+                        var residual = point - (a * weights.x + b * weights.y + c * weights.z);
+                        var error = Dot(residual, residual);
+                        if (error >= closest) continue;
+                        closest = error; bary = weights;
+                    }
+                    return true;
+                }
+
+                // A line-valued UV cuts a segment through the physical triangle.
+                // Its nearest physical point resolves the remaining degree of freedom.
+                var axis = rangeX >= rangeY ? 0 : 1;
+                var lower = Math.Min(first[axis], Math.Min(second[axis], third[axis]));
+                var upper = Math.Max(first[axis], Math.Max(second[axis], third[axis]));
+                var target = Math.Max(lower, Math.Min(upper, uv[axis]));
+                var startBary = Vector3.zero; var endBary = Vector3.zero;
+                var startPoint = Vector3.zero; var endPoint = Vector3.zero; var contacts = 0;
+                void AddContact(Vector3 weights)
+                {
+                    var position = a * weights.x + b * weights.y + c * weights.z;
+                    if (contacts++ == 0) { startBary = endBary = weights; startPoint = endPoint = position; return; }
+                    var span = Dot(endPoint - startPoint, endPoint - startPoint);
+                    var fromStart = Dot(position - startPoint, position - startPoint);
+                    var fromEnd = Dot(position - endPoint, position - endPoint);
+                    if (fromStart >= span && fromStart >= fromEnd) { endBary = weights; endPoint = position; }
+                    else if (fromEnd >= span) { startBary = weights; startPoint = position; }
+                }
+                for (var edge = 0; edge < 3; edge++)
+                {
+                    var next = (edge + 1) % 3;
+                    var startUv = edge == 0 ? first : edge == 1 ? second : third;
+                    var endUv = next == 0 ? first : next == 1 ? second : third;
+                    var start = (double)startUv[axis]; var end = (double)endUv[axis];
+                    if (start == end)
+                    {
+                        if (target != start) continue;
+                        var weights = Vector3.zero; weights[edge] = 1f; AddContact(weights);
+                        weights = Vector3.zero; weights[next] = 1f; AddContact(weights);
+                        continue;
+                    }
+                    var fraction = (target - start) / (end - start);
+                    if (fraction < 0d || fraction > 1d) continue;
+                    var contact = Vector3.zero; contact[edge] = (float)(1d - fraction); contact[next] = (float)fraction;
+                    AddContact(contact);
+                }
+                if (contacts == 0) return false;
+                var segment = endPoint - startPoint; var segmentLength = Dot(segment, segment);
+                var along = segmentLength == 0d ? 0d : Math.Max(0d, Math.Min(1d, Dot(point - startPoint, segment) / segmentLength));
+                bary = startBary * (float)(1d - along) + endBary * (float)along;
+                return Finite(bary);
+            }
+
+            private static bool TryNativeSurfaceCandidate(NativeSurfaceInput surface, SurfaceVertex vertex,
+                int[] triangles, int offset, Vector3 point, out Vector3 bary, out Vector3 projected,
+                out double distance, out bool interior)
+            {
+                bary = Vector3.zero; projected = Vector3.zero; distance = double.PositiveInfinity; interior = false;
+                var uv = vertex.SourceUv.Value;
+                const float uvBound = .000001f;
+                var a = triangles[offset]; var b = triangles[offset + 1]; var c = triangles[offset + 2];
+                var first = surface.Uv[a]; var second = surface.Uv[b]; var third = surface.Uv[c];
+                var ex = (double)second.x - first.x; var ey = (double)second.y - first.y;
+                var fx = (double)third.x - first.x; var fy = (double)third.y - first.y;
+                var determinant = ex * fy - ey * fx;
+                interior = false;
+                if (determinant == 0d)
+                {
+                    if (!TryDegenerateNativeSurface(surface, triangles, offset, point, uv, out bary)) return false;
+                }
+                else
+                {
+                    var dx = (double)uv.x - first.x; var dy = (double)uv.y - first.y;
+                    var u = (dx * fy - dy * fx) / determinant; var v = (ex * dy - ey * dx) / determinant;
+                    interior = u >= 0d && v >= 0d && 1d - u - v >= 0d;
+                    bary = new Vector3((float)(1d - u - v), (float)u, (float)v);
+                    if (!interior)
+                    {
+                        // Clamping barycentric components and renormalizing is not
+                        // the closest UV point on a narrow source triangle.
+                        var closest = double.PositiveInfinity;
+                        for (var edge = 0; edge < 3; edge++)
+                        {
+                            var next = (edge + 1) % 3;
+                            var startUv = edge == 0 ? first : edge == 1 ? second : third;
+                            var endUv = next == 0 ? first : next == 1 ? second : third;
+                            var edgeX = (double)endUv.x - startUv.x;
+                            var edgeY = (double)endUv.y - startUv.y;
+                            var length = edgeX * edgeX + edgeY * edgeY;
+                            var fraction = length == 0d ? 0d : Math.Max(0d, Math.Min(1d,
+                                (((double)uv.x - startUv.x) * edgeX + ((double)uv.y - startUv.y) * edgeY) / length));
+                            var errorX = startUv.x + edgeX * fraction - uv.x;
+                            var errorY = startUv.y + edgeY * fraction - uv.y;
+                            var error = errorX * errorX + errorY * errorY;
+                            if (error >= closest) continue;
+                            closest = error;
+                            bary = Vector3.zero;
+                            bary[edge] = (float)(1d - fraction);
+                            bary[next] = (float)fraction;
+                        }
+                    }
+                }
+                var total = bary.x + bary.y + bary.z;
+                if (!Finite(total) || total <= 0f) return false;
+                bary /= total;
+                var projectedUv = first * bary.x + second * bary.y + third * bary.z;
+                if (Mathf.Abs(projectedUv.x - uv.x) > uvBound || Mathf.Abs(projectedUv.y - uv.y) > uvBound) return false;
+                projected = surface.Frames[a].Position * bary.x + surface.Frames[b].Position * bary.y + surface.Frames[c].Position * bary.z;
+                distance = (double)(point - projected).magnitude;
+                if (!Finite(projected) || double.IsNaN(distance) || double.IsInfinity(distance))
+                    throw new InvalidOperationException("A native cloth source surface is nonfinite.");
+                return true;
+            }
+
+            private static bool TryCommonNativeSurfaceBoundary(NativeChildInput input, SurfaceVertex vertex,
+                int bestTriangle, Vector3 bestBary, Vector3 bestPoint, double bestDistance, bool hasInterior,
+                float wireBound, float uvBound, out Vector3 boundaryBary, out Vector3 boundaryPoint)
+            {
+                boundaryBary = Vector3.zero; boundaryPoint = Vector3.zero;
+                var surface = input.Surface; var triangles = surface.Triangles[vertex.SourceSlot];
+                var primary = surface.Frames[vertex.Anchor]; var point = primary.Position + primary.Transfer(vertex.Offset);
+                var minimum = bestPoint; var maximum = bestPoint; var equivalent = true;
+                var common = 0;
+                for (var corner = 0; corner < 3; corner++) if (bestBary[corner] > 0f) common |= 1 << corner;
+                foreach (var candidate in surface.Incident[vertex.Anchor])
+                {
+                    if (candidate.Slot != vertex.SourceSlot ||
+                        !TryNativeSurfaceCandidate(surface, vertex, triangles, candidate.Triangle, point,
+                            out var bary, out var projected, out var distance, out var interior) ||
+                        hasInterior && !interior || Math.Abs(distance - bestDistance) > wireBound) continue;
+                    minimum = Vector3.Min(minimum, projected); maximum = Vector3.Max(maximum, projected);
+                    if (equivalent)
+                        foreach (var other in surface.Incident[vertex.Anchor])
+                        {
+                            if (other.Slot != vertex.SourceSlot ||
+                                !TryNativeSurfaceCandidate(surface, vertex, triangles, other.Triangle, point,
+                                    out var otherBary, out var otherPoint, out var otherDistance, out var otherInterior) ||
+                                hasInterior && !otherInterior || Math.Abs(otherDistance - bestDistance) > wireBound) continue;
+                            if ((projected - otherPoint).sqrMagnitude <= wireBound * wireBound &&
+                                (SameNativeSurfaceSupport(triangles, candidate.Triangle, bary, other.Triangle, otherBary) ||
+                                 EquivalentNativeSurface(input, vertex, triangles, candidate.Triangle, bary, projected,
+                                     other.Triangle, otherBary, otherPoint))) continue;
+                            equivalent = false;
+                            break;
+                        }
+                    for (var corner = 0; corner < 3; corner++)
+                    {
+                        if ((common & 1 << corner) == 0) continue;
+                        var found = false;
+                        for (var other = 0; other < 3; other++)
+                            if (bary[other] > 0f && triangles[bestTriangle + corner] == triangles[candidate.Triangle + other]) found = true;
+                        if (!found) common &= ~(1 << corner);
+                    }
+                }
+                // A nearer candidate can move an earlier, incompatible point out
+                // of the final tie set. Recheck that complete set before narrowing it.
+                if (equivalent) { boundaryBary = bestBary; boundaryPoint = bestPoint; return true; }
+                // Every tied interpretation must share the same indexed boundary.
+                // Keep the intersection of positive supports across the whole fan.
+                if (common == 0 || common == 7) return false;
+                var first = -1; var second = -1;
+                for (var corner = 0; corner < 3; corner++)
+                {
+                    if ((common & 1 << corner) == 0) continue;
+                    var index = triangles[bestTriangle + corner];
+                    if (first < 0) first = index; else second = index;
+                }
+                if (second >= 0 && second < first) (first, second) = (second, first);
+                var startUv = surface.Uv[first]; var start = surface.Frames[first].Position;
+                var fraction = 0d;
+                if (second >= 0)
+                {
+                    var endUv = surface.Uv[second]; var edgeX = (double)endUv.x - startUv.x; var edgeY = (double)endUv.y - startUv.y;
+                    var length = edgeX * edgeX + edgeY * edgeY;
+                    if (length > 0d)
+                        fraction = Math.Max(0d, Math.Min(1d, (((double)vertex.SourceUv.Value.x - startUv.x) * edgeX +
+                            ((double)vertex.SourceUv.Value.y - startUv.y) * edgeY) / length));
+                    else
+                    {
+                        var edge = surface.Frames[second].Position - start; var offset = point - start;
+                        var physicalLength = (double)edge.x * edge.x + (double)edge.y * edge.y + (double)edge.z * edge.z;
+                        if (physicalLength <= 0d) return false;
+                        fraction = Math.Max(0d, Math.Min(1d, ((double)offset.x * edge.x + (double)offset.y * edge.y +
+                            (double)offset.z * edge.z) / physicalLength));
+                    }
+                }
+                for (var corner = 0; corner < 3; corner++)
+                {
+                    var index = triangles[bestTriangle + corner];
+                    if (index == first) boundaryBary[corner] = (float)(1d - fraction);
+                    else if (index == second) boundaryBary[corner] = (float)fraction;
+                }
+                var total = boundaryBary.x + boundaryBary.y + boundaryBary.z;
+                if (!Finite(total) || total <= 0f) return false;
+                boundaryBary /= total;
+                var projectedUv = Vector2.zero;
+                for (var corner = 0; corner < 3; corner++)
+                {
+                    var index = triangles[bestTriangle + corner];
+                    boundaryPoint += surface.Frames[index].Position * boundaryBary[corner];
+                    projectedUv += surface.Uv[index] * boundaryBary[corner];
+                }
+                if (Mathf.Abs(projectedUv.x - vertex.SourceUv.Value.x) > uvBound ||
+                    Mathf.Abs(projectedUv.y - vertex.SourceUv.Value.y) > uvBound) return false;
+                // The enclosing box gives an order-independent bound for every
+                // prior candidate, including fans with more than two triangles.
+                var dx = Math.Max(Math.Abs((double)boundaryPoint.x - minimum.x), Math.Abs((double)boundaryPoint.x - maximum.x));
+                var dy = Math.Max(Math.Abs((double)boundaryPoint.y - minimum.y), Math.Abs((double)boundaryPoint.y - maximum.y));
+                var dz = Math.Max(Math.Abs((double)boundaryPoint.z - minimum.z), Math.Abs((double)boundaryPoint.z - maximum.z));
+                return Finite(boundaryPoint) && dx * dx + dy * dy + dz * dz <= (double)wireBound * wireBound;
+            }
+
+            private static int ExplicitNativeSurfaceContributions(NativeChildInput input, SurfaceVertex vertex,
+                NativeSurfaceContribution[] output)
+            {
+                var surface = input.Surface; var triangle = vertex.SurfaceTriangle.Value;
+                var bary = vertex.SurfaceBary; var count = input.Binding.SourceTangents.Length;
+                var total = bary.x + bary.y + bary.z;
+                if (triangle.A < 0 || triangle.A >= count || triangle.B < 0 || triangle.B >= count ||
+                    triangle.C < 0 || triangle.C >= count || triangle.A == triangle.B || triangle.A == triangle.C || triangle.B == triangle.C ||
+                    vertex.Anchor != triangle.A && vertex.Anchor != triangle.B && vertex.Anchor != triangle.C ||
+                    vertex.SourceSlot < 0 || vertex.SourceSlot >= surface.Triangles.Length ||
+                    !Finite(bary) || bary.x < 0f || bary.y < 0f || bary.z < 0f ||
+                    bary.x > 1f || bary.y > 1f || bary.z > 1f || Mathf.Abs(total - 1f) > .000001f)
+                    throw new InvalidOperationException("An explicit native surface stencil is invalid.");
+                var source = surface.Triangles[vertex.SourceSlot]; var found = false;
+                foreach (var candidate in surface.Incident[vertex.Anchor])
+                {
+                    if (candidate.Slot != vertex.SourceSlot) continue;
+                    var offset = candidate.Triangle;
+                    bool Contains(int index) => source[offset] == index || source[offset + 1] == index || source[offset + 2] == index;
+                    if (!Contains(triangle.A) || !Contains(triangle.B) || !Contains(triangle.C)) continue;
+                    found = true; break;
+                }
+                if (!found) throw new InvalidOperationException("An explicit native surface triangle is absent from its source slot.");
+                bary /= total;
+                var uv = surface.Uv[triangle.A] * bary.x + surface.Uv[triangle.B] * bary.y + surface.Uv[triangle.C] * bary.z;
+                if (Mathf.Abs(uv.x - vertex.SourceUv.Value.x) > .000001f || Mathf.Abs(uv.y - vertex.SourceUv.Value.y) > .000001f)
+                    throw new InvalidOperationException("Explicit native surface provenance disagrees with its source UV.");
+                var projected = surface.Frames[triangle.A].Position * bary.x + surface.Frames[triangle.B].Position * bary.y +
+                    surface.Frames[triangle.C].Position * bary.z;
+                var primary = surface.Frames[vertex.Anchor];
+                var residual = primary.Position + primary.Transfer(vertex.Offset) - projected;
+                var normal = primary.Transfer(vertex.Normal); var tangent = primary.Transfer(vertex.Tangent); var used = 0;
+                if (!Finite(projected) || !Finite(residual) || !Finite(normal) || !Finite(tangent))
+                    throw new InvalidOperationException("An explicit native surface frame is not finite.");
+                for (var corner = 0; corner < 3; corner++)
+                {
+                    var factor = bary[corner]; if (factor <= 0f) continue;
+                    var anchor = corner == 0 ? triangle.A : corner == 1 ? triangle.B : triangle.C;
+                    var frame = surface.Frames[anchor];
+                    output[used++] = new NativeSurfaceContribution(anchor, factor, frame.Coordinates(residual),
+                        frame.Coordinates(normal), frame.Coordinates(tangent));
+                }
+                return used;
+            }
+
+            private static int NativeSurfaceContributions(NativeChildInput input, SurfaceVertex vertex, NativeSurfaceContribution[] output)
+            {
+                output[0] = new NativeSurfaceContribution(vertex.Anchor, 1f, vertex.Offset, vertex.Normal, vertex.Tangent);
+                var surface = input.Surface;
+                if (vertex.SurfaceTriangle.HasValue)
+                {
+                    if (surface == null || vertex.Native || vertex.Sources != null || !vertex.SourceUv.HasValue)
+                        throw new InvalidOperationException("An explicit native surface has no matching source input.");
+                    return ExplicitNativeSurfaceContributions(input, vertex, output);
+                }
+                if (surface == null || vertex.Native || vertex.Sources != null || !vertex.SourceUv.HasValue) return 1;
+                var primary = surface.Frames[vertex.Anchor]; var point = primary.Position + primary.Transfer(vertex.Offset);
+                var bestDistance = double.PositiveInfinity; var bestPoint = Vector3.zero; var bestBary = Vector3.zero;
+                var bestTriangle = -1; var ambiguous = false; var nearby = false; var hasInterior = false; var uv = vertex.SourceUv.Value;
+                const float wireBound = .000002f, uvBound = .000001f;
+                foreach (var candidate in surface.Incident[vertex.Anchor])
+                {
+                    if (candidate.Slot != vertex.SourceSlot) continue;
+                    var triangles = surface.Triangles[candidate.Slot]; var offset = candidate.Triangle;
+                    if (!TryNativeSurfaceCandidate(surface, vertex, triangles, offset, point,
+                            out var bary, out var projected, out var distance, out var interior) || hasInterior && !interior) continue;
+                    // An actual source-UV interior owns the sample before a clamped neighbouring edge.
+                    if (interior && !hasInterior) { hasInterior = true; bestDistance = double.PositiveInfinity; ambiguous = false; nearby = false; }
+                    if (distance < bestDistance - wireBound) { ambiguous = false; nearby = false; }
+                    else if (Math.Abs(distance - bestDistance) <= wireBound)
+                    {
+                        nearby = true;
+                        if ((projected - bestPoint).sqrMagnitude > wireBound * wireBound ||
+                            !SameNativeSurfaceSupport(triangles, offset, bary, bestTriangle, bestBary) &&
+                            !EquivalentNativeSurface(input, vertex, triangles, offset, bary, projected, bestTriangle, bestBary, bestPoint)) ambiguous = true;
+                    }
+                    if (distance >= bestDistance) continue;
+                    bestDistance = distance; bestPoint = projected; bestBary = bary; bestTriangle = offset;
+                }
+                if (nearby)
+                {
+                    ambiguous = !TryCommonNativeSurfaceBoundary(input, vertex, bestTriangle, bestBary, bestPoint,
+                        bestDistance, hasInterior, wireBound, uvBound, out var boundaryBary, out var boundaryPoint);
+                    if (!ambiguous)
+                    {
+                        bestBary = boundaryBary; bestPoint = boundaryPoint;
+                    }
+                }
+                if (bestTriangle < 0 || ambiguous)
+                    throw new InvalidOperationException($"A cloth surface attachment has no unambiguous native source UV triangle " +
+                        $"(source={input.SurfaceOwner?.Fingerprint}, anchor={vertex.Anchor}, slot={vertex.SourceSlot}, " +
+                        $"uv={uv.x:R},{uv.y:R}, triangle={bestTriangle}, ambiguous={ambiguous}).");
+                var indices = surface.Triangles[vertex.SourceSlot]; var residual = point - bestPoint;
+                var normal = primary.Transfer(vertex.Normal); var tangent = primary.Transfer(vertex.Tangent); var used = 0;
+                for (var corner = 0; corner < 3; corner++)
+                {
+                    var factor = bestBary[corner]; if (factor <= 0f) continue;
+                    var anchor = indices[bestTriangle + corner]; var frame = surface.Frames[anchor];
+                    output[used++] = new NativeSurfaceContribution(anchor, factor, frame.Coordinates(residual), frame.Coordinates(normal), frame.Coordinates(tangent));
+                }
+                return used;
+            }
+            private static bool SameNativeSurfaceSupport(int[] triangles, int first, Vector3 firstBary,
+                int second, Vector3 secondBary)
+            {
+                // Coincident rest points can belong to different moving cloth
+                // surfaces. Only the same native interpolation stencil is a tie.
+                const float weightBound = .000001f;
+                for (var direction = 0; direction < 2; direction++)
+                {
+                    var a = direction == 0 ? first : second; var b = direction == 0 ? second : first;
+                    var wa = direction == 0 ? firstBary : secondBary; var wb = direction == 0 ? secondBary : firstBary;
+                    for (var corner = 0; corner < 3; corner++)
+                    {
+                        var weight = 0f;
+                        for (var other = 0; other < 3; other++)
+                            if (triangles[a + corner] == triangles[b + other]) weight += wb[other];
+                        if (Mathf.Abs(wa[corner] - weight) > weightBound) return false;
+                    }
+                }
+                return true;
+            }
+            private static float NativeSurfaceMetric(NativeChildInput input)
+            {
+                var matrix = input.Binding.RendererToPrefab; var scale = input.Scale;
+                var lengths = new Vector3(((Vector3)matrix.GetColumn(0)).magnitude,
+                    ((Vector3)matrix.GetColumn(1)).magnitude, ((Vector3)matrix.GetColumn(2)).magnitude);
+                var ratios = new Vector3(Mathf.Abs(scale.x) / lengths.x, Mathf.Abs(scale.y) / lengths.y, Mathf.Abs(scale.z) / lengths.z);
+                var metric = (ratios.x + ratios.y + ratios.z) / 3f;
+                if (!Finite(metric) || metric <= 0f ||
+                    Mathf.Max(Mathf.Abs(ratios.x - metric), Mathf.Max(Mathf.Abs(ratios.y - metric), Mathf.Abs(ratios.z - metric))) > metric * .00001f)
+                    throw new InvalidOperationException("Native and authored source binding metric scales disagree.");
+                var determinant = Vector3.Dot(Vector3.Cross((Vector3)matrix.GetColumn(0), (Vector3)matrix.GetColumn(1)), (Vector3)matrix.GetColumn(2));
+                if (!Finite(determinant) || determinant == 0f) throw new InvalidOperationException("A native binding has a singular source frame.");
+                return metric;
+            }
+            private static NativeWeightChannels NativeSurfaceWeight(NativeChildInput input, NativeSurfaceContribution contribution,
+                NativeWeightChannels source, float metric)
+            {
+                var normal = source.Normal.normalized; var tangent = source.Tangent;
+                tangent = (tangent - normal * Vector3.Dot(normal, tangent)).normalized;
+                var hand = input.Binding.SourceTangents[contribution.Anchor].w;
+                if (hand is not (-1f or 1f) || normal.sqrMagnitude < .99f || tangent.sqrMagnitude < .99f)
+                    throw new InvalidOperationException("A native parent binding has a singular surface frame.");
+                var bitangent = Vector3.Cross(normal, tangent) * hand;
+                Vector3 Transfer(Vector3 value) => tangent * value.x + bitangent * value.y + normal * value.z;
+                if (!contribution.Offset.Equals(Vector3.zero)) source.Position += Transfer(contribution.Offset) * metric;
+                source.Factor *= contribution.Factor;
+                source.Normal = Transfer(contribution.Normal).normalized; source.Tangent = Transfer(contribution.Tangent).normalized;
+                return source;
+            }
+            private static bool EquivalentNativeSurface(NativeChildInput input, SurfaceVertex vertex, int[] triangles,
+                int first, Vector3 firstBary, Vector3 firstPoint, int second, Vector3 secondBary, Vector3 secondPoint)
+            {
+                if (input.ReadWeight == null) return false;
+                var surface = input.Surface; var primary = surface.Frames[vertex.Anchor];
+                var point = primary.Position + primary.Transfer(vertex.Offset);
+                var normal = primary.Transfer(vertex.Normal); var tangent = primary.Transfer(vertex.Tangent);
+                var firstCount = 0; var secondCount = 0; var metric = NativeSurfaceMetric(input);
+                for (var direction = 0; direction < 2; direction++)
+                {
+                    var offset = direction == 0 ? first : second; var bary = direction == 0 ? firstBary : secondBary;
+                    var projected = direction == 0 ? firstPoint : secondPoint;
+                    var values = direction == 0 ? surface.FirstEquivalent : surface.SecondEquivalent; var used = 0;
+                    for (var corner = 0; corner < 3; corner++)
+                    {
+                        var factor = bary[corner]; if (factor <= 0f) continue;
+                        var anchor = triangles[offset + corner]; var frame = surface.Frames[anchor];
+                        var contribution = new NativeSurfaceContribution(anchor, factor, frame.Coordinates(point - projected), frame.Coordinates(normal), frame.Coordinates(tangent));
+                        var packed = input.Info[anchor]; var count = (int)(packed >> 28); var start = (int)(packed & 0xfffffff);
+                        if (start > input.Weights.Length - count) throw new InvalidOperationException("A native source weight span is out of range.");
+                        for (var index = 0; index < count; index++)
+                            AccumulateNativeSurfaceWeight(values, ref used, NativeSurfaceWeight(input, contribution, input.ReadWeight(start + index), metric));
+                    }
+                    if (direction == 0) firstCount = used; else secondCount = used;
+                }
+                for (var direction = 0; direction < 2; direction++)
+                {
+                    var values = direction == 0 ? surface.FirstEquivalent : surface.SecondEquivalent;
+                    var others = direction == 0 ? surface.SecondEquivalent : surface.FirstEquivalent;
+                    var count = direction == 0 ? firstCount : secondCount; var otherCount = direction == 0 ? secondCount : firstCount;
+                    for (var index = 0; index < count; index++)
+                    {
+                        var a = values[index].Sum; var found = 0;
+                        while (found < otherCount && others[found].Sum.Parent != a.Parent) found++;
+                        var b = found == otherCount ? default : others[found].Sum;
+                        if (!Same(a.Factor, b.Factor) || !SameVector(a.Position, b.Position) || !SameVector(a.Normal, b.Normal) || !SameVector(a.Tangent, b.Tangent)) return false;
+                    }
+                }
+                return true;
+                static bool Same(float a, float b) => Finite(a) && Finite(b) && Mathf.Abs(a - b) <= .000002f * Mathf.Max(1f, Mathf.Abs(a));
+                static bool SameVector(Vector3 a, Vector3 b) => Same(a.x, b.x) && Same(a.y, b.y) && Same(a.z, b.z);
+            }
+            private struct NativeSurfaceAggregate
+            {
+                internal NativeWeightChannels Sum;
+            }
+            private static void AccumulateNativeSurfaceWeight(NativeSurfaceAggregate[] values, ref int used,
+                NativeWeightChannels value)
+            {
+                var index = 0;
+                while (index < used && values[index].Sum.Parent != value.Parent) index++;
+                if (index == used)
+                {
+                    if (used == 15) throw new InvalidOperationException("A cloth surface exceeds the native packed parent count.");
+                    values[used++] = new NativeSurfaceAggregate
+                    {
+                        Sum = new NativeWeightChannels(0f, value.Parent, Vector3.zero, Vector3.zero, Vector3.zero)
+                    };
+                }
+                ref var aggregate = ref values[index];
+                aggregate.Sum.Factor += value.Factor;
+                aggregate.Sum.Position += value.Position * value.Factor;
+                aggregate.Sum.Normal += value.Normal * value.Factor;
+                aggregate.Sum.Tangent += value.Tangent * value.Factor;
+            }
+
+
+
+            private sealed class NativeChildInput
+            {
+                internal uint[] Info;
+                internal Array Weights;
+                internal int[] Parents;
+                internal Type OutputType, WeightType;
+                internal NativeChildBinding Binding;
+                internal NativeSurfaceInput Surface;
+                internal SurfaceBinding SurfaceOwner;
+                internal bool PlanOnly;
+                internal Func<int, NativeWeightChannels> ReadWeight;
+                internal Vector3[] Normals;
+                internal Vector3 Scale;
+                internal int ParentCount;
+                internal long Bytes;
+            }
             private static object RebuildChildData(object original, SurfaceBinding binding, Mesh nativeMesh,
                 Vector3 nativeScale, int parentCount)
             {
+                var weightType = ((Array)Get(original, "vertexWeightList")).GetType().GetElementType();
+                var rebuild = NativeChildDataBuilder(weightType);
+                if (rebuild == null) return RebuildChildDataReflected(original, binding, nativeMesh, nativeScale, parentCount);
+                return rebuild(CaptureNativeChild(original, binding, nativeMesh, nativeScale, parentCount, false), null);
+            }
+            internal static void PrepareNativeMetadata()
+            {
+                var dataType = Type.GetType("MagicaCloth.MeshData, MagicaCloth", false);
+                _nativeWeightType = dataType?.GetField("vertexWeightList", Fields)?.FieldType.GetElementType();
+                _nativeChildType = dataType?.GetField("childDataList", Fields)?.FieldType.GetGenericArguments().SingleOrDefault();
+                if (_nativeWeightType != null) _ = NativeChildDataBuilder(_nativeWeightType);
+                if (dataType != null)
+                {
+                    PrepareNativeDataWriter(dataType, new HashSet<Type>());
+                    PrepareNativeDataWriter(typeof(object[]), new HashSet<Type>());
+                    _ = NativeVectorHash(dataType.Assembly);
+                }
+            }
+            private static Func<NativeChildInput, NativeDataWork, object> NativeChildDataBuilder(Type weightType)
+            {
+                lock (NativeChildDataBuilders)
+                {
+                    if (NativeChildDataBuilders.TryGetValue(weightType, out var existing)) return existing;
+                    var schema = new[] { ("weight", typeof(float)), ("parentIndex", typeof(int)),
+                        ("localPos", typeof(Vector3)), ("localNor", typeof(Vector3)), ("localTan", typeof(Vector3)) };
+                    Func<NativeChildInput, NativeDataWork, object> rebuild = null;
+                    if (weightType.IsValueType && schema.All(member => weightType.GetField(member.Item1, Fields) is { IsInitOnly: false } field && field.FieldType == member.Item2))
+                    {
+                        System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(NativeWeightAccess<>).MakeGenericType(weightType).TypeHandle);
+                        var input = Expression.Parameter(typeof(NativeChildInput));
+                        var work = Expression.Parameter(typeof(NativeDataWork));
+                        var method = typeof(SourceGraph).GetMethod(nameof(RebuildChildDataTyped), BindingFlags.Static | BindingFlags.NonPublic).MakeGenericMethod(weightType);
+                        rebuild = Expression.Lambda<Func<NativeChildInput, NativeDataWork, object>>(Expression.Call(method, input, work), input, work).Compile();
+                    }
+                    NativeChildDataBuilders.Add(weightType, rebuild);
+                    return rebuild;
+                }
+            }
+            private static NativeChildInput CaptureNativeChild(object original, SurfaceBinding binding, Mesh nativeMesh,
+                Vector3 scale, int parentCount, bool copy)
+            {
+                var info = (uint[])Get(original, "vertexInfoList");
+                var weights = (Array)Get(original, "vertexWeightList");
+                var parents = (int[])Get(original, "parentIndexList");
+                var weightType = weights.GetType().GetElementType();
+                var surface = CaptureNativeSurface(nativeMesh, binding);
+                long bytes = 0;
+                if (copy || surface != null)
+                {
+                    bytes = 4096L + info.LongLength * 4L + parents.LongLength * 4L + weights.LongLength * Marshal.SizeOf(weightType) +
+                            binding.VertexBytes + binding.Vertices.LongLength * 8L + binding.SourceTangents.LongLength * 16L;
+                    long count = 0;
+                    foreach (var vertex in binding.Vertices)
+                    {
+                        if (vertex.Anchor < 0 || vertex.Anchor >= info.Length)
+                            throw new InvalidOperationException("An authored source attachment references a missing native vertex.");
+                        count += info[vertex.Anchor] >> 28;
+                    }
+                    if (surface == null) bytes += count * Marshal.SizeOf(weightType) * 3L;
+                    else bytes += binding.Vertices.LongLength * 8L + surface.Positions.LongLength * 192L + surface.Triangles.Sum(triangles => triangles.LongLength * 20L);
+                    if (binding.BoundaryOverrides != null) bytes += binding.SourceTangents.LongLength * 12L + binding.BoundaryOverrides.Count * 128L;
+                    if (bytes > MaximumNativeWorkBytes) throw new NativeDataPacketLimit();
+                }
+                return new NativeChildInput
+                {
+                    Info = copy ? (uint[])info.Clone() : info, Weights = copy ? (Array)weights.Clone() : weights,
+                    Parents = copy ? (int[])parents.Clone() : parents, OutputType = original.GetType(), WeightType = weightType,
+                    Binding = new NativeChildBinding(binding, copy), Surface = surface, SurfaceOwner = binding.SurfacePlanSource, Normals = binding.BoundaryOverrides == null ? null : nativeMesh.normals,
+                    Scale = scale, ParentCount = parentCount, Bytes = bytes
+                };
+            }
+            private struct NativeWeightChannels
+            {
+                public float Factor;
+                public int Parent;
+                public Vector3 Position, Normal, Tangent;
+                public NativeWeightChannels(float factor, int parent, Vector3 position, Vector3 normal, Vector3 tangent)
+                { Factor = factor; Parent = parent; Position = position; Normal = normal; Tangent = tangent; }
+            }
+            private static class NativeWeightAccess<T>
+            {
+                internal static readonly Func<T,NativeWeightChannels> Read;
+                internal static readonly Func<T,NativeWeightChannels,T> Write;
+                static NativeWeightAccess()
+                {
+                    if(!typeof(T).IsValueType)throw new InvalidOperationException("A native weight is not a value type.");
+                    var weight=Expression.Parameter(typeof(T),"weight");var channels=Expression.Parameter(typeof(NativeWeightChannels),"channels");
+                    var mappings=new[]{new[]{"weight","Factor"},new[]{"parentIndex","Parent"},new[]{"localPos","Position"},new[]{"localNor","Normal"},new[]{"localTan","Tangent"}};
+                    var fields=mappings.Select(mapping=>new{Native=typeof(T).GetField(mapping[0],Fields),Target=typeof(NativeWeightChannels).GetField(mapping[1])}).ToArray();
+                    if(fields.Any(field=>field.Native==null||field.Native.IsInitOnly||field.Native.FieldType!=field.Target.FieldType))throw new InvalidOperationException("The native weight schema has unsupported fields.");
+                    Read=Expression.Lambda<Func<T,NativeWeightChannels>>(Expression.New(typeof(NativeWeightChannels).GetConstructor(new[] { typeof(float), typeof(int), typeof(Vector3), typeof(Vector3), typeof(Vector3) }),fields.Select(field=>Expression.Field(weight,field.Native))),weight).Compile();
+                    var output=Expression.Variable(typeof(T),"output");var writes=new List<Expression>{Expression.Assign(output,weight)};
+                    foreach(var field in fields.Where(field => field.Target.Name != nameof(NativeWeightChannels.Parent)))writes.Add(Expression.Assign(Expression.Field(output,field.Native),Expression.Field(channels,field.Target)));
+                    writes.Add(output);Write=Expression.Lambda<Func<T,NativeWeightChannels,T>>(Expression.Block(new[]{output},writes),weight,channels).Compile();
+                }
+            }
+
+            private static object RebuildChildDataTyped<T>(NativeChildInput input, NativeDataWork work)
+            {
+                var binding = input.Binding;
+                var nativeScale = input.Scale;
+                var parentCount = input.ParentCount;
+                var sourceInfo = input.Info;
+                var sourceWeights = (T[])input.Weights;
+                input.ReadWeight = index => NativeWeightAccess<T>.Read(sourceWeights[index]);
+                var plan = PrepareNativeSurfacePlan(input, work);
+                if (input.PlanOnly) return plan;
+                var sourceParents = input.Parents;
+                var info = new uint[binding.Vertices.Length];
+                var parents = new int[info.Length];
+                var weights = new List<T>(info.Length);
+                var nativeNormals = input.Normals;
+                var matrix = binding.RendererToPrefab;
+                var lengths = new Vector3(((Vector3)matrix.GetColumn(0)).magnitude,
+                    ((Vector3)matrix.GetColumn(1)).magnitude, ((Vector3)matrix.GetColumn(2)).magnitude);
+                var ratios = new Vector3(Mathf.Abs(nativeScale.x) / lengths.x,
+                    Mathf.Abs(nativeScale.y) / lengths.y, Mathf.Abs(nativeScale.z) / lengths.z);
+                var metric = (ratios.x + ratios.y + ratios.z) / 3f;
+                if (!Finite(metric) || metric <= 0f ||
+                    Mathf.Max(Mathf.Abs(ratios.x - metric), Mathf.Max(Mathf.Abs(ratios.y - metric), Mathf.Abs(ratios.z - metric))) > metric * 0.00001f)
+                    throw new InvalidOperationException("Native and authored source binding metric scales disagree.");
+                var determinant = Vector3.Dot(Vector3.Cross((Vector3)matrix.GetColumn(0), (Vector3)matrix.GetColumn(1)),
+                    (Vector3)matrix.GetColumn(2));
+                if (!Finite(determinant) || determinant == 0f) throw new InvalidOperationException("A native binding has a singular source frame.");
+                for (var index = 0; index < info.Length; index++)
+                {
+                    if ((index & 255) == 0) CheckNativeWork(work);
+                    var vertex = binding.Vertices[index];
+                    if (vertex.Anchor < 0 || vertex.Anchor >= sourceInfo.Length || vertex.Anchor >= sourceParents.Length)
+                        throw new InvalidOperationException("An authored source attachment references a missing native vertex.");
+                    var packed = sourceInfo[vertex.Anchor];
+                    var count = (int)(packed >> 28); var start = (int)(packed & 0x0fffffff);
+                    if (start > sourceWeights.Length - count || weights.Count > 0x0fffffff)
+                        throw new InvalidOperationException("A native source weight span is out of range.");
+                    info[index] = (uint)(count << 28) | (uint)weights.Count;
+                    parents[index] = sourceParents[vertex.Anchor];
+                    for (var offset = 0; offset < count; offset++)
+                    {
+                        var weight = sourceWeights[start + offset];
+                        var channels = NativeWeightAccess<T>.Read(weight);
+                        var factor = channels.Factor;
+                        var parent = channels.Parent;
+                        var position = channels.Position;
+                        var sourceLocalNormal = channels.Normal;
+                        var sourceLocalTangent = channels.Tangent;
+                        if (!Finite(factor) || factor < 0f || factor > 1f || parent < 0 || parent >= parentCount ||
+                            !Finite(position) || !Finite(sourceLocalNormal) || !Finite(sourceLocalTangent))
+                            throw new InvalidOperationException("A native source binding has an invalid parent or nonfinite channel.");
+                        var hasBoundary = binding.BoundaryOverrides != null && binding.BoundaryOverrides.TryGetValue(index, out _);
+                        if (!vertex.Native || hasBoundary)
+                        {
+                            var normal = sourceLocalNormal.normalized;
+                            var tangent = sourceLocalTangent;
+                            tangent = (tangent - normal * Vector3.Dot(normal, tangent)).normalized;
+                            var handedness = binding.SourceTangents[vertex.Anchor].w;
+                            if (handedness is not (-1f or 1f)) throw new InvalidOperationException("A native source tangent has invalid handedness.");
+                            var bitangent = Vector3.Cross(normal, tangent) * handedness;
+                            if (normal.sqrMagnitude < 0.99f || tangent.sqrMagnitude < 0.99f)
+                                throw new InvalidOperationException("A native parent binding has a singular surface frame.");
+                            Vector3 Transfer(Vector3 value) => tangent * value.x + bitangent * value.y + normal * value.z;
+                            if (!vertex.Offset.Equals(Vector3.zero))
+                                channels.Position = position + Transfer(vertex.Offset) * metric;
+                            var surfaceNormal = vertex.Normal; var surfaceTangent = vertex.Tangent;
+                            if (hasBoundary)
+                            {
+                                if (nativeNormals.Length != binding.SourceTangents.Length)
+                                    throw new InvalidOperationException("A boundary cloth source has incomplete native normal frames.");
+                                var declaration = binding.BoundaryOverrides[index];
+                                var sourceNormal = nativeNormals[vertex.Anchor].normalized;
+                                var sourceTangent = (Vector3)binding.SourceTangents[vertex.Anchor];
+                                sourceTangent = (sourceTangent - sourceNormal * Vector3.Dot(sourceNormal, sourceTangent)).normalized;
+                                if (sourceNormal.sqrMagnitude < 0.99f || sourceTangent.sqrMagnitude < 0.99f)
+                                    throw new InvalidOperationException("A boundary cloth source has a singular native surface frame.");
+                                var sourceBitangent = Vector3.Cross(sourceNormal, sourceTangent) * handedness;
+                                Vector3 Coordinates(Vector3 value) => new(Vector3.Dot(value, sourceTangent),
+                                    Vector3.Dot(value, sourceBitangent), Vector3.Dot(value, sourceNormal));
+                                surfaceNormal = Coordinates(declaration.Normal);
+                                surfaceTangent = Coordinates((Vector3)declaration.Tangent);
+                            }
+                            channels.Normal = Transfer(surfaceNormal).normalized;
+                            channels.Tangent = Transfer(surfaceTangent).normalized;
+                            weight = NativeWeightAccess<T>.Write(weight, channels);
+                        }
+                        weights.Add(weight);
+                    }
+                }
+                var result = Activator.CreateInstance(input.OutputType);
+                var typedWeights = weights.ToArray();
+                Put(result, "vertexCount", info.Length); Put(result, "vertexInfoList", info);
+                Put(result, "vertexWeightList", typedWeights); Put(result, "parentIndexList", parents);
+                return result;
+            }
+
+
+            private static object RebuildChildDataReflected(object original, SurfaceBinding binding, Mesh nativeMesh,
+                Vector3 nativeScale, int parentCount)
+            {
+                var input = CaptureNativeChild(original, binding, nativeMesh, nativeScale, parentCount, false);
                 var sourceInfo = (uint[])Get(original, "vertexInfoList");
                 var sourceWeights = (Array)Get(original, "vertexWeightList");
                 var sourceParents = (int[])Get(original, "parentIndexList");
+                var weightType = sourceWeights.GetType().GetElementType();
+                var readFactor = NativeReader(weightType, "weight");
+                var readParent = NativeReader(weightType, "parentIndex");
+                var readPosition = NativeReader(weightType, "localPos");
+                var readNormal = NativeReader(weightType, "localNor");
+                var readTangent = NativeReader(weightType, "localTan");
+                input.ReadWeight = index => { var value = sourceWeights.GetValue(index); return new NativeWeightChannels((float)readFactor(value), (int)readParent(value), (Vector3)readPosition(value), (Vector3)readNormal(value), (Vector3)readTangent(value)); };
+                _ = PrepareNativeSurfacePlan(input, null);
                 var info = new uint[binding.Vertices.Length];
                 var parents = new int[info.Length];
                 var weights = new List<object>();
@@ -1302,17 +4083,19 @@ public static class CustomModels
                     for (var offset = 0; offset < count; offset++)
                     {
                         var weight = sourceWeights.GetValue(start + offset);
-                        var factor = (float)Get(weight, "weight");
-                        var parent = (int)Get(weight, "parentIndex");
+                        var factor = (float)readFactor(weight);
+                        var parent = (int)readParent(weight);
+                        var position = (Vector3)readPosition(weight);
+                        var sourceLocalNormal = (Vector3)readNormal(weight);
+                        var sourceLocalTangent = (Vector3)readTangent(weight);
                         if (!Finite(factor) || factor < 0f || factor > 1f || parent < 0 || parent >= parentCount ||
-                            !Finite((Vector3)Get(weight, "localPos")) || !Finite((Vector3)Get(weight, "localNor")) ||
-                            !Finite((Vector3)Get(weight, "localTan")))
+                            !Finite(position) || !Finite(sourceLocalNormal) || !Finite(sourceLocalTangent))
                             throw new InvalidOperationException("A native source binding has an invalid parent or nonfinite channel.");
                         var hasBoundary = binding.BoundaryOverrides != null && binding.BoundaryOverrides.TryGetValue(index, out _);
                         if (!vertex.Native || hasBoundary)
                         {
-                            var normal = ((Vector3)Get(weight, "localNor")).normalized;
-                            var tangent = (Vector3)Get(weight, "localTan");
+                            var normal = sourceLocalNormal.normalized;
+                            var tangent = sourceLocalTangent;
                             tangent = (tangent - normal * Vector3.Dot(normal, tangent)).normalized;
                             var handedness = binding.SourceTangents[vertex.Anchor].w;
                             if (handedness is not (-1f or 1f)) throw new InvalidOperationException("A native source tangent has invalid handedness.");
@@ -1321,7 +4104,7 @@ public static class CustomModels
                                 throw new InvalidOperationException("A native parent binding has a singular surface frame.");
                             Vector3 Transfer(Vector3 value) => tangent * value.x + bitangent * value.y + normal * value.z;
                             if (!vertex.Offset.Equals(Vector3.zero))
-                                Put(weight, "localPos", (Vector3)Get(weight, "localPos") + Transfer(vertex.Offset) * metric);
+                                Put(weight, "localPos", position + Transfer(vertex.Offset) * metric);
                             var surfaceNormal = vertex.Normal; var surfaceTangent = vertex.Tangent;
                             if (hasBoundary)
                             {
@@ -1374,6 +4157,296 @@ public static class CustomModels
                                  .OrderBy(field => field.Name, StringComparer.Ordinal))
                         yield return field;
             }
+            internal static HashSet<UnityEngine.Object> NativePrefabData(GameObject prefab)
+            {
+                var result = new HashSet<UnityEngine.Object>();
+                if (!prefab || prefab.scene.IsValid()) return result;
+                foreach (var component in prefab.GetComponentsInChildren<Component>(true))
+                {
+                    if (!component || !(ClothType?.IsInstanceOfType(component) == true ||
+                                        VirtualType?.IsInstanceOfType(component) == true)) continue;
+                    var deformer = Optional(component, "Deformer");
+                    if (deformer != null && Optional(deformer, "MeshData") is UnityEngine.Object data && data &&
+                        data.GetType().Assembly == DeformerType.Assembly) result.Add(data);
+                }
+                return result;
+            }
+            private sealed class NativeDataReferences : IEqualityComparer<object>
+            {
+                bool IEqualityComparer<object>.Equals(object first, object second) => ReferenceEquals(first, second);
+                int IEqualityComparer<object>.GetHashCode(object value) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(value);
+            }
+            internal static long NativeDataMemorySize(UnityEngine.Object data)
+            {
+                var bytes = Math.Max(0L, UnityEngine.Profiling.Profiler.GetRuntimeMemorySizeLong(data));
+                if (data is Texture2D texture)
+                {
+                    // Unreadable textures can report only their small object allocation.
+                    // Budget at least the device-format payload, including every mip tail.
+                    var width = texture.width; var height = texture.height;
+                    var format = texture.graphicsFormat; var levels = texture.mipmapCount;
+                    long payload = 0;
+                    for (var level = 0; level < levels; level++)
+                    {
+                        payload = checked(payload + UnityEngine.Experimental.Rendering.GraphicsFormatUtility.ComputeMipmapSize(width, height, format));
+                        width = Math.Max(1, width / 2); height = Math.Max(1, height / 2);
+                    }
+                    bytes = Math.Max(bytes, payload);
+                }
+                return Math.Max(bytes, data.GetType().Assembly == DeformerType?.Assembly
+                    ? SerializedBytes(data, new HashSet<object>(new NativeDataReferences())) : 0);
+            }
+            private static long SerializedBytes(object value, HashSet<object> seen)
+            {
+                if (value == null) return 0;
+                var type = value.GetType();
+                if (type.IsValueType) return Marshal.SizeOf(type);
+                if (!seen.Add(value)) return 0;
+                if (value is string text) return 24L + 2L * text.Length;
+                if (value is Array array)
+                {
+                    var element = type.GetElementType();
+                    if (element.IsValueType) return 24L + (long)array.Length * Marshal.SizeOf(element);
+                    var bytes = 24L + (long)array.Length * IntPtr.Size;
+                    foreach (var item in array) bytes += SerializedBytes(item, seen);
+                    return bytes;
+                }
+                if (value is IList list)
+                {
+                    if (type.GetField("_items", Fields) is { } items) return 24L + SerializedBytes(items.GetValue(value), seen);
+                    var bytes = 24L + (long)list.Count * IntPtr.Size;
+                    foreach (var item in list) bytes += SerializedBytes(item, seen);
+                    return bytes;
+                }
+                if (type.Assembly == DeformerType.Assembly)
+                    return 24L + NativeDataFields(type).Sum(field => SerializedBytes(field.GetValue(value), seen));
+                throw new InvalidOperationException("Unsupported native source data memory channel: " + type.FullName);
+            }
+            internal sealed class NativeDataNode
+            {
+                internal byte[] NativeDataHeader;
+                internal object Value;
+                internal string[] Fields;
+                internal NativeDataNode[] Children;
+                internal bool Sequence;
+            }
+            private sealed class NativeDataSnapshot { internal NativeDataNode Root; internal long Bytes; }
+            sealed class NativeDataCapture
+            {
+                readonly Dictionary<object, object> copies = new Dictionary<object, object>(new NativeDataReferences());
+                readonly HashSet<object> path = new HashSet<object>(new NativeDataReferences());
+                readonly long maximum;
+                long bytes;
+                internal NativeDataCapture(long maximum = MaximumNativeWorkBytes) { this.maximum = maximum; }
+                void Own(long count) { bytes += count; if (bytes > maximum) throw new NativeDataPacketLimit(); }
+                internal NativeDataSnapshot Read(object source) => new NativeDataSnapshot { Root = Copy(source), Bytes = bytes };
+                NativeDataNode Copy(object value)
+                {
+                    Own(128);
+                    if (value == null) return new NativeDataNode();
+                    var type = value.GetType();
+                    if (type.IsValueType && NativeDataPureValue(type)) { Own(Marshal.SizeOf(type.IsEnum ? Enum.GetUnderlyingType(type) : type)); return new NativeDataNode { Value = value }; }
+                    if (value is Array array && type == type.GetElementType().MakeArrayType() && NativeDataPureValue(type.GetElementType()))
+                    {
+                        if (!copies.TryGetValue(value, out var copy))
+                        {
+                            Own(24L + (long)array.Length * Marshal.SizeOf(type.GetElementType()));
+                            copies.Add(value, copy = array.Clone());
+                        }
+                        if (ReferenceEquals(copy, value)) throw new InvalidOperationException("A packet array aliases the native source.");
+                        return new NativeDataNode { Value = copy };
+                    }
+                    if (!path.Add(value)) throw new InvalidOperationException("A native source snapshot contains a cyclic serialized graph.");
+                    try
+                    {
+                        var node = new NativeDataNode { NativeDataHeader = NativeDataHeader(type) }; Own(node.NativeDataHeader.Length);
+                        if (value is IList list)
+                        {
+                            Own(24L + list.Count * (long)IntPtr.Size);
+                            node.Sequence = true; node.Children = new NativeDataNode[list.Count];
+                            for (int index = 0; index < list.Count; index++) node.Children[index] = Copy(list[index]);
+                        }
+                        else if (type.Assembly == DeformerType.Assembly)
+                        {
+                            var fields = NativeDataFields(type).ToArray();
+                            Own(48L + fields.Length * 2L * IntPtr.Size);
+                            node.Fields = new string[fields.Length]; node.Children = new NativeDataNode[fields.Length];
+                            for (int index = 0; index < fields.Length; index++)
+                            {
+                                node.Fields[index] = fields[index].DeclaringType.FullName + ":" + fields[index].Name;
+                                Own(24L + node.Fields[index].Length * 2L); node.Children[index] = Copy(fields[index].GetValue(value));
+                            }
+                        }
+                        else throw new InvalidOperationException("Unsupported native snapshot channel: " + type.FullName);
+                        return node;
+                    }
+                    finally { path.Remove(value); }
+                }
+            }
+            static bool NativeDataPureValue(Type type) => type.IsValueType && (type.IsPrimitive || type.IsEnum || type.GetFields(Fields).Where(field => !field.IsStatic).All(field => NativeDataPureValue(field.FieldType)));
+
+            static byte[] NativeDataHeader(Type type)
+            {
+                using (var stream = new MemoryStream())
+                { using (var writer = new BinaryWriter(stream, System.Text.Encoding.UTF8, true)) { writer.Write(true); writer.Write(type.FullName); } return stream.ToArray(); }
+            }
+            sealed class NativeDataHashStream : Stream
+            {
+                readonly HashAlgorithm algorithm;
+                readonly NativeDataWork request;
+                internal NativeDataHashStream(HashAlgorithm algorithm, NativeDataWork request) { this.algorithm = algorithm; this.request = request; }
+                public override void Write(byte[] buffer, int offset, int count) { CheckNativeWork(request); algorithm.TransformBlock(buffer, offset, count, null, 0); }
+                public override void Flush() { CheckNativeWork(request); }
+                public override bool CanRead => false;
+                public override bool CanSeek => false;
+                public override bool CanWrite => true;
+                public override long Length => throw new NotSupportedException();
+                public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+                public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+                public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+                public override void SetLength(long value) => throw new NotSupportedException();
+            }
+
+
+            private const long MaximumNativeWorkBytes = 32L * 1024 * 1024;
+            private static int _nativeDataWorkBusy;
+            private sealed class NativeDataPacketLimit : Exception { }
+            private sealed class NativeDataWork
+            {
+                internal NativeDataSnapshot Snapshot;
+                internal NativeChildInput Child;
+                internal volatile bool Cancelled;
+                private int _references = 1;
+                internal void RetainWorker()
+                {
+                    if (Interlocked.CompareExchange(ref _references, 2, 1) != 1)
+                        throw new InvalidOperationException("A native data packet has no exclusive preparing owner.");
+                }
+                internal void Release()
+                {
+                    var remaining = Interlocked.Decrement(ref _references);
+                    if (remaining < 0) throw new InvalidOperationException("A native data packet has no matching owner.");
+                    if (remaining == 0) Interlocked.Exchange(ref _nativeDataWorkBusy, 0);
+                }
+            }
+            private static void CheckNativeWork(NativeDataWork request)
+            {
+                if (request?.Cancelled == true) throw new OperationCanceledException("A native source data request was superseded.");
+            }
+            private static Task<object> QueueNativeDataWork(NativeDataWork request)
+            {
+                request.RetainWorker();
+                try
+                {
+                    return Task.Run(() =>
+                    {
+                        try
+                        {
+                            CheckNativeWork(request);
+                            return request.Snapshot != null ? HashNativeSnapshot(request) :
+                                NativeChildDataBuilder(request.Child.WeightType)(request.Child, request);
+                        }
+                        finally { request.Release(); }
+                    });
+                }
+                catch { request.Release(); throw; }
+            }
+            private static IEnumerator ExecuteNativeDataWork(Func<NativeDataWork> capture, Func<bool> current, Action<object> receive)
+            {
+                while (Interlocked.CompareExchange(ref _nativeDataWorkBusy, 1, 0) != 0)
+                {
+                    if (!current()) yield break;
+                    yield return null;
+                }
+                NativeDataWork request = null;
+                try
+                {
+                    if (!current()) yield break;
+                    request = capture();
+                    if (request == null) yield break;
+                    var job = QueueNativeDataWork(request);
+                    while (!job.IsCompleted)
+                    {
+                        if (!current())
+                        {
+                            request.Cancelled = true;
+                            _ = job.ContinueWith(failed => _ = failed.Exception, TaskContinuationOptions.OnlyOnFaulted);
+                            yield break;
+                        }
+                        yield return null;
+                    }
+                    var result = job.GetAwaiter().GetResult();
+                    if (current()) receive(result);
+                }
+                finally
+                {
+                    if (request != null) { request.Cancelled = true; request.Release(); request = null; }
+                    else Interlocked.Exchange(ref _nativeDataWorkBusy, 0);
+                }
+            }
+            internal static IEnumerator PrepareNativeFingerprint(UnityEngine.Object source, Func<bool> current, Action<string> receive)
+            {
+                yield return ExecuteNativeDataWork(() =>
+                {
+                    try { return new NativeDataWork { Snapshot = new NativeDataCapture().Read(source) }; }
+                    catch (NativeDataPacketLimit) { return null; }
+                }, current, value => receive((string)value));
+            }
+            private static IEnumerator PrepareNativeChild(object source, SurfaceBinding binding, Mesh nativeMesh,
+                Vector3 scale, int parents, Func<bool> current, Action<object> receive, bool planOnly = false)
+            {
+                var weightType = ((Array)Get(source, "vertexWeightList")).GetType().GetElementType();
+                if (source.GetType() != _nativeChildType || weightType != _nativeWeightType || !NativeDataPureValue(weightType) ||
+                    NativeChildDataBuilder(weightType) == null) yield break;
+                yield return ExecuteNativeDataWork(() =>
+                {
+                    try
+                    {
+                        var input = CaptureNativeChild(source, binding, nativeMesh, scale, parents, true);
+                        input.PlanOnly = planOnly;
+                        return new NativeDataWork { Child = input };
+                    }
+                    catch (NativeDataPacketLimit) { return null; }
+                }, current, receive);
+            }
+            private static string HashNativeSnapshot(NativeDataWork request)
+            {
+                CheckNativeWork(request);
+                using var algorithm = CreateAssetSha256();
+                using var target = new NativeDataHashStream(algorithm, request);
+                using var buffer = new BufferedStream(target, 65536);
+                using var writer = new BinaryWriter(buffer, System.Text.Encoding.UTF8, true);
+                WriteNativeSnapshot(writer, request.Snapshot.Root, request);
+                writer.Flush(); buffer.Flush(); CheckNativeWork(request);
+                algorithm.TransformFinalBlock([], 0, 0);
+                return BitConverter.ToString(algorithm.Hash).Replace("-", "");
+            }
+            private static void WriteNativeSnapshot(BinaryWriter writer, NativeDataNode node, NativeDataWork request)
+            {
+                CheckNativeWork(request);
+                if (node.Value != null) { WriteNativeData(writer, node.Value); return; }
+                if (node.NativeDataHeader == null) { writer.Write(false); return; }
+                writer.Write(node.NativeDataHeader);
+                if (node.Sequence) writer.Write(node.Children.Length);
+                for (var index = 0; index < node.Children.Length; index++)
+                {
+                    if (node.Fields != null) writer.Write(node.Fields[index]);
+                    WriteNativeSnapshot(writer, node.Children[index], request);
+                }
+            }
+            private static void PrepareNativeDataWriter(Type type, HashSet<Type> visited)
+            {
+                if (type == null || !visited.Add(type)) return;
+                if (type.IsArray) PrepareNativeDataWriter(type.GetElementType(), visited);
+                else if (Nullable.GetUnderlyingType(type) is { } underlying) PrepareNativeDataWriter(underlying, visited);
+                else if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
+                    PrepareNativeDataWriter(type.GetGenericArguments()[0], visited);
+                else if (type.Assembly == DeformerType.Assembly)
+                    foreach (var field in NativeDataFields(type)) PrepareNativeDataWriter(field.FieldType, visited);
+                lock (NativeDataWriters)
+                    if (!NativeDataWriters.ContainsKey(type)) NativeDataWriters.Add(type, CreateNativeDataWriter(type));
+            }
+
             private static readonly Dictionary<Type, Action<BinaryWriter, object>> NativeDataWriters = new();
 
             private static string HashNativeData(object data)
@@ -1482,8 +4555,7 @@ public static class CustomModels
                 }
             }
 
-            // Insert only in existing SkinMeshSource.SourceGraph. Caller completes native jobs and
-            // validates collisions within the prospective batch before native registration.
+            // The caller completes native jobs and validates prospective shared-data collisions before registration.
             private static void ValidateNativeSharedBindings(object managerMesh, UnityEngine.Object prospectiveVirtualData)
             {
                 if (managerMesh == null || !prospectiveVirtualData)
@@ -1624,6 +4696,13 @@ public static class CustomModels
                 }
                 return compare(expected, actual);
             }
+            private static unsafe int NativeBindingFloatBits(float value)
+            {
+                var bits = *(int*)&value;
+                if ((bits & 0x7f800000) == 0x7f800000)
+                    throw new InvalidOperationException("Native shared binding contains a nonfinite scalar.");
+                return bits;
+            }
             private static Expression NativeBindingComparison(Expression expected, Expression actual, bool runtimeTypes = false)
             {
                 var leftType = expected.Type; var rightType = actual.Type;
@@ -1637,13 +4716,8 @@ public static class CustomModels
                 }
                 if (leftType == typeof(float) && rightType == typeof(float))
                 {
-                    Expression Finite(Expression value) => Expression.AndAlso(
-                        Expression.Not(Expression.Call(typeof(float), nameof(float.IsNaN), null, value)),
-                        Expression.Not(Expression.Call(typeof(float), nameof(float.IsInfinity), null, value)));
-                    Expression Bits(Expression value) => Expression.Call(typeof(BitConverter), nameof(BitConverter.DoubleToInt64Bits), null,
-                        Expression.Convert(value, typeof(double)));
-                    return Expression.Condition(Expression.AndAlso(Finite(expected), Finite(actual)), Expression.Equal(Bits(expected), Bits(actual)),
-                        NativeBindingError(typeof(bool), new InvalidOperationException("Native shared binding contains a nonfinite scalar.")));
+                    var bits = typeof(SourceGraph).GetMethod(nameof(NativeBindingFloatBits), BindingFlags.Static | BindingFlags.NonPublic);
+                    return Expression.Equal(Expression.Call(bits, expected), Expression.Call(bits, actual));
                 }
                 if (leftType == typeof(Vector2))
                 {
@@ -1705,6 +4779,20 @@ public static class CustomModels
                             throw new InvalidOperationException("Prepared render and child bindings differ from the replacement topology.");
                     }
                 }
+                foreach (var owner in _owners.Where(owner => owner.Order == 0 && !owner.PreservesRejectedCloth))
+                {
+                    var parent = _owners.SingleOrDefault(parent => parent.Order == 1 && parent.Component == owner.Parent);
+                    if (parent == null || owner.ClothData == null)
+                        throw new InvalidOperationException("A native cloth consumer has no resolved virtual source.");
+                    var count = (int)Get(FutureData(parent.Deformer), "vertexCount");
+                    var vertices = (IList)Get(owner.ClothData, "useVertexList");
+                    var selection = (IList)Get(owner.ClothData, "selectionData");
+                    if (vertices.Count != selection.Count)
+                        throw new InvalidOperationException("A native cloth consumer has inconsistent vertex selections.");
+                    for (var index = 0; index < vertices.Count; index++)
+                        if ((int)selection[index] != 0 && ((int)vertices[index] < 0 || (int)vertices[index] >= count))
+                            throw new InvalidOperationException("A native cloth consumer registers outside its virtual source.");
+                }
                 foreach (var skin in _skins)
                 {
                     if (skin.Replacement.blendShapeCount < skin.Original.blendShapeCount)
@@ -1746,6 +4834,12 @@ public static class CustomModels
                         if (owner.Component)
                         {
                             var result = Convert.ToInt32(Invoke(owner.Component, "VerifyData"));
+                            if (installed.Value && owner.PreservesRejectedCloth)
+                            {
+                                if (result == 0 || Flag(Get(owner.Component, "Status"), "IsInitComplete"))
+                                    throw new InvalidOperationException("A rejected native cloth consumer was enabled by a source transition.");
+                                continue;
+                            }
                             var expected = installed.Value ? 0 : owner.VerificationResult;
                             if (result != expected)
                                 throw new InvalidOperationException($"The native cloth graph did not verify for {owner.Component.GetType().FullName} ({owner.Component.name}): {result}; expected {expected}.");
@@ -1784,6 +4878,35 @@ public static class CustomModels
                 foreach (var data in virtualData) ValidateNativeSharedBindings(managerMesh, data);
             }
 
+            private void CaptureNativeInitialization()
+            {
+                foreach (var owner in _owners)
+                {
+                    if (!owner.Component || owner.Initialized || owner.PreservesRejectedCloth) continue;
+                    var status = Get(owner.Component, "Status");
+                    if (!Flag(status, "IsInitSuccess") || Flag(status, "IsDispose")) continue;
+                    // Unity Start can complete after the source was captured. Its one-time
+                    // initialization becomes part of the native lifecycle being restored.
+                    owner.Initialized = true;
+                    owner.UserEnabled = (bool)Get(status, "userEnable");
+                    if (owner.Deformer == null) continue;
+                    status = Get(owner.Deformer, "Status");
+                    owner.DeformerUserEnabled = (bool)Get(status, "userEnable");
+                    owner.DeformerEnabled = (bool)Get(status, "enable");
+                }
+            }
+
+            private void ValidatePaletteDonors()
+            {
+                foreach (var pair in _paletteBindings)
+                {
+                    var skin = _skins.Single(value => value.Renderer == pair.Key);
+                    var expected = PreparePalette(pair.Key, _changes[pair.Key], pair.Value);
+                    if (expected == null ? skin.ReplacementBones != null : skin.ReplacementBones == null || !expected.SequenceEqual(skin.ReplacementBones))
+                        throw new InvalidOperationException("An append-only palette donor changed before source application.");
+                }
+            }
+
             internal bool CanReapply()
             {
                 if (_started || _applied || !_graphics || _skins.Any(skin => !skin.Renderer || !skin.Original || !skin.Replacement ||
@@ -1793,6 +4916,8 @@ public static class CustomModels
                 {
                     ValidateRestoredState();
                     ValidateRelations(false);
+                    ValidatePaletteDonors();
+                    CaptureNativeInitialization();
                     foreach (var data in _data) ValidateSavedFields(data.Original, data.OriginalIdentity);
                     foreach (var owner in _owners)
                     {
@@ -1813,11 +4938,16 @@ public static class CustomModels
             {
                 if (_started) throw new InvalidOperationException("The native skin source is already in a transition.");
                 ValidateSources(false);
+                CaptureNativeInitialization();
                 _installed.Clear();
+                ValidatePaletteDonors();
                 foreach (var skin in _skins)
-                    if (skin.Renderer is SkinnedMeshRenderer renderer && renderer && renderer.sharedMesh)
-                        skin.Weights = Enumerable.Range(0, renderer.sharedMesh.blendShapeCount)
-                            .Select(renderer.GetBlendShapeWeight).ToArray();
+                {
+                    CaptureWeights(skin);
+                    skin.OriginalWeightChannels = (ValueTuple<string, int>[])skin.WeightChannels.Clone();
+                    skin.OriginalWeights = (float[])skin.Weights.Clone();
+                }
+                CaptureDonorWeights();
                 if (_data.Count != 0)
                 {
                     CompleteJobs();
@@ -1827,15 +4957,20 @@ public static class CustomModels
                 {
                     _started = true;
                     CompleteJobs(); DisposeOwners();
+                    ClearWeights();
                     foreach (var data in _data) Put(data.Deformer, "MeshData", data.Replacement);
                     foreach (var skin in _skins)
                     {
                         if (skin.Deformer != null) SourceMesh.SetValue(skin.Deformer, skin.Replacement);
                         SetMesh(skin.Renderer, skin.Replacement);
+                        if (skin.Renderer is SkinnedMeshRenderer renderer && skin.ReplacementBones != null)
+                            renderer.bones = skin.ReplacementBones;
                     }
+                    RestoreWeights(true);
                     if (_data.Count != 0) CreateVerification();
                     ValidateRelations();
                     if (restart) InitOwners();
+                    PrepareNativeSurfaceFinishes();
                     RestoreWeights(true);
                     ValidateRelations(true);
                     var current = Capture(_graphics, _changes.Keys);
@@ -1857,33 +4992,33 @@ public static class CustomModels
             {
                 if (!_started) return;
                 ValidateSources(true);
+                CaptureNativeInitialization();
                 if (_applied)
-                    foreach (var skin in _skins)
-                        if (skin.Renderer is SkinnedMeshRenderer renderer && renderer && renderer.sharedMesh)
-                            skin.Weights = Enumerable.Range(0, renderer.sharedMesh.blendShapeCount)
-                                .Select(renderer.GetBlendShapeWeight).ToArray();
+                    foreach (var skin in _skins) CaptureWeights(skin);
                 _applied = false;
                 RestoreCore(restart); _applied = _started = false;
             }
             private void RestoreCore(bool restart)
             {
-                CompleteJobs(); DisposeOwners();
+                CompleteJobs();
+                foreach (var finish in _nativeSurfaceFinishes.Values) finish.Dispose();
+                _nativeSurfaceFinishes.Clear();
+                DisposeOwners();
+                ClearWeights();
                 foreach (var data in _data) Put(data.Deformer, "MeshData", data.Original);
                 foreach (var skin in _skins)
                 {
                     if (skin.Deformer != null) SourceMesh.SetValue(skin.Deformer, skin.Original);
-                    if (skin.Renderer && !skin.Superseded) SetMesh(skin.Renderer, skin.Original);
+                    if (skin.Renderer && !skin.Superseded)
+                    {
+                        if (skin.Renderer is SkinnedMeshRenderer renderer && skin.ReplacementBones != null)
+                            renderer.bones = skin.Bones;
+                        SetMesh(skin.Renderer, skin.Original);
+                    }
                 }
-                foreach (var owner in _owners.Where(_ => _data.Count != 0))
-                {
-                    if (!owner.Component) continue;
-                    Put(owner.Component, "dataHash", owner.Hash); Put(owner.Component, "dataVersion", owner.Version);
-                    RestoreFields(owner.Component, owner.Verification);
-                    if (owner.Deformer == null) continue;
-                    Put(owner.Deformer, "dataHash", owner.DeformerHash.Value); Put(owner.Deformer, "dataVersion", owner.DeformerVersion.Value);
-                    RestoreFields(owner.Deformer, owner.DeformerVerification);
-                }
-                if (restart) InitOwners();
+                RestoreWeights(false);
+                RestoreVerification();
+                if (restart) InitOwners(true);
                 RestoreWeights(false);
                 ValidateRestoredState();
                 ValidateRelations(false);
@@ -1894,6 +5029,8 @@ public static class CustomModels
                 foreach (var owner in _owners)
                 {
                     if (!owner.Component) continue;
+                    if (owner.PreservesRejectedCloth && Flag(Get(owner.Component, "Status"), "IsInitComplete"))
+                        throw new InvalidOperationException("A rejected native cloth consumer unexpectedly initialized while its source was owned.");
                     if ((int)Get(owner.Component, "dataHash") != owner.Hash ||
                         (int)Get(owner.Component, "dataVersion") != owner.Version ||
                         !ReferenceEquals(Optional(owner.Component, "ClothData"), owner.ClothData) ||
@@ -1912,28 +5049,56 @@ public static class CustomModels
             private void DisposeOwners()
             {
                 foreach (var owner in _owners.OrderBy(owner => owner.Order))
-                    if (owner.Component && (owner.Initialized || Flag(Get(owner.Component, "Status"), "IsInitStart")))
+                    if (owner.Component && !owner.PreservesRejectedCloth && (owner.Initialized || Flag(Get(owner.Component, "Status"), "IsInitStart")))
                     {
                         Invoke(owner.Component, "SetUserEnable", false);
                         if (owner.Deformer != null) Invoke(owner.Deformer, "OnDisable");
                     }
                 foreach (var owner in _owners.OrderBy(owner => owner.Order))
-                    if (owner.Component && (owner.Initialized || Flag(Get(owner.Component, "Status"), "IsInitStart")))
+                    if (owner.Component && !owner.PreservesRejectedCloth && (owner.Initialized || Flag(Get(owner.Component, "Status"), "IsInitStart")))
                         Invoke(owner.Component, "TacticalDispose");
                 foreach (var owner in _owners.Where(owner => owner.Order == 1))
                     ((IList)Get(owner.Deformer, "sharedChildMeshIndexList")).Clear();
             }
-            private void InitOwners()
+            private void RestoreVerification()
             {
-                foreach (var owner in _owners.OrderByDescending(owner => owner.Order))
+                foreach (var owner in _owners)
                 {
-                    if (!owner.Component || !owner.Initialized) continue;
-                    var status = Get(owner.Component, "Status");
-                    if (Flag(status, "IsDispose")) Invoke(status, "SetDispose", false);
-                    Invoke(owner.Component, "SetUserEnable", false);
-                    Invoke(owner.Component, "Init");
-                    if (!Flag(Get(owner.Component, "Status"), "IsInitSuccess"))
-                        throw new InvalidOperationException("The native cloth owner did not reinitialize.");
+                    if (!owner.Component) continue;
+                    Put(owner.Component, "dataHash", owner.Hash); Put(owner.Component, "dataVersion", owner.Version);
+                    RestoreFields(owner.Component, owner.Verification);
+                    if (owner.Deformer == null) continue;
+                    Put(owner.Deformer, "dataHash", owner.DeformerHash.Value); Put(owner.Deformer, "dataVersion", owner.DeformerVersion.Value);
+                    RestoreFields(owner.Deformer, owner.DeformerVerification);
+                }
+            }
+            private void InitOwners(bool restoring = false)
+            {
+                var verifyInitialization = restoring && _owners.Any(owner => owner.Component && owner.Initialized && owner.VerificationResult != 0);
+                if (verifyInitialization) ValidateRelations(false);
+                try
+                {
+                    // Native Start can initialize an owner after a presentation was prepared.
+                    // Its restored serialized references can still carry a pre-existing mismatch.
+                    // Reinitialize against the current source, then retain the original identity.
+                    if (verifyInitialization) CreateVerification();
+                    foreach (var owner in _owners.OrderByDescending(owner => owner.Order))
+                    {
+                        if (!owner.Component || !owner.Initialized) continue;
+                        var status = Get(owner.Component, "Status");
+                        if (Flag(status, "IsDispose")) Invoke(status, "SetDispose", false);
+                        Invoke(owner.Component, "SetUserEnable", false);
+                        Invoke(owner.Component, "Init");
+                        if (!Flag(Get(owner.Component, "Status"), "IsInitSuccess"))
+                            throw new InvalidOperationException($"The native cloth owner did not reinitialize for {owner.Component.GetType().FullName} " +
+                                $"({owner.Component.GetInstanceID()}): verify={Invoke(owner.Component, "VerifyData")}; originalVerify={owner.VerificationResult}; " +
+                                $"init={Get(status, "init")}; initStart={Get(status, "initStart")}; initError={Get(status, "initError")}; " +
+                                $"disposed={Get(status, "dispose")}; active={owner.Component.gameObject.activeInHierarchy}.");
+                    }
+                }
+                finally
+                {
+                    if (verifyInitialization) RestoreVerification();
                 }
                 foreach (var owner in _owners.Where(owner => owner.Component && owner.Initialized && owner.Deformer != null))
                 {
@@ -1956,8 +5121,60 @@ public static class CustomModels
             {
                 foreach (var owner in _owners.OrderByDescending(owner => owner.Order))
                 {
+                    // Source replacement must not turn a natively rejected, uninitialized
+                    // cloth consumer into a new simulation. Its render sources remain usable.
+                    if (owner.PreservesRejectedCloth) continue;
                     if (owner.Deformer != null) Invoke(owner.Deformer, "CreateVerifyData");
                     Invoke(owner.Component, "CreateVerifyData");
+                }
+            }
+            private static (string Name, int Occurrence)[] PhysicalWeightChannels(Mesh mesh)
+            {
+                var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+                var result = new (string Name, int Occurrence)[mesh.blendShapeCount];
+                for (var index = 0; index < result.Length; index++)
+                {
+                    var name = mesh.GetBlendShapeName(index) ?? string.Empty;
+                    seen.TryGetValue(name, out var occurrence);
+                    result[index] = (name, occurrence);
+                    seen[name] = occurrence + 1;
+                }
+                return result;
+            }
+            private static Dictionary<(string Name, int Occurrence), float> PhysicalWeights(
+                (string Name, int Occurrence)[] channels, float[] values)
+            {
+                if (channels == null || values == null || channels.Length != values.Length)
+                    throw new InvalidOperationException("A physical channel weight snapshot is incomplete.");
+                return channels.Select((channel, index) => (channel, values[index]))
+                    .ToDictionary(value => value.channel, value => value.Item2);
+            }
+            private static void CaptureWeights(NativeSkin skin)
+            {
+                if (skin.Renderer is not SkinnedMeshRenderer renderer || !renderer || !renderer.sharedMesh) return;
+                skin.WeightChannels = PhysicalWeightChannels(renderer.sharedMesh);
+                skin.Weights = Enumerable.Range(0, skin.WeightChannels.Length).Select(renderer.GetBlendShapeWeight).ToArray();
+            }
+            private void CaptureDonorWeights()
+            {
+                _donorWeights.Clear();
+                foreach (var binding in _paletteBindings.Values)
+                {
+                    if (binding.PaletteSource is not { } donor || _donorWeights.ContainsKey(donor.Renderer)) continue;
+                    var renderer = donor.Renderer;
+                    if (!renderer || !renderer.sharedMesh)
+                        throw new InvalidOperationException("A declared physical channel donor has no current mesh.");
+                    var channels = PhysicalWeightChannels(renderer.sharedMesh);
+                    _donorWeights.Add(renderer, PhysicalWeights(channels,
+                        Enumerable.Range(0, channels.Length).Select(renderer.GetBlendShapeWeight).ToArray()));
+                }
+            }
+            private void ClearWeights()
+            {
+                foreach (var skin in _skins)
+                {
+                    if (skin.Superseded || skin.Renderer is not SkinnedMeshRenderer renderer || !renderer || !renderer.sharedMesh) continue;
+                    for (var index = 0; index < renderer.sharedMesh.blendShapeCount; index++) renderer.SetBlendShapeWeight(index, 0f);
                 }
             }
             private void RestoreWeights(bool installed)
@@ -1967,8 +5184,22 @@ public static class CustomModels
                     if (skin.Superseded || skin.Renderer is not SkinnedMeshRenderer renderer || !renderer) continue;
                     var mesh = installed ? skin.Replacement : skin.Original;
                     if (!mesh) continue;
-                    for (var index = 0; index < Math.Min(skin.Weights.Length, mesh.blendShapeCount); index++)
-                        renderer.SetBlendShapeWeight(index, skin.Weights[index]);
+                    var own = PhysicalWeights(skin.WeightChannels, skin.Weights);
+                    var original = !installed && skin.OriginalWeightChannels != null
+                        ? PhysicalWeights(skin.OriginalWeightChannels, skin.OriginalWeights) : null;
+                    Dictionary<(string Name, int Occurrence), float> foreign = null;
+                    if (installed && _paletteBindings.TryGetValue(renderer, out var binding) && binding.PaletteSource is { } donor &&
+                        !_donorWeights.TryGetValue(donor.Renderer, out foreign))
+                        throw new InvalidOperationException("A physical channel donor was not captured before source replacement.");
+                    var channels = PhysicalWeightChannels(mesh);
+                    for (var index = 0; index < channels.Length; index++)
+                    {
+                        var channel = channels[index];
+                        if (!own.TryGetValue(channel, out var value) &&
+                            !(original != null && original.TryGetValue(channel, out value)) &&
+                            !(foreign != null && foreign.TryGetValue(channel, out value))) value = 0f;
+                        renderer.SetBlendShapeWeight(index, value);
+                    }
                 }
             }
             private void CompleteJobs()
@@ -2008,6 +5239,13 @@ public static class CustomModels
                     }
                     if (source != expected && (_applied || source != skin.Original))
                         throw new InvalidOperationException("A different source owns a renderer in this skin transition.");
+                    if (skin.Renderer is SkinnedMeshRenderer skinRenderer && _paletteBindings.ContainsKey(skinRenderer) &&
+                        !ReferenceEquals(skinRenderer.rootBone, skin.RootBone))
+                        throw new InvalidOperationException("A different source owns this renderer's root bone.");
+                    if (skin.ReplacementBones != null && skin.Renderer is SkinnedMeshRenderer paletteRenderer &&
+                        !(installed ? skin.ReplacementBones : skin.Bones).SequenceEqual(paletteRenderer.bones) &&
+                        (_applied || !skin.Bones.SequenceEqual(paletteRenderer.bones) && !skin.ReplacementBones.SequenceEqual(paletteRenderer.bones)))
+                        throw new InvalidOperationException("A different source owns this renderer's bone palette.");
                     if (skin.Deformer == null) continue;
                     var draw = CurrentMesh(skin.Renderer);
                     if (draw != source && draw != RuntimeMesh.GetValue(skin.Deformer) as Mesh)
@@ -2077,17 +5315,107 @@ public static class CustomModels
                         throw new InvalidOperationException($"Native verification field {value.GetType().FullName}.{pair.Key} was not restored.");
                 }
             }
+            private static readonly Dictionary<(Type Type, string Name), FieldInfo> NativeFields = new();
+            private static readonly Dictionary<(Type Type, string Name), Func<object, object>> NativeReaders = new();
+            private static readonly Dictionary<Type, FinishNativeArrayLayout> NativeSurfaceArrayLayouts = new();
+
+            private static FinishNativeArrayLayout NativeSurfaceArrayLayout(Type arrayType, string elementName, int stride)
+            {
+                if (elementName != "Unity.Mathematics.float3" && elementName != "Unity.Mathematics.float4" &&
+                    elementName != "UnityEngine.BoneWeight1")
+                    throw new InvalidOperationException("A final surface native element type is unsupported.");
+                lock (NativeSurfaceArrayLayouts)
+                {
+                    if (NativeSurfaceArrayLayouts.TryGetValue(arrayType, out var layout))
+                    {
+                        if (layout.ElementName != elementName || layout.Stride != stride)
+                            throw new InvalidOperationException("A final surface native element changed its declared layout.");
+                        return layout;
+                    }
+                    // The consumer owns exactly float3, float4 and BoneWeight1 closed arrays.
+                    if (NativeSurfaceArrayLayouts.Count >= 3)
+                        throw new InvalidOperationException("A final surface native array introduced another closed type.");
+                    layout = new FinishNativeArrayLayout(arrayType, elementName, stride);
+                    NativeSurfaceArrayLayouts.Add(arrayType, layout);
+                    return layout;
+                }
+            }
+
+            private static bool FinishIsMeshUse(object value)
+            {
+                var key = (value.GetType(), "IsMeshUse()");
+                Func<object, object> read;
+                lock (NativeReaders)
+                {
+                    if (!NativeReaders.TryGetValue(key, out read))
+                    {
+                        MethodInfo method = null;
+                        for (var type = value.GetType(); type != null; type = type.BaseType)
+                        {
+                            method = type.GetMethods(Fields | BindingFlags.DeclaredOnly).FirstOrDefault(candidate =>
+                                candidate.Name == "IsMeshUse" && candidate.GetParameters().Length == 0);
+                            if (method != null) break;
+                        }
+                        if (method == null) throw new MissingMethodException(value.GetType().FullName, "IsMeshUse");
+                        // Keep MethodInfo.Invoke's virtual dispatch and native exception wrapper.
+                        // Only immutable method metadata is captured, never this live owner.
+                        read = source => method.Invoke(source, null);
+                        NativeReaders.Add(key, read);
+                    }
+                }
+                return (bool)read(value);
+            }
+
+
             private static FieldInfo NativeField(Type type, string name)
             {
-                for (; type != null; type = type.BaseType)
-                    if (type.GetField(name, Fields | BindingFlags.DeclaredOnly) is { } field) return field;
-                return null;
+                var key = (type, name);
+                lock (NativeFields)
+                {
+                    if (NativeFields.TryGetValue(key, out var cached)) return cached;
+                    for (var current = type; current != null; current = current.BaseType)
+                        if (current.GetField(name, Fields | BindingFlags.DeclaredOnly) is { } field)
+                        {
+                            NativeFields.Add(key, field);
+                            return field;
+                        }
+                    NativeFields.Add(key, null);
+                    return null;
+                }
             }
             private static object Optional(object value, string name)
             {
                 if (value == null) return null;
-                if (NativeField(value.GetType(), name) is { } field) return field.GetValue(value);
-                return value.GetType().GetProperty(name, Fields)?.GetValue(value, null);
+                return NativeReader(value.GetType(), name)(value);
+            }
+            private static Func<object, object> NativeReader(Type type, string name)
+            {
+                var key = (type, name);
+                Func<object, object> read;
+                lock (NativeReaders)
+                {
+                    if (!NativeReaders.TryGetValue(key, out read))
+                    {
+                        // Retain only type metadata. Live cloth sources and boxed weight values
+                        // must be read on every call so ownership checks see native changes.
+                        if (NativeField(type, name) is { } field)
+                        {
+                            var argument = Expression.Parameter(typeof(object), "source");
+                            var access = Expression.Field(Expression.Convert(argument, type), field);
+                            read = Expression.Lambda<Func<object, object>>(
+                                Expression.Convert(access, typeof(object)), argument).Compile();
+                        }
+                        else
+                        {
+                            // Reflection preserves boxed struct getter mutations and its exception
+                            // contract; compiling an unbox conversion would read a temporary copy.
+                            var property = type.GetProperty(name, Fields);
+                            read = property == null ? _ => null : value => property.GetValue(value, null);
+                        }
+                        NativeReaders.Add(key, read);
+                    }
+                }
+                return read;
             }
             private static object Get(object value, string name) => Optional(value, name) ??
                 throw new MissingMemberException(value?.GetType().FullName, name);
@@ -2121,6 +5449,24 @@ public static class CustomModels
 
         internal static Dictionary<SkinnedMeshRenderer, SkinMeshSource> Capture(GraphicsCharacter graphics,
             IEnumerable<SkinnedMeshRenderer> renderers)
+            => CapturePrefab(graphics.gameObject, renderers);
+
+        internal static HashSet<UnityEngine.Object> NativePrefabData(GameObject prefab) => SourceGraph.NativePrefabData(prefab);
+        internal static void PrepareNativeMetadata() => SourceGraph.PrepareNativeMetadata();
+        internal static IEnumerator PrepareNativeFingerprint(UnityEngine.Object source, Func<bool> current, Action<string> receive) =>
+            SourceGraph.PrepareNativeFingerprint(source, current, receive);
+        internal static IEnumerator PrepareNativeBindings(IEnumerable<GameObject> roots,
+            IReadOnlyDictionary<SkinnedMeshRenderer, (SkinMeshSource Source, Mesh Mesh)> changes,
+            IReadOnlyDictionary<SkinnedMeshRenderer, SurfaceBinding> bindings,
+            Func<string, bool> retainExisting, Action<string, UnityEngine.Object[]> retainPrepared,
+            Func<UnityEngine.Object, IEnumerator> prepareFingerprint,
+            Func<UnityEngine.Object, Func<string>, string> sourceFingerprint, Func<bool> current) =>
+            SourceGraph.PrepareNativeBindings(roots, changes, bindings, retainExisting, retainPrepared, prepareFingerprint, sourceFingerprint, current);
+
+        internal static long NativeDataMemorySize(UnityEngine.Object data) => SourceGraph.NativeDataMemorySize(data);
+
+        internal static Dictionary<SkinnedMeshRenderer, SkinMeshSource> CapturePrefab(GameObject root,
+            IEnumerable<SkinnedMeshRenderer> renderers)
         {
             var result = renderers.ToDictionary(renderer => renderer,
                 renderer => new SkinMeshSource(renderer, renderer.sharedMesh));
@@ -2134,7 +5480,7 @@ public static class CustomModels
                 return null;
             }
             var found = new HashSet<SkinnedMeshRenderer>();
-            foreach (var component in graphics.GetComponentsInChildren(ClothType, true))
+            foreach (var component in root.GetComponentsInChildren(ClothType, true))
             {
                 if (!component) continue;
                 var source = Deformer.GetValue(component);
@@ -2435,12 +5781,12 @@ public static class CustomModels
         private Mesh _nativeOriginalMesh;
         private Mesh _foreignMesh;
         private MeshFilter _foreignFilter;
-        private string _nativeKey;
         private bool _gripReady;
         private float _modelNormalSign;
         private float _nativeGripAxisSign;
         private SkinnedMeshRenderer[] _armSkins;
         private SkinShape[] _skinShapes;
+        private bool _refreshArmBindings;
         private int _armShapeSignature;
         private sealed class SkinShape
         {
@@ -2468,6 +5814,7 @@ public static class CustomModels
         internal Mesh NativeMesh => _nativeOriginalMesh;
         internal string GripStatus { get; private set; } = "Unbound";
         private Transform[] _fingerBones;
+        private AnimationClip _fingerReference;
         private Quaternion[] _fingerTargets;
         private Quaternion[] _fingerOriginals;
         private Quaternion[] _fingerApplied;
@@ -2530,7 +5877,6 @@ public static class CustomModels
                                   ReferenceEquals(_actor, _graphics.RulesetCharacter);
         private bool SameRig => SameActor && _avatar == _animator.avatar;
         internal bool IsCurrent => SameRig && CombatAnimationContext.IsEquipmentControllerCurrent(_graphics) &&
-                                   _nativeKey == _graphics.CurrentAnimatorController.Key &&
                                    _graphics.WieldedRulesetItems.TryGetValue(_slot, out var item) &&
                                    ReferenceEquals(item, _item) &&
                                    _graphics.WieldedInstantiatedItems.TryGetValue(_slot, out var model) &&
@@ -2574,7 +5920,6 @@ public static class CustomModels
             _slot = slot;
             _animator = graphics.Animator;
             _avatar = _animator.avatar;
-            _nativeKey = graphics.CurrentAnimatorController.Key;
             Definition = definition;
             _gripDefinition = grip;
             GripStatus = "AwaitingNativeFingers";
@@ -2677,13 +6022,8 @@ public static class CustomModels
 
         internal void RequestRefresh()
         {
-            _armSkins = null;
-            _skinShapes = null;
-            InvalidateSkinMeasurements();
+            _refreshArmBindings = true;
             RestoreFingers();
-            _fingerBones = null;
-            _poseResolutionAttempted = false;
-            _poseSource = null;
             _gripReady = false;
         }
 
@@ -2815,8 +6155,15 @@ public static class CustomModels
             if (_poseController != _animator.runtimeAnimatorController || _poseSource != source)
             {
                 RestoreFingers();
-                _fingerBones = null;
-                _poseResolutionAttempted = false;
+                // Face controllers can share the same hand clip. Keep its sampled
+                // rotations while this owner still has the same rig and live bones.
+                // A pending reference load does not invalidate that immutable sample.
+                if (source && (_fingerBones == null || _fingerBones.Any(bone => !bone) ||
+                               ClosedHandReference(source) != _fingerReference))
+                {
+                    _fingerBones = null;
+                    _poseResolutionAttempted = false;
+                }
                 _poseController = _animator.runtimeAnimatorController;
                 _poseSource = source;
             }
@@ -2994,11 +6341,26 @@ public static class CustomModels
 
         private void RefreshSkinCache()
         {
-            _armSkins ??= _graphics.GetComponentsInChildren<SkinnedMeshRenderer>(true);
-            if (_skinShapes == null)
+            if (_armSkins == null || _refreshArmBindings)
             {
-                _skinShapes = new SkinShape[_armSkins.Length];
-                for (var i = 0; i < _skinShapes.Length; i++) _skinShapes[i] = new SkinShape();
+                _refreshArmBindings = false;
+                var left = _slot == EquipmentDefinitions.SlotTypeOffHand;
+                var branch = _animator.GetBoneTransform(left ? HumanBodyBones.LeftShoulder : HumanBodyBones.RightShoulder);
+                if (!branch) branch = _animator.GetBoneTransform(left ? HumanBodyBones.LeftUpperArm : HumanBodyBones.RightUpperArm);
+                // Only this arm branch contributes to the clearance envelope.
+                // Hair and facial changes do not invalidate unchanged arm meshes.
+                var skins = branch
+                    ? _graphics.GetComponentsInChildren<SkinnedMeshRenderer>(true)
+                        .Where(skin => skin.sharedMesh && skin.bones.Any(bone => bone &&
+                            (bone == branch || bone.IsChildOf(branch)))).ToArray()
+                    : [];
+                if (_armSkins == null || !_armSkins.SequenceEqual(skins))
+                {
+                    _armSkins = skins;
+                    _skinShapes = new SkinShape[skins.Length];
+                    for (var i = 0; i < _skinShapes.Length; i++) _skinShapes[i] = new SkinShape();
+                    InvalidateSkinMeasurements();
+                }
             }
             var changed = false;
             for (var i = 0; i < _armSkins.Length; i++)
@@ -3161,8 +6523,8 @@ public static class CustomModels
                 {
                     if (!skin || !skin.enabled || !skin.gameObject.activeInHierarchy || !skin.sharedMesh) continue;
                     var bones = skin.bones;
-                    var weights = skin.sharedMesh.boneWeights;
                     if (!bones.Any(bone => bone && (bone == branch || bone.IsChildOf(branch)))) continue;
+                    var weights = skin.sharedMesh.boneWeights;
                     skin.BakeMesh(snapshot);
                     var vertices = snapshot.vertices;
                     if (vertices.Length != weights.Length) continue;
@@ -3585,10 +6947,8 @@ public static class CustomModels
         private bool ConfigureFingers(RuntimeAnimatorController source)
         {
             if (!_animator.isHuman || !_avatar || !_avatar.isValid) return false;
-            var references = source.animationClips.Where(clip => clip && clip.name == "ClosedHands")
-                .Distinct().Take(2).ToArray();
-            if (references.Length != 1 || !references[0].isHumanMotion) return false;
-            var fingers = references[0];
+            var fingers = ClosedHandReference(source);
+            if (!fingers) return false;
 
             var bones = HandFingerBones(_slot);
             var targets = bones.Select(_animator.GetBoneTransform).ToArray();
@@ -3636,6 +6996,7 @@ public static class CustomModels
                 }
 
                 _fingerTargets = Sample(fingers);
+                _fingerReference = fingers;
                 return true;
             }
             catch (Exception exception)
@@ -3652,6 +7013,18 @@ public static class CustomModels
                 }
                 Destroy(root);
             }
+        }
+
+        private static AnimationClip ClosedHandReference(RuntimeAnimatorController source)
+        {
+            AnimationClip selected = null;
+            foreach (var clip in source.animationClips)
+            {
+                if (!clip || clip.name != "ClosedHands") continue;
+                if (selected && selected != clip) return null;
+                selected = clip;
+            }
+            return selected && selected.isHumanMotion ? selected : null;
         }
 
         private static void CopyTransforms(Transform source, Transform target)
@@ -3757,12 +7130,12 @@ public static class CustomModels
             _gripDefinition = null;
             _nativeMeshFilter = null;
             _nativeOriginalMesh = null;
-            _nativeKey = null;
             _gripReady = false;
             _modelNormalSign = 0f;
             _nativeGripAxisSign = 0f;
             _armSkins = null;
             _skinShapes = null;
+            _refreshArmBindings = false;
             InvalidateSkinMeasurements();
             _armInParent = null;
             _plateRoll = 0f;
@@ -3771,6 +7144,7 @@ public static class CustomModels
             GripStatus = "Unbound";
             _fingerBones = null;
             _fingerTargets = null;
+            _fingerReference = null;
             _fingerOriginals = null;
             _fingerApplied = null;
             _hand = null;
@@ -4369,6 +7743,20 @@ public static class CustomModels
     }
 
     #region Blender Model Loader
+
+    internal static string TextureRgba32LinearFingerprint(int width, int height, byte[] rgba, int count)
+    {
+        if (rgba == null || count != checked(width * height * 4) || count > rgba.Length)
+            throw new InvalidDataException("A native texture fingerprint has an incomplete RGBA32 payload.");
+        using var sha = CreateAssetSha256();
+        using var header = new MemoryStream();
+        using var writer = new BinaryWriter(header, System.Text.Encoding.UTF8, true);
+        writer.Write("Solasta.TextureRgba32Linear.1"); writer.Write(width); writer.Write(height); writer.Flush();
+        sha.TransformBlock(header.GetBuffer(), 0, (int)header.Length, null, 0);
+        sha.TransformBlock(rgba, 0, count, null, 0);
+        sha.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+        return BitConverter.ToString(sha.Hash).Replace("-", "").ToLowerInvariant();
+    }
 
     internal static SHA256 CreateAssetSha256() => Environment.OSVersion.Platform == PlatformID.Win32NT
         ? new WindowsAssetSha256()

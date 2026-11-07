@@ -843,23 +843,34 @@ public static class GameLocationCharacterPatcher
                 __result = ActionStatus.CannotPerform;
             }
 
-            var traditionFreedomLevel =
-                rulesetCharacter.GetSubclassLevel(DatabaseHelper.CharacterClassDefinitions.Monk, "TraditionFreedom");
-
-            //BUGFIX: Hide other Flurry of Blows actions on Way of Freedom Monk as it levels up
-            // ReSharper disable once SwitchStatementMissingSomeEnumCasesNoDefault
-            switch (actionId)
+            if (actionId is Id.FlurryOfBlows or Id.FlurryOfBlowsSwiftSteps)
             {
-                case Id.FlurryOfBlows when
-                    traditionFreedomLevel >= 3:
-                case Id.FlurryOfBlowsSwiftSteps when
-                    traditionFreedomLevel >= 11:
-                    __result = ActionStatus.Unavailable;
-                    break;
+                var traditionFreedomLevel =
+                    rulesetCharacter.GetSubclassLevel(DatabaseHelper.CharacterClassDefinitions.Monk, "TraditionFreedom");
+
+                //BUGFIX: Hide other Flurry of Blows actions on Way of Freedom Monk as it levels up
+                // ReSharper disable once SwitchStatementMissingSomeEnumCasesNoDefault
+                switch (actionId)
+                {
+                    case Id.FlurryOfBlows when
+                        traditionFreedomLevel >= 3:
+                    case Id.FlurryOfBlowsSwiftSteps when
+                        traditionFreedomLevel >= 11:
+                        __result = ActionStatus.Unavailable;
+                        break;
+                }
             }
 
             //BUGFIX: if character can use only 1 of Main or Bonus - auto fail status if another type is used
             //Fixes Slow in various cases where we add extra attacks or other actions that manually consume main or bonus action
+            // No spent action rank means the either-action restriction cannot change this result.
+            if (__instance.currentActionRankByType.TryGetValue(ActionType.Main, out var mainRank) &&
+                __instance.currentActionRankByType.TryGetValue(ActionType.Bonus, out var bonusRank) &&
+                mainRank == 0 && bonusRank == 0)
+            {
+                return;
+            }
+
             var either = rulesetCharacter.GetSubFeaturesByType<IActionPerformanceProvider>()
                 .Any(provider => provider.EitherMainOrBonus);
 

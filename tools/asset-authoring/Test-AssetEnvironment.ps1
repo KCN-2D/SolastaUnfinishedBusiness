@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$BlenderPath,
+    [string]$PythonPath,
     [string]$UnityPath,
     [string]$GameDirectory,
     [string]$GuiProjectPath,
@@ -135,7 +136,15 @@ if ($GameDirectory) {
     }
 }
 $python = Get-Command python.exe -ErrorAction SilentlyContinue
-$pythonPath = if ($python) { $python.Source } else { $null }
+$systemPythonPath = if ($python) { $python.Source } else { $null }
+if (-not $PSBoundParameters.ContainsKey('PythonPath')) {
+    $PythonPath = Join-Path $PSScriptRoot 'workspace\Python\Scripts\python.exe'
+}
+$developmentPythonVersion = $null
+if (Test-Path -LiteralPath $PythonPath -PathType Leaf) {
+    $developmentPythonVersion = & $PythonPath -B -c 'import platform; print(platform.python_version())'
+    if ($LASTEXITCODE -ne 0) { throw 'Development Python version probe failed.' }
+}
 [ordered]@{
     checked_at = [DateTimeOffset]::Now.ToString('o')
     blender_path = $BlenderPath
@@ -148,8 +157,13 @@ $pythonPath = if ($python) { $python.Source } else { $null }
     editor_workers = $workers
     editor_execution_scope = 'A live worker receipt verifies job readiness; installed Editor metadata and CLI account state alone do not. Desktop isolation must also be verified by the authoring launcher.'
     game = $game
-    system_python_path = $pythonPath
-    python_requirement = 'Use the Python bundled with Blender; system bpy is not required.'
+    system_python_path = $systemPythonPath
+    development_python_path = $PythonPath
+    development_python_version = $developmentPythonVersion
+    required_development_python = '3.14.10'
+    development_python_ready = ($developmentPythonVersion -match '^3\.14\.\d+$' -and
+        [version]$developmentPythonVersion -ge [version]'3.14.10')
+    python_requirement = 'General Python tools use the development environment; Blender API scripts use Blender bundled Python.'
     mutation = 'none'
     warnings = @($warnings)
 } | ConvertTo-Json -Depth 6

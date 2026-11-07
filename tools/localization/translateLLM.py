@@ -36,15 +36,29 @@ import codecs
 import time
 import argparse
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Set
+from typing import Dict, List, Tuple, Optional, Set, TYPE_CHECKING
 from dataclasses import dataclass, field
 from queue import Queue
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
 from collections import defaultdict
 
-client = None
-console = None
+if TYPE_CHECKING:
+    from openai import OpenAI
+    from rich.console import Console
+
+client: Optional[OpenAI] = None
+console: Optional[Console] = None
+
+def active_console() -> Console:
+    if console is None:
+        raise RuntimeError('Initialize the translation API before writing progress.')
+    return console
+
+def active_client() -> OpenAI:
+    if client is None:
+        raise RuntimeError('Initialize the translation API before translating.')
+    return client
 
 
 def initialize_translation_api():
@@ -189,7 +203,7 @@ def read_localization_file(filename: str) -> Dict[str, str]:
                     term, text = unpack_record(line)
                     result[term] = text
     except Exception as e:
-        console.print(f"[red]ERROR reading {filename}: {e}[/red]")
+        active_console().print(f"[red]ERROR reading {filename}: {e}[/red]")
 
     return result
 
@@ -248,7 +262,7 @@ Respond with the translated entries in the same numbered format."""
     # Make API call with retries
     for attempt in range(MAX_RETRIES):
         try:
-            response = client.chat.completions.create(
+            response = active_client().chat.completions.create(
                 model=MODEL_ID,
                 messages=[
                     {"role": "system", "content": "You are a professional game localization translator. You provide accurate translations while preserving all formatting codes and game terminology."},
@@ -291,7 +305,7 @@ Respond with the translated entries in the same numbered format."""
             if attempt < MAX_RETRIES - 1:
                 time.sleep(RETRY_DELAY)
             else:
-                console.print(f"[red]ERROR: Failed to translate batch after {MAX_RETRIES} attempts: {e}[/red]")
+                active_console().print(f"[red]ERROR: Failed to translate batch after {MAX_RETRIES} attempts: {e}[/red]")
                 return {}
 
     return {}
@@ -337,7 +351,7 @@ def process_translation_batch(batch: TranslationBatch, manager: TranslationManag
         return True
 
     except Exception as e:
-        console.print(f"[red]ERROR processing batch: {e}[/red]")
+        active_console().print(f"[red]ERROR processing batch: {e}[/red]")
         return False
 
 
@@ -491,9 +505,9 @@ def run_concurrent_translation(
                         future.result()
                     except Exception as e:
                         if not stop_flag['stop']:
-                            console.print(f"[red]Worker error: {e}[/red]")
+                            active_console().print(f"[red]Worker error: {e}[/red]")
         except KeyboardInterrupt:
-            console.print("\n[yellow]Stopping translation workers...[/yellow]")
+            active_console().print("\n[yellow]Stopping translation workers...[/yellow]")
             stop_flag['stop'] = True
             raise
 
@@ -511,7 +525,7 @@ def process_path(input_path: str, source_lang_code: str, target_lang_codes: Opti
     path = Path(input_path)
 
     if not path.exists():
-        console.print(f"[red]ERROR: Path does not exist: {input_path}[/red]")
+        active_console().print(f"[red]ERROR: Path does not exist: {input_path}[/red]")
         return
 
     # Get translations directory
@@ -522,7 +536,7 @@ def process_path(input_path: str, source_lang_code: str, target_lang_codes: Opti
             break
 
     if not translations_dir:
-        console.print(f"[red]ERROR: Could not find Translations directory in path: {input_path}[/red]")
+        active_console().print(f"[red]ERROR: Could not find Translations directory in path: {input_path}[/red]")
         return
 
     # Get target language codes
@@ -535,18 +549,18 @@ def process_path(input_path: str, source_lang_code: str, target_lang_codes: Opti
     elif path.is_dir():
         source_files = [str(f) for f in path.rglob("*.txt")]
     else:
-        console.print(f"[red]ERROR: Invalid path type[/red]")
+        active_console().print(f"[red]ERROR: Invalid path type[/red]")
         return
 
     if not source_files:
-        console.print("[yellow]No files found to translate[/yellow]")
+        active_console().print("[yellow]No files found to translate[/yellow]")
         return
 
     # Create translation manager
     manager = TranslationManager(max_workers=MAX_WORKERS)
 
     # Create batches
-    console.print("\n[bold]Analyzing files and creating translation tasks...[/bold]")
+    active_console().print("\n[bold]Analyzing files and creating translation tasks...[/bold]")
     language_batches = create_translation_batches(
         source_files,
         source_lang_code,
@@ -556,7 +570,7 @@ def process_path(input_path: str, source_lang_code: str, target_lang_codes: Opti
     )
 
     if not language_batches:
-        console.print("[green]All translations are up to date![/green]")
+        active_console().print("[green]All translations are up to date![/green]")
         return
 
     # Initialize file data with existing translations
@@ -572,18 +586,18 @@ def process_path(input_path: str, source_lang_code: str, target_lang_codes: Opti
 
     # Display summary
     total_batches = sum(len(batches) for batches in language_batches.values())
-    console.print(f"\n[bold]Translation Summary:[/bold]")
-    console.print(f"  Source files: {len(source_files)}")
-    console.print(f"  Target languages: {len(language_batches)}")
-    console.print(f"  Total batches: {total_batches}")
-    console.print(f"  Concurrent workers: {MAX_WORKERS}\n")
+    active_console().print(f"\n[bold]Translation Summary:[/bold]")
+    active_console().print(f"  Source files: {len(source_files)}")
+    active_console().print(f"  Target languages: {len(language_batches)}")
+    active_console().print(f"  Total batches: {total_batches}")
+    active_console().print(f"  Concurrent workers: {MAX_WORKERS}\n")
 
     # Run translation
     try:
         run_concurrent_translation(language_batches, manager)
-        console.print("\n[bold green]✓ Translation completed![/bold green]\n")
+        active_console().print("\n[bold green]✓ Translation completed![/bold green]\n")
     except KeyboardInterrupt:
-        console.print("\n[yellow]Translation interrupted by user. Partial progress has been saved.[/yellow]\n")
+        active_console().print("\n[yellow]Translation interrupted by user. Partial progress has been saved.[/yellow]\n")
         raise
 
 
@@ -655,13 +669,13 @@ Examples:
                 break
 
     if not source_lang_code or input_path is None:
-        console.print("[red]ERROR: Could not detect source language from path.[/red]")
-        console.print("Path must start with or contain one of the supported language codes:")
+        active_console().print("[red]ERROR: Could not detect source language from path.[/red]")
+        active_console().print("Path must start with or contain one of the supported language codes:")
         for code, name in LANGUAGE_NAMES.items():
-            console.print(f"  {code}: {name}")
-        console.print("\nExamples:")
-        console.print("  python translateLLM.py en")
-        console.print("  python translateLLM.py zh-CN/SubClasses/OathOfDemonHunter-zh-CN.txt")
+            active_console().print(f"  {code}: {name}")
+        active_console().print("\nExamples:")
+        active_console().print("  python translateLLM.py en")
+        active_console().print("  python translateLLM.py zh-CN/SubClasses/OathOfDemonHunter-zh-CN.txt")
         sys.exit(1)
 
     # Parse target languages
@@ -671,16 +685,16 @@ Examples:
         # Validate target languages
         invalid_langs = [lang for lang in target_lang_codes if lang not in LANGUAGE_NAMES]
         if invalid_langs:
-            console.print(f"[red]ERROR: Invalid target language(s): {', '.join(invalid_langs)}[/red]")
-            console.print("Supported languages:")
+            active_console().print(f"[red]ERROR: Invalid target language(s): {', '.join(invalid_langs)}[/red]")
+            active_console().print("Supported languages:")
             for code, name in LANGUAGE_NAMES.items():
-                console.print(f"  {code}: {name}")
+                active_console().print(f"  {code}: {name}")
             sys.exit(1)
         # Remove source language from targets if present
         target_lang_codes = [lang for lang in target_lang_codes if lang != source_lang_code]
 
     # Display configuration
-    console.print(Panel.fit(
+    active_console().print(Panel.fit(
         f"[bold]LLM Translation Script[/bold]\n\n"
         f"Model: {MODEL_ID}\n"
         f"Batch size: {BATCH_SIZE}\n"
@@ -695,10 +709,10 @@ Examples:
     try:
         process_path(str(input_path), source_lang_code, target_lang_codes, args.force)
     except KeyboardInterrupt:
-        console.print("\n[yellow]Operation cancelled by user[/yellow]")
+        active_console().print("\n[yellow]Operation cancelled by user[/yellow]")
         sys.exit(130)  # Standard exit code for SIGINT
     except Exception as e:
-        console.print(f"\n[red]ERROR: {e}[/red]")
+        active_console().print(f"\n[red]ERROR: {e}[/red]")
         import traceback
         traceback.print_exc()
         sys.exit(1)

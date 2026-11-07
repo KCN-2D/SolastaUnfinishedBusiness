@@ -3,7 +3,9 @@ param(
     [Parameter(Mandatory=$true)][string]$GameExePath,
     [string]$TargetCommit='HEAD',
     [string]$EvidenceRoot,
-    [switch]$KeepPackageArchive
+    [switch]$KeepPackageArchive,
+    [switch]$KeepStagedAssets,
+    [string[]]$StorageReferencePath=@()
 )
 . (Join-Path $PSScriptRoot 'GameTest.Common.ps1')
 if (-not $EvidenceRoot) { $EvidenceRoot = $script:GameTestArtifactRoot }
@@ -25,13 +27,13 @@ try {
     finally { $ErrorActionPreference = $previousErrorPreference }
     if ($buildExitCode -ne 0) { throw "Package build failed with exit code $buildExitCode. See Build.log." }
     $after = Get-GtSourceIdentity $TargetCommit
-    if ($after.digest -ne $result.environment.source.digest) { throw 'Source or index changed during the build. Build again after edits finish.' }
+    if (-not (Test-GtSourceContent -Expected $result.environment.source -Actual $after)) { throw 'Source changed during the build. Build again after edits finish.' }
     foreach ($buildInput in $result.environment.buildInputs) { if ((Get-GtHash $buildInput.path) -ne $buildInput.sha256) { throw 'The build wrapper or runtime patch changed during the build.' } }
     $output = Join-Path $script:GameTestBuildRoot 'Output\SolastaUnfinishedBusiness'
     Assert-GtFile (Join-Path $output 'SolastaUnfinishedBusiness.dll')
     $result.manifest = @(Get-GtManifest $output)
     $stage = Join-Path $directory $result.stage
-    foreach ($entry in $result.manifest) { Copy-GtFile (Join-Path $output $entry.path) (Join-Path $stage $entry.path) }
+    Copy-GtBuildStage $output $directory $result.manifest (ConvertTo-GtUtcDate $result.startedUtc)
     Assert-GtManifest $stage $result.manifest
     $zip = Join-Path $script:GameTestBuildRoot 'SolastaUnfinishedBusiness.zip'
     $result['zipSha256'] = Get-GtHash $zip
@@ -46,6 +48,10 @@ try {
 }
 catch { $result.reason=$_.Exception.Message; $_ | Out-String | Set-Content -LiteralPath (Join-Path $directory 'Build-error.log') -Encoding UTF8 }
 finally { $result['completedUtc']=[datetime]::UtcNow.ToString('O'); Write-GtJson (Join-Path $directory 'Build.json') $result }
-Write-Host "Build directory: $directory"
 if ($result.status -ne 'PASS') { throw $result.reason }
+if(-not $KeepStagedAssets){
+    try { Write-GtJson (Join-Path $directory 'BuildAssetRetention.json') (Clear-GtSupersededBuildAssets -BuildDirectory $directory -ReferencePath $StorageReferencePath) }
+    catch { Write-Warning ('Staged model assets were retained: '+$_.Exception.Message) }
+}
+Write-Information "Build directory: $directory" -InformationAction Continue
 $directory

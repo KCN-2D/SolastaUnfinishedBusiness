@@ -927,9 +927,317 @@ internal static class UiTextHelpers
         }
     }
 
+    internal static void RebuildCharacterEditionStageList(RectTransform list)
+    {
+        var screen = FindAncestorComponent<CharacterEditionScreen>(list);
+        if (!screen || screen.stageDiskList != list)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(list);
+            return;
+        }
+
+        var state = screen.GetComponent<CharacterEditionProgressState>() ??
+                    screen.gameObject.AddComponent<CharacterEditionProgressState>();
+        var owns = state.Begin(screen, list);
+        try
+        {
+            if (owns)
+            {
+                state.Prepare();
+            }
+
+            // Keep the native rebuild before its current-marker/animation calculation.
+            LayoutRebuilder.ForceRebuildLayoutImmediate(list);
+            if (owns)
+            {
+                state.FitLines();
+            }
+        }
+        finally
+        {
+            if (owns)
+            {
+                state.End();
+            }
+        }
+    }
+
+    private sealed class CharacterEditionProgressState : MonoBehaviour
+    {
+        private const float Gap = 4f;
+        private sealed class Cell
+        {
+            internal StageDisk Disk;
+            internal TMP_Text Text;
+            internal TextFitState Fit;
+            internal Vector2 Minimum;
+            internal float SingleLine, Width, TooltipWidth, NativeLineWidth, NativeLineOverlap, OwnedLineWidth;
+            internal int Version = -1;
+            internal RectTransform Rect, Line;
+        }
+
+        private readonly List<StageDisk> _disks = [];
+        private readonly List<GuiButtonSetup> _buttons = [];
+        private readonly List<Cell> _cells = [];
+        private readonly List<Rect> _blocks = [];
+        private readonly Vector3[] _corners = new Vector3[4];
+        private CharacterEditionScreen _screen;
+        private RectTransform _list, _parent;
+        private HorizontalLayoutGroup _group;
+        private float _nativeSpacing, _nativeX, _ownedSpacing, _ownedX;
+        private bool _captured, _busy, _prepared;
+
+        internal bool IsPreparing => _busy;
+
+        internal bool Begin(CharacterEditionScreen screen, RectTransform list)
+        {
+            if (_busy || list.parent is not RectTransform parent)
+            {
+                return false;
+            }
+
+            var group = list.GetComponent<HorizontalLayoutGroup>();
+            var fitter = list.GetComponent<ContentSizeFitter>();
+            if (!group || !fitter || group.childControlWidth || !group.enabled ||
+                !fitter.enabled || fitter.horizontalFit != ContentSizeFitter.FitMode.MinSize ||
+                group.childAlignment != TextAnchor.MiddleCenter || group.childScaleWidth)
+            {
+                RestoreOwnedLayout();
+                return false;
+            }
+
+            _screen = screen;
+            _list = list;
+            _parent = parent;
+            _group = group;
+            if (!_captured)
+            {
+                _nativeSpacing = _ownedSpacing = group.spacing;
+                _nativeX = _ownedX = list.anchoredPosition.x;
+                _captured = true;
+            }
+            else
+            {
+                // A native/other-owner style reset supersedes only our last owned value.
+                if (Mathf.Abs(group.spacing - _ownedSpacing) > 0.01f) _nativeSpacing = group.spacing;
+                if (Mathf.Abs(list.anchoredPosition.x - _ownedX) > 0.01f) _nativeX = list.anchoredPosition.x;
+            }
+
+            _busy = true;
+            _prepared = false;
+            return true;
+        }
+
+        private Rect Bounds(RectTransform rect)
+        {
+            rect.GetWorldCorners(_corners);
+            var first = _parent.InverseTransformPoint(_corners[0]);
+            var min = new Vector2(first.x, first.y);
+            var max = min;
+            for (var index = 1; index < _corners.Length; index++)
+            {
+                var point = _parent.InverseTransformPoint(_corners[index]);
+                min = Vector2.Min(min, point);
+                max = Vector2.Max(max, point);
+            }
+
+            return Rect.MinMaxRect(min.x, min.y, max.x, max.y);
+        }
+
+        internal void Prepare()
+        {
+            _list.GetComponentsInChildren(false, _disks);
+            for (var index = _disks.Count - 1; index >= 0; index--)
+            {
+                if (_disks[index].transform.parent != _list) _disks.RemoveAt(index);
+            }
+
+            _disks.Sort((a, b) => a.transform.GetSiblingIndex().CompareTo(b.transform.GetSiblingIndex()));
+            for (var index = _cells.Count - 1; index >= 0; index--)
+            {
+                if (!_cells[index].Disk || !_disks.Contains(_cells[index].Disk))
+                {
+                    RestoreLine(_cells[index]);
+                    _cells.RemoveAt(index);
+                }
+            }
+
+            if (_disks.Count == 0) { RestoreOwnedLayout(); return; }
+            var scale = _parent.InverseTransformVector(_list.TransformVector(Vector3.right)).x;
+            if (scale <= 0.0001f) { RestoreOwnedLayout(); return; }
+            var captionBand = new Rect();
+            var firstCaption = true;
+            foreach (var disk in _disks)
+            {
+                var text = disk.caption?.TMP_Text;
+                if (!text) { RestoreOwnedLayout(); return; }
+                Cell cell = null;
+                foreach (var existing in _cells)
+                {
+                    if (existing.Disk == disk) { cell = existing; break; }
+                }
+                if (cell == null)
+                {
+                    var tooltip = disk.GetComponentInChildren<GuiTooltip>(true);
+                    var line = disk.Line ? (RectTransform)disk.Line.transform : null;
+                    cell = new Cell { Disk = disk, Text = text, Rect = (RectTransform)disk.transform,
+                        Line = line, NativeLineWidth = line ? line.rect.width : 0f,
+                        NativeLineOverlap = line ? line.rect.width - _nativeSpacing : 0f,
+                        OwnedLineWidth = line ? line.rect.width : 0f,
+                        TooltipWidth = tooltip ? ((RectTransform)tooltip.transform).rect.width : 0f };
+                    _cells.Add(cell);
+                }
+
+                cell.Fit = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
+                cell.Fit.Capture(text);
+                if (cell.Text != text || cell.Version != cell.Fit.StageCaptionVersion || text.havePropertiesChanged)
+                {
+                    cell.Text = text;
+                    cell.Minimum = GetReadableTitleMinimumSize(text, 0.7f, 12f, out cell.SingleLine);
+                }
+
+                cell.Width = cell.Rect.rect.width;
+                if (cell.Width <= 0f || cell.Minimum.x <= 0f || float.IsNaN(cell.Minimum.x) ||
+                    float.IsInfinity(cell.Minimum.x) || float.IsNaN(cell.SingleLine) ||
+                    float.IsInfinity(cell.SingleLine)) { RestoreOwnedLayout(); return; }
+                var band = Bounds(text.rectTransform);
+                if (firstCaption) { captionBand = band; firstCaption = false; }
+                else captionBand = Rect.MinMaxRect(Mathf.Min(captionBand.xMin, band.xMin),
+                    Mathf.Min(captionBand.yMin, band.yMin), Mathf.Max(captionBand.xMax, band.xMax),
+                    Mathf.Max(captionBand.yMax, band.yMax));
+            }
+
+            _cells.Sort((a, b) => a.Disk.transform.GetSiblingIndex().CompareTo(b.Disk.transform.GetSiblingIndex()));
+            var screen = Bounds(_screen.RectTransform);
+            var left = screen.xMin + Gap * scale;
+            var right = screen.xMax - Gap * scale;
+            _blocks.Clear();
+            _screen.GetComponentsInChildren(false, _buttons);
+            foreach (var button in _buttons)
+            {
+                if (!button.basicLabel || FindAncestorComponent<GuiPanel>(button) != _screen) continue;
+                var bounds = Bounds((RectTransform)button.transform);
+                if (bounds.yMax <= captionBand.yMin || bounds.yMin >= captionBand.yMax) continue;
+                if (bounds.xMax > left && bounds.xMin < right)
+                    _blocks.Add(Rect.MinMaxRect(Mathf.Max(left, bounds.xMin - Gap * scale), 0f,
+                        Mathf.Min(right, bounds.xMax + Gap * scale), 1f));
+            }
+
+            _blocks.Sort((a, b) => a.xMin.CompareTo(b.xMin));
+            var bestLeft = left;
+            var bestRight = left;
+            var cursor = left;
+            foreach (var block in _blocks)
+            {
+                if (block.xMin - cursor > bestRight - bestLeft) { bestLeft = cursor; bestRight = block.xMin; }
+                cursor = Mathf.Max(cursor, block.xMax);
+            }
+            if (right - cursor > bestRight - bestLeft) { bestLeft = cursor; bestRight = right; }
+            if (bestRight <= bestLeft) { RestoreOwnedLayout(); return; }
+
+            var totalWidth = _cells.Sum(value => value.Width);
+            var first = _cells[0];
+            var last = _cells[_cells.Count - 1];
+            var minimumPitch = _cells.Max(value => Mathf.Max(value.Minimum.x + 4f + Gap * 2f,
+                Mathf.Max(value.TooltipWidth, value.Width)));
+            var smallestPair = _cells.Count == 1 ? first.Width : float.PositiveInfinity;
+            for (var index = 1; index < _cells.Count; index++)
+                smallestPair = Mathf.Min(smallestPair, (_cells[index - 1].Width + _cells[index].Width) * 0.5f);
+            var minimumSpacing = Mathf.Max(0f, minimumPitch - smallestPair);
+            var firstInset = Mathf.Max(first.Width * 0.5f, (first.SingleLine + 4f) * 0.5f + Gap);
+            var lastInset = Mathf.Max(last.Width * 0.5f, (last.SingleLine + 4f) * 0.5f + Gap);
+            var centerWidths = totalWidth - (first.Width + last.Width) * 0.5f;
+            var available = (bestRight - bestLeft) / scale;
+            var wantedSpacing = Mathf.Max(_nativeSpacing, minimumSpacing);
+            var spacing = _cells.Count == 1 ? _nativeSpacing : Mathf.Min(wantedSpacing,
+                (available - firstInset - lastInset - centerWidths) / (_cells.Count - 1));
+            if (_cells.Count > 1 && spacing < minimumSpacing)
+            {
+                firstInset = Mathf.Max(first.Width * 0.5f, (first.Minimum.x + 4f) * 0.5f + Gap);
+                lastInset = Mathf.Max(last.Width * 0.5f, (last.Minimum.x + 4f) * 0.5f + Gap);
+                spacing = Mathf.Min(wantedSpacing,
+                    (available - firstInset - lastInset - centerWidths) / (_cells.Count - 1));
+            }
+
+            // An impossible allocation keeps the native layout and remains visible to QA.
+            if ((_cells.Count > 1 && spacing < minimumSpacing) || firstInset + lastInset > available)
+            {
+                RestoreOwnedLayout();
+                return;
+            }
+            var width = _group.padding.horizontal + totalWidth + (_cells.Count - 1) * spacing;
+            var firstCenter = -width * _list.pivot.x + _group.padding.left + first.Width * 0.5f;
+            var lastCenter = width * (1f - _list.pivot.x) - _group.padding.right - last.Width * 0.5f;
+            var originMin = bestLeft + (firstInset - firstCenter) * scale;
+            var originMax = bestRight - (lastInset + lastCenter) * scale;
+            var anchorReference = _list.localPosition.x - _list.anchoredPosition.x;
+            var targetX = Mathf.Clamp(anchorReference + _nativeX, originMin, originMax) - anchorReference;
+            if (Mathf.Abs(_group.spacing - spacing) > 0.01f) _group.spacing = spacing;
+            var position = _list.anchoredPosition;
+            if (Mathf.Abs(position.x - targetX) > 0.01f) { position.x = targetX; _list.anchoredPosition = position; }
+            _ownedSpacing = spacing;
+            _ownedX = targetX;
+            _prepared = true;
+        }
+
+        internal void FitLines()
+        {
+            if (!_prepared) return;
+            for (var index = 0; index + 1 < _cells.Count; index++)
+            {
+                var current = _cells[index];
+                if (!current.Line) continue;
+                var next = _cells[index + 1].Rect;
+                var nextLeft = current.Rect.InverseTransformPoint(next.TransformPoint(new Vector3(next.rect.xMin, 0f))).x;
+                var width = nextLeft - current.Rect.rect.xMax + current.NativeLineOverlap;
+                if (Mathf.Abs(current.Line.rect.width - width) > 0.01f)
+                    current.Line.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, Mathf.Max(0f, width));
+                current.OwnedLineWidth = Mathf.Max(0f, width);
+            }
+        }
+
+        internal void End() => _busy = false;
+
+        internal void RememberCaptionFits()
+        {
+            if (!_prepared) return;
+            foreach (var cell in _cells) cell.Version = cell.Fit.StageCaptionVersion;
+            _prepared = false;
+        }
+
+        private static void RestoreLine(Cell cell)
+        {
+            if (cell.Line && Mathf.Abs(cell.Line.rect.width - cell.OwnedLineWidth) <= 0.01f)
+                cell.Line.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, cell.NativeLineWidth);
+        }
+
+        private void RestoreOwnedLayout()
+        {
+            if (_captured && _group && Mathf.Abs(_group.spacing - _ownedSpacing) <= 0.01f)
+                _group.spacing = _nativeSpacing;
+            if (_captured && _list && Mathf.Abs(_list.anchoredPosition.x - _ownedX) <= 0.01f)
+            {
+                var position = _list.anchoredPosition;
+                position.x = _nativeX;
+                _list.anchoredPosition = position;
+            }
+            foreach (var cell in _cells) RestoreLine(cell);
+            _cells.Clear();
+            _prepared = false;
+        }
+
+        private void OnDisable() { RestoreOwnedLayout(); _busy = false; }
+    }
+
     internal static void FitCharacterEditionProgressBar(CharacterEditionScreen screen)
     {
         if (!screen || !screen.stageDiskList)
+        {
+            return;
+        }
+
+        var layout = screen.GetComponent<CharacterEditionProgressState>();
+        if (layout && layout.IsPreparing)
         {
             return;
         }
@@ -938,6 +1246,8 @@ internal static class UiTextHelpers
         {
             FitCharacterEditionStageCaption(disk);
         }
+
+        layout?.RememberCaptionFits();
     }
 
     internal static void FitCharacterEditionStageCaption(StageDisk disk)
@@ -952,7 +1262,6 @@ internal static class UiTextHelpers
         var text = disk.caption.TMP_Text;
         var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
         state.Capture(text);
-        var size = MeasureTitleGlyphs(text, state.OriginalFontSizeMax, false, 0f, state, out _);
         var center = parent.InverseTransformPoint(disk.transform.position).x;
         // The native list bounds contain only the small stage disks. Captions extend
         // beyond those bounds, so reserve text space between disk centers and screen edges.
@@ -997,8 +1306,14 @@ internal static class UiTextHelpers
             }
         }
 
+        if (state.HasStageCaptionFit(text, parent, center, left, right))
+        {
+            return;
+        }
+
         // Edge captions can have asymmetric room beside a footer button. Use the
         // whole slot, shifting only when centering above the disk would leave it.
+        var size = MeasureTitleGlyphs(text, state.OriginalFontSizeMax, false, 0f, state, out _);
         var width = Mathf.Min(Mathf.Ceil(size.x + 8f), Mathf.Max(1f, right - left - 8f));
         var captionCenter = Mathf.Clamp(center, left + width * 0.5f + 4f, right - width * 0.5f - 4f);
         var minimum = Mathf.Min(state.OriginalFontSizeMax, Mathf.Max(12f, state.OriginalFontSizeMax * 0.7f));
@@ -1019,6 +1334,7 @@ internal static class UiTextHelpers
         text.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
             Mathf.Max(state.OriginalRectHeight, Mathf.Ceil(height + 4f)));
         FitCharacterCaption(text, lines);
+        state.RememberStageCaptionFit(text, parent, center, left, right, lines);
     }
 
     internal static void FitCharacterStageToggleCaption(GuiLabel label)
@@ -3007,6 +3323,7 @@ internal static class UiTextHelpers
 
     private sealed class SettingCaptionLayoutState : MonoBehaviour
     {
+        private int _characterModelDownloadProgress = -1;
         private GuiBehaviour _row;
         private TMP_Text _text;
         private TextFitState _textState;
@@ -3028,6 +3345,7 @@ internal static class UiTextHelpers
         {
             _row = row;
             _text = text;
+            _characterModelDownloadProgress = -1;
             _dirty = true;
             // Native derived Bind methods and the parent layout finish after ApplyText.
             _deferredFrames = DeferredSingleLineFitFrames;
@@ -3035,6 +3353,25 @@ internal static class UiTextHelpers
 
         private void Invalidate()
         {
+            _dirty = true;
+        }
+
+        private void RefreshCharacterModelDownloadCaption()
+        {
+            if (_row is not SettingItem item ||
+                !ReferenceEquals(item.Setting?.Provider, SettingsContext.GuiModManagerInstance) ||
+                item.Setting.PropertyName != nameof(SettingsContext.GuiModManager.EnableCustomFaces))
+            {
+                _characterModelDownloadProgress = -1;
+                return;
+            }
+
+            var progress = UpdateContext.CharacterModelsDownloading ? UpdateContext.CharacterModelsDownloadProgress : -1;
+            if (progress == _characterModelDownloadProgress) return;
+            _characterModelDownloadProgress = progress;
+            if (progress < 0) item.TitleLabel.ApplyText(true);
+            else _text.text = Gui.Format("ModUi/&CharacterModelsDownloadProgress",
+                progress.ToString(CultureInfo.CurrentCulture));
             _dirty = true;
         }
 
@@ -3051,6 +3388,8 @@ internal static class UiTextHelpers
                 _deferredFrames--;
                 return;
             }
+
+            RefreshCharacterModelDownloadCaption();
 
             var caption = _text.rectTransform;
             var width = caption.rect.width;
@@ -4048,6 +4387,7 @@ internal static class UiTextHelpers
         internal float OriginalFontSizeMax { get; private set; }
         internal float OriginalLineSpacing { get; private set; }
         internal float OriginalRectHeight { get; private set; }
+        internal int StageCaptionVersion { get; private set; }
         internal int OriginalMaxVisibleLines { get; private set; }
         internal TextOverflowModes OriginalOverflowMode { get; private set; }
         internal Quaternion OriginalLocalRotation { get; private set; }
@@ -4073,6 +4413,16 @@ internal static class UiTextHelpers
         private float LastRenderedSpacing { get; set; }
         private string LastMode { get; set; }
         private string LastText { get; set; }
+        private RectTransform LastStageCaptionParent { get; set; }
+        private Vector3 LastStageCaptionSlot { get; set; }
+        private float LastStageCaptionCenter { get; set; }
+        private int LastStageCaptionLines { get; set; }
+        private Material LastStageCaptionMaterial { get; set; }
+        private TMP_SpriteAsset LastStageCaptionSpriteAsset { get; set; }
+        private FontWeight LastStageCaptionFontWeight { get; set; }
+        private bool LastStageCaptionKerning { get; set; }
+        private bool LastStageCaptionRichText { get; set; }
+        private bool LastStageCaptionRightToLeft { get; set; }
         private string LastSideLabelFormattedText { get; set; }
         private string LastSideLabelSourceText { get; set; }
         private TMP_Text SideLabelProxy { get; set; }
@@ -4148,6 +4498,45 @@ internal static class UiTextHelpers
         {
             LastSideLabelSourceText = sourceText;
             LastSideLabelFormattedText = formattedText;
+        }
+
+        internal bool HasStageCaptionFit(TMP_Text text, RectTransform parent, float center, float left,
+            float right)
+        {
+            // RefreshStageDisks and label styling can revisit the same fitted caption
+            // within one stage change. Recheck the current allocation and TMP state
+            // before rebuilding glyph meshes for an unchanged result.
+            return LastStageCaptionParent == parent && LastStageCaptionLines > 0 &&
+                   !text.havePropertiesChanged &&
+                   (LastStageCaptionSlot - new Vector3(center, left, right)).sqrMagnitude <= 0.0001f &&
+                   Mathf.Abs(LastStageCaptionCenter - parent.InverseTransformPoint(
+                       text.rectTransform.TransformPoint(text.rectTransform.rect.center)).x) <= 0.01f &&
+                   LastStageCaptionMaterial == text.fontSharedMaterial &&
+                   LastStageCaptionSpriteAsset == text.spriteAsset &&
+                   LastStageCaptionFontWeight == text.fontWeight &&
+                   LastStageCaptionKerning == text.enableKerning &&
+                   LastStageCaptionRichText == text.richText &&
+                   LastStageCaptionRightToLeft == text.isRightToLeftText &&
+                   TryGetTextContentSize(text, out var available) &&
+                   HasFitSignature($"{nameof(FitReadableTitle)}:{LastStageCaptionLines}", text, available,
+                       0.7f, 12f, ShouldUseCjkCompactLineSpacing(text));
+        }
+
+        internal void RememberStageCaptionFit(TMP_Text text, RectTransform parent, float center, float left,
+            float right, int lines)
+        {
+            StageCaptionVersion++;
+            LastStageCaptionParent = parent;
+            LastStageCaptionSlot = new Vector3(center, left, right);
+            LastStageCaptionCenter = parent.InverseTransformPoint(
+                text.rectTransform.TransformPoint(text.rectTransform.rect.center)).x;
+            LastStageCaptionLines = lines;
+            LastStageCaptionMaterial = text.fontSharedMaterial;
+            LastStageCaptionSpriteAsset = text.spriteAsset;
+            LastStageCaptionFontWeight = text.fontWeight;
+            LastStageCaptionKerning = text.enableKerning;
+            LastStageCaptionRichText = text.richText;
+            LastStageCaptionRightToLeft = text.isRightToLeftText;
         }
 
         internal bool HasFitSignature(

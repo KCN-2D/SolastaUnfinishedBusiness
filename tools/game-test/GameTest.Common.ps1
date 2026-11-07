@@ -214,6 +214,32 @@ function Get-GtSourceIdentity([string] $TargetCommit = 'HEAD') {
     return [ordered]@{ digest = $digest; state = $state }
 }
 
+function Test-GtSourceContent($Expected, $Actual) {
+    # Staging changes the audit snapshot, not the bytes consumed by the build.
+    # Retain the complete snapshot while comparing its source content for reuse.
+    try {
+        foreach ($name in @('head','targetCommit','branch')) {
+            if ($Expected.state.$name -cne $Actual.state.$name) { return $false }
+        }
+        if (-not $Expected.state.head -or -not $Expected.state.targetCommit) { return $false }
+        $tables=[Collections.Generic.List[object]]::new()
+        foreach ($identity in @($Expected,$Actual)) {
+            $table=[Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
+            foreach ($entry in $identity.state.overlayFiles) {
+                if ([string]::IsNullOrWhiteSpace($entry.path) -or $table.ContainsKey($entry.path) -or
+                    ($null -ne $entry.sha256 -and $entry.sha256 -notmatch '^[A-Fa-f0-9]{64}$')) { return $false }
+                $table.Add($entry.path,$entry.sha256)
+            }
+            $tables.Add($table)
+        }
+        if ($tables[0].Count -ne $tables[1].Count) { return $false }
+        foreach ($path in $tables[0].Keys) {
+            if (-not $tables[1].ContainsKey($path) -or $tables[0][$path] -ine $tables[1][$path]) { return $false }
+        }
+        return $true
+    } catch { return $false }
+}
+
 function Get-GtManifest([string] $Directory) {
     Assert-GtTree $Directory
     $root = Get-GtPath $Directory
@@ -241,6 +267,112 @@ function Assert-GtManifest([string] $Directory, [object[]] $Manifest) {
     }
 }
 
+function Get-GtCompletedBuild([IO.DirectoryInfo] $Directory) {
+    Assert-GtPlainPath $directory.FullName
+    if ($directory.Name -cmatch '^r-[a-f0-9]{16}$') {
+        $ownerPath = Join-Path $directory.FullName 'Directory.json'
+        if (-not [IO.File]::Exists($ownerPath)) { return }
+        try {
+            $owner = Read-GtObject $ownerPath
+            if ($owner.schemaVersion -ne 1 -or $owner.layout -cne 'GameTest' -or
+                $owner.requestedName -cne 'Build' -or
+                (Get-GtPath $owner.directory) -ne (Get-GtPath $directory.FullName)) { return }
+        } catch { return }
+    } elseif ($directory.Name -cnotmatch '^\d{8}-\d{6}-\d{3}-Build-[a-f0-9]{8}$') { return }
+    $receiptPath = Join-Path $directory.FullName 'Build.json'
+    if (-not [IO.File]::Exists($receiptPath)) { return }
+    try {
+        $receipt = Read-GtObject $receiptPath
+        if ($receipt.schemaVersion -ne 1 -or $receipt.status -cne 'PASS' -or
+            $receipt.stage -cne 'Stage/SolastaUnfinishedBusiness') { return }
+        if ($null -eq $receipt.manifest) { throw 'Incomplete build manifest.' }
+        foreach ($entry in $receipt.manifest) {
+            if ($null -eq $entry.path -or $null -eq $entry.size -or $null -eq $entry.sha256) { throw 'Incomplete build manifest entry.' }
+        }
+        [pscustomobject]@{path=$directory.FullName;receipt=$receipt;receiptPath=$receiptPath;
+            hash=Get-GtHash $receiptPath;completed=ConvertTo-GtUtcDate $receipt.completedUtc;error=$null}
+    } catch {
+        [pscustomobject]@{path=$directory.FullName;receipt=$null;receiptPath=$receiptPath;
+            hash=$null;completed=[datetime]::MinValue;error=$_.Exception.Message}
+    }
+}
+
+function Get-GtCompletedBuilds([string] $Parent, [string] $Exclude) {
+    foreach ($directory in Get-ChildItem -LiteralPath $Parent -Directory) {
+        if ($directory.FullName -eq $Exclude) { continue }
+        Get-GtCompletedBuild $directory
+    }
+}
+
+function Copy-GtBuildStage([string] $Source, [string] $BuildDirectory, [object[]] $Manifest, [datetime] $StartedUtc) {
+    $build = Get-GtPath $BuildDirectory
+    if (-not (Test-GtWithin $build $script:GameTestArtifactRoot)) { throw 'Build staging must remain within the artifact root.' }
+    Assert-GtPlainPath $build; Assert-GtPlainPath $Source
+    $stage = Join-Path $build 'Stage/SolastaUnfinishedBusiness'
+    if (Test-Path -LiteralPath $stage) { throw 'Build staging requires a new Stage directory.' }
+    $previousStage = $null
+    $previousByPath = [Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
+    # Only a completed sibling build can own reusable bytes; live package output is never a link source.
+    $siblings = @(Get-GtCompletedBuilds (Split-Path -Parent $build) -Exclude $build)
+    # A damaged optional receipt cannot authorize borrowing older payloads.
+    foreach ($sibling in @($siblings | Where-Object {-not $_.error -and $_.completed -le $StartedUtc.ToUniversalTime()} | Sort-Object completed -Descending)) {
+        if (@($siblings | Where-Object error).Count) { break }
+        $prior = $sibling.receipt
+        $previousStage = Join-Path $sibling.path $prior.stage
+        Assert-GtPlainPath $previousStage
+        foreach ($entry in $prior.manifest) {
+            if ($previousByPath.ContainsKey($entry.path)) { throw "Duplicate previous build manifest path: $($entry.path)" }
+            $previousByPath.Add($entry.path, $entry)
+        }
+        break
+    }
+    $linked = 0; $copied = 0
+    foreach ($entry in $Manifest) {
+        $sourceFile = Join-Path $Source $entry.path
+        $destination = Join-Path $stage $entry.path
+        if (-not (Test-GtWithin $sourceFile $Source) -or -not (Test-GtWithin $destination $stage)) { throw 'Build manifest path escapes staging.' }
+        if ($entry.sha256 -notmatch '^[A-Fa-f0-9]{64}$') { throw 'Build manifest requires SHA-256 digests.' }
+        Assert-GtFile $sourceFile; Assert-GtPlainPath $destination
+        $usePrevious = $false
+        if ($previousStage -and $previousByPath.ContainsKey($entry.path)) {
+            $priorEntry = $previousByPath[$entry.path]
+            if ($priorEntry.size -eq $entry.size -and $priorEntry.sha256 -eq $entry.sha256) {
+                $previousFile = Join-Path $previousStage $entry.path
+                Assert-GtPlainPath $previousFile
+                if (Test-Path -LiteralPath $previousFile -PathType Leaf) {
+                    $priorFile = Get-Item -LiteralPath $previousFile -Force
+                    $currentFile = Get-Item -LiteralPath $sourceFile -Force
+                    # ReadOnly is an intentional Stage protection, not part of the live output's metadata.
+                    $attributeMask = -bnot [int][IO.FileAttributes]::ReadOnly
+                    $usePrevious = $priorFile.Length -eq $entry.size -and $currentFile.Length -eq $entry.size -and
+                        $priorFile.LastWriteTimeUtc.Ticks -eq $currentFile.LastWriteTimeUtc.Ticks -and
+                        (([int]$priorFile.Attributes -band $attributeMask) -eq ([int]$currentFile.Attributes -band $attributeMask))
+                    if ($usePrevious) { $usePrevious = (Get-GtHash $previousFile) -eq $entry.sha256 }
+                    if ($usePrevious -and (Get-GtHash $sourceFile) -ne $entry.sha256) { throw "Build output changed before staging: $($entry.path)" }
+                }
+            }
+        }
+        if ($usePrevious) {
+            if (Test-Path -LiteralPath $destination) { throw "Staging destination already exists: $destination" }
+            New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+            try { New-Item -ItemType HardLink -Path $destination -Target $previousFile -ErrorAction Stop | Out-Null }
+            catch {
+                # A partial creation is not overwritten: doing so could write through the borrowed inode.
+                if (Test-Path -LiteralPath $destination) { throw "Hard-link creation left an unexpected staging entry: $destination. $($_.Exception.Message)" }
+                Copy-GtFile $sourceFile $destination -ExpectedSha256 $entry.sha256
+                $copied++
+                continue
+            }
+            if ((Get-GtHash $destination) -ne $entry.sha256) { throw "Linked staging verification failed: $destination" }
+            $linked++
+        } else {
+            Copy-GtFile $sourceFile $destination -ExpectedSha256 $entry.sha256
+            $copied++
+        }
+    }
+    Write-Verbose "Build staging reused $linked previous-Stage files and independently copied $copied files."
+}
+
 function Copy-GtFile([string] $Source, [string] $Destination, [string] $ExpectedSha256, [switch] $SkipIfIdentical) {
     Assert-GtFile $Source; Assert-GtPlainPath $Destination
     if ($ExpectedSha256 -and $ExpectedSha256 -notmatch '^[A-Fa-f0-9]{64}$') { throw 'ExpectedSha256 must be a SHA-256 digest.' }
@@ -250,6 +382,77 @@ function Copy-GtFile([string] $Source, [string] $Destination, [string] $Expected
     Copy-Item -LiteralPath $Source -Destination $Destination -Force
     $expected=if ($ExpectedSha256) { $ExpectedSha256 } else { Get-GtHash $Source }
     if ($expected -ne (Get-GtHash $Destination)) { throw "Copy verification failed: $Destination" }
+}
+
+function Clear-GtSupersededBuildAssets {
+    [CmdletBinding(SupportsShouldProcess=$true)]
+    param(
+        [Parameter(Mandatory=$true)][string]$BuildDirectory,
+        [string[]]$ReferencePath=@(),
+        [ValidateRange(2,100)][int]$KeepLatest=2
+    )
+    $current=Get-GtPath $BuildDirectory
+    if(-not(Test-GtWithin $current $script:GameTestArtifactRoot)){throw 'Build asset retention is limited to artifact builds.'}
+    $parent=Split-Path -Parent $current
+    Assert-GtPlainPath $current;Assert-GtTree $parent
+    $references=Read-GtStorageReferences $ReferencePath
+    $report=[ordered]@{schemaVersion=1;status='NOT_RUN';releasedFiles=0;releasedLogicalBytes=0L;retained=@();released=@()}
+    $game=Get-VerificationProcessState -Name Solasta
+    if(-not $game.querySucceeded -or $game.matches.Count){$report.status='RETAINED_GAME_NOT_STOPPED';return $report}
+    $lock=Enter-GtLock
+    try {
+        $records=@(Get-GtCompletedBuilds $parent)
+        foreach($invalid in @($records|Where-Object error)){$report.retained+=@{path=$invalid.path;reason='unrecognized-build-receipt'}}
+        $builds=@($records|Where-Object {-not $_.error})
+        $newest=@($builds|Sort-Object completed -Descending|Select-Object -First $KeepLatest|ForEach-Object path)
+        foreach($build in $builds){
+            if($build.path -eq $current -or $build.path -in $newest){$report.retained+=@{path=$build.path;reason='current-or-latest-build'};continue}
+            $modelRoot=Get-GtPath (Join-Path $build.path 'Stage/SolastaUnfinishedBusiness/BlenderModels')
+            if(-not(Test-GtWithin $modelRoot $build.path)){throw 'A build model root escaped its build.'}
+            $explicit=@($references.paths|Where-Object {(Test-GtWithin $_ $build.path)-or(Test-GtWithin $build.path $_)})
+            if($explicit.Count){$report.retained+=@{path=$build.path;reason='declared-input-reference'};continue}
+            $markerPath=Join-Path $build.path 'BuildAssetRelease.json'
+            try {
+                $entries=@($build.receipt.manifest|Where-Object {$_.path.StartsWith('BlenderModels/',[StringComparison]::Ordinal)})
+                if(-not $entries.Count){continue}
+                $prior=$null
+                if([IO.File]::Exists($markerPath)){
+                    $prior=Read-GtObject $markerPath
+                    if($prior.schemaVersion -ne 1 -or $prior.originalBuildReceiptSha256 -ine $build.hash){throw 'A build release marker has another owner.'}
+                    if($prior.completed){continue}
+                }
+                Assert-GtTree $modelRoot
+                $expected=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+                $files=@(foreach($entry in $entries){
+                    $path=Get-GtPath (Join-Path (Join-Path $build.path $build.receipt.stage) $entry.path)
+                    if(-not(Test-GtWithin $path $modelRoot)-or -not $expected.Add($path)-or $entry.sha256 -cnotmatch '^[a-fA-F0-9]{64}$'){throw 'Invalid staged model manifest ownership.'}
+                    if(-not[IO.File]::Exists($path)){if($null -eq $prior){throw 'A staged model payload is missing.'};continue}
+                    Assert-GtFile $path
+                    $item=Get-Item -LiteralPath $path -Force
+                    if($item.Length -ne $entry.size -or (Get-GtHash $path)-ine $entry.sha256){throw 'A staged model payload changed.'}
+                    [pscustomobject]@{path=$path;size=$item.Length;ticks=$item.LastWriteTimeUtc.Ticks}
+                })
+                foreach($file in Get-ChildItem -LiteralPath $modelRoot -File -Recurse -Force){if(-not $expected.Contains($file.FullName)){throw 'An unowned file exists in the staged model directory.'}}
+                Assert-GtStorageReferences $references
+                if((Get-GtHash $build.receiptPath)-ine $build.hash){throw 'A build receipt changed during release validation.'}
+                $game=Get-VerificationProcessState -Name Solasta
+                if(-not $game.querySucceeded -or $game.matches.Count){throw 'The game must remain stopped during build asset release.'}
+                if(-not $PSCmdlet.ShouldProcess($modelRoot,'Release superseded staged model assets')){continue}
+                $marker=[ordered]@{schemaVersion=1;completed=$false;originalBuildReceiptSha256=$build.hash;files=$entries.Count;metadataAndDllsPreserved=$true;startedUtc=[datetime]::UtcNow.ToString('o')}
+                Write-GtJson $markerPath $marker
+                foreach($file in $files){
+                    Assert-GtPlainPath $file.path
+                    $item=Get-Item -LiteralPath $file.path -Force
+                    if($item.Length -ne $file.size -or $item.LastWriteTimeUtc.Ticks -ne $file.ticks){throw 'A staged model file changed before release.'}
+                    Remove-Item -LiteralPath $file.path -Force
+                    $report.releasedFiles++;$report.releasedLogicalBytes+=$file.size
+                }
+                $marker.completed=$true;$marker['completedUtc']=[datetime]::UtcNow.ToString('o');Write-GtJson $markerPath $marker
+                $report.released+=@{path=$build.path;files=$files.Count}
+            } catch {$report.retained+=@{path=$build.path;reason=$_.Exception.Message}}
+        }
+        $report.status='COMPLETED';return $report
+    } finally {$lock.ReleaseMutex();$lock.Dispose()}
 }
 
 function Read-GtObject([string] $Path) { Assert-GtFile $Path; $value=[IO.File]::ReadAllText($Path) | ConvertFrom-Json; return $value }
@@ -467,9 +670,9 @@ function Get-GtInputValidationEvidence([string]$Path,$Result) {
         if($operations[$index].kind -cne $kinds[$index] -or $time -lt $previous -or $time -gt $completed) {throw 'Input validation events are incomplete or out of order.'}
         $previous=$time
     }
-    $case=Read-GtObject (Join-Path $run 'Case.json');$input=Read-GtObject (Join-Path $run 'InputCase.json')
+    $case=Read-GtObject (Join-Path $run 'Case.json');$inputCase=Read-GtObject (Join-Path $run 'InputCase.json')
     $build=Read-GtObject (Join-Path $run 'Build.json');$environment=Read-GtObject (Join-Path $run 'Environment.json')
-    if($case.id -cne $Result.caseId -or $input.id -cne $Result.caseId -or $ownership.requestedName -cne $Result.caseId -or
+    if($case.id -cne $Result.caseId -or $inputCase.id -cne $Result.caseId -or $ownership.requestedName -cne $Result.caseId -or
         $build.schemaVersion -ne 1 -or $build.status -cne 'PASS' -or
         (Get-GtPath $build.environment.gameExe) -ne (Get-GtPath $environment.gameExe)) {throw 'Input validation references incompatible input owners.'}
     $files=[Collections.Generic.List[object]]::new()
@@ -700,9 +903,9 @@ function Clear-GtNativeUserData {
     $actions=[Collections.Generic.List[object]]::new()
     $receipt=[ordered]@{schemaVersion=1;utc=[DateTime]::UtcNow.ToString('O');status='RETAINED';runDirectory=$run;
         preview=[bool]$Preview;resultSha256=$null;runtimeResultSha256=$null;referenceInputs=@();actions=@();reason=$null;journal='NativeUserDataRelease.jsonl'}
-    function Write-NativeReleaseEvent([string]$Event,$Detail){
+    function Write-NativeReleaseEvent([string]$EventName,$Detail){
         if($Preview){return}
-        $bytes=[Text.UTF8Encoding]::new($false).GetBytes((([ordered]@{utc=[DateTime]::UtcNow.ToString('O');event=$Event;detail=$Detail}|ConvertTo-Json -Depth 15 -Compress)+[Environment]::NewLine))
+        $bytes=[Text.UTF8Encoding]::new($false).GetBytes((([ordered]@{utc=[DateTime]::UtcNow.ToString('O');event=$EventName;detail=$Detail}|ConvertTo-Json -Depth 15 -Compress)+[Environment]::NewLine))
         $journal.Write($bytes,0,$bytes.Length);$journal.Flush($true)
     }
     function Assert-NativeReleaseOwner {
@@ -717,8 +920,8 @@ function Clear-GtNativeUserData {
         if([IO.File]::Exists((Join-Path $runtime.gameDirectory 'Mods/.UBGameTestTransaction.json'))){throw 'A recovery transaction still owns this game.'}
         [void](Get-GtRuntimeRun (Split-Path -Parent $runtimePath) (Read-GtObject $runtimePath))
     }
-    function Test-NativeReleaseReference($Companion){
-        foreach($path in @($references.paths)+@($PreserveDirectory)){
+    function Test-NativeReleaseReference($Companion,[string[]]$PreservedDirectories){
+        foreach($path in @($references.paths)+@($PreservedDirectories)){
             $resolved=Get-GtPath $path
             if((Test-GtWithin $resolved $Companion.path) -or (Test-GtWithin $Companion.path $resolved)){return $true}
         }
@@ -773,11 +976,11 @@ function Clear-GtNativeUserData {
             $action=[ordered]@{kind='native-user-data';path=$companion.path;owner=$companion.owner;bytes=$companion.bytes;applied=$false;reason=$null;
                 locationSha256=$companion.locationSha256;runtimeResult=$runtimePath;runtimeResultSha256=$runtimeIdentityHash}
             $actions.Add($action)
-            if($Keep -or (Test-NativeReleaseReference $companion)){$action.reason='explicit-native-data-reference';continue}
+            if($Keep -or (Test-NativeReleaseReference $companion $PreserveDirectory)){$action.reason='explicit-native-data-reference';continue}
             if(Test-NativeReleaseOutput $companion){$action.reason='unexported-native-output';continue}
             # Process checks precede the final fresh reference, marker and output reads.
             Assert-NativeReleaseOwner
-            if(Test-NativeReleaseReference $companion){$action.reason='late-native-data-reference';continue}
+            if(Test-NativeReleaseReference $companion $PreserveDirectory){$action.reason='late-native-data-reference';continue}
             Assert-GtStorageReferences $references
             $confirmed=@(Get-GtNativeUserDataCompanions $run|Where-Object path -eq $companion.path)
             if($confirmed.Count -ne 1 -or $confirmed[0].locationSha256 -ne $companion.locationSha256){throw 'Native user-data ownership changed before deletion.'}

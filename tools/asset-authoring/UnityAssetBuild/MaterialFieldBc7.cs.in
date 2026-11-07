@@ -1,0 +1,345 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using System.Security.Cryptography;
+using UnityEditor;
+using UnityEngine;
+using SolastaAssetAuthoring;
+
+[InitializeOnLoad]
+public static class BoundedSkinBc7PersistentPair
+{
+    const string Folder="__MATERIAL_FIELD_FOLDER__";
+    const string Generated="__MATERIAL_FIELD_GENERATED__";
+    const string BundleName="__MATERIAL_FIELD_BUNDLE__";
+    const BindingFlags Flags=BindingFlags.Static|BindingFlags.NonPublic|BindingFlags.Public;
+    [Serializable] sealed class Task {public string id,role,name,sourceBundle,sourceBundleSha256,asset,raw,rawSha256,nativeRaw,nativeRawSha256,ownedMask,ownedMaskSha256,protectedMask,protectedMaskSha256,precompressedNative,precompressedNativeSha256,precompressedField,precompressedFieldSha256;public int width,height,mipCount;public bool sRGB;public InputMip[] mips;}
+    [Serializable] sealed class InputMip {public int level,ownedTexels;}
+    [Serializable] sealed class Input {public string status,protectedMask,protectedMaskSha256,ownedMask,ownedMaskSha256;public Task[] tasks;public float[] ageScalars;public string scalarAuthority;}
+    [Serializable] sealed class ErrorStats {public long pixels,unequalPixels;public long[] unequalComponents=new long[4];public double[] maximumAbsolute=new double[4],meanAbsolute=new double[4],rootMeanSquare=new double[4];}
+    [Serializable] sealed class Mip {public int level,width,allowedPixels,protectedPixels;public bool nativeRgbaExpansionExact,fieldReferenceProtectionExact,bc7FieldProtectionExact,bc7NormalRbExact;public string nativeGpuSha256,referenceFieldGpuSha256,bc7NativeGpuSha256,bc7FieldGpuSha256;public ErrorStats nativeReencode,fieldEncoding,outsideOwned,protectedFace,normalCarriers,controlFieldOutside,controlFieldProtected;public bool controlFieldProtectedPixelsExact,protectedBlocksExact,whollyUnownedBlocksExact;public int protectedBlocks,changedProtectedBlocks,whollyUnownedBlocks,changedWhollyUnownedBlocks;public Angular[] nativeCodecAngular,fieldCodecAngular;}
+    [Serializable] sealed class Row {public string id,role,format,graphicsFormat;public long rawBytes;public int compressionQuality;public double totalSeconds,compressSeconds,gpuProofSeconds,saveSeconds;public bool precompressedReuse;public bool sourceUnchanged,strictProtectedAccepted;public Mip[] mips;}
+    [Serializable] sealed class Report {public string status,inputSha256,error,graphicsDevice,scope;public double totalSeconds,compressionSeconds,saveBuildSeconds,reloadSeconds,gpuReadbackSeconds,hashSeconds;public string currentTask,currentStage;public int nativeReencodeStatsCacheHits,nativeReencodeStatsCacheMisses;public long peakWorkingSetBytes;public bool completed,supportsBc7,strictAcceptance,actorRenderAccepted,savedReloadAccepted;public Row[] rows;public Saved[] saved;public string bundlePath,bundleSha256;public bool savedReloadGpuExact;public ProductionBundle production;}
+    [Serializable] sealed class Angular {public string decodeModel,scalarSource;public float bumpScale;public long pixels;public double maximumDegrees,meanDegrees,rootMeanSquareDegrees;}
+    [Serializable] sealed class Saved {public string id,variant,asset,encodedPath,encodedSha256,graphicsFormat;public long encodedBytes,runtimeBytes;public bool unreadable,reloadGpuExact;public SavedMip[] mips;}
+    [Serializable] sealed class SavedMip {public int level,offset,encodedBytes;public string encodedSha256,createdGpuSha256,reloadedGpuSha256;}
+    static BoundedSkinBc7PersistentPair(){EditorApplication.update+=Poll;}
+    static void Poll(){if(!File.Exists(Folder+"/request.marker"))return;EditorApplication.update-=Poll;Run();}
+    static void Need(bool value,string message){if(!value)throw new InvalidDataException(message);}
+    [System.Runtime.InteropServices.DllImport("bcrypt.dll", CharSet=System.Runtime.InteropServices.CharSet.Unicode, ExactSpelling=true)]
+    static extern int BCryptOpenAlgorithmProvider(out IntPtr algorithm,string name,string implementation,uint flags);
+    [System.Runtime.InteropServices.DllImport("bcrypt.dll", ExactSpelling=true)]
+    static extern int BCryptHash(IntPtr algorithm,IntPtr secret,uint secretBytes,[System.Runtime.InteropServices.In] byte[] input,uint inputBytes,[System.Runtime.InteropServices.Out] byte[] output,uint outputBytes);
+    [System.Runtime.InteropServices.DllImport("bcrypt.dll", ExactSpelling=true)]
+    static extern int BCryptCloseAlgorithmProvider(IntPtr algorithm,uint flags);
+    static string NativeSha256(byte[] bytes)
+    {
+        IntPtr algorithm;
+        var status=BCryptOpenAlgorithmProvider(out algorithm,"SHA256",null,0);
+        if(status!=0)throw new InvalidDataException("SHA256 provider NTSTATUS="+status);
+        try
+        {
+            var output=new byte[32];
+            status=BCryptHash(algorithm,IntPtr.Zero,0,bytes,checked((uint)bytes.Length),output,32);
+            if(status!=0)throw new InvalidDataException("SHA256 hash NTSTATUS="+status);
+            return BitConverter.ToString(output).Replace("-","").ToLowerInvariant();
+        }
+        finally
+        {
+            if(BCryptCloseAlgorithmProvider(algorithm,0)!=0)throw new InvalidDataException("SHA256 provider close failed.");
+        }
+    }
+
+    static double HashSeconds,GpuReadbackSeconds;
+    static string Hash(byte[] bytes){var watch=System.Diagnostics.Stopwatch.StartNew();try{return NativeSha256(bytes);}finally{HashSeconds+=watch.Elapsed.TotalSeconds;}}
+    static string Hash(string path){return Hash(File.ReadAllBytes(path));}
+    static object Owner(string name,params object[] args){return typeof(AssetBundleBuilder).GetMethod(name,Flags).Invoke(null,args);}
+    static byte[] Pixels(Texture2D texture,Material sampler,int level,int width){var watch=System.Diagnostics.Stopwatch.StartNew();try{return(byte[])Owner("TextureMipPixels",texture,sampler,level,width,width);}finally{GpuReadbackSeconds+=watch.Elapsed.TotalSeconds;}}
+    static Texture2D Make(Task task,string path)
+    {
+        Need(Hash(path)==(path==task.raw?task.rawSha256:task.nativeRawSha256),"Immutable raw mip input changed.");
+        var texture=new Texture2D(task.width,task.height,TextureFormat.RGBA32,true,!task.sRGB);
+        texture.name=task.name;texture.LoadRawTextureData(File.ReadAllBytes(path));texture.Apply(false,false);return texture;
+    }
+    static double CompressionSeconds;
+    static Texture2D Compressed(Task task,string path,Texture2D original)
+    {
+        var reused=path==task.raw?task.precompressedField:task.precompressedNative;
+        var digest=path==task.raw?task.precompressedFieldSha256:task.precompressedNativeSha256;
+        var texture=string.IsNullOrEmpty(reused)?Make(task,path):new Texture2D(task.width,task.height,TextureFormat.BC7,true,!task.sRGB);
+        try
+        {
+            if(!string.IsNullOrEmpty(reused)){Need(Hash(reused)==digest,"Partial encoded checkpoint changed.");texture.LoadRawTextureData(File.ReadAllBytes(reused));texture.Apply(false,false);Owner("CopyTextureMetadata",original,texture);return texture;}
+            Owner("CopyTextureMetadata",original,texture);
+            Need(texture.isReadable,"The selected compression control must remain readable until encoding.");
+            var compressionWatch=System.Diagnostics.Stopwatch.StartNew();EditorUtility.CompressTexture(texture,TextureFormat.BC7,100);CompressionSeconds+=compressionWatch.Elapsed.TotalSeconds;
+            Need(texture.format==TextureFormat.BC7&&texture.width==task.width&&texture.height==task.height&&texture.mipmapCount==task.mipCount,"BC7 compressor changed the declared layout.");
+            Owner("CopyTextureMetadata",original,texture);return texture;
+        }
+        catch{UnityEngine.Object.DestroyImmediate(texture);throw;}
+    }
+    static bool[] Mask(string path,string digest,int width)
+    {
+        Need(Hash(path)==digest,"V7 owned/protected mask changed.");var bytes=File.ReadAllBytes(path);Need(bytes.Length==width*width,"V7 mask dimensions changed.");
+        var result=new bool[bytes.Length];for(var y=0;y<width;y++)for(var x=0;x<width;x++)result[y*width+x]=bytes[(width-1-y)*width+x]!=0;return result;
+    }
+    static bool[] Reduce(bool[] source,int width)
+    {
+        if(width==1)return source;var target=new bool[width*width/4];var half=width/2;
+        for(var y=0;y<half;y++)for(var x=0;x<half;x++){var at=2*y*width+2*x;target[y*half+x]=source[at]||source[at+1]||source[at+width]||source[at+width+1];}return target;
+    }
+    static readonly Dictionary<byte[],float[]> FloatValues=new Dictionary<byte[],float[]>();
+    static volatile bool FloatValuesReadOnly;
+    // Only the main thread reads/publishes complete, immutable ErrorStats.
+    // Current GPU hashes are always recomputed before this job-local lookup.
+    static readonly Dictionary<string,ErrorStats> NativeReencodeStats=new Dictionary<string,ErrorStats>();
+    static int NativeReencodeStatsHits,NativeReencodeStatsMisses;
+    static float[] Floats(byte[] bytes){float[] values;if(FloatValues.TryGetValue(bytes,out values))return values;Need(!FloatValuesReadOnly,"A parallel metric requested an unprepared input array.");values=new float[bytes.Length/4];Buffer.BlockCopy(bytes,0,values,0,bytes.Length);foreach(var value in values)Need(!float.IsNaN(value)&&!float.IsInfinity(value),"GPU comparison contains a nonfinite component.");FloatValues.Add(bytes,values);return values;}
+    static ErrorStats Compare(byte[] reference,byte[] actual,bool[] selected,bool rbOnly=false,bool normal=false)
+    {
+        Need(reference.Length==actual.Length&&reference.Length==selected.Length*16,"GPU comparison dimensions differ.");
+        var a=Floats(reference);var b=Floats(actual);var result=new ErrorStats();var square=new double[4];
+        for(var pixel=0;pixel<selected.Length;pixel++)
+        {
+            if(!selected[pixel])continue;result.pixels++;var unequal=false;var at=pixel*4;
+            for(var channel=0;channel<4;channel++)
+            {
+                if(rbOnly&&channel!=0&&channel!=2)continue;var x=a[at+channel];var y=b[at+channel];
+
+                var delta=Math.Abs((double)x-y);if(x!=y){unequal=true;result.unequalComponents[channel]++;}
+                result.maximumAbsolute[channel]=Math.Max(result.maximumAbsolute[channel],delta);result.meanAbsolute[channel]+=delta;square[channel]+=delta*delta;
+            }
+            if(unequal)result.unequalPixels++;
+
+        }
+        if(result.pixels!=0)for(var channel=0;channel<4;channel++){result.meanAbsolute[channel]/=result.pixels;result.rootMeanSquare[channel]=Math.Sqrt(square[channel]/result.pixels);}
+        return result;
+    }
+    static Angular OneAngle(float[] a,float[] b,string model,float scale,string source)
+    {
+            var row=new Angular{decodeModel=model,scalarSource=source,bumpScale=scale,pixels=a.Length/4};double square=0;
+            var alphaGreen=model.StartsWith("AG_",StringComparison.Ordinal);
+            for(var at=0;at<a.Length;at+=4)
+            {
+                var ar=alphaGreen?1d:a[at];var br=alphaGreen?1d:b[at];
+                var ax=(2d*ar*a[at+3]-1d)*scale;var ay=(2d*a[at+1]-1d)*scale;var bx=(2d*br*b[at+3]-1d)*scale;var by=(2d*b[at+1]-1d)*scale;
+                var az=Math.Sqrt(Math.Max(0d,1d-ax*ax-ay*ay));var bz=Math.Sqrt(Math.Max(0d,1d-bx*bx-by*by));
+                var length=Math.Sqrt((ax*ax+ay*ay+az*az)*(bx*bx+by*by+bz*bz));Need(length>0,"Decoded normal has zero length.");
+                var cosine=Math.Max(-1d,Math.Min(1d,(ax*bx+ay*by+az*bz)/length));var angle=Math.Acos(cosine)*180d/Math.PI;
+                row.maximumDegrees=Math.Max(row.maximumDegrees,angle);row.meanDegrees+=angle;square+=angle*angle;
+            }
+            row.meanDegrees/=row.pixels;row.rootMeanSquareDegrees=Math.Sqrt(square/row.pixels);return row;
+    }
+    static Angular[] QueueAngles(List<Action> work,byte[] reference,byte[] encoded,float[] scales,string source)
+    {
+        var a=Floats(reference);var b=Floats(encoded);var jobs=(from model in new[]{"AG_XY_unit_normal_model_not_verified_native_Lux_bytecode","Unity2019_RGorAG_unit_normal_model_not_verified_native_Lux_bytecode"} from scale in scales select new{model,scale}).ToArray();var rows=new Angular[jobs.Length];
+        for(var job=0;job<jobs.Length;job++)
+        {
+            var owned=job;work.Add(()=>rows[owned]=OneAngle(a,b,jobs[owned].model,jobs[owned].scale,source));
+        }
+        return rows;
+    }
+    static void BlockProof(Mip row,byte[] control,byte[] field,int offset,int width,bool[] allowed,bool[] protect)
+    {
+        var count=(width+3)/4;for(var by=0;by<count;by++)for(var bx=0;bx<count;bx++)
+        {
+            var protectedBlock=false;var owned=false;for(var y=by*4;y<Math.Min(width,by*4+4);y++)for(var x=bx*4;x<Math.Min(width,bx*4+4);x++){protectedBlock|=protect[y*width+x];owned|=allowed[y*width+x];}
+            var start=offset+(by*count+bx)*16;var equal=true;for(var bit=0;bit<16;bit++)equal&=control[start+bit]==field[start+bit];
+            if(protectedBlock){row.protectedBlocks++;if(!equal)row.changedProtectedBlocks++;}if(!owned){row.whollyUnownedBlocks++;if(!equal)row.changedWhollyUnownedBlocks++;}
+        }
+        row.protectedBlocksExact=row.changedProtectedBlocks==0;row.whollyUnownedBlocksExact=row.changedWhollyUnownedBlocks==0;
+    }
+    static Mip ComputeMipStatistics(int level,int width,bool normal,byte[] n,byte[] f,byte[] c,byte[] b,
+        bool[] all,bool[] allowed,bool[] outside,bool[] protect,byte[] encodedControl,byte[] encodedField,
+        int mipOffset,float[] scales,string scalarSource)
+    {
+        // Decode and validate once before the immutable cache is shared. Every
+        // aggregate retains its original pixel order and its own accumulators.
+        Floats(n);Floats(f);Floats(c);Floats(b);
+        var mip=new Mip{level=level,width=width,allowedPixels=allowed.Count(v=>v),protectedPixels=protect.Count(v=>v),
+            nativeRgbaExpansionExact=true,nativeGpuSha256=Hash(n),referenceFieldGpuSha256=Hash(f),
+            bc7NativeGpuSha256=Hash(c),bc7FieldGpuSha256=Hash(b)};
+        ErrorStats referenceProtection=null,referenceCarriers=null;
+        var nativeKey=mip.nativeGpuSha256+"|"+mip.bc7NativeGpuSha256+"|"+width+"|"+normal;
+        ErrorStats nativeCached=null;
+        // A generic caller with a partial selection retains the original path.
+        var nativeCacheable=all.Length==width*width&&all.All(value=>value);
+        var nativeHit=nativeCacheable&&NativeReencodeStats.TryGetValue(nativeKey,out nativeCached);
+        if(nativeHit){mip.nativeReencode=nativeCached;NativeReencodeStatsHits++;}else NativeReencodeStatsMisses++;
+        var jobs=new List<Action>{
+            ()=>referenceProtection=Compare(n,f,outside),
+            ()=>mip.outsideOwned=Compare(n,b,outside),
+            ()=>mip.protectedFace=Compare(n,b,protect),
+            ()=>{if(!nativeHit)mip.nativeReencode=Compare(n,c,all,false,normal);},
+            ()=>mip.fieldEncoding=Compare(f,b,all,false,normal),
+            ()=>mip.controlFieldOutside=Compare(c,b,outside),
+            ()=>mip.controlFieldProtected=Compare(c,b,protect),
+            ()=>BlockProof(mip,encodedControl,encodedField,mipOffset,width,allowed,protect)};
+        if(normal)
+        {
+            jobs.Add(()=>referenceCarriers=Compare(n,f,all,true));
+            jobs.Add(()=>mip.normalCarriers=Compare(n,b,all,true));
+            mip.nativeCodecAngular=QueueAngles(jobs,n,c,scales,scalarSource);
+            mip.fieldCodecAngular=QueueAngles(jobs,f,b,scales,scalarSource);
+        }
+        FloatValuesReadOnly=true;
+        try
+        {
+            System.Threading.Tasks.Parallel.Invoke(new System.Threading.Tasks.ParallelOptions{MaxDegreeOfParallelism=4},jobs.ToArray());
+        }
+        finally{FloatValuesReadOnly=false;}
+        Need(referenceProtection.unequalPixels==0&&(!normal||referenceCarriers.unequalPixels==0),
+            "Pinned RGBA32 reference violated native protected/outside/RB ownership.");
+        mip.fieldReferenceProtectionExact=true;
+        mip.bc7FieldProtectionExact=mip.outsideOwned.unequalPixels==0&&mip.protectedFace.unequalPixels==0;
+        mip.bc7NormalRbExact=!normal||mip.normalCarriers.unequalPixels==0;
+        mip.controlFieldProtectedPixelsExact=mip.controlFieldProtected.unequalPixels==0;
+        if(nativeCacheable&&!nativeHit)NativeReencodeStats.Add(nativeKey,mip.nativeReencode);
+        return mip;
+    }
+
+    [Serializable] sealed class ProductionBundle
+    {
+        public string bundlePath,bundleSha256;
+        public bool fieldOnlyTextureSet,allMipGpuReloadExact,noRecompression;
+        public long encodedGpuLowerBoundBytes;
+        public double buildSeconds,reloadSeconds;
+        public Saved[] fields;
+    }
+    static ProductionBundle BuildFieldOnlyProduction(Report report,Input input)
+    {
+        var fields=report.saved.Where(row=>row.variant=="FieldBC7").ToArray();
+        Need(fields.Length==input.tasks.Length,"Production fields do not cover every task.");
+        var output=Folder+"/ProductionBundle";Directory.CreateDirectory(output);
+        var name="field_only_"+BundleName;var watch=System.Diagnostics.Stopwatch.StartNew();
+        var build=new AssetBundleBuild{assetBundleName=name,assetNames=fields.Select(row=>row.asset).ToArray()};
+        var manifest=BuildPipeline.BuildAssetBundles(output,new[]{build},BuildAssetBundleOptions.ChunkBasedCompression,BuildTarget.StandaloneWindows64);
+        Need(manifest,"Field-only production bundle build failed.");
+        var result=new ProductionBundle{bundlePath=output+"/"+name,noRecompression=true,fields=fields,
+            encodedGpuLowerBoundBytes=fields.Sum(row=>row.encodedBytes),buildSeconds=watch.Elapsed.TotalSeconds};
+        result.bundleSha256=Hash(result.bundlePath);watch.Restart();
+        AssetBundle loaded=null;Shader proofShader=null;Material proofSampler=null;
+        try
+        {
+            // BuildPipeline may invalidate the in-memory proof shader. Recreate
+            // the same existing proof owner after this second serialization.
+            var text=(string)typeof(AssetBundleBuilder).GetField("EncodedMipProofShaderText",Flags).GetValue(null);
+            proofShader=ShaderUtil.CreateShaderAsset(text);
+            Need(proofShader&&proofShader.isSupported&&!ShaderUtil.ShaderHasError(proofShader),"Field-only proof shader failed after build.");
+            proofShader.hideFlags=HideFlags.HideAndDontSave;proofSampler=new Material(proofShader);Owner("ValidateEncodedMipSampler",proofSampler);
+            loaded=AssetBundle.LoadFromFile(result.bundlePath);Need(loaded,"Field-only bundle failed reload.");
+            var names=loaded.GetAllAssetNames().OrderBy(value=>value,StringComparer.Ordinal).ToArray();
+            var expected=fields.Select(row=>row.asset.ToLowerInvariant()).OrderBy(value=>value,StringComparer.Ordinal).ToArray();
+            Need(names.SequenceEqual(expected),"Production bundle contains an unexpected asset or native control.");
+            result.fieldOnlyTextureSet=true;
+            foreach(var row in fields)
+            {
+                var task=input.tasks.Single(value=>value.id==row.id);var texture=loaded.LoadAsset<Texture2D>(row.asset);
+                Need(texture&&texture.format==TextureFormat.BC7&&!texture.isReadable&&texture.width==task.width&&texture.height==task.height&&texture.mipmapCount==task.mipCount,"Field-only texture layout/readability differs.");
+                Need(texture.graphicsFormat.ToString()==row.graphicsFormat,"Field-only texture color space differs.");
+                foreach(var mip in row.mips)
+                    Need(Hash(Pixels(texture,proofSampler,mip.level,Math.Max(1,task.width>>mip.level)))==mip.createdGpuSha256,"Field-only GPU mip differs from the fully checked field.");
+            }
+            result.allMipGpuReloadExact=true;
+        }
+        finally
+        {
+            if(loaded)loaded.Unload(true);if(proofSampler)UnityEngine.Object.DestroyImmediate(proofSampler);if(proofShader)UnityEngine.Object.DestroyImmediate(proofShader);
+        }
+        result.reloadSeconds=watch.Elapsed.TotalSeconds;return result;
+    }
+
+    static Saved Save(Task task,string variant,Texture2D texture,Mip[] mips)
+    {
+        var raw=texture.GetRawTextureData();var path=Folder+"/Encoded/"+task.id+"_"+variant+".bc7";Directory.CreateDirectory(Folder+"/Encoded");Need(!File.Exists(path),"Immutable raw output exists.");File.WriteAllBytes(path,raw);
+        var levels=new List<SavedMip>();var offset=0;for(var level=0;level<task.mipCount;level++){var w=Math.Max(1,task.width>>level);var size=((w+3)/4)*((w+3)/4)*16;var bytes=new byte[size];Buffer.BlockCopy(raw,offset,bytes,0,size);levels.Add(new SavedMip{level=level,offset=offset,encodedBytes=size,encodedSha256=Hash(bytes),createdGpuSha256=variant=="NativeBC7Control"?mips[level].bc7NativeGpuSha256:mips[level].bc7FieldGpuSha256});offset+=size;}Need(offset==raw.Length,"Encoded mip chain coverage differs.");
+        var asset=Generated+"/"+task.id+"_"+variant+".asset";var row=new Saved{id=task.id,variant=variant,asset=asset,encodedPath=path,encodedSha256=Hash(raw),encodedBytes=raw.Length,graphicsFormat=texture.graphicsFormat.ToString(),mips=levels.ToArray()};
+        texture.name=task.id+"_"+variant;texture.Apply(false,true);AssetDatabase.CreateAsset(texture,asset);return row;
+    }
+    static void Run()
+    {
+        NativeReencodeStats.Clear();NativeReencodeStatsHits=NativeReencodeStatsMisses=0;
+        var totalWatch=System.Diagnostics.Stopwatch.StartNew();
+        var report=new Report{status="RUNNING",inputSha256=Hash(Folder+"/Input.json"),graphicsDevice=SystemInfo.graphicsDeviceVersion,
+            scope="Bounded Main-only source fields at unchanged BC7 Best100. Explicit Head tone owns RGB globally while completed C1 alpha remains authored. Native expansion, RGBA reference ownership, codec residual metrics, all encoded mips and GPU saved reload remain measured. Legacy strictAcceptance concerns only outside/protected masks, not whole-field native identity. Original native controls are reused byteexact; final semantic retained-Normal packing and actor ART remain separate."};
+        var rows=new List<Row>();var saved=new List<Saved>();Material sampler=null;Shader shader=null;AssetBundle packed=null;
+        Action write=()=>{report.nativeReencodeStatsCacheHits=NativeReencodeStatsHits;report.nativeReencodeStatsCacheMisses=NativeReencodeStatsMisses;report.rows=rows.ToArray();report.saved=saved.ToArray();report.totalSeconds=totalWatch.Elapsed.TotalSeconds;report.compressionSeconds=CompressionSeconds;report.hashSeconds=HashSeconds;report.gpuReadbackSeconds=GpuReadbackSeconds;report.peakWorkingSetBytes=System.Diagnostics.Process.GetCurrentProcess().PeakWorkingSet64;var target=Folder+"/Result.json";var temporary=target+".new";File.WriteAllText(temporary,JsonUtility.ToJson(report,true));for(var attempt=0;;attempt++){try{if(File.Exists(target))File.Replace(temporary,target,null);else File.Move(temporary,target);break;}catch(IOException){if(attempt>=50)throw;System.Threading.Thread.Sleep(10);}}};
+        try
+        {
+            Need(File.ReadAllText(Folder+"/request.marker").Trim()==report.inputSha256,"Input changed before signal.");File.Delete(Folder+"/request.marker");
+            Need(Application.unityVersion=="2019.4.37f1"&&QualitySettings.activeColorSpace==ColorSpace.Linear,"The required installed Editor or color space differs.");
+            report.supportsBc7=SystemInfo.SupportsTextureFormat(TextureFormat.BC7);Need(report.supportsBc7,"The active Editor GPU does not support BC7.");
+            var input=JsonUtility.FromJson<Input>(File.ReadAllText(Folder+"/Input.json"));Need(input.status=="PRIVATE_PERSISTENT_NATIVE_CONTROL_FIELD_BC7_PAIR_INPUT"&&input.tasks.Length==__MATERIAL_FIELD_TASK_COUNT__&&input.ageScalars.Length==3,"Diagnostic scope changed.");
+            Need(!AssetDatabase.IsValidFolder(Generated),"Immutable private persistent assets exist.");AssetDatabase.CreateFolder("Assets",Path.GetFileName(Generated));
+            var text=(string)typeof(AssetBundleBuilder).GetField("EncodedMipProofShaderText",Flags).GetValue(null);
+            var create=typeof(ShaderUtil).GetMethod("CreateShaderAsset",Flags,null,new[]{typeof(string)},null);Need(create!=null,"Installed in-memory shader compiler ABI changed.");
+            shader=(Shader)create.Invoke(null,new object[]{text});Need(shader&&shader.isSupported&&!ShaderUtil.ShaderHasError(shader),"Existing proof sampler failed compilation.");shader.hideFlags=HideFlags.HideAndDontSave;
+            sampler=new Material(shader);Owner("ValidateEncodedMipSampler",sampler);
+            foreach(var task in input.tasks)
+            {
+                var taskWatch=System.Diagnostics.Stopwatch.StartNew();report.currentTask=task.id;report.currentStage="source-load";write();
+                Need(task.width==task.height&&task.width>0&&task.mipCount>0&&Hash(task.sourceBundle)==task.sourceBundleSha256,"Selected source bundle/layout changed.");
+                var bundle=AssetBundle.LoadFromFile(task.sourceBundle);Need(bundle,"Native source bundle failed load.");Texture2D native=null,expanded=null,field=null,nativeBc7=null,fieldBc7=null;
+                var row=new Row{id=task.id,role=task.role,compressionQuality=100};rows.Add(row);
+                try
+                {
+                    var sourceAssets=bundle.GetAllAssetNames();
+                    Need(sourceAssets.Contains(task.asset,StringComparer.OrdinalIgnoreCase),"Exact native container asset is absent. task="+task.id+" asset="+task.asset+" available="+string.Join(" | ",sourceAssets));
+                    native=bundle.LoadAsset<Texture2D>(task.asset);
+                    Need(native,"Exact native container asset did not load as Texture2D. task="+task.id+" asset="+task.asset);
+                    Need(native.width==task.width&&native.height==task.height&&native.mipmapCount==task.mipCount,"Selected native texture layout differs. task="+task.id+" asset="+task.asset+" expected="+task.width+"x"+task.height+"/"+task.mipCount+" actual="+native.width+"x"+native.height+"/"+native.mipmapCount);
+                    var originalJson=EditorJsonUtility.ToJson(native);
+                    expanded=Make(task,task.nativeRaw);field=Make(task,task.raw);Owner("CopyTextureMetadata",native,expanded);Owner("CopyTextureMetadata",native,field);
+                    report.currentStage="compress-native-and-field";write();var stageWatch=System.Diagnostics.Stopwatch.StartNew();nativeBc7=Compressed(task,task.nativeRaw,native);fieldBc7=Compressed(task,task.raw,native);row.compressSeconds=stageWatch.Elapsed.TotalSeconds;row.precompressedReuse=!string.IsNullOrEmpty(task.precompressedField);report.currentStage="gpu-native-expansion-ownership-codec-statistics";write();stageWatch.Restart();
+                    row.format=fieldBc7.format.ToString();row.graphicsFormat=fieldBc7.graphicsFormat.ToString();row.rawBytes=fieldBc7.GetRawTextureData().Length;
+                    Need(row.rawBytes==Enumerable.Range(0,task.mipCount).Sum(level=>((Math.Max(1,task.width>>level)+3)/4)*((Math.Max(1,task.height>>level)+3)/4)*16),"The actual complete BC7 payload size differs.");
+                    var encodedControl=nativeBc7.GetRawTextureData();var encodedField=fieldBc7.GetRawTextureData();var mipOffset=0;
+                    var owned=Mask(task.ownedMask,task.ownedMaskSha256,task.width);var protect=Mask(task.protectedMask,task.protectedMaskSha256,task.width);var mips=new List<Mip>();row.strictProtectedAccepted=true;
+                    for(var level=0;level<task.mipCount;level++)
+                    {
+                        FloatValues.Clear();
+                        var width=Math.Max(1,task.width>>level);var all=Enumerable.Repeat(true,width*width).ToArray();var allowed=owned.Select((v,i)=>v&&!protect[i]).ToArray();var outside=allowed.Select(v=>!v).ToArray();
+                        var expected=task.mips.Single(v=>v.level==level);Need(allowed.Count(v=>v)==expected.ownedTexels,"Actual mip ownership reduction differs from pinned V7.");
+                        var n=Pixels(native,sampler,level,width);var e=Pixels(expanded,sampler,level,width);Need(n.SequenceEqual(e),"Native-to-RGBA32 GPU control differs; compression comparison would have an invalid reference.");
+                        var f=Pixels(field,sampler,level,width);var c=Pixels(nativeBc7,sampler,level,width);var b=Pixels(fieldBc7,sampler,level,width);
+                        var normal=task.role=="Normal";
+                        var mip=ComputeMipStatistics(level,width,normal,n,f,c,b,all,allowed,outside,protect,
+                            encodedControl,encodedField,mipOffset,input.ageScalars,input.scalarAuthority);
+                        mipOffset+=((width+3)/4)*((width+3)/4)*16;
+                        if(!mip.bc7FieldProtectionExact||!mip.bc7NormalRbExact)row.strictProtectedAccepted=false;mips.Add(mip);row.mips=mips.ToArray();write();
+                        FloatValues.Clear();
+                        if(width>1){owned=Reduce(owned,width);protect=Reduce(protect,width);}
+                    }
+                    row.gpuProofSeconds=stageWatch.Elapsed.TotalSeconds;report.currentStage="save-encoded-assets";write();stageWatch.Restart();saved.Add(Save(task,"NativeBC7Control",nativeBc7,row.mips));nativeBc7=null;saved.Add(Save(task,"FieldBC7",fieldBc7,row.mips));fieldBc7=null;
+                    row.saveSeconds=stageWatch.Elapsed.TotalSeconds;row.totalSeconds=taskWatch.Elapsed.TotalSeconds;row.sourceUnchanged=originalJson==EditorJsonUtility.ToJson(native)&&Hash(task.sourceBundle)==task.sourceBundleSha256;Need(row.sourceUnchanged,"Original native source changed.");write();
+                }
+                finally
+                {
+                    foreach(var texture in new[]{expanded,field,nativeBc7,fieldBc7})if(texture)UnityEngine.Object.DestroyImmediate(texture);
+                    bundle.Unload(true);
+                }
+            }
+            report.currentStage="save-build-bundle";write();var buildWatch=System.Diagnostics.Stopwatch.StartNew();AssetDatabase.SaveAssets();var output=Folder+"/Bundle";Directory.CreateDirectory(output);var build=new AssetBundleBuild{assetBundleName=BundleName,assetNames=saved.Select(s=>s.asset).ToArray()};
+            Need(BuildPipeline.BuildAssetBundles(output,new[]{build},BuildAssetBundleOptions.ChunkBasedCompression|BuildAssetBundleOptions.StrictMode,BuildTarget.StandaloneWindows64),"Private pair bundle build failed.");
+            report.bundlePath=output+"/"+BundleName;report.bundleSha256=Hash(report.bundlePath);report.saveBuildSeconds=buildWatch.Elapsed.TotalSeconds;report.currentStage="reload-gpu-proof";write();var reloadWatch=System.Diagnostics.Stopwatch.StartNew();
+            if(sampler)UnityEngine.Object.DestroyImmediate(sampler);if(shader)UnityEngine.Object.DestroyImmediate(shader);shader=(Shader)create.Invoke(null,new object[]{text});Need(shader&&shader.isSupported&&!ShaderUtil.ShaderHasError(shader),"Post-build existing proof sampler failed.");shader.hideFlags=HideFlags.HideAndDontSave;sampler=new Material(shader);Owner("ValidateEncodedMipSampler",sampler);
+            packed=AssetBundle.LoadFromFile(report.bundlePath);Need(packed,"Persistent BC7 pair failed reload.");
+            foreach(var row in saved)
+            {
+                var task=input.tasks.Single(t=>t.id==row.id);var texture=packed.LoadAsset<Texture2D>(row.asset);Need(texture&&texture.format==TextureFormat.BC7&&texture.width==task.width&&texture.height==task.height&&texture.mipmapCount==task.mipCount&&!texture.isReadable,"Persistent BC7 format/readability/layout differs.");
+                Need(texture.graphicsFormat.ToString()==row.graphicsFormat,"Persistent BC7 color space differs.");row.unreadable=true;row.runtimeBytes=UnityEngine.Profiling.Profiler.GetRuntimeMemorySizeLong(texture);row.reloadGpuExact=true;
+                foreach(var mip in row.mips){mip.reloadedGpuSha256=Hash(Pixels(texture,sampler,mip.level,Math.Max(1,task.width>>mip.level)));Need(mip.reloadedGpuSha256==mip.createdGpuSha256,"Saved/reloaded BC7 GPU mip differs.");}
+            }
+            report.reloadSeconds=reloadWatch.Elapsed.TotalSeconds;report.currentStage="complete";report.savedReloadGpuExact=saved.Count==input.tasks.Length*2&&saved.All(s=>s.reloadGpuExact);report.savedReloadAccepted=report.savedReloadGpuExact;
+            if(packed){packed.Unload(true);packed=null;}
+            report.currentStage="field-only-production-build-and-reload";write();
+            report.production=BuildFieldOnlyProduction(report,input);
+            report.completed=true;report.strictAcceptance=rows.All(row=>row.strictProtectedAccepted);
+            report.status=report.strictAcceptance?"COMPLETE_PERSISTENT_BC7_PAIR_RELOAD_EXACT_ORIGINAL_NATIVE_EXACT":"COMPLETE_PERSISTENT_BC7_PAIR_RELOAD_EXACT_ORIGINAL_NATIVE_REJECTED";
+        }
+        catch(Exception error){report.status="FAILED_TECHNICAL_PREPARATION_OR_REFERENCE";report.error=error.ToString();}
+        finally{report.totalSeconds=totalWatch.Elapsed.TotalSeconds;report.compressionSeconds=CompressionSeconds;report.hashSeconds=HashSeconds;report.gpuReadbackSeconds=GpuReadbackSeconds;report.peakWorkingSetBytes=System.Diagnostics.Process.GetCurrentProcess().PeakWorkingSet64;if(packed)packed.Unload(true);if(sampler)UnityEngine.Object.DestroyImmediate(sampler);if(shader)UnityEngine.Object.DestroyImmediate(shader);write();}
+    }
+}

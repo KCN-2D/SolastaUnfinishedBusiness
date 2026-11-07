@@ -76,7 +76,7 @@ try {
     Assert-GtManifest $stage @($build.manifest)
     Add-GtEvent 'stage-verified' 'Staging manifest SHA-256 verification completed.'
     $environment=Get-GtEnvironment $GameExePath $build.environment.source.state.targetCommit
-    if ($environment.source.digest -ne $build.environment.source.digest) { throw 'Working tree differs from the staged build.' }
+    if (-not (Test-GtSourceContent $build.environment.source $environment.source)) { throw 'Source content differs from the staged build.' }
     if (($environment.buildInputs | ConvertTo-Json -Compress) -ne ($build.environment.buildInputs | ConvertTo-Json -Compress)) { throw 'The build wrapper or runtime patch differs from the staged build.' }
     if ($environment.gameSha256 -ne $build.environment.gameSha256 -or ($environment.assemblies | ConvertTo-Json -Compress) -ne ($build.environment.assemblies | ConvertTo-Json -Compress)) { throw 'Game DLLs differ from build diagnosis.' }
     Add-GtEvent 'environment-verified' 'Source identity, build inputs and installed game DLLs verified.'
@@ -251,7 +251,7 @@ try {
         $result.images=@(Get-ChildItem -LiteralPath $runtimeRoot -Filter '*.png' -Recurse -File | ForEach-Object { [ordered]@{ path=$_.FullName; sha256=Get-GtHash $_.FullName } })
         if ($adapter.saveScenario -and $result.status -eq 'PASS' -and $result.images.Count -lt 2) { throw 'The save-smoke result is missing before/after image evidence.' }
         Assert-GtManifest $formalOutput @($build.manifest)
-        if ((Get-GtSourceIdentity $build.environment.source.state.targetCommit).digest -ne $build.environment.source.digest) { $result.status='ERROR'; $result.reason+=' Source or index changed during the run.' }
+        if ((Get-GtSourceIdentity $build.environment.source.state.targetCommit).digest -ne $environment.source.digest) { $result.status='ERROR'; $result.reason+=' Source or index changed during the run.' }
         $changedTools=@(foreach ($tool in $result.toolSources) {
             $observedHash=Get-GtHash $tool.path
             if ($observedHash -ne $tool.sha256) {

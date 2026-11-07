@@ -65,14 +65,15 @@ function Write-BuildCompleted {
 function Invoke-NativeCommandCapture {
     param(
         [Parameter(Mandatory = $true)]
-        [scriptblock] $Command
+        [scriptblock] $Command,
+        [object[]] $ArgumentList = @()
     )
 
     $previousErrorActionPreference = $ErrorActionPreference
 
     try {
         $Global:ErrorActionPreference = "Continue"
-        $outputLines = @(& $Command 2>&1)
+        $outputLines = @(& $Command @ArgumentList 2>&1)
         $exitCode = $LASTEXITCODE
     }
     finally {
@@ -143,11 +144,21 @@ function Add-TemporaryWorktree {
     )
 
     $commandResult = Invoke-NativeCommandCapture -Command {
-        git -C $RepositoryRoot -c "safe.directory=$RepositoryGitPath" worktree add --detach $WorktreePath $BaseRef
-    }
+        param($Root, $GitPath, $Path, $Ref)
+        git -C $Root -c "safe.directory=$GitPath" worktree add --detach --no-checkout $Path $Ref
+    } -ArgumentList @($RepositoryRoot, $RepositoryGitPath, $WorktreePath, $BaseRef)
 
     foreach ($line in $commandResult.Output) {
         Write-Host $line
+    }
+
+    if ($commandResult.ExitCode -eq 0) {
+        # Models are immutable package inputs, not compiler inputs. Read them
+        # directly when assembling Output instead of checking out gigabytes
+        # of old Git blobs into the disposable source tree.
+        & git -C $WorktreePath -c "safe.directory=$WorktreePath" checkout $BaseRef -- . `
+            ':(exclude)SolastaUnfinishedBusiness/BlenderModels/**' ':(exclude)tools/**' | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "エラー: ビルド用ソースの展開に失敗しました。" }
     }
 
     return @{
@@ -169,21 +180,13 @@ function Add-TemporaryRepositoryClone {
 
     New-Item -ItemType Directory -Path $WorkspacePath -Force | Out-Null
 
-    $sourceGitDirectory = Join-Path $RepositoryRoot ".git"
-    $destinationGitDirectory = Join-Path $WorkspacePath ".git"
-
-    if (-not (Test-Path -LiteralPath $sourceGitDirectory)) {
-        throw "エラー: 元リポジトリの .git フォルダが見つかりません: $sourceGitDirectory"
-    }
-
-    Invoke-Robocopy -Source $sourceGitDirectory -Destination $destinationGitDirectory -ExtraArguments @(
-        "/MIR",
-        "/XD", "worktrees"
-    )
+    & git clone --shared --no-checkout -- $RepositoryRoot $WorkspacePath | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw "エラー: ビルド用リポジトリを作成できませんでした。" }
 
     $workFolderGitPath = Convert-ToGitPath -Path $WorkspacePath
     $checkoutResult = Invoke-NativeCommandCapture -Command {
-        git -C $WorkspacePath -c "safe.directory=$workFolderGitPath" checkout --force --detach $BaseRef
+        git -C $WorkspacePath -c "safe.directory=$workFolderGitPath" checkout $BaseRef -- . `
+            ':(exclude)SolastaUnfinishedBusiness/BlenderModels/**' ':(exclude)tools/**'
     }
 
     foreach ($line in $checkoutResult.Output) {
@@ -267,7 +270,7 @@ function Remove-TemporaryWorktree {
 
     if (Test-Path -LiteralPath $fullWorktreePath) {
         $removeResult = Invoke-NativeCommandCapture -Command {
-            git -C $RepositoryRoot -c "safe.directory=$RepositoryGitPath" worktree remove --force $fullWorktreePath
+            git -C $RepositoryRoot -c "safe.directory=$RepositoryGitPath" -c core.longpaths=true worktree remove --force $fullWorktreePath
         }
 
         if ($removeResult.ExitCode -ne 0) {
@@ -322,6 +325,10 @@ function Test-WorkspaceOverlayPath {
     }
 
     if ($normalizedPath.StartsWith("tools/", [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $false
+    }
+
+    if ($normalizedPath.StartsWith("SolastaUnfinishedBusiness/BlenderModels/", [System.StringComparison]::OrdinalIgnoreCase)) {
         return $false
     }
 
@@ -452,7 +459,7 @@ function Get-WorkspaceOverlayPaths {
     return @($affectedPaths | Where-Object { Test-WorkspaceOverlayPath $_ } | Sort-Object)
 }
 
-function Apply-WorkspaceOverlay {
+function Set-WorkspaceOverlay {
     param(
         [Parameter(Mandatory = $true)]
         [string] $RepositoryRoot,
@@ -497,7 +504,7 @@ function Apply-WorkspaceOverlay {
     Write-Host ("  変更確認: 対象 {0}; コピー {1}; 削除 {2}" -f $overlayPaths.Count, $copiedCount, $removedCount)
 }
 
-function Apply-LocalRuntimePatch {
+function Invoke-LocalRuntimePatch {
     param(
         [Parameter(Mandatory = $true)]
         [string] $WorkspaceRoot,
@@ -625,7 +632,7 @@ try {
     $tempRepoGitPath = Convert-ToGitPath -Path $tempRepo
 
     Invoke-Step -Description "今の変更内容を作業用フォルダへコピーしています..." -Action {
-        Apply-WorkspaceOverlay `
+        Set-WorkspaceOverlay `
             -RepositoryRoot $repoRoot `
             -RepositoryGitPath $repoGitPath `
             -WorkspaceRoot $tempRepo `
@@ -634,7 +641,7 @@ try {
     }
 
     Invoke-Step -Description "このコミュニティ用の調整を反映しています..." -Action {
-        Apply-LocalRuntimePatch -WorkspaceRoot $tempRepo -WorkspaceGitPath $tempRepoGitPath -PatchPath $customRuntimePatchPath
+        Invoke-LocalRuntimePatch -WorkspaceRoot $tempRepo -WorkspaceGitPath $tempRepoGitPath -PatchPath $customRuntimePatchPath
     }
 
     Invoke-Step -Description "Solasta の必要なファイルを準備しています..." -Action {
@@ -659,7 +666,7 @@ try {
         }
 
         Invoke-Step -Description "本体ファイルを作成しています..." -Action {
-            & dotnet build $tempSolutionPath --no-restore -c "Release Workflow" "-p:OutputPath=$tempBuildOutputFolder/"
+            & dotnet build $tempSolutionPath --no-restore -c "Release Workflow" "-p:OutputPath=$tempBuildOutputFolder/" -p:CopyBlenderModels=false
             if ($LASTEXITCODE -ne 0) {
                 throw "エラー: dotnet build が失敗しました。終了コード: $LASTEXITCODE"
             }
@@ -679,7 +686,37 @@ try {
 
     Invoke-Step -Description "出力フォルダを更新しています..." -Action {
         New-Item -ItemType Directory -Path $localOutputRoot -Force | Out-Null
-        Invoke-Robocopy -Source $tempBuildOutputFolder -Destination $localOutputFolder -ExtraArguments @("/MIR")
+        Invoke-Robocopy -Source $tempBuildOutputFolder -Destination $localOutputFolder -ExtraArguments @("/MIR", "/XD", "BlenderModels")
+        Invoke-Robocopy -Source (Join-Path $repoRoot 'SolastaUnfinishedBusiness/BlenderModels') `
+            -Destination (Join-Path $localOutputFolder 'BlenderModels') -ExtraArguments @("/MIR", "/XD", "CharacterModels")
+        $modelOutput = Join-Path $localOutputFolder 'BlenderModels/CharacterModels'
+        $oldModelManifest = Join-Path $modelOutput 'CharacterModels.manifest.json'
+        if (Test-Path -LiteralPath $oldModelManifest -PathType Leaf) {
+            $oldModels = Get-Content -LiteralPath $oldModelManifest -Raw | ConvertFrom-Json
+            foreach ($bundle in $oldModels.bundles) {
+                $name = [string]$bundle.file
+                if ($name -cne [IO.Path]::GetFileName($name) -or $name -notmatch '\.bundle$') { throw 'Invalid previous model output filename.' }
+                $path = [IO.Path]::GetFullPath((Join-Path $modelOutput $name))
+                if (-not $path.StartsWith([IO.Path]::GetFullPath($modelOutput) + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Model output escaped its build directory.' }
+                if (Test-Path -LiteralPath $path -PathType Leaf) { Remove-Item -LiteralPath $path -Force }
+            }
+        }
+        New-Item -ItemType Directory -Path $modelOutput -Force | Out-Null
+        foreach ($name in @('CharacterModels.manifest.json', 'CharacterModels.packs.json')) {
+            $source = Join-Path $repoRoot "SolastaUnfinishedBusiness/BlenderModels/CharacterModels/$name"
+            if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Character model distribution metadata is missing: $name" }
+            Copy-Item -LiteralPath $source -Destination (Join-Path $modelOutput $name) -Force
+        }
+        $modelCatalogPath = Join-Path $modelOutput 'CharacterModels.manifest.json'
+        $modelPacks = Get-Content -LiteralPath (Join-Path $modelOutput 'CharacterModels.packs.json') -Raw | ConvertFrom-Json
+        $modelHash = [Security.Cryptography.SHA256]::Create()
+        $modelStream = [IO.File]::OpenRead($modelCatalogPath)
+        try { $modelCatalogSha = [BitConverter]::ToString($modelHash.ComputeHash($modelStream)).Replace('-', '').ToLowerInvariant() }
+        finally { $modelStream.Dispose(); $modelHash.Dispose() }
+        if ($modelPacks.schemaVersion -ne 1 -or $modelPacks.catalogSha256 -cne $modelCatalogSha) {
+            throw 'Character model pack metadata differs from the packaged catalog.'
+        }
+        if (@(Get-ChildItem -LiteralPath $modelOutput -Filter '*.bundle' -File).Count -gt 0) { throw 'Unowned model bundles remain in the main package output.' }
     }
 
     Invoke-Step -Description "この ZIP 用の情報を付けています..." -Action {
@@ -698,16 +735,13 @@ try {
         }
     }
 
-    if (Test-Path -LiteralPath $outputZip) {
-        Remove-Item -LiteralPath $outputZip -Force
-    }
+    $pendingZip = $outputZip + '.building.zip'
+    if (Test-Path -LiteralPath $pendingZip) { Remove-Item -LiteralPath $pendingZip -Force }
 
     Invoke-Step -Description "SolastaUnfinishedBusiness.zip を作成しています..." -Action {
         Push-Location $localOutputRoot
         try {
-            # UMM extracts on its UI thread. Store the package so installation does
-            # not decode another compression layer over the Unity asset payloads.
-            & tar -acf $outputZip --options "zip:compression=store" "SolastaUnfinishedBusiness"
+            & tar -acf $pendingZip --options "zip:compression=deflate" "SolastaUnfinishedBusiness"
         }
         finally {
             Pop-Location
@@ -721,13 +755,21 @@ try {
     Invoke-Step -Description "ZIP の中身を確認しています..." -Action {
         Import-CompressionAssemblies
         $sourceInfo = Get-Content -LiteralPath $sourceInfoJson -Raw | ConvertFrom-Json
-        $zip = [System.IO.Compression.ZipFile]::OpenRead($outputZip)
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($pendingZip)
 
         try {
             $entry = $zip.GetEntry("SolastaUnfinishedBusiness/Info.json")
 
             if (-not $entry) {
                 throw "ZIP に SolastaUnfinishedBusiness/Info.json が含まれていません。"
+            }
+            if (@($zip.Entries | Where-Object { $_.FullName -match '/BlenderModels/CharacterModels/.*\.bundle$' }).Count -gt 0) {
+                throw 'Generated character models must be distributed separately from the UMM package.'
+            }
+            foreach ($name in @('CharacterModels.manifest.json', 'CharacterModels.packs.json')) {
+                if (-not $zip.GetEntry("SolastaUnfinishedBusiness/BlenderModels/CharacterModels/$name")) {
+                    throw "ZIP omits character model distribution metadata: $name"
+                }
             }
 
             $badEntries = $zip.Entries | Where-Object { $_.FullName.Contains("\") }
@@ -766,6 +808,8 @@ try {
             $zip.Dispose()
         }
     }
+
+    Move-Item -LiteralPath $pendingZip -Destination $outputZip -Force
 
     Write-BuildCompleted -OutputPath $outputZip -NextStep "作成された ZIP を UMM に入れて、ゲームを起動してください。"
 }

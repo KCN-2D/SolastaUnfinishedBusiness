@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.CustomUI;
@@ -12,6 +13,110 @@ namespace SolastaUnfinishedBusiness.Models;
 
 public static class PortraitsContext
 {
+    private static readonly ConditionalWeakTable<CharacterViewport, Transform> ViewportFramingTargets = new();
+
+    internal static void UnbindViewportForRebind(CharacterViewport viewport, bool unbindAll)
+    {
+        // Bind immediately reuses the same square target. Keep it within this viewport's
+        // lifetime instead of returning and recreating a 2048-square GPU allocation.
+        var texture = viewport.renderTexture;
+        viewport.renderTexture = null;
+        try
+        {
+            viewport.Unbind(unbindAll);
+        }
+        finally
+        {
+            viewport.renderTexture = texture;
+        }
+    }
+
+    internal static void StabilizeViewportFraming(CharacterViewport viewport)
+    {
+        var character = viewport.GraphicsCharacter;
+        var camera = viewport.virtualCamera;
+        if (!character || !camera || viewport.mode == CharacterViewport.Mode.Bestiary ||
+            character.CharacterType is not (GraphicsCharacterDefinitions.CharacterType.Inventory or
+                GraphicsCharacterDefinitions.CharacterType.ActiveCharacter) || !camera.Follow ||
+            camera.LookAt != camera.Follow)
+        {
+            ReleaseViewportFraming(viewport);
+            return;
+        }
+
+        var source = camera.Follow;
+        if (!ViewportFramingTargets.TryGetValue(viewport, out var target) || !target)
+        {
+            ViewportFramingTargets.Remove(viewport);
+            target = new GameObject("UB_CharacterViewportFraming").transform;
+            ViewportFramingTargets.Add(viewport, target);
+        }
+
+        // Preserve each native close-up/body target when switching cameras, then keep
+        // the framing attached to the actor root rather than its breathing/head bones.
+        target.SetParent(character.transform, false);
+        target.position = source.position;
+        target.localRotation = Quaternion.identity;
+        camera.Follow = target;
+        camera.LookAt = target;
+    }
+
+    internal static void ReleaseFailedViewportBinding(CharacterViewport viewport)
+    {
+        try
+        {
+            viewport.Unbind(true);
+        }
+        finally
+        {
+            // Unbind can itself fail while services are shutting down. A retained target
+            // still belongs to this viewport and must be returned in that path too.
+            var texture = viewport.renderTexture;
+            viewport.renderTexture = null;
+            if (viewport.rawImage)
+            {
+                viewport.rawImage.texture = null;
+            }
+
+            if (texture)
+            {
+                texture.DiscardContents();
+                texture.Release();
+                RenderTexture.ReleaseTemporary(texture);
+            }
+        }
+    }
+
+    internal static void ReleaseViewportFraming(CharacterViewport viewport)
+    {
+        if (!ViewportFramingTargets.TryGetValue(viewport, out var target))
+        {
+            return;
+        }
+
+        ViewportFramingTargets.Remove(viewport);
+        if (!target)
+        {
+            return;
+        }
+
+        var camera = viewport.virtualCamera;
+        if (camera)
+        {
+            if (camera.Follow == target)
+            {
+                camera.Follow = null;
+            }
+
+            if (camera.LookAt == target)
+            {
+                camera.LookAt = null;
+            }
+        }
+
+        UnityEngine.Object.Destroy(target.gameObject);
+    }
+
     private const float SeamAngleThresholdDegrees = 5;
     private const float StablePoseToleranceDegrees = 0.1f;
     private const float SeamSampleFrames = 3;
@@ -610,8 +715,26 @@ public static class PortraitsContext
         // The native active-photo guard still decides whether its original callbacks may run.
         response = _ => request.NativeResponseAllowed = true;
         state.Requests[key] = request;
+        // The native factory can advance before this iterator's next coroutine tick.
+        previous?.TryAbortObsoleteFactoryRequest();
 
         return request;
+    }
+
+    internal static int CreatePhotoGraphicsCharacterRequest(
+        IGraphicsCharacterFactoryService factory,
+        GraphicsCharacterDefinitions.CharacterType characterType,
+        RulesetCharacter character,
+        int layerIndex,
+        Action<GraphicsCharacter> created,
+        bool forceDestroyClothes,
+        bool dontLoadWieldedItems,
+        IEnumerator values)
+    {
+        var id = factory.CreateGraphicsCharacterRequest(characterType, character, layerIndex, created,
+            forceDestroyClothes, dontLoadWieldedItems);
+        if (RenderRequests.TryGetValue(values, out var request)) request.AttachFactory(factory, id);
+        return id;
     }
 
     internal static IEnumerator ObservePhotoRequest(IEnumerator values, PhotoRenderRequest request)
@@ -635,8 +758,13 @@ public static class PortraitsContext
 
         try
         {
-            while (values.MoveNext())
+            // A newer request owns the transferred callbacks before native work begins.
+            // Started requests retain the native abort and resource cleanup path.
+            if (!request.IsCurrent()) yield break;
+            while (true)
             {
+                if (!request.IsCurrent() && request.TryAbortObsoleteFactoryRequest()) yield break;
+                if (!values.MoveNext()) break;
                 yield return values.Current;
             }
 
@@ -684,6 +812,104 @@ public static class PortraitsContext
         }
     }
 
+    internal sealed class PhotoReleaseState(PhotoRenderRequest[] requests, RenderTexture[] activeTargets)
+    {
+        internal readonly PhotoRenderRequest[] Requests = requests;
+        internal readonly RenderTexture[] ActiveTargets = activeTargets;
+    }
+
+    internal static PhotoReleaseState CaptureActivePhotoRelease(
+        GraphicsCharacterPhotoManager manager, RulesetCharacter character)
+    {
+        var requests = Array.Empty<PhotoRenderRequest>();
+        if (PhotoServices.TryGetValue(manager, out var state) &&
+            state.Requests.TryGetValue((character, true), out var request))
+        {
+            requests = [request];
+        }
+
+        return new PhotoReleaseState(requests,
+            manager.activeCharacterPhotoByRulesetCharacter.TryGetValue(character, out var target)
+                ? [target]
+                : Array.Empty<RenderTexture>());
+    }
+
+    internal static PhotoReleaseState CaptureAllPhotoRelease(GraphicsCharacterPhotoManager manager)
+    {
+        return new PhotoReleaseState(
+            PhotoServices.TryGetValue(manager, out var state)
+                ? state.Requests.Values.ToArray()
+                : Array.Empty<PhotoRenderRequest>(),
+            manager.activeCharacterPhotoByRulesetCharacter.Values.ToArray());
+    }
+
+    internal static void CompletePhotoRelease(GraphicsCharacterPhotoManager manager, PhotoReleaseState released)
+    {
+        if (ReferenceEquals(manager, null) || released == null) return;
+        PhotoServices.TryGetValue(manager, out var state);
+
+        // Native release removes the cache and regular pending marker, but leaves the
+        // active marker. A pooled target can already belong to another current request.
+        foreach (var target in released.ActiveTargets)
+        {
+            if (ReferenceEquals(target, null) || manager.pendingRequests.Contains(target) ||
+                HasCachedPhotoTarget(manager, target)) continue;
+            var currentOwner = false;
+            if (state != null)
+            {
+                foreach (var request in state.Requests.Values)
+                {
+                    if (ReferenceEquals(request.Texture, target) &&
+                        Array.IndexOf(released.Requests, request) < 0)
+                    {
+                        currentOwner = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!currentOwner) manager.pendingActivePhotoRequests.Remove(target);
+        }
+
+        if (state == null) return;
+        var cancelled = new List<PhotoRenderRequest>(released.Requests.Length);
+        foreach (var request in released.Requests)
+        {
+            var key = (request.Character, request.Active);
+            var photos = request.Active
+                ? manager.activeCharacterPhotoByRulesetCharacter
+                : manager.photoByRulesetCharacter;
+            if (!state.Requests.TryGetValue(key, out var current) || !ReferenceEquals(current, request) ||
+                photos.TryGetValue(request.Character, out var target) && ReferenceEquals(target, request.Texture))
+            {
+                continue;
+            }
+
+            state.Requests.Remove(key);
+            cancelled.Add(request);
+        }
+
+        // Detach the whole released batch before callbacks can reenter either photo mode.
+        if (state.Requests.Count == 0) PhotoServices.Remove(manager);
+        try
+        {
+            foreach (var request in cancelled) request.TryAbortObsoleteFactoryRequest();
+        }
+        finally
+        {
+            foreach (var request in cancelled) request.Respond(null);
+        }
+    }
+
+    private static bool HasCachedPhotoTarget(GraphicsCharacterPhotoManager manager, RenderTexture target)
+    {
+        foreach (var cached in manager.photoByRulesetCharacter.Values)
+            if (ReferenceEquals(cached, target)) return true;
+        foreach (var cached in manager.activeCharacterPhotoByRulesetCharacter.Values)
+            if (ReferenceEquals(cached, target)) return true;
+        return false;
+    }
+
     internal static void CancelPhotoRequest(
         GraphicsCharacterPhotoManager manager,
         RulesetCharacter character,
@@ -696,19 +922,11 @@ public static class PortraitsContext
         }
 
         state.Requests.Remove((character, activePortrait));
-        request.Respond(null);
-    }
-
-    internal static void CancelAllPhotoRequests(GraphicsCharacterPhotoManager manager)
-    {
-        if (!PhotoServices.TryGetValue(manager, out var state))
+        try
         {
-            return;
+            request.TryAbortObsoleteFactoryRequest();
         }
-
-        PhotoServices.Remove(manager);
-
-        foreach (var request in state.Requests.Values)
+        finally
         {
             request.Respond(null);
         }
@@ -725,6 +943,9 @@ public static class PortraitsContext
         RenderTexture texture,
         bool active)
     {
+        private GraphicsCharacterFactoryManager _factory;
+        private int _factoryRequest = -1;
+        private bool _factoryStopped;
         internal readonly List<Action<Texture>> Responses = [];
         internal readonly List<Action<Texture>> NativeResponses = [];
         internal bool NativeResponseAllowed;
@@ -732,6 +953,44 @@ public static class PortraitsContext
         internal RulesetCharacter Character { get; } = character;
         internal RenderTexture Texture { get; } = texture;
         internal bool Active { get; } = active;
+
+        internal void AttachFactory(IGraphicsCharacterFactoryService factory, int requestId)
+        {
+            _factory = factory as GraphicsCharacterFactoryManager;
+            _factoryRequest = requestId;
+            _factoryStopped = false;
+        }
+
+        internal bool TryAbortObsoleteFactoryRequest()
+        {
+            if (IsCurrent()) return false;
+            if (_factoryStopped) return true;
+            if (ReferenceEquals(_factory, null) || _factoryRequest < 0) return false;
+            var id = _factoryRequest;
+            // Only this iterator's captured native factory request is eligible. An existing
+            // abort owns its callbacks already; native AbortOrDestroy is not idempotent.
+            if (!_factory || _factory.pendingAbortRequests.Contains(id) ||
+                _factory.pendingDestroyedCallbacks.ContainsKey(id) ||
+                !_factory.pendingRequests.Contains(id) && !_factory.characterPerRequestId.ContainsKey(id))
+            {
+                _factoryStopped = true;
+                _factoryRequest = -1;
+                return true;
+            }
+            if (_factory.characterPerRequestId.TryGetValue(id, out var graphics) &&
+                (!graphics || !ReferenceEquals(graphics.RulesetCharacter, Character)))
+            {
+                _factoryStopped = true;
+                _factoryRequest = -1;
+                return true;
+            }
+            // Remember the terminal result after clearing the ID so a later iterator
+            // tick exits instead of waiting for the aborted native creation callback.
+            _factoryStopped = true;
+            _factoryRequest = -1;
+            _factory.AbortOrDestroyGraphicsCharacter(id, null, null);
+            return true;
+        }
 
         internal bool IsCurrent()
         {

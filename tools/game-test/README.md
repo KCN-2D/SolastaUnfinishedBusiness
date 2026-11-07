@@ -12,7 +12,7 @@ $build = & .\tools\game-test\New-GameTestBuild.ps1 -GameExePath "$game\Solasta.e
 
 `TargetCommit` は実在するコミットへ解決し、現在の `HEAD` と一致することを要求します。ビルド対象はそのコミットに作業ツリーの変更を重ねた内容です。別コミットを確認する場合は、そのコミットのチェックアウトで実行します。
 
-ビルドは[正式ビルド](../CustomBuildLocal/README.md)を呼び、成果物を検証ごとの証跡フォルダにある `Stage/SolastaUnfinishedBusiness/` へ複製して、全ファイルのハッシュを記録します。`Stage/` など実行ごとの入出力パスは、その証跡フォルダが基準です。
+ビルドは[正式ビルド](../CustomBuildLocal/README.md)を呼び、成果物を検証ごとの証跡フォルダにある `Stage/SolastaUnfinishedBusiness/` へ複製して、全ファイルのハッシュを記録します。`Stage/` など実行ごとの入出力パスは、その証跡フォルダが基準です。同一内容のファイルは完成済みの直前 Stage と hardlink で共有します。変更は元ソースへ加え、再ビルドしてください。
 
 配布ZIPのハッシュは `Build.json` に記録し、証跡への重複コピーは省きます。ZIPも証跡へ残す場合は `New-GameTestBuild.ps1` に `-KeepPackageArchive` を追加します。
 
@@ -166,9 +166,9 @@ scopeは判定結果や必須条件を変更しません。判定項目は次の
 | OS入力の非占有 | ホストとゲームの観測を分け、ゲームPID、ウィンドウ、その所有スレッド、デスクトップ、入力状態を対応付ける。通常回帰で必須。API失敗や不明値は非入力の根拠にしない |
 | 通常アクション | ゲーム内command serviceの完了コールバック、終了状態、位置、メインスレッドのフレーム進行。保存済みゲームの回帰で必須 |
 | Unityの実フォーカス喪失 | 実測した `Application.isFocused` と遷移、非フォーカス中の進行。OS前面アプリの観測と分離する。`verifyFocusLoss=true` のケースで必須 |
-| 通常UI入力 | 実際の画面・入力経路での操作履歴。ゲーム内command、selection service、EventSystem callbackの直接呼出しで迂回した操作は未検証 |
+| 通常UI入力 | 実際の画面での入力、操作履歴、操作後の表示。`-VisualAcceptance`で確認 |
 | 描画 | GPU情報、フレーム進行、非黒画素を持つPNG原本とハッシュ。画像を要求する通常回帰で必須。レイアウトの目視判定は別に記録 |
-| 音声 | ネイティブイベントの受理と、出音・音質の確認を分離する。イベント戻り値だけで実際の出音を合格にしない |
+| 音声 | ネイティブイベントの受理ログと、実際の出音・音質の確認記録 |
 | 復元 | 導入前ファイル、設定、セーブ原本のバイト列・更新時刻・属性。配置を伴う実行で必須 |
 
 `PASS` は固定した必須項目がすべて取得でき、期待結果と復元が成立したケースです。`FAIL` は取得した実測値と期待値の不一致、`BLOCKED` は前提不足・時間切れ・必須の観測不足・検証のみの実行、`ERROR` はビルド・コンパイル・実行基盤・復元のエラーです。
@@ -231,6 +231,8 @@ $evidence = '.\tools\game-test\artifacts'
 終了・復元を確認できた個別Runtime実行も対象です。結果と入力ハッシュを整理レポートへ保存し、所有する検証用データと実行証跡を先に撤去してから、参照されなくなったビルドを整理します。
 
 `Invoke-GameTest.ps1`は`PASS`で終了し復元できた実行の`artifacts/.native/`を解放し、`NativeUserDataRelease.json`に記録します。保存が必要な実行は`-KeepNativeUserData`、制作入力として再利用するパスは`-StorageReferencePath '<参照JSON>'`で指定します。`Saves/Characters`に出力がある場合や、所有・復元・停止を確認できない場合は保持します。
+
+`New-GameTestBuild.ps1`は最新2件の検証ビルドにモデル資源を保持し、それ以前の同じ保存先のビルドではモデル資源を解放します。DLL・ビルドの記録・検証結果は保持し、解放内容を`BuildAssetRelease.json`へ記録します。古いビルドの再実行に使う資源は、`-StorageReferencePath '<参照JSON>'`で保持します。今回のビルド時に解放を行わない場合は`-KeepStagedAssets`を指定します。
 
 既存の検証用データを個別に整理するには、`Clear-GameTestArtifacts.ps1 -ArtifactRoot $evidence -ReleaseNativeUserData -ReferencePath '<参照JSON>'`で候補を確認し、`-Apply`を付けます。
 

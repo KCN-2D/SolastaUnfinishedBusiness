@@ -10,6 +10,8 @@ namespace UBVerification
 {
     public sealed class DesktopSnapshot
     {
+        public string processUiCompletedUtc;
+        public uint processUiCollectorThreadId;
         public string capturedUtc, observationSource, windowStation, runnerDesktop, inputDesktop, expectedDesktop;
         public bool currentDesktopQuerySucceeded, windowStationQuerySucceeded, inputDesktopQuerySucceeded;
         public int currentDesktopQueryError, windowStationQueryError, inputDesktopQueryError;
@@ -477,6 +479,15 @@ namespace UBVerification
 
         public static DesktopSnapshot ReadCurrent(string expectedDesktop, string observationSource)
         {
+            var snapshot = ReadCurrentIdentity(expectedDesktop, observationSource);
+            CompleteProcessUiObservation(snapshot);
+            return snapshot;
+        }
+
+        // Identity and GUI-thread state must be captured on the observed thread.
+        // The process-wide window census can then run on a collector thread.
+        public static DesktopSnapshot ReadCurrentIdentity(string expectedDesktop, string observationSource)
+        {
             var snapshot = new DesktopSnapshot {
                 capturedUtc = DateTime.UtcNow.ToString("O"), nativeThreadId = GetCurrentThreadId(),
                 expectedDesktop = expectedDesktop, observationSource = observationSource,
@@ -508,6 +519,14 @@ namespace UBVerification
                     snapshot.inputDesktopCloseError = snapshot.inputDesktopCloseSucceeded ? 0 : Marshal.GetLastWin32Error();
                 }
             }
+            return snapshot;
+        }
+
+        public static void CompleteProcessUiObservation(DesktopSnapshot snapshot)
+        {
+            snapshot.processUiCollectorThreadId = GetCurrentThreadId();
+            var expectedDesktop = snapshot.expectedDesktop;
+            var current = GetThreadDesktop(snapshot.nativeThreadId);
             if (String.IsNullOrEmpty(expectedDesktop))
             {
                 if (current != IntPtr.Zero)
@@ -554,7 +573,7 @@ namespace UBVerification
             if (!String.IsNullOrEmpty(expectedDesktop)) snapshot.isolated = snapshot.isolated && snapshot.nonInputIsolated;
             snapshot.focusPreparation = focusPreparation;
             snapshot.focusActivation = focusActivation;
-            return snapshot;
+            snapshot.processUiCompletedUtc = DateTime.UtcNow.ToString("O");
         }
 
         private static uint[] CurrentProcessThreadIds(out ProcessThreadSnapshot acquisition)
@@ -677,10 +696,12 @@ namespace UBVerification
             return row;
         }
 
+        public const int MaxProcessUiScanAttempts = 8;
+
         private static void ReadOwnedProcessWindows(DesktopSnapshot snapshot)
         {
             var attempts = new List<ProcessUiScan>();
-            for (var attempt = 0; attempt < 3; attempt++)
+            for (var attempt = 0; attempt < MaxProcessUiScanAttempts; attempt++)
             {
                 var scan = new ProcessUiScan { attempt = attempt + 1 };
                 var timer = Stopwatch.StartNew();
@@ -741,6 +762,7 @@ namespace UBVerification
                 foreach (var window in windows)
                     if (!IsOwnedNonInputWindow(window, snapshot.runnerDesktop, snapshot.processId)) return;
                 if (scan.querySucceeded && scan.cohortStable) return;
+                if (attempt + 1 < MaxProcessUiScanAttempts) Thread.Sleep(15);
             }
         }
 
@@ -801,7 +823,7 @@ namespace UBVerification
                 !String.IsNullOrEmpty(snapshot.processThreadQueryError) || !snapshot.ownedWindowsQuerySucceeded ||
                 snapshot.ownedWindowsQueryError != 0 || !SameThreadIds(snapshot.processThreadIds, snapshot.processThreadIdsAfter) ||
                 !HasOwnedWindowCoverage(snapshot.processThreadIds, snapshot.ownedUiThreads, snapshot.ownedWindows, expectedDesktop, processId, mainThreadId) ||
-                snapshot.processUiScanAttempts == null || snapshot.processUiScanAttempts.Length == 0 || snapshot.processUiScanAttempts.Length > 3) return false;
+                snapshot.processUiScanAttempts == null || snapshot.processUiScanAttempts.Length == 0 || snapshot.processUiScanAttempts.Length > MaxProcessUiScanAttempts) return false;
             for (var index = 0; index < snapshot.processUiScanAttempts.Length; index++)
             {
                 var scan = snapshot.processUiScanAttempts[index];

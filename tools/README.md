@@ -6,7 +6,7 @@
 | --- | --- |
 | [tools/CustomBuildLocal/](CustomBuildLocal/README.md) | 正式ビルドとパッケージ生成 |
 | [tools/asset-authoring/](asset-authoring/README.md) | Blenderによるモデル・骨格アニメーションの生成、書き出し、再読み込み検証、プレビュー |
-| [tools/blender-models/](blender-models/) | モデルごとの生成処理と検証手順。ローカル専用 |
+| [tools/blender-models/](blender-models/) | モデル別の生成ソース・制作レシピと検証手順 |
 | [tools/game-test/](game-test/README.md) | 固定ケースの作成、検証用ビルド、明示配置、実ゲーム回帰、結果の判定、復元と証跡の容量管理 |
 | [tools/runtime-verification/](runtime-verification/README.md) | 個別プローブと通常起動の確認、共通harness・デスクトップ・後始末の仕様、成果物の同期 |
 | [tools/localization/](localization/) | 翻訳ファイルの整備と検査 |

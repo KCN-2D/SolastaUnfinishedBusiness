@@ -2,13 +2,29 @@
 
 BlenderのPython APIで生成、書き出し、再読み込み検証、PNGプレビュー出力を実行し、必要な資産をUnity形式へ変換します。パス表記は[ツール共通の規約](../README.md#パス表記)に従います。
 
+Pythonツール用の環境はPython **3.14.10**で作成します。リポジトリのルートで実行してください。
+
+```powershell
+$pythonRoot = 'tools\asset-authoring\workspace\Tools\Python-3.14.10'
+$pythonArchive = 'tools\asset-authoring\workspace\Tools\python-3.14.10.zip'
+New-Item -ItemType Directory -Path (Split-Path $pythonArchive) -Force | Out-Null
+try {
+    Invoke-WebRequest 'https://api.nuget.org/v3-flatcontainer/python/3.14.10/python.3.14.10.nupkg' -OutFile $pythonArchive
+    Expand-Archive -LiteralPath $pythonArchive -DestinationPath $pythonRoot
+} finally {
+    if (Test-Path -LiteralPath $pythonArchive) { Remove-Item -LiteralPath $pythonArchive -Force }
+}
+& "$pythonRoot\tools\python.exe" -m venv tools\asset-authoring\workspace\Python
+& tools\asset-authoring\workspace\Python\Scripts\python.exe -m pip install --no-cache-dir -r tools\asset-authoring\requirements.txt -r tools\localization\requirements.txt
+```
+
 ## 必要条件
 
 - Windows、PowerShell
 - Blender **4.5.9 LTS**。既定の配置先は`tools/asset-authoring/workspace/Tools/blender-4.5.9-windows-x64/blender.exe`
 - Unity資産をビルドする場合はUnity Editor **2019.4.37f1**、Windows 64bit用ビルド機能
 
-別の配置先は`-BlenderPath`または`-UnityPath`で指定します。PythonはBlender同梱版を使います。
+別の配置先は`-BlenderPath`または`-UnityPath`で指定します。Blender APIを使う処理はBlender同梱Pythonで実行します。
 
 ## 実行
 
@@ -34,7 +50,7 @@ BlenderのPython APIで生成、書き出し、再読み込み検証、PNGプレ
 | `-CyclesDeviceId` | 対象バックエンドから実際に列挙したデバイスID。`-CyclesBackend`と同時に指定 |
 | `-OutputRoot` | 出力の親フォルダ。`tools/asset-authoring/workspace/`配下を指定 |
 
-GPUを指定すると、そのBlenderプロセスだけで対象デバイスを使用し、各工程の選択結果を`reports/<工程名>-cycles-device.json`へ保存します。ユーザー設定は保存しません。指定したデバイスが利用できない場合は停止します。省略時は各制作処理の描画設定を使います。
+GPUを指定すると、そのBlenderプロセスで対象デバイスを使用し、各工程の選択結果を`reports/<工程名>-cycles-device.json`へ保存します。指定したデバイスが利用できない場合は停止します。省略時は各制作処理の描画設定を使います。
 
 個別モデルの生成処理はモデル側に置き、`-PipelinePath`と`-Stages`を指定して実行します。各工程は`--stage <工程名> --output <出力先>`を受け取り、`reports/<工程名>.json`へ`stage`と`status`を出力します。成功時の`status`は`passed`です。
 
@@ -114,6 +130,8 @@ Invoke-Item $result.output
 .\tools\asset-authoring\Invoke-AssetAuthoring.ps1 `
     -PipelinePath .\tools\asset-authoring\tests\quality_contracts.py -Stages verify-contract -ResultName quality-contracts
 ```
+
+UV境界、髪、手足の数値検証だけを実行する場合は、`-Stages verify-surfaces`を指定します。
 
 採用するOBJ / MTL / テクスチャを`SolastaUnfinishedBusiness/BlenderModels/`へ反映した後、[正式ビルド](../CustomBuildLocal/README.md)でパッケージを作ります。
 
@@ -232,6 +250,10 @@ python .\tools\asset-authoring\UnityAssetBuild\mesh_recipe_codec.py `
 出力レシピは`meshes`の代わりに`numericPayload`の形式名・相対パス・SHA256・byteLengthを持ちます。JSONと数値ファイルはそれぞれ64MiB以下です。数値ファイルはlittle-endianのbinary32/int32とUTF8名を使い、頂点・骨格・表情の物理順序とビット列を保持します。
 
 surface bindingは、元の識別・行列・頂点対応をbinary32とgzipで保存できます。
+`schemaVersion=1`は単一anchorの`UBSFB001`形式です。複数の元頂点から補間した非clothの追加頂点は`schemaVersion=2`の`UBSFB002`形式を使い、各頂点の`sources`に元頂点の`anchor`と正の`weight`（合計1）を指定します。元の頂点列は先頭へ順番どおりに保持し、その`sources`は各元頂点自身と重み1にします。
+生成した表面の元三角形を保持する場合は、`schemaVersion=3`の`UBSFB003`形式を使います。`sourceVertexCount`に元頂点数を指定し、追加頂点の`surface`へ元スロット内の`triangle`（元頂点index 3個）と`barycentric`（非負、合計1）を保存します。元頂点と`native=true`の頂点の`surface`は`null`にします。
+
+UVの継ぎ目を跨ぐ曲面には`schemaVersion=4`の`UBSFB004`形式を使います。`surface`にテクスチャの出所を保持し、`geometrySurface`に変形を駆動する元三角形と補間座標を指定します。位置、骨の重み、全変形フレームの位置が一致する頂点同士で駆動面を共有し、法線だけが異なるUVの継ぎ目でも曲面を接続します。既存の付着方式を使う頂点の`geometrySurface`は`null`にします。
 
 ```powershell
 python .\tools\asset-authoring\UnityAssetBuild\mesh_recipe_codec.py --surface-binding `
@@ -251,6 +273,14 @@ python .\tools\asset-authoring\UnityAssetBuild\mesh_recipe_codec.py --surface-bi
 ```json
 {"schemaVersion":1,"bundleName":"model.bundle","meshes":[],"sourceBundles":[{"path":"Source/Model.bundle","sha256":"<64桁のハッシュ>","assets":[{"asset":"assets/generated/original.asset","type":"Mesh","name":"Model"}]}]}
 ```
+
+Texture2Dの圧縮ブロックを部分的に置き換える場合は、そのassetに任意の`encodedTexturePatch`を指定します。形式の組み合わせは`DXT5Crunched`→`DXT5`、`DXT5`→`DXT5`、`DXT1`→`DXT1`です。`width`・`height`・`mipCount`と、元バイト列の`sourceRawSha256`を宣言します。`sourceMipPayload`と`patchedMipPayload`は、全mipを順に連結したBC3またはBC1データの相対`path`（`.bin`）、`sha256`、`byteLength`です。元形式が`DXT5`または`DXT1`の場合は`sourceRawSha256`と`sourceMipPayload.sha256`を一致させます。各ファイルは64MiB以下とします。
+
+`mips`には全段を順番に列挙し、各段の`level`・`offset`・`byteLength`・`sourceSha256`・`patchedSha256`・`allowedBlocks`を指定します。1ブロックは4×4画素で、BC1は8バイト、BC3は16バイトです。`allowedBlocks`は段内の行優先indexを昇順・重複なしで列挙し、対象外のバイト列を元データと照合します。元Textureと展開した圧縮データは、実際のGPU画素を全mipで照合してから保存します。色空間・sampler・normal packingのmetadataも引き継ぎます。
+
+元Textureが読取不可の場合は、任意の`sourceEncodedStorage`へ`serializedFile`、PPtrの`pathId`（文字列）、`textureName`、`streamMember`、`streamOffset`、`byteLength`、`storedImageCount=1`を指定します。`streamPayload`には、元bundle内のresS member全体を抽出した`.bin`の相対`path`、`sha256`、`byteLength`を記録します。抽出前に元bundle・asset・PPtr・同bundle内memberの対応を照合し、指定範囲のSHAを`sourceRawSha256`へ固定します。元TextureのCPU保持flagを保ち、実GPU寸法、保存側の画像数、metadata、全mipのGPU画素を照合します。この場合はreportの`sourceRawAuthority="pinned-native-stream-plus-all-mip-gpu"`へ取得根拠を記録します。
+
+任意の`readable`はTextureのCPUデータ保持を指定し、省略時は元の値を継承します。`false`の場合は、保存したmetadata・圧縮バイト列と、再読み込みしたTextureの寸法・sampler・全mipのGPU画素を照合します。reportの`dataValidationScope`は`"saved-encoded-bits-and-reloaded-gpu"`です。
 
 Blenderで既存の頂点法線を設定する場合は、共通関数`set_mesh_custom_normals(mesh, normals)`を使います。頂点ごとの3成分配列を渡すと、スムーズ表示を設定してから法線を適用します。
 
@@ -274,13 +304,15 @@ RGBAの各チャンネルに材質データを保存するPNGは、共通関数`
   -MaxAgeDays 7 -MaxRetainedBytes 20000000000
 ```
 
-完了したジョブの成果物とUnityへの取込用コピーは別に整理します。成果物の参照だけでは取込用コピーを保持しません。取込用コピーを確認・編集する場合は、その`Assets`フォルダーを参照または保持対象に指定します。
+完了したジョブの成果物とUnityへの取込用コピーは別に整理します。取込用コピーも保持する場合は、その`Assets`フォルダーを参照または保持対象に指定します。
+
+Unityの容量予算は、登録した成果物・取込用コピー・セッションの保持量を対象にします。`Result.json`には、予算対象量、Project全体の残存量、`Library`キャッシュ、未登録データの量を記録します。
 
 既定は整理候補の確認で、`-Apply`で削除します。`-KeepLatest`は既定2件、0で件数による保持を行いません。期限・容量の0は制限なしです。参照中・明示保持・未完了・稼働中のデータを保持し、古いBlender出力の成功ポインターも対象と一緒に整理します。参照JSONは`{"schemaVersion":1,"paths":["<保持する入力>"]}`の形式で、相対パスはJSONの場所を基準にします。
 
 ## ゲーム内検証
 
-サンプル資産はゲーム内未検証です。組み込む際は[実ゲーム回帰テスト](../game-test/README.md)の手順で、次を確認します。
+ゲームへ組み込む際は[実ゲーム回帰テスト](../game-test/README.md)の手順で、次を確認します。
 
 - 寸法、向き、裏面カリング、shader、影、材質、装備位置
 - 関節・Animatorの対応、動作の遷移、攻撃・詠唱・移動とエフェクトのタイミング

@@ -41,15 +41,19 @@ def _distinct_detail(label, detail):
     return '_'.join(words[index:])
 
 
-def resource_names(resources, extension='', lowercase=False):
+def resource_names(resources, extension='', lowercase=False, strict=False, maximum=255):
     """Allocate names across one output scope, using source details on collision.
 
     The same declared resource set yields the same result in any input order.
     A producer should provide a distinct mesh/material detail when labels repeat.
-    Remaining duplicates receive numbered variants in opaque-key order.
+    Remaining duplicates receive numbered variants in opaque-key order unless
+    strict publication naming is requested. Public names must fail on a real
+    semantic collision; opaque keys cannot become names or numbered fallbacks.
     """
     if not isinstance(extension, str) or re.fullmatch(r'(?:\.[A-Za-z0-9]+)*', extension) is None:
         raise ValueError('A resource extension must contain only dotted file suffixes.')
+    if type(strict) is not bool or type(maximum) is not int or not 1 <= maximum <= 255:
+        raise ValueError('A resource needs a boolean collision policy and a 1..255 component budget.')
     entries = list(resources)
     if any(not isinstance(row, ResourceName) or not isinstance(row.key, str) or not row.key for row in entries):
         raise ValueError('Every resource requires an opaque nonempty key and source label.')
@@ -81,6 +85,8 @@ def resource_names(resources, extension='', lowercase=False):
     for _, group in sorted(groups.items()):
         if len(group) < 2:
             continue
+        if strict:
+            raise ValueError('Semantic resource collision: ' + repr([(row.label, row.detail, row.suffix) for row in group]))
         for row in sorted(group, key=lambda item: item.key):
             index = 1
             while True:
@@ -92,8 +98,8 @@ def resource_names(resources, extension='', lowercase=False):
             used.add(candidate.casefold())
     if len({name.casefold() for name in candidates.values()}) != len(entries):
         raise ValueError('Source labels did not produce unique resource names.')
-    if any(len(name.encode('utf-16-le')) // 2 > 255 for name in candidates.values()):
-        raise ValueError('A resource name exceeds the Windows component length; shorten its source label.')
+    if any(len(name.encode('utf-16-le')) // 2 > maximum for name in candidates.values()):
+        raise ValueError('A resource name exceeds its declared component budget; shorten its source label.')
     return candidates
 
 
@@ -107,3 +113,34 @@ def assert_path_budget(path, maximum, suffix=''):
         raise ValueError(f'Native path needs {length} UTF-16 characters, budget {maximum}; '
                          f'shorten the output root or source label: {value}{suffix}')
     return value
+
+
+def body_atlas_filename(native_texture_name, parts_lods, purpose='main', maximum=128):
+    """Stable native model + actual parts/LOD sets; omit repeated atlas syntax."""
+    label=source_label(native_texture_name)
+    tokens=label.lower().split('_')
+    if 'basecolor'not in tokens:
+        raise ValueError('A Body Main atlas has no declared native BaseColor label.')
+    # Native sex words have fixed semantic abbreviations, independent of the
+    # output directory/budget. Origin and other source variants stay intact.
+    model=[{'female':'f','male':'m'}.get(t,t)for t in tokens if t not in ('shape','basecolor','bodyrgb')]
+    if not model or any(not re.fullmatch('[a-z0-9]+',t)for t in model):
+        raise ValueError('A Body atlas has no semantic native model/variant.')
+    order=('body','forearms','hands','feet')
+    if not parts_lods or any(p not in order for p in parts_lods):
+        raise ValueError('A Body atlas has an unknown actual anatomical part.')
+    groups={}
+    for part in order:
+        if part not in parts_lods:continue
+        levels=tuple(sorted(set(parts_lods[part])))
+        if not levels or any(type(v)is not int or not 0<=v<=2 for v in levels):
+            raise ValueError('A Body atlas has an invalid actual LOD set.')
+        groups.setdefault(levels,[]).append(part)
+    def lod_label(levels):
+        return str(levels[0])+'-'+str(levels[-1]) if len(levels)>1 and levels==tuple(range(levels[0],levels[-1]+1))else'-'.join(map(str,levels))
+    component='_'.join('_'.join(parts)+'_lod'+lod_label(levels)for levels,parts in groups.items())
+    purpose=source_label(purpose).lower()
+    if not re.fullmatch('[a-z][a-z0-9_]*',purpose):raise ValueError('A Body atlas purpose is not semantic.')
+    result='_'.join(model)+'_'+component+'_'+purpose+'.bundle'
+    if len(result)>maximum:raise ValueError('The semantic Body atlas name exceeds its path budget.')
+    return result

@@ -16,7 +16,7 @@ function Get-VerificationProcessState {
             $queryError=[ordered]@{id=$_.FullyQualifiedErrorId;category=[string]$_.CategoryInfo.Category;message=$_.Exception.Message}
         }
     }
-    $matches=@(foreach ($process in $processes) {
+    $processMatches=@(foreach ($process in $processes) {
         $entry=[ordered]@{pid=$null;startTimeUtc=$null;path=$null;readErrors=[ordered]@{}}
         try { $entry.pid=[int]$process.Id }
         catch { $entry.readErrors['pid']=$_.Exception.Message }
@@ -28,7 +28,7 @@ function Get-VerificationProcessState {
         } catch { $entry.readErrors['path']=$_.Exception.Message }
         $entry
     })
-    [pscustomobject]@{observedUtc=[datetime]::UtcNow.ToString('O');name=$Name;querySucceeded=($null -eq $queryError);absenceBasis=$absenceBasis;matches=$matches;queryError=$queryError}
+    [pscustomobject]@{observedUtc=[datetime]::UtcNow.ToString('O');name=$Name;querySucceeded=($null -eq $queryError);absenceBasis=$absenceBasis;matches=$processMatches;queryError=$queryError}
 }
 
 function Assert-VerificationGameStopped {

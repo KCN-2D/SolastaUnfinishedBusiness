@@ -42,9 +42,20 @@ foreach ($path in $preserved) {
 $storageReferences=Read-GtStorageReferences $ReferencePath
 $referenced=$storageReferences.paths
 $referenceInputs=$storageReferences.inputs
+$referenceAncestors=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+foreach ($entry in $referenced) {
+    $cursor=$entry
+    while ($cursor) {
+        if (-not $referenceAncestors.Add($cursor)) { break }
+        $cursor=[IO.Path]::GetDirectoryName($cursor)
+    }
+}
 function Test-Referenced([string]$Path) {
-    foreach ($entry in $referenced) {
-        if ((Test-GtWithin $entry $Path) -or (Test-GtWithin $Path $entry)) { return $true }
+    $cursor=Get-GtPath $Path
+    if ($referenceAncestors.Contains($cursor)) { return $true }
+    while ($cursor) {
+        if ($referenced.Contains($cursor)) { return $true }
+        $cursor=[IO.Path]::GetDirectoryName($cursor)
     }
     return $false
 }
@@ -229,8 +240,10 @@ try {
                 }
                 if (-not (Test-Path -LiteralPath $resultPath) -or -not (Test-Path -LiteralPath $transactionPath)) {
                     $buildPath=Join-Path $directory.FullName 'Build.json'
-                    if ($directory.Name -notmatch '^\d{8}-\d{6}-\d{3}-Build-[a-fA-F0-9]+$' -or -not (Test-Path -LiteralPath $buildPath)) { continue }
-                    $build=Read-GtObject $buildPath
+                    $buildOwner=Get-GtCompletedBuild $directory
+                    if ($null -eq $buildOwner) { continue }
+                    if ($buildOwner.error) { throw $buildOwner.error }
+                    $build=$buildOwner.receipt
                     foreach ($field in @('schemaVersion','status','stage','completedUtc','environment')) {
                         if ($field -notin $build.PSObject.Properties.Name) { throw "Missing build receipt field: $field" }
                     }
@@ -344,6 +357,10 @@ try {
                 $transaction=Read-GtObject (Join-Path $Run.path 'Transaction.json')
                 if ($transaction.schemaVersion -ne 1 -or $transaction.state -ne 'restored' -or
                     (Get-GtPath $transaction.gameDirectory) -ne (Get-GtPath $Run.gameDirectory)) { throw 'Cleanup transaction ownership changed.' }
+            }
+            elseif ($Run.kind -eq 'build') {
+                $owner=Get-GtCompletedBuild ([IO.DirectoryInfo]::new($Run.path))
+                if ($null -eq $owner -or $owner.error -or $owner.hash -ne $Run.identityHash) { throw 'Build ownership changed before deletion.' }
             }
             if ((Get-GtHash $Run.identityPath) -ne $Run.identityHash) { throw 'A cleanup result changed before deletion.' }
             Assert-GtTree $Run.path

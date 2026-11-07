@@ -15,6 +15,23 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GraphicsCharacterPatcher
 {
+    [HarmonyPatch(typeof(GraphicsCharacter), nameof(GraphicsCharacter.UpdateLods))]
+    [UsedImplicitly]
+    public static class UpdateLods_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(GraphicsCharacter __instance)
+        {
+            RacesContext.RestoreCharacterModelLods(__instance);
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(GraphicsCharacter __instance)
+        {
+            RacesContext.RefreshCharacterModelLods(__instance);
+        }
+    }
+
     [HarmonyPatch(typeof(GraphicsCharacter), nameof(GraphicsCharacter.RefreshRenderers))]
     [UsedImplicitly]
     public static class RefreshRenderers_Patch

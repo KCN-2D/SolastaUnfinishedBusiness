@@ -1,6 +1,6 @@
 # 翻訳作業ツール
 
-Python 3.9以降を使用します。外部翻訳を使うスクリプトには、既存環境の `deep-translator`、または `openai`・`python-dotenv`・`rich` が必要です。
+開発用Pythonは3.14.10を使用します。環境の作成は[資産制作ツールのPython設定](../asset-authoring/README.md)を参照してください。翻訳用パッケージのバージョンは[requirements.txt](requirements.txt)で管理します。
 
 パス表記は[ツール共通の規約](../README.md#パス表記)に従います。コマンドはリポジトリのルートから実行し、作業フォルダの変更が必要なスクリプトは後述の表と実行例に従います。
 

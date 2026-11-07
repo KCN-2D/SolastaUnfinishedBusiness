@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
@@ -8,8 +8,11 @@ using I2.Loc;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.Helpers;
+using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
+using UnityEngine;
+using UnityEngine.UI;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -82,6 +85,7 @@ public static class CharacterEditionScreenPatcher
         [UsedImplicitly]
         public static void Prefix(CharacterEditionScreen __instance)
         {
+            CharacterStageIdentityDefinitionPanelPatcher.CancelCustomizationPools(__instance);
             if (__instance is CharacterCreationScreen)
             {
                 // The screen is reused after named creation and respec sessions.
@@ -94,6 +98,14 @@ public static class CharacterEditionScreenPatcher
     [UsedImplicitly]
     public static class RefreshStageDisks_Patch
     {
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            instructions.ReplaceCalls(
+                AccessTools.Method(typeof(LayoutRebuilder), nameof(LayoutRebuilder.ForceRebuildLayoutImmediate)),
+                1, "CharacterEditionScreen.RefreshStageDisks.Layout",
+                new CodeInstruction(OpCodes.Call,
+                    new Action<RectTransform>(UiTextHelpers.RebuildCharacterEditionStageList).Method));
+
         [UsedImplicitly]
         public static void Postfix(CharacterEditionScreen __instance)
         {
@@ -119,6 +131,15 @@ public static class CharacterEditionScreenPatcher
         }
     }
 
+    [HarmonyPatch(typeof(CharacterEditionScreen), nameof(CharacterEditionScreen.OnBeginHide))]
+    [UsedImplicitly]
+    public static class OnBeginHide_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CharacterEditionScreen __instance) =>
+            CharacterStageIdentityDefinitionPanelPatcher.CancelCustomizationPools(__instance);
+    }
+
     [HarmonyPatch(typeof(CharacterEditionScreen), nameof(CharacterEditionScreen.DoAbort))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]
@@ -127,6 +148,7 @@ public static class CharacterEditionScreenPatcher
         [UsedImplicitly]
         public static void Prefix([NotNull] CharacterEditionScreen __instance)
         {
+            CharacterStageIdentityDefinitionPanelPatcher.CancelCustomizationPools(__instance);
             ToolsContext.FunctorRespec.Abort(__instance);
             //PATCH: Unregisters hero from level up context (MULTICLASS)
             LevelUpHelper.UnregisterHero(__instance.currentHero);
@@ -138,10 +160,29 @@ public static class CharacterEditionScreenPatcher
     public static class OnFinishCb_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(CharacterEditionScreen __instance, ref bool continueLevelUp)
+        public static bool Prefix(CharacterEditionScreen __instance, ref bool continueLevelUp)
         {
+            if (ToolsContext.AppearanceEdition.Finish(__instance))
+            {
+                return false;
+            }
+
             ToolsContext.FunctorRespec.PrepareFinish(__instance, ref continueLevelUp);
+            return true;
         }
+    }
+
+    [HarmonyPatch(typeof(CharacterEditionScreen), nameof(CharacterEditionScreen.RefreshStageButtons))]
+    [UsedImplicitly]
+    public static class RefreshStageButtons_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(CharacterEditionScreen __instance) =>
+            __instance.currentHero != null && __instance.currentStagePanel;
+
+        [UsedImplicitly]
+        public static void Postfix(CharacterEditionScreen __instance) =>
+            ToolsContext.AppearanceEdition.RefreshButtons(__instance);
     }
 
     [HarmonyPatch(typeof(CharacterEditionScreen), nameof(CharacterEditionScreen.CharacterStagePanel_StageEntered))]
@@ -152,31 +193,54 @@ public static class CharacterEditionScreenPatcher
         public static void Postfix(CharacterEditionScreen __instance, CharacterStagePanel stagePanel)
         {
             ToolsContext.FunctorRespec.StageEntered(__instance, stagePanel);
+            CharacterStageIdentityDefinitionPanelPatcher.PrepareCustomizationPools(__instance, stagePanel);
         }
     }
 
-    [HarmonyPatch(typeof(CharacterEditionScreen), nameof(CharacterEditionScreen.MessageTitle), MethodType.Getter)]
+    [HarmonyPatch]
     [UsedImplicitly]
     public static class MessageTitle_Getter_Patch
     {
         [UsedImplicitly]
+        public static IEnumerable<MethodBase> TargetMethods()
+        {
+            yield return AccessTools.PropertyGetter(typeof(CharacterEditionScreen), nameof(CharacterEditionScreen.MessageTitle));
+            yield return AccessTools.PropertyGetter(typeof(CharacterCreationScreen), nameof(CharacterCreationScreen.MessageTitle));
+        }
+
+        [UsedImplicitly]
         public static void Postfix(CharacterEditionScreen __instance, ref string __result)
         {
-            if (__instance is CharacterCheckerScreen)
+            if (ToolsContext.AppearanceEdition.Owns(__instance.currentHero))
+            {
+                __result = "Message/&CharacterAppearanceCancelTitle";
+            }
+            else if (__instance is CharacterCheckerScreen)
             {
                 __result = "Message/&CharacterCheckerExitTitle";
             }
         }
     }
 
-    [HarmonyPatch(typeof(CharacterEditionScreen), nameof(CharacterEditionScreen.MessageDescription), MethodType.Getter)]
+    [HarmonyPatch]
     [UsedImplicitly]
     public static class MessageDescription_Getter_Patch
     {
         [UsedImplicitly]
+        public static IEnumerable<MethodBase> TargetMethods()
+        {
+            yield return AccessTools.PropertyGetter(typeof(CharacterEditionScreen), nameof(CharacterEditionScreen.MessageDescription));
+            yield return AccessTools.PropertyGetter(typeof(CharacterCreationScreen), nameof(CharacterCreationScreen.MessageDescription));
+        }
+
+        [UsedImplicitly]
         public static void Postfix(CharacterEditionScreen __instance, ref string __result)
         {
-            if (__instance is CharacterCheckerScreen)
+            if (ToolsContext.AppearanceEdition.Owns(__instance.currentHero))
+            {
+                __result = "Message/&CharacterAppearanceCancelDescription";
+            }
+            else if (__instance is CharacterCheckerScreen)
             {
                 __result = "Message/&CharacterCheckerExitDescription";
             }

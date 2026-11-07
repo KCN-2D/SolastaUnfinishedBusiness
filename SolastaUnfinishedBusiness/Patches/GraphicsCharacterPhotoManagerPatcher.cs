@@ -69,6 +69,12 @@ public static class GraphicsCharacterPhotoManagerPatcher
                 new CodeInstruction(OpCodes.Ldarg_0),
                 new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(PortraitsContext),
                     nameof(PortraitsContext.IsPendingPhotoRequest))))
+                .ReplaceCalls(AccessTools.Method(typeof(IGraphicsCharacterFactoryService),
+                        nameof(IGraphicsCharacterFactoryService.CreateGraphicsCharacterRequest)),
+                    1, "GraphicsCharacterPhotoManager.RenderCharacter.MoveNext.Create",
+                    new CodeInstruction(OpCodes.Ldarg_0),
+                    new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(PortraitsContext),
+                        nameof(PortraitsContext.CreatePhotoGraphicsCharacterRequest))))
                 .ReplaceCalls(AccessTools.Method(typeof(GraphicsCharacter), nameof(GraphicsCharacter.GetBoneTransform)),
                     1, "GraphicsCharacterPhotoManager.RenderCharacter.MoveNext",
                     new CodeInstruction(OpCodes.Ldarg_0),
@@ -97,9 +103,16 @@ public static class GraphicsCharacterPhotoManagerPatcher
     public static class ReleaseActiveCharacterPhoto_Patch
     {
         [UsedImplicitly]
-        public static void Postfix(GraphicsCharacterPhotoManager __instance, RulesetCharacter rulesetCharacter)
+        internal static void Prefix(GraphicsCharacterPhotoManager __instance, RulesetCharacter rulesetCharacter,
+            out PortraitsContext.PhotoReleaseState __state)
         {
-            PortraitsContext.CancelPhotoRequest(__instance, rulesetCharacter, true);
+            __state = PortraitsContext.CaptureActivePhotoRelease(__instance, rulesetCharacter);
+        }
+
+        [UsedImplicitly]
+        internal static void Postfix(GraphicsCharacterPhotoManager __instance, PortraitsContext.PhotoReleaseState __state)
+        {
+            PortraitsContext.CompletePhotoRelease(__instance, __state);
         }
     }
 
@@ -109,11 +122,16 @@ public static class GraphicsCharacterPhotoManagerPatcher
     public static class ReleaseAllPhotos_Patch
     {
         [UsedImplicitly]
-        public static void Postfix(GraphicsCharacterPhotoManager __instance)
+        internal static void Prefix(GraphicsCharacterPhotoManager __instance,
+            out PortraitsContext.PhotoReleaseState __state)
         {
-            // A cancellation callback can start another request. Notify only after the
-            // native cache has released its old textures, so that new request survives.
-            PortraitsContext.CancelAllPhotoRequests(__instance);
+            __state = PortraitsContext.CaptureAllPhotoRelease(__instance);
+        }
+
+        [UsedImplicitly]
+        internal static void Postfix(GraphicsCharacterPhotoManager __instance, PortraitsContext.PhotoReleaseState __state)
+        {
+            PortraitsContext.CompletePhotoRelease(__instance, __state);
         }
     }
 }

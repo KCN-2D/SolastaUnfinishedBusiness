@@ -2,7 +2,8 @@
 param(
     [Parameter(Mandatory = $true, ParameterSetName = 'Rig')]
     [Parameter(Mandatory = $true, ParameterSetName = 'Materials')]
-    [Parameter(Mandatory = $true, ParameterSetName = 'Meshes')] [string] $UnityPath,
+    [Parameter(Mandatory = $true, ParameterSetName = 'Meshes')]
+    [Parameter(Mandatory = $true, ParameterSetName = 'MaterialFields')] [string] $UnityPath,
     [Parameter(ParameterSetName = 'Rig')]
     [Parameter(ParameterSetName = 'Materials')]
     [Parameter(ParameterSetName = 'Meshes')]
@@ -11,9 +12,11 @@ param(
     [Parameter(Mandatory = $true, ParameterSetName = 'Materials')] [string] $MaterialRecipePath,
     [Parameter(Mandatory = $true, ParameterSetName = 'Meshes')]
     [ValidateCount(1, 16)] [string[]] $MeshRecipePath,
+    [Parameter(Mandatory = $true, ParameterSetName = 'MaterialFields')] [string] $MaterialFieldInputPath,
     [Parameter(ParameterSetName = 'Rig')]
     [Parameter(ParameterSetName = 'Materials')]
-    [Parameter(ParameterSetName = 'Meshes')] [switch] $ValidateOnly,
+    [Parameter(ParameterSetName = 'Meshes')]
+    [Parameter(ParameterSetName = 'MaterialFields')] [switch] $ValidateOnly,
     [Parameter(Mandatory = $true, ParameterSetName = 'Cleanup')] [switch] $Cleanup,
     [string] $WorkspaceRoot,
     [string] $GuiProjectPath,
@@ -284,6 +287,215 @@ function Read-ExternalMeshRecipe([string] $Path, [string] $InputOwnerPath) {
     return $codec::ReadFile($Path)
 }
 
+function Install-AssetGuiWorker {
+    param([string]$Project,[string]$Source,[string]$SourceHash,[switch]$AllowInstall)
+    Assert-LocalPath $Source
+    $identitySource=Get-AssetWorkerIdentitySource $SourceHash
+    if (!(Test-Path -LiteralPath $Source -PathType Leaf) -or
+        (Get-FileHash -LiteralPath $Source -Algorithm SHA256).Hash.ToLowerInvariant() -cne $SourceHash) {
+        throw 'The desired GUI worker changed before installation.'
+    }
+    $destination=Join-Path $Project 'Assets\Editor\AssetBundleBuilder.cs'
+    $identityDestination=Join-Path $Project 'Assets\Editor\AssetBundleBuilder.Identity.cs'
+    Assert-LocalPath $destination
+    Assert-LocalPath $identityDestination -UnityImport
+    if ((Test-Path -LiteralPath $destination -PathType Leaf) -and
+        (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant() -ceq $SourceHash -and
+        (Test-Path -LiteralPath $identityDestination -PathType Leaf) -and
+        [IO.File]::ReadAllText($identityDestination) -ceq $identitySource) { return }
+    if (!$AllowInstall) { throw 'The GUI worker differs from the template. Use -InstallGuiWorker once, then refresh the project in the Editor.' }
+    $backup=Join-Path $Project ('.asset-authoring-jobs\WorkerBackups\'+[guid]::NewGuid().ToString('N'))
+    Assert-LocalPath $backup
+    [void][IO.Directory]::CreateDirectory($backup)
+    if (Test-Path -LiteralPath $destination -PathType Leaf) { [IO.File]::Copy($destination,(Join-Path $backup 'AssetBundleBuilder.cs'),$false) }
+    if (Test-Path -LiteralPath $identityDestination -PathType Leaf) { [IO.File]::Copy($identityDestination,(Join-Path $backup 'AssetBundleBuilder.Identity.cs'),$false) }
+    [IO.File]::Copy($Source,$destination,$true)
+    [IO.File]::WriteAllText($identityDestination,$identitySource,[Text.UTF8Encoding]::new($false))
+    if ((Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant() -cne $SourceHash -or
+        [IO.File]::ReadAllText($identityDestination) -cne $identitySource) { throw 'The installed GUI worker or compiled identity differs from its desired source.' }
+    Write-Output 'GUI worker updated. If it is not loaded yet, select Assets > Refresh in the open Editor once.'
+}
+
+function Assert-MaterialFieldPin($Pin) {
+    Assert-RecipeFields $Pin @('path','sha256')
+    if ($Pin.path -isnot [string] -or $Pin.path -notmatch '^[A-Za-z]:[\\/]' -or $Pin.sha256 -isnot [string] -or $Pin.sha256 -cnotmatch '^[a-f0-9]{64}$') { throw 'Invalid material-field file pin.' }
+    $path=[IO.Path]::GetFullPath($Pin.path)
+    Assert-LocalPath $path
+    if (!(Test-Path -LiteralPath $path -PathType Leaf) -or (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -cne $Pin.sha256) { throw "Pinned material-field input changed: $path" }
+    return $path
+}
+
+function Read-ValidatedMaterialFieldInput([string]$Path) {
+    $path=(Resolve-Path -LiteralPath $Path).ProviderPath
+    Assert-LocalPath $path
+    if ([IO.Path]::GetFileName($path) -cne 'Input.json' -or (Get-Item -LiteralPath $path).Length -gt 67108864) { throw 'Material-field input must be Input.json of at most 64 MiB.' }
+    $folder=[IO.Path]::GetDirectoryName($path)
+    if (!(Test-WithinPath $folder $authoringRoot) -and !(Test-WithinPath $folder (Join-Path $repoRoot 'tools/game-test/artifacts'))) { throw 'Material-field output must use the existing authoring workspace or game-test artifacts owner.' }
+    $inputHash=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+    $materialFieldInput=Get-Content -Raw -LiteralPath $path|ConvertFrom-Json
+    Assert-RecipeFields $materialFieldInput @('status','tasks','ageScalars','scalarAuthority','scalarAuthorityProof','privateSource','ownerSource','codecResource','sourceInput','nativeAssetAuthority','sourcePins','generatedAssets','bundleName','holdFile')
+    if ($materialFieldInput.status -cne 'PRIVATE_PERSISTENT_NATIVE_CONTROL_FIELD_BC7_PAIR_INPUT' -or $materialFieldInput.tasks -isnot [array] -or $materialFieldInput.tasks.Count -lt 1 -or $materialFieldInput.tasks.Count -gt 32) { throw 'Material-field input requires 1..32 explicit Main tasks.' }
+    if ($materialFieldInput.ageScalars -isnot [array] -or $materialFieldInput.ageScalars.Count -ne 3 -or @($materialFieldInput.ageScalars|Where-Object {!(Test-FiniteNumber $_) -or $_ -le 0}).Count -or $materialFieldInput.scalarAuthority -isnot [string] -or [string]::IsNullOrWhiteSpace($materialFieldInput.scalarAuthority)) { throw 'Material-field age scalar authority is missing or invalid.' }
+    if ($materialFieldInput.generatedAssets -isnot [string] -or $materialFieldInput.generatedAssets -cnotmatch '^Assets/MaterialFields_([A-Za-z0-9_]{1,64})$') { throw 'Material-field generatedAssets must be a single owned Assets/MaterialFields_<tag> namespace.' }
+    $tag=$Matches[1]
+    if ($materialFieldInput.bundleName -cne ('material_fields_'+$tag.ToLowerInvariant()+'.bundle')) { throw 'Material-field bundle and generated namespace tags differ.' }
+    if ($materialFieldInput.holdFile -isnot [string] -or $materialFieldInput.holdFile -notmatch '^[A-Za-z]:[\\/]') { throw 'Material-field absolute HOLD path is required.' }
+    $hold=[IO.Path]::GetFullPath($materialFieldInput.holdFile);Assert-LocalPath $hold
+    if (!(Test-WithinPath $hold $authoringRoot) -and !(Test-WithinPath $hold (Join-Path $repoRoot 'tools/game-test/artifacts'))) { throw 'Material-field HOLD path is outside its existing owners.' }
+    if (Test-Path -LiteralPath $hold) { throw 'Material-field HOLD requested before the next pack; no Editor was started.' }
+    foreach($name in @('Result.json','Result.json.new','request.marker','OuterFailure.json')) { if (Test-Path -LiteralPath (Join-Path $folder $name)) { throw "Immutable material-field result or marker exists: $name" } }
+    $pins=@($materialFieldInput.privateSource,$materialFieldInput.ownerSource,$materialFieldInput.codecResource,$materialFieldInput.sourceInput,$materialFieldInput.nativeAssetAuthority,$materialFieldInput.scalarAuthorityProof)
+    if ($materialFieldInput.sourcePins -isnot [array] -or $materialFieldInput.sourcePins.Count -eq 0) { throw 'Material-field sourcePins must explicitly pin all data and evidence files.' }
+    $pins+=@($materialFieldInput.sourcePins)
+    $byPath=@{}
+    foreach($pin in $pins) {
+        $full=Assert-MaterialFieldPin $pin
+        if ($byPath.ContainsKey($full) -and $byPath[$full] -cne $pin.sha256) { throw 'Material-field input has conflicting SHA pins for one path.' }
+        $byPath[$full]=$pin.sha256
+    }
+    $dataPins=@{}
+    foreach($pin in $materialFieldInput.sourcePins) {$dataPins[[IO.Path]::GetFullPath($pin.path)]=$pin.sha256}
+    $scalarProofPath=[IO.Path]::GetFullPath($materialFieldInput.scalarAuthorityProof.path)
+    if(!$dataPins.ContainsKey($scalarProofPath) -or $dataPins[$scalarProofPath] -cne $materialFieldInput.scalarAuthorityProof.sha256){throw 'Material-field scalar authority proof is missing from sourcePins.'}
+    $ids=@{}
+    foreach($task in $materialFieldInput.tasks) {
+        foreach($name in @('id','name','role','raw','rawSha256','nativeRaw','nativeRawSha256','ownedMask','ownedMaskSha256','protectedMask','protectedMaskSha256','sourceBundle','sourceBundleSha256','asset','sourceEncodedSha256','width','height','mipCount','sRGB','mips')) { if (!$task.PSObject.Properties[$name]) { throw "Material-field task is missing $name" } }
+        if ($task.id -isnot [string] -or $task.id -cnotmatch '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$' -or $ids.ContainsKey($task.id) -or $task.name -cne $task.id -or $task.role -cne 'Main') { throw 'Material-field task identity or Main role differs.' }
+        $ids[$task.id]=$true
+        foreach($name in @('width','height','mipCount')) { if (!(Test-FiniteNumber $task.$name) -or $task.$name -ne [Math]::Truncate($task.$name) -or $task.$name -le 0) { throw 'Material-field dimensions must be positive integers.' } }
+        if ($task.width -gt 16384 -or $task.height -gt 16384 -or $task.width -ne $task.height -or $task.sRGB -isnot [bool] -or !$task.sRGB -or $task.mips -isnot [array] -or $task.mips.Count -ne $task.mipCount) { throw 'Material-field Main layout or colour space differs.' }
+        foreach($name in @('precompressedField','precompressedFieldSha256')) { if($task.PSObject.Properties[$name] -and ![string]::IsNullOrWhiteSpace([string]$task.$name)){throw 'A changed-field checkpoint needs a separate explicit prior-codec proof; implicit field precompression is not accepted.'} }
+        $fullMips=1;for($size=[Math]::Max($task.width,$task.height);$size -gt 1;$size=[int][Math]::Floor($size/2)){$fullMips++}
+        if ($task.mipCount -ne $fullMips) { throw 'Material-field Main must include every physical mip.' }
+        foreach($name in @('raw','nativeRaw','ownedMask','protectedMask','sourceBundle','precompressedNative')) {
+            if (!$task.PSObject.Properties[$name]) { if($name -eq 'precompressedNative'){continue};throw 'A required material-field file is absent.' }
+            $hashName=$name+'Sha256'
+            if (!$task.PSObject.Properties[$hashName]) { throw "Material-field file has no SHA: $name" }
+            $file=[IO.Path]::GetFullPath($task.$name)
+            if (!$dataPins.ContainsKey($file) -or $dataPins[$file] -cne $task.$hashName) { throw "Material-field task file is not in sourcePins with the exact SHA: $name" }
+        }
+    }
+    $resource=[IO.Path]::GetFullPath((Join-Path $repoRoot 'tools/asset-authoring/UnityAssetBuild/MaterialFieldBc7.cs.in'))
+    if ([IO.Path]::GetFullPath($materialFieldInput.codecResource.path) -ine $resource) { throw 'Material-field codec resource is outside its canonical source owner.' }
+    $render=[IO.File]::ReadAllText($resource)
+    $tokens=@{__MATERIAL_FIELD_FOLDER__=$folder.Replace('\','/');__MATERIAL_FIELD_GENERATED__=[string]$materialFieldInput.generatedAssets;__MATERIAL_FIELD_BUNDLE__=[string]$materialFieldInput.bundleName;__MATERIAL_FIELD_TASK_COUNT__=[string]$materialFieldInput.tasks.Count}
+    foreach($token in $tokens.GetEnumerator()) { if ([regex]::Matches($render,[regex]::Escape($token.Key)).Count -ne 1) { throw 'Material-field resource token cardinality differs.' };$render=$render.Replace($token.Key,$token.Value) }
+    if ([IO.File]::ReadAllText($materialFieldInput.privateSource.path) -cne $render) { throw 'Material-field private source changed outside its four resource tokens.' }
+    if ([string]::IsNullOrWhiteSpace($GuiProjectPath)) { throw 'Material-field input requires the marked GUI project for its installed owner authority.' }
+    $project=(Resolve-Path -LiteralPath $GuiProjectPath).ProviderPath;Assert-LocalPath $project
+    $workspace=[IO.Path]::GetFullPath($WorkspaceRoot);Assert-WorkspacePath $workspace
+    if (!(Test-WithinPath $project $workspace) -or $project -ieq $workspace) { throw 'Material-field project is outside the marked WorkspaceRoot.' }
+    $projectMarkerPath=Join-Path $project '.solasta-asset-authoring-project'
+    if (!(Test-Path -LiteralPath $projectMarkerPath -PathType Leaf) -or [IO.File]::ReadAllText($projectMarkerPath).Trim() -cne $projectMarker) { throw 'Material-field GUI project is unmarked.' }
+    $versionFile=Join-Path $project 'ProjectSettings/ProjectVersion.txt'
+    if ([IO.File]::ReadAllText($versionFile) -notmatch ('(?m)^m_EditorVersion: '+[regex]::Escape($requiredVersion)+'\s*$')) { throw 'Material-field project uses a different Editor version.' }
+    $installedOwner=Join-Path $project 'Assets/Editor/AssetBundleBuilder.cs';Assert-LocalPath $installedOwner
+    $canonicalOwner=[IO.Path]::GetFullPath((Join-Path $repoRoot 'tools/asset-authoring/UnityAssetBuild/Assets/Editor/AssetBundleBuilder.cs'))
+    if ([IO.Path]::GetFullPath($materialFieldInput.ownerSource.path) -ine $canonicalOwner) { throw 'Material-field worker is outside its canonical source owner.' }
+    if (!$InstallGuiWorker -and (!(Test-Path -LiteralPath $installedOwner -PathType Leaf) -or
+        (Get-FileHash -LiteralPath $installedOwner -Algorithm SHA256).Hash.ToLowerInvariant() -cne $materialFieldInput.ownerSource.sha256)) { throw 'Material-field installed worker differs from its pinned owner.' }
+    $destination=Join-Path $project 'Assets/Editor/BoundedSkinBc7PersistentPair.cs'
+    $generated=[IO.Path]::GetFullPath((Join-Path $project $materialFieldInput.generatedAssets))
+    foreach($candidate in @($destination,($destination+'.meta'),$generated,($generated+'.meta'))) {Assert-LocalPath $candidate -UnityImport;if(Test-Path -LiteralPath $candidate){throw 'Material-field source or generated namespace already exists.'}}
+    foreach($task in $materialFieldInput.tasks){foreach($variant in @('NativeBC7Control','FieldBC7')){Assert-LocalPath (Join-Path $generated ($task.id+'_'+$variant+'.asset')) -UnityImport}}
+    if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -cne $inputHash) { throw 'Material-field Input.json changed during validation.' }
+    return [pscustomobject]@{path=$path;folder=$folder;sha256=$inputHash;input=$materialFieldInput;pins=$pins;project=$project;sourceDestination=$destination;generated=$generated;installedOwner=$installedOwner;hold=$hold;dependencyPaths=@($path)+@($byPath.Keys)}
+}
+
+function Invoke-MaterialFieldBuild($Validated) {
+    if (Test-Path -LiteralPath $Validated.hold) { throw 'Material-field HOLD requested before pack; no Editor was started.' }
+    if (!$StartBackgroundEditor) { throw 'Material fields require -StartBackgroundEditor.' }
+    $editor=(Resolve-Path -LiteralPath $UnityPath).ProviderPath;Assert-LocalPath $editor
+    if ([IO.Path]::GetFileName($editor) -ine 'Unity.exe') { throw '-UnityPath must identify an installed Unity.exe.' }
+    Assert-UnityVersion $editor
+    if (!$UnityCliPath) { $UnityCliPath=Join-Path $env:LOCALAPPDATA 'Unity/bin/unity.exe' }
+    $cli=(Resolve-Path -LiteralPath $UnityCliPath).ProviderPath;Assert-LocalPath $cli
+    $project=$Validated.project;$materialFieldInput=$Validated.input
+    $null=Get-AssetProjectLock $project
+    if (Test-Path -LiteralPath $Validated.hold) { throw 'Material-field HOLD requested before pack; no Editor was started.' }
+    Install-AssetGuiWorker -Project $project -Source $materialFieldInput.ownerSource.path -SourceHash $materialFieldInput.ownerSource.sha256 -AllowInstall:$InstallGuiWorker
+    $runRoot=Join-Path $project ('.asset-authoring-jobs/'+[DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss-fffffff',[Globalization.CultureInfo]::InvariantCulture)+'-material-fields')
+    Assert-LocalPath $runRoot
+    if(Test-Path -LiteralPath $runRoot){throw 'The unique material-field job already exists.'}
+    $resultPath=Join-Path $Validated.folder 'Result.json';$marker=Join-Path $Validated.folder 'request.marker'
+    $wrapper=Join-Path $runRoot 'material-field-result.json'
+    $session=$null;$ownership=$null;$primary=$null;$cleanup=[Collections.Generic.List[Exception]]::new();$success=$false;$result=$null;$sourceCopied=$false;$sessionClosedNormally=$false;$startedUtc=[DateTime]::UtcNow
+    try {
+        [void][IO.Directory]::CreateDirectory($runRoot)
+        [IO.File]::WriteAllText((Join-Path $runRoot '.solasta-asset-authoring-job'),'SolastaUBAssetAuthoring:UnityJob:1')
+        [IO.File]::Copy($materialFieldInput.privateSource.path,$Validated.sourceDestination,$false);$sourceCopied=$true
+        if((Get-FileHash -LiteralPath $Validated.sourceDestination).Hash.ToLowerInvariant() -cne $materialFieldInput.privateSource.sha256){throw 'The copied material-field source changed.'}
+        $session=Start-AssetBackgroundEditor -Project $project -Editor $editor -Cli $cli -SourceSha256 $materialFieldInput.ownerSource.sha256 -TimeoutSeconds $TimeoutSeconds
+        $ownership=Register-AssetAuthoringJob -Project $project -JobDirectory $runRoot -AssetDirectory $Validated.generated -ResultPath $wrapper -DependencyPath $Validated.dependencyPaths -Session $session
+        if(Test-Path -LiteralPath $Validated.hold){throw 'Material-field HOLD arrived before request; the Editor will close normally without encoding.'}
+        [IO.File]::WriteAllText($marker,$Validated.sha256,[Text.UTF8Encoding]::new($false))
+        $deadline=[DateTime]::UtcNow.AddSeconds($TimeoutSeconds);$lastReadError=$null
+        while([DateTime]::UtcNow -lt $deadline){
+            if(Test-Path -LiteralPath $resultPath){
+                try{
+                    $stream=[IO.File]::Open($resultPath,[IO.FileMode]::Open,[IO.FileAccess]::Read,([IO.FileShare]::ReadWrite-bor[IO.FileShare]::Delete))
+                    try{$reader=[IO.StreamReader]::new($stream);$text=$reader.ReadToEnd()}finally{$stream.Dispose()}
+                    $observed=$text|ConvertFrom-Json
+                    if($observed.status -cne 'RUNNING'){$result=$observed;break}
+                }catch{$lastReadError=$_.Exception.Message}
+            }
+            if($session.Ready -and $session.Ready.editor -and !(Get-AssetOwnedProcess $session.Ready.editor)){throw 'The owned material-field Editor ended before its final receipt.'}
+            Start-Sleep -Milliseconds 250
+        }
+        if($null -eq $result){throw "Material-field codec returned no final receipt. Last read: $lastReadError"}
+        if((Get-Item -LiteralPath $resultPath).LastWriteTimeUtc -lt $startedUtc -or $result.inputSha256 -cne $Validated.sha256){throw 'Material-field result has stale or different input authority.'}
+        if(!$result.completed -or !$result.savedReloadAccepted -or !$result.production.allMipGpuReloadExact -or !$result.production.noRecompression -or !$result.production.fieldOnlyTextureSet -or @($result.production.fields).Count -ne @($materialFieldInput.tasks).Count){throw "Material-field codec/save/reload did not close: $($result.error)"}
+        foreach($pin in $Validated.pins){[void](Assert-MaterialFieldPin $pin)}
+        if((Get-FileHash -LiteralPath $Validated.path).Hash.ToLowerInvariant() -cne $Validated.sha256){throw 'Material-field Input.json changed during execution.'}
+        $success=$true
+    }catch{$primary=$_}
+    finally {
+        try{if($session){Stop-AssetBackgroundEditor $session;$sessionClosedNormally=$true}}catch{$cleanup.Add($_.Exception)}
+        try{
+            if($session -and !$sessionClosedNormally){throw 'The material-field session has no normal release receipt; owned project artifacts were retained for review.'}
+            $null=Get-AssetProjectLock $project
+            $expected=[IO.Path]::GetFullPath((Join-Path $project $materialFieldInput.generatedAssets))
+            if($Validated.generated -cne $expected -or !(Test-WithinPath $expected (Join-Path $project 'Assets'))){throw 'Material-field cleanup namespace differs from its validated owner.'}
+            Assert-LocalPath $expected
+            if(Test-Path -LiteralPath $expected){Remove-Item -LiteralPath $expected -Recurse -Force}
+            if(Test-Path -LiteralPath ($expected+'.meta')){Remove-Item -LiteralPath ($expected+'.meta') -Force}
+            if($sourceCopied -and (Test-Path -LiteralPath $Validated.sourceDestination)){
+                if((Get-FileHash -LiteralPath $Validated.sourceDestination).Hash.ToLowerInvariant() -cne $materialFieldInput.privateSource.sha256){throw 'The owned material-field source changed before cleanup; it was retained.'}
+                Remove-Item -LiteralPath $Validated.sourceDestination -Force
+                if(Test-Path -LiteralPath ($Validated.sourceDestination+'.meta')){Remove-Item -LiteralPath ($Validated.sourceDestination+'.meta') -Force}
+            }
+            if(Test-Path -LiteralPath $marker){Remove-Item -LiteralPath $marker -Force}
+        }catch{$cleanup.Add($_.Exception)}
+        try{
+            $summary=[ordered]@{status=$(if($success -and !$cleanup.Count){'PASS_MATERIAL_FIELD_CODEC'}else{'ERROR'});input=@{path=$Validated.path;sha256=$Validated.sha256};ownerSource=$materialFieldInput.ownerSource;codecResource=$materialFieldInput.codecResource;actualResult=$(if(Test-Path -LiteralPath $resultPath){@{path=$resultPath;sha256=(Get-FileHash -LiteralPath $resultPath).Hash.ToLowerInvariant()}}else{$null});primaryError=$(if($primary){$primary.Exception.ToString()}else{$null});cleanupErrors=@($cleanup|ForEach-Object {$_.ToString()});session=$(if($session){$session.RunDirectory}else{$null});editorClosedNormally=$sessionClosedNormally}
+            Write-AssetWorkerJson $wrapper $summary
+        }catch{$cleanup.Add($_.Exception)}
+        try{if($ownership){Complete-AssetAuthoringJob -Ownership $ownership -Succeeded:($success -and !$cleanup.Count) -Failure:$(if($primary){$primary.Exception.Message}elseif($cleanup.Count){$cleanup[0].Message}else{$null})}}catch{$cleanup.Add($_.Exception)}
+    }
+    if($primary){if($cleanup.Count){$primary.Exception.Data['MaterialFieldCleanupErrors']=@($cleanup|ForEach-Object {$_.ToString()})};throw $primary}
+    if($cleanup.Count){throw [AggregateException]::new('Material-field cleanup failed.',$cleanup.ToArray())}
+    [pscustomobject]@{status='PASS_MATERIAL_FIELD_CODEC';result=$resultPath;wrapper=$wrapper;completed=$true;savedReloadAccepted=$true;fields=@($materialFieldInput.tasks).Count;session=$session.RunDirectory}
+}
+
+$materialFieldJob=$PSCmdlet.ParameterSetName -eq 'MaterialFields'
+$validatedMaterialField=$null
+if($materialFieldJob){
+    # Same repository/allowed workspace owner when this source candidate is tested privately.
+    $probe=Get-Item -LiteralPath $PSScriptRoot
+    while($probe -and !(Test-Path -LiteralPath (Join-Path $probe.FullName 'SolastaUnfinishedBusiness.sln'))){$probe=$probe.Parent}
+    if(!$probe){throw 'Material-field entry has no repository owner.'}
+    $repoRoot=$probe.FullName;$authoringRoot=Join-Path $repoRoot 'tools/asset-authoring/workspace'
+    if([string]::IsNullOrWhiteSpace($WorkspaceRoot)){$WorkspaceRoot=Join-Path $authoringRoot 'UnityWorkspace'}
+    $unityExe=(Resolve-Path -LiteralPath $UnityPath).ProviderPath
+    Assert-LocalPath $unityExe
+    if([IO.Path]::GetFileName($unityExe) -ine 'Unity.exe'){throw '-UnityPath must identify an installed Unity.exe.'}
+    $validatedMaterialField=Read-ValidatedMaterialFieldInput $MaterialFieldInputPath
+    if($ValidateOnly){
+        [pscustomobject]@{status='PASS_MATERIAL_FIELD_INPUT';validationScope='material-field-pins-and-exact-resource';inputPath=$validatedMaterialField.path;sha256=$validatedMaterialField.sha256;kind='material-fields';fields=@($validatedMaterialField.input.tasks).Count;bundleName=$validatedMaterialField.input.bundleName;dependencyCount=@($validatedMaterialField.dependencyPaths).Count;appsStarted=0;outputsCreated=0}
+        return
+    }
+}
+
 if ($Cleanup) {
     if ([string]::IsNullOrWhiteSpace($GuiProjectPath)) { throw 'Cleanup requires -GuiProjectPath.' }
     . (Join-Path $PSScriptRoot 'UnityAssetBuild/BackgroundEditor.ps1')
@@ -291,9 +503,10 @@ if ($Cleanup) {
     return
 }
 if ($Apply -or $ReferencePath.Count -or $PreserveDirectory.Count -or $MaxAgeDays -gt 0 -or $MaxRetainedBytes -gt 0) { throw 'Storage policy arguments require -Cleanup.' }
-. (Join-Path $PSScriptRoot 'UnityAssetBuild/BackgroundEditor.ps1')
+. $(if($materialFieldJob){Join-Path $repoRoot 'tools/asset-authoring/UnityAssetBuild/BackgroundEditor.ps1'}else{Join-Path $PSScriptRoot 'UnityAssetBuild/BackgroundEditor.ps1'})
 $storageOperation=if($GuiProjectPath -and -not $ValidateOnly){Enter-AssetStorageOperation $GuiProjectPath}else{$null}
 try {
+if($materialFieldJob){Invoke-MaterialFieldBuild $validatedMaterialField;return}
 $unityExe = (Resolve-Path -LiteralPath $UnityPath).ProviderPath
 $materialJob = $PSCmdlet.ParameterSetName -eq 'Materials'
 $meshJob = $PSCmdlet.ParameterSetName -eq 'Meshes'
@@ -400,6 +613,19 @@ function Read-ValidatedMeshInput([string] $Path) {
                 throw "The source bundle hash differs: $($sourceBundle.path)"
             }
             $dependencies += [pscustomobject]@{path=$sourceBundle.path;source=$assetSource;sha256=$sourceBundle.sha256}
+            foreach ($asset in $sourceBundle.assets) {
+                if ($asset.PSObject.Properties['encodedTexturePatch'] -and $null -ne $asset.encodedTexturePatch) {
+                    $encodedPayloads = @($asset.encodedTexturePatch.sourceMipPayload,$asset.encodedTexturePatch.patchedMipPayload)
+                    if ($asset.encodedTexturePatch.PSObject.Properties['sourceEncodedStorage'] -and $null -ne $asset.encodedTexturePatch.sourceEncodedStorage) {
+                        $encodedPayloads += $asset.encodedTexturePatch.sourceEncodedStorage.streamPayload
+                    }
+                    foreach ($payload in $encodedPayloads) {
+                        $payloadSource = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetDirectoryName($Path)) $payload.path))
+                        Assert-LocalPath $payloadSource
+                        $dependencies += [pscustomobject]@{path=$payload.path;source=$payloadSource;sha256=$payload.sha256}
+                    }
+                }
+            }
         }
     }
     if ((Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hash) { throw 'The mesh recipe changed while its input was validated.' }
@@ -532,29 +758,7 @@ if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
     $inputDirectory = [IO.Path]::Combine($project, 'Assets\AuthoringJobs\' + $jobId + '\Input')
     Assert-LocalPath ([IO.Path]::Combine($inputDirectory, $inputName)) -UnityImport
     Copy-MaterialInputs $inputDirectory -ValidateOnly
-    $source = Join-Path $template 'Assets\Editor\AssetBundleBuilder.cs'
-    $destination = Join-Path $project 'Assets\Editor\AssetBundleBuilder.cs'
-    $identityDestination = Join-Path $project 'Assets\Editor\AssetBundleBuilder.Identity.cs'
-    Assert-LocalPath $destination
-    Assert-LocalPath $identityDestination -UnityImport
-    if (!(Test-Path -LiteralPath $destination -PathType Leaf) -or
-        (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant() -ne $sourceHash -or
-        !(Test-Path -LiteralPath $identityDestination -PathType Leaf) -or
-        [IO.File]::ReadAllText($identityDestination) -cne $identitySource) {
-        if (!$InstallGuiWorker) { throw 'The GUI worker differs from the template. Use -InstallGuiWorker once, then refresh the project in the Editor.' }
-        $backup = Join-Path $project ('.asset-authoring-jobs\WorkerBackups\' + [guid]::NewGuid().ToString('N'))
-        Assert-LocalPath $backup
-        [IO.Directory]::CreateDirectory($backup) | Out-Null
-        if (Test-Path -LiteralPath $destination -PathType Leaf) {
-            [IO.File]::Copy($destination, (Join-Path $backup 'AssetBundleBuilder.cs'), $false)
-        }
-        if (Test-Path -LiteralPath $identityDestination -PathType Leaf) {
-            [IO.File]::Copy($identityDestination, (Join-Path $backup 'AssetBundleBuilder.Identity.cs'), $false)
-        }
-        [IO.File]::Copy($source, $destination, $true)
-        [IO.File]::WriteAllText($identityDestination, $identitySource, [Text.UTF8Encoding]::new($false))
-        Write-Output 'GUI worker updated. If it is not loaded yet, select Assets > Refresh in the open Editor once.'
-    }
+    Install-AssetGuiWorker -Project $project -Source (Join-Path $template 'Assets\Editor\AssetBundleBuilder.cs') -SourceHash $sourceHash -AllowInstall:$InstallGuiWorker
     if ($StartBackgroundEditor) {
         if (!$UnityCliPath) { $UnityCliPath = Join-Path $env:LOCALAPPDATA 'Unity\bin\unity.exe' }
         $cli = (Resolve-Path -LiteralPath $UnityCliPath).ProviderPath
@@ -751,11 +955,34 @@ if ($recipe.PSObject.Properties['sourceBundles']) {
         if (!$report.PSObject.Properties[$stage] -or @($report.$stage).Count -ne $selected.Count) { throw 'The source clone report count differs.' }
         for ($index = 0; $index -lt $selected.Count; $index++) {
             $row = $report.$stage[$index]; $spec = $selected[$index]; $created = $report.createdSourceAssets[$index]
+            $dataExact = $row.rawBitsVerified -and $row.dataSha256 -ceq $created.dataSha256
+            if ($stage -ceq 'sourceAssets' -and $spec.asset.PSObject.Properties['encodedTexturePatch'] -and
+                $null -ne $spec.asset.encodedTexturePatch -and !$row.encodedTexturePatch.readable) {
+                $dataExact = !$row.rawBitsVerified -and !$row.dataSha256 -and $row.savedDataSha256 -ceq $created.dataSha256 -and
+                    $row.savedAssetSha256 -match '^[a-f0-9]{64}$' -and $row.dataValidationScope -ceq 'saved-encoded-bits-and-reloaded-gpu' -and $row.encodedTextureGpuExact
+                $dataExact = $dataExact -and $row.metadataValidationScope -ceq 'stored-all-fields-plus-actual-gpu-dimensions'
+            }
             if (!$row.exact -or !$row.physicalLayoutExact -or @($row.physicalFields).Count -eq 0 -or
                 $row.sourcePath -cne $spec.bundle.path -or $row.sourceSha256 -cne $spec.bundle.sha256 -or
                 $row.asset -cne $spec.asset.asset -or $row.name -cne $spec.asset.name -or $row.type -cne $spec.asset.type -or
-                $row.sourceName -cne $created.sourceName -or $row.dataSha256 -cne $created.dataSha256 -or $row.physicalSha256 -cne $created.physicalSha256) {
+                $row.sourceName -cne $created.sourceName -or !$dataExact -or $row.physicalSha256 -cne $created.physicalSha256) {
                 throw 'The source clone physical data, identity or numeric fingerprint changed.'
+            }
+            if ($spec.asset.PSObject.Properties['encodedTexturePatch'] -and $null -ne $spec.asset.encodedTexturePatch) {
+                $expected = $spec.asset.encodedTexturePatch; $patch = $row.encodedTexturePatch
+                $expectedBlockBytes = if ($expected.outputFormat -ceq 'DXT1') { 8 } else { 16 }
+                $expectedReadable = if ($expected.PSObject.Properties['readable'] -and $null -ne $expected.readable) { $expected.readable } else { $patch.sourceReadable }
+                if (!$row.encodedTextureGpuExact -or !$patch.sourceOriginalUnchanged -or !$patch.nativeOriginalGpuUnchanged -or !$patch.outsideAllowedBlocksExact -or !$patch.allNativeMipsGpuExact -or !$patch.metadataExact -or
+                    $patch.sourceFormat -cne $expected.sourceFormat -or $patch.outputFormat -cne $expected.outputFormat -or
+                    $patch.encodedBlockBytes -ne $expectedBlockBytes -or
+                    $patch.sourceRawSha256 -cne $expected.sourceRawSha256 -or $patch.sourceMipSha256 -cne $expected.sourceMipPayload.sha256 -or
+                    $patch.patchedMipSha256 -cne $expected.patchedMipPayload.sha256 -or $patch.outputRawBytes -ne $expected.patchedMipPayload.byteLength -or
+                    $patch.width -ne $expected.width -or $patch.height -ne $expected.height -or $patch.mipCount -ne $expected.mipCount -or
+                    $patch.readable -ne $expectedReadable -or $patch.outputCompleteImageSize -ne $expected.patchedMipPayload.byteLength -or
+                    @($patch.mips).Count -ne $expected.mipCount -or @($patch.mips | Where-Object { !$_.nativeGpuExact -or $_.nativeGpuSha256 -cne $_.decodedGpuSha256 }).Count -ne 0 -or
+                    ($patch | ConvertTo-Json -Depth 12 -Compress) -cne ($created.encodedTexturePatch | ConvertTo-Json -Depth 12 -Compress)) {
+                    throw 'The encoded texture patch source, preserved blocks, GPU mip authority or persisted proof changed.'
+                }
             }
         }
     }

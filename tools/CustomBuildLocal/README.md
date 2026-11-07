@@ -17,6 +17,8 @@
 | MOD本体 | `tools/CustomBuildLocal/Output/SolastaUnfinishedBusiness/` |
 | UMM用ZIP | `tools/CustomBuildLocal/SolastaUnfinishedBusiness.zip` |
 
+キャラクターのモデルbundleはUMM用ZIPに含めません。モデルのmanifestと配布パック一覧を同梱し、ゲーム側で必要なデータを取得します。モデルパックの作成は[キャラクターモデルの作業手順](../blender-models/CharacterFaces/README.md)を参照してください。
+
 前提条件と出力先だけを確認するには、`-Preflight`を指定します。
 
 ```powershell

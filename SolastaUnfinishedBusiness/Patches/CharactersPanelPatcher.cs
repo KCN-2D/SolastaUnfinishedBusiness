@@ -1,9 +1,12 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Collections.Generic;
+using System.Reflection;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -16,51 +19,106 @@ public static class CharactersPanelPatcher
             ? panel.characterPlates[panel.selectedPlate]
             : null;
 
-    private static Button RefreshRespecButton(CharactersPanel panel)
+    private static Button RefreshCharacterEditButton(CharactersPanel panel, bool appearanceOnly)
     {
         var buttons = panel.transform.Find("ButtonsBar2");
-        var respec = panel.GetComponent<CharacterFooterLayout>()?.RespecButton;
+        var footer = panel.GetComponent<CharacterFooterLayout>();
+        var button = appearanceOnly ? footer?.AppearanceButton : footer?.RespecButton;
 
-        if (!respec)
+        if (!button)
         {
             // The footer owns placement after creating the action in its native second row.
-            respec = Object.Instantiate(panel.levelUpButton, buttons);
-            respec.name = "RespecButton";
-            respec.transform.SetAsFirstSibling();
-            var setup = respec.GetComponent<GuiButtonSetup>();
+            button = Object.Instantiate(panel.levelUpButton, buttons);
+            button.name = appearanceOnly ? "AppearanceButton" : "RespecButton";
+            button.transform.SetAsFirstSibling();
+            var setup = button.GetComponent<GuiButtonSetup>();
             setup.DeactivateGamepadBindingButton();
             setup.enabled = false;
-            respec.onClick = new Button.ButtonClickedEvent();
-            respec.onClick.AddListener(() =>
+            var confirm = panel.inspectButton.GetComponent<GuiButtonSetup>().GamepadBindingButton;
+            setup.GamepadBindingButton.ActionMapName = confirm.ActionMapName;
+            setup.GamepadBindingButton.actionName = confirm.ActionName;
+            // The native list map has named actions rather than a UI Submit action.
+            // Keep native binding, glyph and enable/disable ownership for these actions too.
+            setup.enabled = true;
+            var navigation = button.GetComponent<GuiNavigationSetup>() ??
+                             button.gameObject.AddComponent<GuiNavigationSetup>();
+            navigation.gamepadNavigationMode = Navigation.Mode.Explicit;
+            navigation.ForceNavigationMode(Navigation.Mode.Explicit);
+            button.onClick = new Button.ButtonClickedEvent();
+            button.onClick.AddListener(() =>
             {
                 var selected = GetSelectedPlate(panel);
                 var runner = ServiceRepository.GetService<IGameService>() as GameManager;
 
                 if (!selected || !selected.Valid || !runner ||
-                    !ToolsContext.FunctorRespec.CanStartFromCharacterPool(selected.Filename))
+                    !(appearanceOnly
+                        ? ToolsContext.AppearanceEdition.CanStart(selected.Filename)
+                        : ToolsContext.FunctorRespec.CanStartFromCharacterPool(selected.Filename)))
                 {
                     return;
                 }
 
                 panel.ActionTaken?.Invoke(selected.Filename);
                 // The menu is hidden during creation, so it cannot own the coroutine.
-                runner.StartCoroutine(ToolsContext.FunctorRespec.StartFromCharacterPool(
-                    selected.Filename, panel.OriginScreen));
+                runner.StartCoroutine(appearanceOnly
+                    ? ToolsContext.AppearanceEdition.Start(selected.Filename, panel.OriginScreen)
+                    : ToolsContext.FunctorRespec.StartFromCharacterPool(selected.Filename, panel.OriginScreen));
             });
         }
 
-        respec.gameObject.SetActive(true);
-        respec.transform.Find("Label").GetComponent<GuiLabel>().Text = "RestActivity/&RestActivityRespecTitle";
-        foreach (var tooltip in respec.GetComponentsInChildren<GuiTooltip>(true))
+        button.gameObject.SetActive(true);
+        button.transform.Find("Label").GetComponent<GuiLabel>().Text = appearanceOnly
+            ? "Screen/&CharacterAppearanceTitle"
+            : "RestActivity/&RestActivityRespecTitle";
+        foreach (var tooltip in button.GetComponentsInChildren<GuiTooltip>(true))
         {
-            tooltip.Content = "RestActivity/&RestActivityRespecDescription";
+            tooltip.Content = appearanceOnly
+                ? "Screen/&CharacterAppearanceDescription"
+                : "RestActivity/&RestActivityRespecDescription";
         }
 
         var plate = GetSelectedPlate(panel);
-        respec.interactable = plate && plate.Valid &&
-                              ToolsContext.FunctorRespec.CanStartFromCharacterPool(plate.Filename);
+        button.interactable = plate && plate.Valid && (appearanceOnly
+            ? ToolsContext.AppearanceEdition.CanStart(plate.Filename)
+            : ToolsContext.FunctorRespec.CanStartFromCharacterPool(plate.Filename));
 
-        return respec;
+        return button;
+    }
+
+    private static bool AllowFooterActionBinding(GamepadBindingButton binding,
+        InputAction.CallbackContext context, bool performed)
+    {
+        // Unbind can clear the binding's button during another listener's dispatch.
+        // The component hierarchy retains the footer owner for the entire input event.
+        CharactersPanel panel = null;
+        for (var parent = binding.transform; parent && !panel; parent = parent.parent)
+        {
+            panel = parent.GetComponent<CharactersPanel>();
+        }
+        var footer = panel ? panel.GetComponent<CharacterFooterLayout>() : null;
+        if (!footer)
+        {
+            return true;
+        }
+
+        return footer.AllowBinding(binding, context, performed);
+    }
+
+    [HarmonyPatch]
+    [UsedImplicitly]
+    public static class FooterActionBinding_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<MethodBase> TargetMethods()
+        {
+            yield return AccessTools.Method(typeof(GamepadBindingButton), "OnButtonStarted");
+            yield return AccessTools.Method(typeof(GamepadBindingButton), "OnButtonPerformed");
+        }
+
+        [UsedImplicitly]
+        public static bool Prefix(GamepadBindingButton __instance, InputAction.CallbackContext __0,
+            MethodBase __originalMethod) => AllowFooterActionBinding(__instance, __0,
+            __originalMethod.Name == "OnButtonPerformed");
     }
 
     private sealed class CharacterFooterLayout : MonoBehaviour
@@ -75,15 +133,65 @@ public static class CharactersPanelPatcher
         private float lastWidth;
         private int lastVisibility;
         private bool pending = true;
+        private InputAction confirmAction;
+        private double startedTime = double.NaN, performedTime = double.NaN;
+        private int startedFrame = -1, performedFrame = -1;
+        private Button startedTarget, performedTarget;
 
         internal Button RespecButton { get; private set; }
+        internal Button AppearanceButton { get; private set; }
 
-        internal void Refresh(CharactersPanel panel, Button respec)
+        internal bool AllowBinding(GamepadBindingButton binding, InputAction.CallbackContext context, bool performed)
+        {
+            var appearanceBinding = AppearanceButton.GetComponent<GuiButtonSetup>().GamepadBindingButton;
+            var respecBinding = RespecButton.GetComponent<GuiButtonSetup>().GamepadBindingButton;
+            var added = binding == appearanceBinding || binding == respecBinding;
+            var input = Gui.InputService;
+            if (input == null)
+            {
+                return !added;
+            }
+
+            var action = owner.inspectButton.GetComponent<GuiButtonSetup>().GamepadBindingButton.FindInputAction(input);
+            if (context.action != action)
+            {
+                return !added;
+            }
+
+            if (confirmAction != action)
+            {
+                confirmAction = action;
+                startedTime = performedTime = double.NaN;
+                startedFrame = performedFrame = -1;
+            }
+
+            ref var time = ref (performed ? ref performedTime : ref startedTime);
+            ref var frame = ref (performed ? ref performedFrame : ref startedFrame);
+            ref var target = ref (performed ? ref performedTarget : ref startedTarget);
+            // All subscribers share one routing receipt. The first click can hide this
+            // panel and change selection (or cancel its map) before later subscribers run.
+            if (time != context.time && !(frame == Time.frameCount && (!owner.Visible || owner.Hiding)))
+            {
+                time = context.time;
+                frame = Time.frameCount;
+                var selected = EventSystem.current ? EventSystem.current.currentSelectedGameObject : null;
+                var focused = selected ? selected.GetComponentInParent<Button>() : null;
+                target = Gui.GamepadActive && owner.Visible && !owner.Hiding && input.IsActivePanel(owner) &&
+                         (focused == AppearanceButton || focused == RespecButton) ? focused : null;
+            }
+
+            // Other native shortcuts retain their existing dispatch. An added action
+            // owns confirmation only for the event that began with its control focused.
+            return added ? target && binding == target.GetComponent<GuiButtonSetup>().GamepadBindingButton : !target;
+        }
+
+        internal void Refresh(CharactersPanel panel, Button respec, Button appearance)
         {
             if (!owner)
             {
                 owner = panel;
                 RespecButton = respec;
+                AppearanceButton = appearance;
                 rows.Add((RectTransform)panel.transform.Find("ButtonsBar"));
                 rows.Add((RectTransform)panel.transform.Find("ButtonsBar2"));
                 firstPosition = rows[0].anchoredPosition;
@@ -92,7 +200,7 @@ public static class CharactersPanelPatcher
                 buttons =
                 [
                     panel.CancelButton, panel.inspectButton, panel.accessStoreButton, panel.newCharacterButton,
-                    panel.levelUpButton, panel.characterCheckerButton, respec, panel.deleteButton
+                    panel.levelUpButton, appearance, panel.characterCheckerButton, respec, panel.deleteButton
                 ];
                 widths = new float[buttons.Length];
             }
@@ -215,6 +323,12 @@ public static class CharactersPanelPatcher
                 {
                     y -= (heights[i] + heights[i + 1]) * 0.5f + rowGap;
                 }
+            }
+
+            if (Gui.GamepadActive)
+            {
+                Gui.InputService?.RecomputeSelectableNavigation(owner.MainAxisOnlyNavigation,
+                    owner.VerticalNavigationOnly, false);
             }
         }
 
@@ -366,11 +480,12 @@ public static class CharactersPanelPatcher
                 tooltip.Content = "Screen/&CharacterCheckerDescription";
             }
 
-            var respec = RefreshRespecButton(__instance);
+            var respec = RefreshCharacterEditButton(__instance, false);
+            var appearance = RefreshCharacterEditButton(__instance, true);
             var footer = __instance.GetComponent<CharacterFooterLayout>() ??
                          __instance.gameObject.AddComponent<CharacterFooterLayout>();
 
-            footer.Refresh(__instance, respec);
+            footer.Refresh(__instance, respec, appearance);
         }
     }
 }

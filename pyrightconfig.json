@@ -1,4 +1,13 @@
 {
+  "include": [
+    "tools/asset-authoring/*.py",
+    "tools/asset-authoring/UnityAssetBuild/*.py",
+    "tools/asset-authoring/tests/*.py",
+    "tools/blender-models/CharacterFaces/*.py",
+    "tools/blender-models/CharacterHair/*.py",
+    "tools/localization/*.py",
+    "tools/runtime-verification/Probes/*.py"
+  ],
   "exclude": [
     "**/__pycache__",
     "**/node_modules",
@@ -11,5 +20,16 @@
     "tools/asset-authoring/UnityAssetBuild/Logs",
     "tools/game-test/artifacts",
     "tools/CustomBuildLocal/Output"
+  ],
+  "pythonVersion": "3.14",
+  "pythonPlatform": "Windows",
+  "typeCheckingMode": "standard",
+  "extraPaths": [
+    "tools/asset-authoring",
+    "tools/asset-authoring/UnityAssetBuild",
+    "tools/blender-models/CharacterFaces",
+    "tools/asset-authoring/workspace/Python/Lib/site-packages",
+    "tools/asset-authoring/workspace/Tools/blender-4.5.9-windows-x64/4.5/scripts/modules",
+    "tools/asset-authoring/workspace/Tools/blender-4.5.9-windows-x64/4.5/python/lib/site-packages"
   ]
 }

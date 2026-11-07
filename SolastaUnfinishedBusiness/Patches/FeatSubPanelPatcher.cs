@@ -44,7 +44,7 @@ public static class FeatSubPanelPatcher
         [UsedImplicitly]
         public static void Prefix([NotNull] FeatSubPanel __instance, RulesetCharacterHero __0)
         {
-            if (!FeatsContext.PreparePassiveFeatDisplayPanel(__instance, __0))
+            if (!FeatsContext.PrepareFeatDisplayPanel(__instance, __0))
             {
                 // A reused inspection panel may be bound in a selection/level-up context.
                 // Keep its native catalog and ensure its rows without rebuilding choices.

@@ -3,6 +3,7 @@ import argparse
 import copy
 import json
 from pathlib import Path
+from typing import Any
 import sys
 import tempfile
 import traceback
@@ -29,6 +30,7 @@ def device_contracts(output, checks):
 
         class Preferences:
             compute_device_type = "NONE"
+            devices: list[SimpleNamespace]
 
             def get_device_list(self, backend):
                 pipeline.require(not bpy.context.preferences.use_preferences_save,
@@ -43,12 +45,12 @@ def device_contracts(output, checks):
 
         preferences = Preferences()
         preferences.devices = devices
-        bpy = ModuleType("bpy")
+        bpy: Any = ModuleType("bpy")
         bpy.app = SimpleNamespace(background=background, version=version, version_string="4.5.9 LTS",
                                   use_userpref_skip_save_on_exit=True)
         bpy.context = SimpleNamespace(preferences=SimpleNamespace(
             use_preferences_save=True, addons={"cycles": SimpleNamespace(preferences=preferences)}))
-        cycles = ModuleType("_cycles")
+        cycles: Any = ModuleType("_cycles")
         cycles.get_device_types = lambda: flags
 
         def override(backend):
@@ -71,7 +73,7 @@ def device_contracts(output, checks):
         check(name, not path.exists())
 
     missing = object()
-    originals = {name: sys.modules.get(name, missing) for name in ("bpy", "_cycles")}
+    originals: dict[str, Any] = {name: sys.modules.get(name, missing) for name in ("bpy", "_cycles")}
     try:
         with tempfile.TemporaryDirectory(prefix="cycles-device-contract-", dir=output) as temporary:
             tmp = Path(temporary)
@@ -96,7 +98,7 @@ def device_contracts(output, checks):
             else:
                 raise RuntimeError("Existing receipt was overwritten")
             check("existing evidence is never overwritten", path.read_bytes() == original)
-            request = {"backend": "OPTIX", "deviceId": "gpu-0"}
+            request: dict[str, Any] = {"backend": "OPTIX", "deviceId": "gpu-0"}
             cases = [
                 ("missing backend", {"deviceId": "gpu-0"}, {}),
                 ("missing device ID", {"backend": "OPTIX"}, {}),
@@ -258,6 +260,333 @@ def normal_map_contracts(checks):
             checks.append({"name": "normal conversion rejects " + name, "passed": True})
         else:
             raise RuntimeError("Invalid normal input accepted: " + name)
+    native_surface_contracts(checks)
+    hair_core_contracts(checks)
+
+
+def native_surface_contracts(checks):
+    """Keep physical cuts, source frames and packed slopes under one numeric contract."""
+    import numpy as np
+
+    points=[(x / 2, y / 2, 0.) for y in range(3) for x in range(3)]
+    triangles=[]
+    for y in range(2):
+        for x in range(2):
+            a=y * 3 + x
+            triangles.extend((a, a+1, a+4, a, a+4, a+3))
+    packet: dict[str, Any]=dict(vertices=[v for point in points for v in point],
+                weights=[v for _ in points for v in (1., 0., 0., 0.)],
+                boneIndices=[0] * (len(points) * 4),
+                uv=[dict(channel=0, values=[v for x,y,_ in points for v in (x,y,0.,0.)])],
+                subMeshes=[triangles], shapes=[dict(name="Native", frames=[dict(vertices=[0.] * (len(points) * 3))])])
+    skin: dict[str, Any]=dict(rendererToPrefab=np.eye(4).reshape(-1).tolist(),
+              materials=[dict(properties=[dict(name="_BumpMap", scale=[1.,1.], offset=[0.,0.])])])
+    sampler: dict[str, Any]=dict(wrapU="Repeat", wrapV="Repeat")
+    before=copy.deepcopy(packet)
+    ownership,_,report,covered,edges=pipeline.native_surface_uv_ownership(packet,skin,0,(64,64),.2,sampler)
+    pipeline.require(packet == before and report["trueOpenBoundaryGroups"] == 8 and
+                     ownership[31:33,31:33].min() > .9 and covered.any(),
+                     "Native surface ownership changed its source or lost the interior")
+    checks.append(dict(name="native UV ownership keeps source data and physical open cuts",passed=True))
+
+    split=copy.deepcopy(packet)
+    for index in (1,4,7):
+        split["vertices"].extend(packet["vertices"][index*3:index*3+3])
+        split["weights"].extend(packet["weights"][index*4:index*4+4])
+        split["boneIndices"].extend(packet["boneIndices"][index*4:index*4+4])
+        split["uv"][0]["values"].extend(packet["uv"][0]["values"][index*4:index*4+4])
+        split["shapes"][0]["frames"][0]["vertices"].extend((0.,0.,0.))
+    aliases={1:9,4:10,7:11}
+    for face in range(0,len(triangles),3):
+        selected=triangles[face:face+3]
+        if max(points[v][0] for v in selected) <= .5:
+            continue
+        split["subMeshes"][0][face:face+3]=[aliases.get(v,v) for v in selected]
+    seamed=pipeline.native_surface_uv_ownership(split,skin,0,(64,64),.2,sampler)[0]
+    pipeline.require(np.array_equal(ownership,seamed), "A native duplicate UV seam became a false open cut")
+    changed_frame=copy.deepcopy(split)
+    changed_frame["shapes"][0]["frames"][0]["vertices"][10*3+2]=.01
+    disconnected=pipeline.native_surface_uv_ownership(changed_frame,skin,0,(64,64),.2,sampler)[0]
+    pipeline.require(disconnected[31:33,31:33].max() < .1,
+                     "Different native physical frames were incorrectly welded")
+    checks.append(dict(name="native UV seam weld requires all physical position frames",passed=True))
+
+    repeated=copy.deepcopy(packet)
+    for index in range(0,len(repeated["uv"][0]["values"]),4):
+        repeated["uv"][0]["values"][index]+=1
+    periodic=pipeline.native_surface_uv_ownership(repeated,skin,0,(64,64),.2,sampler)[0]
+    pipeline.require(np.array_equal(ownership,periodic), "Declared Repeat UV ownership changed after one full tile")
+    try:
+        pipeline.native_surface_uv_ownership(repeated,skin,0,(64,64),.2,dict(wrapU="Clamp",wrapV="Clamp"))
+    except RuntimeError:
+        pass
+    else:
+        raise RuntimeError("Out-of-chart native UV was accepted without its Repeat sampler")
+    checks.append(dict(name="native UV ownership honours the actual periodic sampler",passed=True))
+
+    protected=np.zeros((64,64),dtype=bool)
+    pipeline.protect_bilinear_uv_edges(protected,edges)
+    refined=ownership.copy();refined[protected]=0
+    pipeline.require(refined[0].max() == refined[-1].max() == 0 and
+                     refined[:,0].max() == refined[:,-1].max() == 0 and refined.max() > .9,
+                     "Continuous native cut bilinear taps were not protected")
+    checks.append(dict(name="continuous native cut edges protect all bilinear endpoint taps",passed=True))
+
+    packed=bytes((255,128,255,64,255,150,255,200,255,128,255,255))
+    weights=np.array([[0.,.5,1.]])
+    result=np.frombuffer(pipeline.refine_native_normal_slopes(packed,weights,1.),dtype=np.uint8).reshape(-1,4)
+    red=bytearray(packed)
+    for index in range(0,len(red),4):
+        red[index],red[index+3]=red[index+3],255
+    pipeline.require(result[0,0] == 64 and result[0,1] == 128 and
+                     tuple(result[2]) == (128,128,255,255) and
+                     pipeline.refine_native_normal_slopes(bytes(red),weights,1.) == result.tobytes(),
+                     "Source-owned normal refinement lost a protected pixel, packed equivalence or analytic flat target")
+    checks.append(dict(name="native normal refinement preserves protected RGorAG and flattens only owned slopes",passed=True))
+    for name,mask,reduction in (("wrong dimensions",np.zeros((2,2)),.35),
+                                ("nonfinite ownership",np.array([[0.,float("nan"),1.]]),.35),
+                                ("out-of-range ownership",np.array([[0.,2.,1.]]),.35),
+                                ("Boolean reduction",weights,True),
+                                ("out-of-range reduction",weights,1.1)):
+        try:
+            pipeline.refine_native_normal_slopes(packed,mask,reduction)
+        except RuntimeError:
+            checks.append(dict(name="native normal refinement rejects " + name,passed=True))
+        else:
+            raise RuntimeError("Invalid native normal refinement accepted: " + name)
+
+
+def hair_core_contracts(checks):
+    """Exercise the real hair partition owner without an Editor or asset export."""
+    import ast
+    import collections
+    import math
+    import numpy as np
+
+    owner = Path(__file__).resolve().parents[2] / "blender-models/CharacterHair/GenerateFlowCoverageSweptProfile.py"
+    tree = ast.parse(owner.read_text(encoding="utf-8-sig"))
+    names = {"physical_core_coordinates", "plan_curved_core", "evaluate_curved_core", "transport_curved_core", "bound_curved_core", "couple_fine_to_core", "prepare_geometry_frames", "share_core_normals", "curved_core_groups", "native_position_frames"}
+    definitions: list[ast.stmt] = [node for node in tree.body if
+                   isinstance(node, ast.FunctionDef) and node.name in names or
+                   isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "unit" for t in node.targets)]
+    scope: dict[str, Any] = dict(np=np, math=math, collections=collections)
+    exec(compile(ast.Module(body=definitions, type_ignores=[]), str(owner), "exec"), scope)
+    partition, evaluate = scope["plan_curved_core"], scope["evaluate_curved_core"]
+
+    def check(name, condition):
+        pipeline.require(condition, "Curved hair core: " + name)
+        checks.append(dict(name="curved hair core " + name, passed=True))
+
+    rounded=scope['native_position_frames'](dict(vertices=[1.+2**-25,0.,0.],
+        shapes=[dict(frames=[dict(vertices=[.5,0.,0.])])]),
+        [1.,0.,0.,0.,0.,1.,0.,0.,0.,0.,1.,0.,1.,0.,0.,1.])
+    check("uses Unity binary32 source coordinates before selecting geometric drivers",
+          np.array_equal(rounded[:,0,0],np.array((2.,2.5))))
+
+    q = np.array(((0., 0.), (.012, 0.), (.012, .016), (0., .016)))
+    p = np.c_[q, np.zeros(4)]
+    n = np.tile((0., 0., 1.), (4, 1))
+    t = np.tile((0., 1., 0.), (4, 1))
+    faces = np.array(((0, 1, 2), (0, 2, 3)))
+    selected = [np.ones(2, dtype=bool)]
+    original = q.copy(), faces.copy()
+    plan = partition(q, [faces], selected, .004, 2000)
+    points, normals, tangents = evaluate(plan, p, n, t, q)
+    area = collections.defaultdict(float)
+    for triangle, parent in zip(plan["triangles"][0], plan["parents"][0]):
+        corners = faces[parent]
+        bary = []
+        for index in triangle:
+            record = plan["vertices"][index]
+            weights = dict(zip(record["triangle"], record["barycentric"]))
+            bary.append([weights.get(int(v), 0.) for v in corners])
+        bary = np.asarray(bary)
+        area[parent] += np.linalg.det(np.stack((bary[1, 1:] - bary[0, 1:], bary[2, 1:] - bary[0, 1:]))) * .5
+    check("covers every source face without keeping the broad render face",
+          set(area) == {0, 1} and max(abs(v - .5) for v in area.values()) < 1e-10 and
+          len(plan["triangles"][0]) > len(faces) and plan["maximumSourceAreaError"] < 1e-10)
+    coords = np.asarray([np.asarray(v["barycentric"]) @ q[v["triangle"]] for v in plan["vertices"]])
+    boundary = np.minimum.reduce((coords[:, 0], .012 - coords[:, 0], coords[:, 1], .016 - coords[:, 1])) < 1e-10
+    check("keeps cut positions and makes genuine bounded transverse curvature",
+          np.max(np.abs(points[boundary] - np.c_[coords[boundary], np.zeros(boundary.sum())])) < 1e-12 and
+          .0002 < points[:, 2].max() <= .00035 and points[:, 2].min() >= -1e-12)
+    rendered = np.asarray(plan["triangles"][0])
+    cross = np.cross(points[rendered[:, 1]] - points[rendered[:, 0]], points[rendered[:, 2]] - points[rendered[:, 0]])
+    check("keeps winding and orthogonal smooth frames",
+          np.all(cross[:, 2] > 0.) and np.max(abs(np.linalg.norm(normals, axis=1) - 1.)) < 1e-12 and
+          np.max(abs(np.sum(normals * tangents, axis=1))) < 1e-12)
+    check("does not mutate authoritative source arrays", np.array_equal(q, original[0]) and np.array_equal(faces, original[1]))
+
+    # A lifted support must carry existing fine fibers, including their source
+    # chart orientation. A nearby unselected material face remains independent.
+    fiber_bary = np.array(((.4, .35, .25), (.35, .4, .25), (.35, .35, .3)))
+    fibers = fiber_bary @ p[faces[0]] + (0., 0., .0001)
+    fine_records = [dict(native=False, slot=0, surface=dict(triangle=faces[0].tolist(), barycentric=b.tolist())) for b in fiber_bary]
+    fine_records.append(dict(native=False, slot=1, surface=dict(triangle=faces[0].tolist(), barycentric=fiber_bary[0].tolist())))
+    all_fibers = np.vstack((fibers, fibers[:1]))
+    support = np.c_[coords, np.full(len(coords), .001)]
+    ids, attached, attached_n, attached_t = scope["couple_fine_to_core"](
+        plan, support, np.tile((0., 0., 1.), (len(coords), 1)), np.tile((0., 1., 0.), (len(coords), 1)),
+        all_fibers, np.tile((0., 0., 1.), (4, 1)), np.tile((0., 1., 0.), (4, 1)), fine_records,
+        p, n, t, np.cross(n, t))
+    check("carries attached fine fibers above lifted support and preserves foreign material ownership",
+          np.array_equal(ids, np.arange(3)) and np.max(abs(attached - (fibers + (0., 0., .001)))) < 1e-9 and
+          np.max(abs(attached_n-(0., 0., 1.))) < 1e-12 and np.max(abs(attached_t-(0., 1., 0.))) < 1e-12 and
+          np.array_equal(all_fibers[:3], fibers))
+
+    reuse = partition(q, [faces], selected, .004, plan["allocatedVertices"] - 4, range(4))
+    check("reuses unchanged native cut corners within the fixed vertex budget",
+          reuse["allocatedVertices"] == plan["allocatedVertices"] - 4 and reuse["reusedNativeVertices"] == 4 and
+          sorted(v["nativeVertex"] for v in reuse["vertices"] if "nativeVertex" in v) == list(range(4)))
+    try:
+        partition(q, [faces], selected, .004, reuse["allocatedVertices"] - 1, range(4))
+    except OverflowError:
+        check("rejects an insufficient budget before producing an asset", True)
+    else:
+        raise RuntimeError("Curved hair core exceeded its vertex budget")
+
+    # Coincident UV-cut vertices and material slots do not share render ownership.
+    split_q = np.vstack((q, q))
+    separate = partition(split_q, [np.vstack((faces[:1], faces[1:] + 4))], selected, .004, 2000)
+    material = partition(q, [faces[:1], faces[1:]], [np.ones(1, bool), np.ones(1, bool)], .004, 2000)
+    check("keeps UV and material cuts separate",
+          len(separate["components"]) == len(material["components"]) == 2 and
+          all(set(v["triangle"]) <= set(range(4)) or set(v["triangle"]) <= set(range(4, 8)) for v in separate["vertices"]))
+    # Equivalent geometry on two UV charts must bend at their common edge.
+    # The texture corners remain distinct and use exactly matching edge splits.
+    alias_ids=np.array((0,1,2,0,2,3))
+    alias_p=p[alias_ids];alias_q=q[alias_ids]
+    alias_n=scope["unit"](np.array(((-.5,0.,1.),(0.,0.,1.),(.5,0.,1.),(-.5,0.,1.),(.5,0.,1.),(0.,0.,1.))))
+    alias_faces=np.array(((0,1,2),(3,4,5)))
+    shared=partition(alias_q,[alias_faces],[np.ones(2,bool)],.004,2000,range(6),positions=alias_p,physical_groups=alias_ids)
+    shared_p,shared_n,shared_t=evaluate(shared,alias_p,alias_n,np.tile((0.,1.,0.),(6,1)),alias_q)
+    mids=[i for i,v in enumerate(shared['vertices'])if sorted(int(alias_ids[j])for j,w in zip(v['triangle'],v['barycentric'])if w>1e-10)==[0,2]]
+    check("curves a physical edge across independent texture charts without opening its alias",
+          len(mids)==2 and np.linalg.norm(shared_p[mids[0]]-shared_p[mids[1]])<1e-12 and
+          shared_p[mids[0],2]>.0001 and len({tuple(shared['vertices'][i]['triangle'])for i in mids})==2)
+    scope['prepare_geometry_frames'](shared,alias_p)
+    normal_poses=np.stack((alias_n,alias_n.copy()))
+    normal_poses[1,3:]*=-1
+    tangent_poses=np.tile((0.,1.,0.),(2,6,1))
+    transported=scope['transport_curved_core'](shared_p,shared_n,shared_t,shared['vertices'],
+        np.stack((alias_p,alias_p)),normal_poses,tangent_poses,np.cross(normal_poses,tangent_poses))
+    check("keeps UV aliases closed when a physical morph changes only shading normals",
+          np.max(abs(transported[0][1]-transported[0][0]))<1e-12 and
+          np.linalg.norm(transported[0][1,mids[0]]-transported[0][1,mids[1]])<1e-12)
+    moving=alias_p.copy();moving[[2,4],2]+=.002
+    transported=scope['transport_curved_core'](shared_p,shared_n,shared_t,shared['vertices'],
+        np.stack((alias_p,moving)),normal_poses,tangent_poses,np.cross(normal_poses,tangent_poses))
+    check("shares one geometric driver across a moving physical edge and independent UVs",
+          np.linalg.norm(transported[0][1,mids[0]]-transported[0][1,mids[1]])<1e-12 and
+          np.linalg.norm(transported[0][1,mids[0]]-transported[0][0,mids[0]])>.0005)
+    empty = partition(q, [faces], [np.zeros(2, bool)], .004, 0)
+    check("leaves an unselected metal or foreign domain untouched",
+          not empty["vertices"] and empty["triangles"] == [[]] and
+          all(a.shape == (0, 3) for a in evaluate(empty, p, n, t, q)))
+
+    distorted = q @ np.array(((1000., 120.), (0., 8.))) + (734., -97.)
+    fixed, reports = scope["physical_core_coordinates"](p, distorted, [faces], selected)
+    physical_edges = p[faces[:, 1]] - p[faces[:, 0]]
+    fixed_edges = fixed[faces[:, 1]] - fixed[faces[:, 0]]
+    check("derives density from physical size rather than UV offsets or stretch",
+          np.max(abs(np.linalg.norm(physical_edges, axis=1) - np.linalg.norm(fixed_edges, axis=1))) < 1e-10 and
+          abs(fixed).max() < .02 and reports[0]["strandAxisPreserved"])
+
+    narrow_p = np.array(((0., 0., 0.), (.0005, 0., 0.), (.0005, .02, 0.), (0., .02, 0.)))
+    narrow_q = narrow_p[:, :2] * (20., 1.)
+    narrow_n = scope["unit"](np.array(((0., 0., 1.), (.9, 0., -.1), (0., 0., 1.), (-.9, 0., .1))))
+    narrow_t = np.tile((0., 1., 0.), (4, 1))
+    narrow = partition(narrow_q, [faces], selected, .004, 2000)
+    curved = evaluate(narrow, narrow_p, narrow_n, narrow_t, narrow_q)[0]
+    narrow_indices = np.asarray(narrow["triangles"][0])
+    narrow_cross = np.cross(curved[narrow_indices[:, 1]] - curved[narrow_indices[:, 0]],
+                            curved[narrow_indices[:, 2]] - curved[narrow_indices[:, 0]])
+    check("bounds curvature by narrow physical faces with rapidly turning normals",
+          np.all(narrow_cross[:, 2] > 0.) and np.max(abs(curved[:, 2])) <= .00012)
+    wide_p=np.array(((0.,0.,0.),(.04,0.,0.),(.04,.04,0.),(0.,.04,0.),(-.00001,.02,0.)))
+    wide_faces=np.array(((0,1,2),(0,2,3),(3,0,4)))
+    wide=partition(wide_p[:,:2],[wide_faces],[np.ones(3,bool)],.006,2000)
+    wide_curved=evaluate(wide,wide_p,np.tile((0.,0.,1.),(5,1)),np.tile((0.,1.,0.),(5,1)),wide_p[:,:2])[0]
+    check("keeps broad-face curvature when a neighbouring chart face is very thin",wide_curved[:,2].max()>.0002)
+
+    source_p = np.stack((p, p + np.array(((0., 0., 0.), (0., 0., .002), (0., 0., .004), (0., 0., 0.)))))
+    source_n, source_t = np.stack((n, n)), np.stack((t, t))
+    source_b = np.cross(source_n, source_t)
+    flat = scope["transport_curved_core"](points, normals, tangents, plan["vertices"], source_p, source_n, source_t,
+                                         source_b, np.zeros(len(points)))[0]
+    exact = np.stack([np.asarray(v["barycentric"]) @ source_p[1, v["triangle"]] for v in plan["vertices"]])
+    check("transports morphs from the entire source triangle rather than one anchor",
+          np.max(abs(flat[1] - exact)) < 1e-9)
+    severe = points.copy()
+    severe[~boundary, 0] += .02
+    bounded_p, _, _, proof = scope["bound_curved_core"](plan, severe, normals, tangents, source_p, source_n,
+                                                        source_t, source_b, np.eye(3))
+    check("uses a finite chart bound and checks every serialized morph",
+          1 < proof["attempts"] <= proof["maximumAttempts"] == 14 and proof["reducedCharts"] > 0 and
+          proof["finalFailedSamples"] == 0 and bounded_p.shape == (2, len(points), 3))
+
+
+def extremity_surface_contracts(checks):
+    """Exercise native cuts, skin ownership and frame-preserving curvature."""
+    import importlib.util
+    import numpy as np
+
+    owner = Path(__file__).resolve().parents[2] / "blender-models/CharacterFaces/build_models.py"
+    spec = importlib.util.spec_from_file_location("extremity_model_owner", owner)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    setattr(module, "np", np)
+    model, _ = module.source_owner()
+    grid = np.array([(x, y) for y in np.linspace(-.06, .06, 7) for x in np.linspace(-.06, .06, 7)])
+    points = np.c_[grid, .012 * (1. - np.sum((grid / .06) ** 2, axis=1))]
+    normals = np.c_[2. * .012 * grid / .06 ** 2, np.ones(len(grid))]
+    normals /= np.linalg.norm(normals, axis=1)[:, None]
+    triangles = []
+    for y in range(6):
+        for x in range(6):
+            a = y * 7 + x
+            triangles.extend((a, a + 1, a + 7, a + 1, a + 8, a + 7))
+    packet: dict[str, Any] = dict(name="CurvedNativeExtremity", nativeReadable=True, vertexCount=len(points), indexFormat=0,
+                  vertices=points.ravel().tolist(), normals=normals.ravel().tolist(),
+                  tangents=np.tile([1., 0., 0., 1.], (len(points), 1)).ravel().tolist(), colors=[],
+                  weights=np.tile([1., 0., 0., 0.], (len(points), 1)).ravel().tolist(),
+                  boneIndices=[0] * (len(points) * 4), bindPoses=np.tile(np.eye(4).ravel(), 2).tolist(),
+                  subMeshes=[triangles], uv=[dict(channel=0, dimension=2, values=np.c_[grid, np.zeros((len(points), 2))].ravel().tolist())],
+                  shapes=[dict(index=0, name="NativeBody", frames=[dict(weight=100., vertices=np.tile([0., 0., .001], (len(points), 1)).ravel().tolist(),
+                                                                 normals=[0.] * (len(points) * 3), tangents=[0.] * (len(points) * 3))])],
+                  bounds=[0., 0., 0., .12, .12, .12])
+    packet["sourceFingerprint"] = module.fingerprint(packet)[0]
+    native = copy.deepcopy(packet)
+    result, added, metrics = model.refine_extremity_packet(packet, np.eye(4).ravel().tolist(), 0)
+    pipeline.require(packet == native and len(added) > 0, "Extremity refinement changed its source or failed to refine curvature")
+    checks.append(dict(name="extremity refinement retains immutable source and refines physical curvature", passed=True))
+    pipeline.require(all(result[key][:len(packet[key])] == packet[key] for key in
+                         ("vertices", "normals", "tangents", "weights", "boneIndices")), "An extremity changed a native channel")
+    pipeline.require(metrics["originalBoundaryLoopSamplesAndEdgesExact"] and metrics["allChildFacesRetainParentOrientation"],
+                     "An extremity changed an open cut or reversed a source face")
+    checks.append(dict(name="extremity native cuts and child orientation survive", passed=True))
+    pipeline.require(metrics["physicalFramesOrientationValidated"] == 1 and result["shapes"][0]["frames"][0]["vertices"][:len(points) * 3] == packet["shapes"][0]["frames"][0]["vertices"],
+                     "An extremity lost native physical frame samples")
+    checks.append(dict(name="extremity physical frame prefix and all-pose orientation survive", passed=True))
+    mismatched = copy.deepcopy(packet)
+    for key, width in (("vertices", 3), ("normals", 3), ("tangents", 4), ("weights", 4), ("boneIndices", 4)):
+        mismatched[key].extend(packet[key][:width])
+    mismatched["boneIndices"][-4] = 1
+    mismatched["uv"][0]["values"].extend(packet["uv"][0]["values"][:4])
+    mismatched["vertexCount"] += 1
+    for frame in mismatched["shapes"][0]["frames"]:
+        for key in ("vertices", "normals", "tangents"):
+            frame[key].extend(frame[key][:3])
+    for label, source, matrix, lod in (("coincident cut with different skin", mismatched, np.eye(4).ravel().tolist(), 0),
+                                        ("invalid native LOD", packet, np.eye(4).ravel().tolist(), 3),
+                                        ("singular renderer transform", packet, [0.] * 16, 0)):
+        try:
+            model.refine_extremity_packet(source, matrix, lod)
+        except ValueError:
+            checks.append(dict(name="extremity rejects " + label, passed=True))
+        else:
+            raise AssertionError("Extremity accepted " + label)
 
 
 def packed_texture_contracts(output, checks):
@@ -293,7 +622,7 @@ def run(output):
     for stage, action in (("generate", pipeline.generate), ("verify-static", pipeline.verify_static)):
         result = {"stage": stage, "status": "passed", **action(output)}
         (reports / (stage + ".json")).write_text(json.dumps(result), encoding="utf-8")
-    profile = {"schema_version": 1, "required_stages": ["generate", "verify-static"],
+    profile: dict[str, Any] = {"schema_version": 1, "required_stages": ["generate", "verify-static"],
                "obj_assets": [{"path": "static/UBSampleProp/UBSampleProp.obj", "max_triangles": 100,
                                "materials": ["UBTeal", "UBFrontYellow", "UBRightOrange"],
                                "bounds_metres_y_up": {"min": [-0.30, 0, -0.22], "max": [0.42, 0.65, 0.45]}}],
@@ -306,6 +635,9 @@ def run(output):
     checks = []
     device_contracts(output, checks)
     normal_map_contracts(checks)
+    native_surface_contracts(checks)
+    hair_core_contracts(checks)
+    extremity_surface_contracts(checks)
     packed_texture_contracts(output, checks)
     custom_normal_contracts(output, checks)
 
@@ -378,11 +710,11 @@ def run(output):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--stage", choices=("verify-contract", "verify-normals", "verify-devices"), required=True)
+    parser.add_argument("--stage", choices=("verify-contract", "verify-normals", "verify-devices", "verify-surfaces"), required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:])
     output = pipeline.safe_output(args.output)
-    report = {"stage": args.stage, "status": "failed"}
+    report: dict[str, Any] = {"stage": args.stage, "status": "failed"}
     try:
         if args.stage == "verify-devices":
             checks = []
@@ -394,6 +726,12 @@ def main():
             checks = []
             normal_map_contracts(checks)
             custom_normal_contracts(output, checks)
+            report.update(checks=checks, passed=len(checks), failed=0)
+        elif args.stage == "verify-surfaces":
+            checks = []
+            native_surface_contracts(checks)
+            hair_core_contracts(checks)
+            extremity_surface_contracts(checks)
             report.update(checks=checks, passed=len(checks), failed=0)
         else:
             report.update(run(output))

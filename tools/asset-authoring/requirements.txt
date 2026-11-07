@@ -1,0 +1,4 @@
+numpy==2.5.4
+Pillow==13.0.0
+UnityPy==1.25.4
+texture2ddecoder==1.0.6

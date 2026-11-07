@@ -13,11 +13,31 @@ FORMAT = 'Solasta.MeshNumeric.1'
 MAGIC = b'UBMSH001'
 LIMIT = 64 * 1024 * 1024
 SURFACE_MAGIC = b'UBSFB001'
+SURFACE_MULTI_SOURCE_MAGIC = b'UBSFB002'
+SURFACE_EXPLICIT_SOURCE_MAGIC = b'UBSFB003'
+SURFACE_GEOMETRY_FRAME_MAGIC = b'UBSFB004'
 
 
 def need(value, message):
     if not value:
         raise ValueError(message)
+
+
+def four_slot_skin(weights, indices, count):
+    """Expand compact serialized skin streams to Unity's BoneWeight API slots."""
+    def expand(rows, zero):
+        if rows is None or len(rows)==0:return []
+        need(len(rows)==count,'A skin stream has a different vertex count.')
+        result=[]
+        for row in rows:
+            need(len(row)<=4,'A mesh has more than four serialized skin influences.')
+            result.extend((*row,*([zero]*(4-len(row)))))
+        return result
+    expanded_weights=expand(weights,0.);expanded_indices=expand(indices,0)
+    if expanded_indices and not expanded_weights:
+        expanded_weights=[value for _ in range(count)for value in (1.,0.,0.,0.)]
+    if expanded_weights and not expanded_indices:expanded_indices=[0]*(count*4)
+    return expanded_weights,expanded_indices
 
 
 def fields(value, required, optional=()):
@@ -67,6 +87,27 @@ class Writer:
 
     def close(self):
         self.stream.close()
+
+
+class SizeWriter(Writer):
+    """Count the wire layout before creating files or converting numeric arrays."""
+    def __init__(self):
+        self.length=0
+
+    def write(self,data):
+        self.account(len(data))
+
+    def account(self,length):
+        need(self.length+length<=LIMIT,'Numeric payload exceeds 64 MiB.')
+        self.length+=length
+
+    def floats(self,values):
+        need(isinstance(values,(list,tuple)),'Expected a numeric array.')
+        self.account(4+4*len(values))
+
+    def integers(self,values):
+        need(isinstance(values,(list,tuple)),'Expected an int32 array.')
+        self.account(4+4*len(values))
 
 
 def write_mesh(writer, mesh):
@@ -126,6 +167,8 @@ def encode_recipe(recipe, json_path, payload_relative='Data/mesh-numeric.bin'):
     need(re.fullmatch(r'[A-Za-z0-9_./-]+', payload_relative) is not None
          and not payload_relative.startswith('/') and all(p not in ('', '.', '..') for p in payload_relative.split('/'))
          and payload_relative.endswith('.bin'), 'Invalid relative numeric payload path.')
+    counter=SizeWriter();counter.write(MAGIC);counter.integer(1);counter.integer(len(recipe['meshes']))
+    for mesh in recipe['meshes']:write_mesh(counter,mesh)
     json_path = Path(json_path).resolve()
     payload_path = json_path.parent / payload_relative
     need(not json_path.exists() and not payload_path.exists(), 'Output recipe and payload must be new.')
@@ -133,21 +176,25 @@ def encode_recipe(recipe, json_path, payload_relative='Data/mesh-numeric.bin'):
     payload_path.parent.mkdir(parents=True, exist_ok=True)
     need(payload_path.resolve().is_relative_to(json_path.parent), 'Numeric payload escaped its recipe directory.')
     writer = Writer(payload_path)
+    json_created=False
     try:
-        writer.write(MAGIC)
-        writer.integer(1)
-        writer.integer(len(recipe['meshes']))
-        for mesh in recipe['meshes']:
-            write_mesh(writer, mesh)
-    finally:
-        writer.close()
-    external = {key: value for key, value in recipe.items() if key != 'meshes'}
-    external['numericPayload'] = dict(format=FORMAT, path=payload_relative,
-                                      sha256=writer.hash.hexdigest(), byteLength=writer.length)
-    data = json.dumps(external, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode('utf-8') + b'\n'
-    need(len(data) <= LIMIT, 'Mesh recipe JSON exceeds 64 MiB.')
-    with json_path.open('xb') as output:
-        output.write(data)
+        try:
+            writer.write(MAGIC)
+            writer.integer(1)
+            writer.integer(len(recipe['meshes']))
+            for mesh in recipe['meshes']:write_mesh(writer, mesh)
+        finally:writer.close()
+        external = {key: value for key, value in recipe.items() if key != 'meshes'}
+        external['numericPayload'] = dict(format=FORMAT, path=payload_relative,
+                                          sha256=writer.hash.hexdigest(), byteLength=writer.length)
+        data = json.dumps(external, ensure_ascii=False, separators=(',', ':'), allow_nan=False).encode('utf-8') + b'\n'
+        need(len(data) <= LIMIT, 'Mesh recipe JSON exceeds 64 MiB.')
+        with json_path.open('xb') as output:
+            json_created=True;output.write(data)
+    except BaseException:
+        payload_path.unlink(missing_ok=True)
+        if json_created:json_path.unlink(missing_ok=True)
+        raise
     return dict(recipe=str(json_path), payload=str(payload_path), bytes=writer.length,
                 sha256=writer.hash.hexdigest(), meshes=len(recipe['meshes']))
 
@@ -155,9 +202,11 @@ def encode_recipe(recipe, json_path, payload_relative='Data/mesh-numeric.bin'):
 def encode_surface_binding(binding, output_path):
     """Keep attachment fields in compressed binary32 form, as consumed at runtime."""
     fields(binding, ('schemaVersion', 'sourceFingerprint', 'rendererToPrefab',
-                     'vertices', 'clothBindingGenerated'))
-    need(binding['schemaVersion'] == 1 and type(binding['clothBindingGenerated']) is bool,
+                     'vertices', 'clothBindingGenerated'), ('sourceVertexCount',))
+    version = binding['schemaVersion']
+    need(type(version) is int and version in (1, 2, 3, 4) and type(binding['clothBindingGenerated']) is bool,
          'Invalid surface binding version or cloth flag.')
+    need(('sourceVertexCount' in binding) == (version >= 3), 'Unexpected or missing native source count.')
     need(isinstance(binding['sourceFingerprint'], str)
          and re.fullmatch('[0-9a-f]{64}', binding['sourceFingerprint']), 'Invalid surface source identity.')
     need(isinstance(binding['vertices'], list) and binding['vertices'], 'Missing surface vertices.')
@@ -170,9 +219,24 @@ def encode_surface_binding(binding, output_path):
                    + matrix[8] * (matrix[1] * matrix[6] - matrix[5] * matrix[2]))
     need(math.isfinite(determinant) and determinant != 0, 'Singular surface transform.')
     roles = {}
-    for vertex in binding['vertices']:
+    source_count = 0
+    if version == 2:
+        need(not binding['clothBindingGenerated'],
+             'Multi-source skin provenance requires a noncloth source contract.')
+        for vertex in binding['vertices']:
+            need(isinstance(vertex, dict), 'Invalid surface vertex.')
+            if vertex.get('native') is not True:
+                break
+            source_count += 1
+        need(source_count > 0, 'Multi-source attachments require an exact native prefix.')
+    elif version >= 3:
+        source_count = binding['sourceVertexCount']
+        need(type(source_count) is int and 0 < source_count <= len(binding['vertices']),
+             'Invalid explicit surface source count.')
+    for index, vertex in enumerate(binding['vertices']):
         fields(vertex, ('anchor', 'native', 'role', 'slot', 'uv0', 'offset',
-                        'normal', 'tangent', 'tangentW'))
+                        'normal', 'tangent', 'tangentW') +
+               (('sources',) if version == 2 else ('surface', 'geometrySurface') if version == 4 else ('surface',) if version == 3 else ()))
         need(type(vertex['anchor']) is int and 0 <= vertex['anchor'] <= 2147483647
              and type(vertex['slot']) is int and 0 <= vertex['slot'] <= 2147483647,
              'Invalid surface anchor or slot.')
@@ -186,6 +250,63 @@ def encode_surface_binding(binding, output_path):
         if vertex['native']:
             need(vertex['offset'] == [0, 0, 0] and vertex['normal'] == [0, 0, 1]
                  and vertex['tangent'] == [1, 0, 0], 'Native surface correspondence changed.')
+        if version >= 3:
+            need(vertex['anchor'] < source_count and
+                 (index >= source_count or vertex['native'] and vertex['anchor'] == index),
+                 'Explicit surface native prefix changed.')
+            surface = vertex['surface']
+            present = not vertex['native'] and index >= source_count
+            need((surface is not None) == present, 'Explicit surface provenance is missing or unexpected.')
+            if present:
+                fields(surface, ('triangle', 'barycentric'))
+                triangle, bary = surface['triangle'], surface['barycentric']
+                need(isinstance(triangle, list) and len(triangle) == 3 and
+                     all(type(anchor) is int and 0 <= anchor < source_count for anchor in triangle) and
+                     len(set(triangle)) == 3 and vertex['anchor'] in triangle,
+                     'Invalid explicit native triangle.')
+                need(isinstance(bary, list) and len(bary) == 3 and
+                     all(type(weight) in (int, float) and math.isfinite(weight) and 0 <= weight <= 1
+                         for weight in bary), 'Invalid explicit barycentric coordinates.')
+                actual = struct.unpack('<3f', struct.pack('<3f', *bary))
+                need(abs(sum(actual) - 1) <= 1e-6, 'Explicit barycentric weights do not sum to one.')
+            if version == 4:
+                geometry = vertex['geometrySurface']
+                need(geometry is None or present, 'A native reference cannot own a geometry frame.')
+                if geometry is not None:
+                    fields(geometry, ('triangle', 'barycentric'))
+                    triangle, bary = geometry['triangle'], geometry['barycentric']
+                    need(isinstance(triangle, list) and len(triangle) == len(set(triangle)) == 3 and
+                         all(type(i) is int and 0 <= i < source_count for i in triangle),
+                         'Invalid geometry-frame native triangle.')
+                    need(isinstance(bary, list) and len(bary) == 3 and
+                         all(type(w) in (int, float) and math.isfinite(w) and 0 <= w <= 1 for w in bary),
+                         'Invalid geometry-frame barycentric coordinates.')
+                    actual = struct.unpack('<3f', struct.pack('<3f', *bary))
+                    need(abs(sum(actual)-1) <= 1e-6, 'Geometry-frame weights do not sum to one.')
+        if version == 2:
+            need(vertex['native'] == (index < source_count)
+                 and (not vertex['native'] or vertex['anchor'] == index),
+                 'Multi-source native prefix changed.')
+            sources = vertex['sources']
+            need(isinstance(sources, list) and 1 <= len(sources) <= 4,
+                 'Invalid native surface contribution count.')
+            anchors = set()
+            total = 0
+            for source in sources:
+                fields(source, ('anchor', 'weight'))
+                need(type(source['anchor']) is int and 0 <= source['anchor'] < source_count
+                     and source['anchor'] not in anchors, 'Invalid or duplicate native contribution anchor.')
+                need(type(source['weight']) in (int, float) and math.isfinite(source['weight'])
+                     and 0 < source['weight'] <= 1, 'Invalid native contribution weight.')
+                packed = struct.pack('<f', source['weight'])
+                actual = struct.unpack('<f', packed)[0]
+                need(math.isfinite(actual) and actual > 0, 'Native contribution float32 overflow or underflow.')
+                total += actual
+                anchors.add(source['anchor'])
+            need(vertex['anchor'] == sources[0]['anchor'] and abs(total - 1) <= 1e-6,
+                 'Native contribution weights or primary anchor differ.')
+            if vertex['native']:
+                need(sources == [dict(anchor=index, weight=1)], 'Native prefix contribution changed.')
     stream = io.BytesIO()
 
     def write(data):
@@ -202,10 +323,13 @@ def encode_surface_binding(binding, output_path):
         need(all(math.isfinite(v[0]) for v in struct.iter_unpack('<f', data)), 'Surface float32 overflow.')
         write(data)
 
-    write(SURFACE_MAGIC)
+    write({1: SURFACE_MAGIC, 2: SURFACE_MULTI_SOURCE_MAGIC, 3: SURFACE_EXPLICIT_SOURCE_MAGIC,
+           4: SURFACE_GEOMETRY_FRAME_MAGIC}[version])
     write(bytes.fromhex(binding['sourceFingerprint']))
     write(bytes([int(binding['clothBindingGenerated'])]))
     floats(matrix)
+    if version >= 3:
+        integer(source_count)
     integer(len(roles))
     for role in roles:
         data = role.encode('utf-8', errors='strict')
@@ -219,6 +343,25 @@ def encode_surface_binding(binding, output_path):
         integer(vertex['slot'])
         floats(vertex['uv0'] + vertex['offset'] + vertex['normal'] + vertex['tangent']
                + [vertex['tangentW']])
+        if version == 2:
+            integer(len(vertex['sources']))
+            for source in vertex['sources']:
+                integer(source['anchor'])
+                floats([source['weight']])
+        elif version >= 3:
+            surface = vertex['surface']
+            write(bytes([int(surface is not None)]))
+            if surface is not None:
+                for anchor in surface['triangle']:
+                    integer(anchor)
+                floats(surface['barycentric'])
+            if version == 4:
+                geometry = vertex['geometrySurface']
+                write(bytes([int(geometry is not None)]))
+                if geometry is not None:
+                    for anchor in geometry['triangle']:
+                        integer(anchor)
+                    floats(geometry['barycentric'])
     raw = stream.getvalue()
     compressed = gzip.compress(raw, compresslevel=6, mtime=0)
     output_path = Path(output_path)

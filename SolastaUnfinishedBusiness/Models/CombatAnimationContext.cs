@@ -24,6 +24,70 @@ internal static class CombatAnimationContext
     private static readonly Dictionary<Animator, MovementReactionState> MovementReactionStates = [];
     private static readonly Dictionary<GraphicsCharacter, EquipmentAttackState> EquipmentAttackStates = [];
     private static readonly HashSet<EquipmentPresentation> EquipmentPresentations = [];
+    private const int MaxReferenceControllers = 8;
+    private static readonly Dictionary<(RuntimeAnimatorController Source, string Key), ReferenceControllerLease>
+        ReferenceControllers = [];
+    private static readonly LinkedList<ReferenceControllerLease> ReferenceControllerRecency = [];
+
+    private sealed class ReferenceControllerLease(
+        RuntimeAnimatorController source, string key, AsyncOperationHandle<RuntimeAnimatorController> handle)
+    {
+        internal readonly RuntimeAnimatorController Source = source;
+        internal readonly string Key = key;
+        internal readonly AsyncOperationHandle<RuntimeAnimatorController> Handle = handle;
+        internal LinkedListNode<ReferenceControllerLease> Node;
+        internal int Owners;
+    }
+
+    private static ReferenceControllerLease AcquireReferenceController(RuntimeAnimatorController source, string key)
+    {
+        if (!ReferenceControllers.TryGetValue((source, key), out var lease))
+        {
+            lease = new ReferenceControllerLease(source, key,
+                RacesContext.LoadCharacterModelResourceAsync<RuntimeAnimatorController>(key));
+            ReferenceControllers.Add((source, key), lease);
+            lease.Node = ReferenceControllerRecency.AddLast(lease);
+        }
+        else
+        {
+            ReferenceControllerRecency.Remove(lease.Node);
+            ReferenceControllerRecency.AddLast(lease.Node);
+        }
+        lease.Owners++;
+        TrimReferenceControllers();
+        return lease;
+    }
+
+    private static void ReleaseReferenceController(ReferenceControllerLease lease)
+    {
+        if (lease == null) return;
+        lease.Owners--;
+        // A failed load must be retryable; a successful reference stays available
+        // for the next appearance/viewport binding without unloading its clip graph.
+        if (lease.Owners == 0 && lease.Handle.Status == AsyncOperationStatus.Failed)
+        {
+            RemoveReferenceController(lease);
+        }
+        TrimReferenceControllers();
+    }
+
+    private static void TrimReferenceControllers()
+    {
+        for (var node = ReferenceControllerRecency.First;
+             ReferenceControllers.Count > MaxReferenceControllers && node != null;)
+        {
+            var next = node.Next;
+            if (node.Value.Owners == 0) RemoveReferenceController(node.Value);
+            node = next;
+        }
+    }
+
+    private static void RemoveReferenceController(ReferenceControllerLease lease)
+    {
+        ReferenceControllers.Remove((lease.Source, lease.Key));
+        ReferenceControllerRecency.Remove(lease.Node);
+        Addressables.Release(lease.Handle);
+    }
 
     internal enum OtherHandPose
     {
@@ -586,6 +650,7 @@ internal static class CombatAnimationContext
         private bool _attackApplied;
         private bool _evaluating;
         private AsyncOperationHandle<RuntimeAnimatorController> _load;
+        private ReferenceControllerLease _reference;
         private bool _ownsLoad;
         private string _key;
         internal RuntimeAnimatorController ReferenceController { get; private set; }
@@ -703,8 +768,8 @@ internal static class CombatAnimationContext
                 return;
             }
 
-            _load = Addressables.LoadAssetAsync<RuntimeAnimatorController>(
-                key.Replace("_Portrait_Controller", "_Controller"));
+            _reference = AcquireReferenceController(_source, key.Replace("_Portrait_Controller", "_Controller"));
+            _load = _reference.Handle;
             _ownsLoad = true;
             _load.Completed += Loaded;
         }
@@ -1062,7 +1127,9 @@ internal static class CombatAnimationContext
             {
                 _ownsLoad = false;
                 _load.Completed -= Loaded;
-                Addressables.Release(_load);
+                ReleaseReferenceController(_reference);
+                _reference = null;
+                _load = default;
             }
 
             _character = null;
@@ -1182,6 +1249,10 @@ internal static class CombatAnimationContext
             }
         }
         EquipmentAttackStates.Clear();
+        foreach (var reference in ReferenceControllerRecency.ToArray())
+        {
+            RemoveReferenceController(reference);
+        }
     }
 
     internal static void RefreshActionAnimation(GraphicsCharacter graphicsCharacter)

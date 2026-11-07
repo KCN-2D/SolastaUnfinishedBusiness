@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
@@ -24,29 +24,21 @@ public static class InvocationSubPanelPatcher
         [UsedImplicitly]
         public static bool Prefix(InvocationSubPanel __instance)
         {
-            if (!PermanentDefensesSubPanel.IsDefensesPanel(__instance) &&
-                !CharacterInspectionScreenEnhancement.IsInspectionProficiencyPanel(__instance))
+            if (PermanentDefensesSubPanel.IsDefensesPanel(__instance) ||
+                CharacterInspectionScreenEnhancement.IsInspectionProficiencyPanel(__instance) ||
+                CharacterInspectionScreenEnhancement.IsNativeCreationProficiencyPanel(__instance))
             {
-                return true;
+                // These rows are established by their actual hero and learn pool at Bind.
+                __instance.relevantInvocations.Clear();
+            }
+            else
+            {
+                // Selection panels prepare the same native/custom pool candidates as Bind.
+                // Other pools have their own panels and do not own rows in this table.
+                CustomInvocationSubPanel.UpdateRelevantInvocations(__instance);
             }
 
-            // An inspection has no candidates to choose until its hero is bound.
-            // Selection panels retain the native complete catalog and row preparation.
-            __instance.relevantInvocations.Clear();
             return false;
-        }
-
-        [UsedImplicitly]
-        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
-        {
-            var count = typeof(List<InvocationDefinition>).GetProperty(nameof(List<InvocationDefinition>.Count))?.GetMethod;
-            var initialCount = new Func<int, ProficienciesSubPanel, int>(
-                CharacterInspectionScreenEnhancement.GetInitialProficiencyItemCount).Method;
-
-            return instructions.ReplaceCalls(count, 1, "InvocationSubPanel.RuntimeLoaded",
-                new CodeInstruction(OpCodes.Callvirt, count),
-                new CodeInstruction(OpCodes.Ldarg_0),
-                new CodeInstruction(OpCodes.Call, initialCount));
         }
     }
 
@@ -68,8 +60,6 @@ public static class InvocationSubPanelPatcher
             //filters only invocations that fit this sub-panel
             CustomInvocationSubPanel.PrepareRelevantInvocations(__instance, __0);
 
-            // //PATCH: sorts the invocations panel by Title
-            InvocationsContext.SortInvocations(__instance);
             return true;
         }
     }
@@ -84,6 +74,7 @@ public static class InvocationSubPanelPatcher
         {
             if (!PermanentDefensesSubPanel.IsDefensesPanel(__instance))
             {
+                CustomInvocationSubPanel.RefreshSelectionCandidates(__instance, active);
                 return true;
             }
 

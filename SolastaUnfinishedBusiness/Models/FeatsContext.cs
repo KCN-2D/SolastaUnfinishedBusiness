@@ -618,16 +618,23 @@ internal static class FeatsContext
               false);
     }
 
-    internal static bool PreparePassiveFeatDisplayPanel(FeatSubPanel panel, RulesetCharacterHero hero)
+    internal static bool PrepareFeatDisplayPanel(FeatSubPanel panel, RulesetCharacterHero hero)
     {
-        if (panel?.table == null || panel.relevantFeats == null || !IsPassiveFeatDisplayContext(panel, hero))
+        if (panel?.table == null || panel.relevantFeats == null || hero == null)
         {
             return false;
         }
 
-        // Resolve the new actor before native Bind so it never binds the entire catalog
-        // on first display or the previous actor's feats when switching characters.
-        panel.relevantFeats.SetRange(BuildActualDisplayFeats(hero, false));
+        var creation = CharacterInspectionScreenEnhancement.HasCreationSelectionContext(panel, hero);
+        if (!creation && !IsPassiveFeatDisplayContext(panel, hero))
+        {
+            return false;
+        }
+
+        // Native Bind precedes SetState. Start with the new actor's acquired summary;
+        // an active feat pool establishes its full native candidates in SetState,
+        // including an ASI dropdown change without advancing the learn step.
+        panel.relevantFeats.SetRange(BuildActualDisplayFeats(hero, creation));
         SortFeats(panel);
         UpdatePanelChildren(panel);
 

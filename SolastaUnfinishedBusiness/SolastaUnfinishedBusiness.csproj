@@ -325,7 +325,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="BlenderModels\**\*.*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory Condition="'$(CopyBlenderModels)' != 'false'">PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="Portraits\**\*.*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

@@ -91,7 +91,7 @@ def sync_folder(root_folder_name, folder_name, code, hasDepth=False):
             sync_file(input_file, output_file, code)
         else:
             sync_folder(root_folder_name, input_file, code, True)
-args=False
+args=argparse.Namespace(s=False)
 def main():
     # sync cn language
     parser = argparse.ArgumentParser("translateAutoSynch")

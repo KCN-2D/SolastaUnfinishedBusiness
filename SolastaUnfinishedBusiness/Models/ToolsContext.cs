@@ -114,6 +114,460 @@ internal static class ToolsContext
         }
     }
 
+    private static bool CanEditCharacterPoolHero(string filename)
+    {
+        if (Gui.Game || string.IsNullOrEmpty(filename) || !File.Exists(filename))
+        {
+            return false;
+        }
+
+        var pool = ServiceRepository.GetService<ICharacterPoolService>();
+        if (pool == null || !pool.Pool.TryGetValue(filename, out var snapshot))
+        {
+            return false;
+        }
+
+        var destination = pool.BuildCharacterFilename(snapshot.Name, false);
+
+        // Built-in heroes become custom heroes; an existing custom hero owns its name.
+        return snapshot.BuiltIn
+            ? !File.Exists(destination)
+            : string.Equals(Path.GetFullPath(filename), Path.GetFullPath(destination),
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static IEnumerator SaveCharacterPoolHero(RulesetCharacterHero hero, Action<bool> saved)
+    {
+        var photoReady = false;
+        Texture photo = null;
+        try
+        {
+            PortraitsContext.RequestCompletedPhoto(
+                ServiceRepository.GetService<IGraphicsCharacterPhotoService>(), hero, false,
+                texture =>
+                {
+                    photo = texture;
+                    photoReady = true;
+                }, forceRefresh: true);
+        }
+        catch (Exception exception)
+        {
+            Main.Error(exception);
+            photoReady = true;
+        }
+
+        var deadline = Time.realtimeSinceStartup + 30f;
+        while (!photoReady && Time.realtimeSinceStartup < deadline)
+        {
+            yield return null;
+        }
+
+        if (!photo)
+        {
+            saved(false);
+            yield break;
+        }
+
+        var pool = ServiceRepository.GetService<ICharacterPoolService>();
+        var completed = false;
+        void Refreshed() => completed = true;
+        pool.CharacterPoolRefreshed += Refreshed;
+
+        try
+        {
+            var filename = string.Empty;
+            try
+            {
+                filename = pool.SaveCharacter(hero, true);
+            }
+            catch (Exception exception)
+            {
+                Main.Error(exception);
+            }
+
+            if (string.IsNullOrEmpty(filename))
+            {
+                saved(false);
+                yield break;
+            }
+
+            deadline = Time.realtimeSinceStartup + 10f;
+            while (!completed && Time.realtimeSinceStartup < deadline)
+            {
+                yield return null;
+            }
+
+            saved(completed);
+        }
+        finally
+        {
+            pool.CharacterPoolRefreshed -= Refreshed;
+        }
+    }
+
+    private static void ReleaseTransientHero(RulesetCharacterHero hero)
+    {
+        if (hero == null)
+        {
+            return;
+        }
+
+        var entities = ServiceRepository.GetService<IRulesetEntityService>()?.RulesetEntities;
+        if (entities == null)
+        {
+            return;
+        }
+
+        var owned = new List<RulesetEntity> { hero, hero.PersonalLightSource };
+        owned.AddRange(hero.AllConditions);
+        var inventory = hero.CharacterInventory;
+        if (inventory != null)
+        {
+            owned.Add(inventory.PersonalContainer);
+            owned.AddRange(inventory.EnumerateAllSlots(true, false, false));
+            var items = new List<RulesetItem>();
+            inventory.EnumerateAllItems(items);
+            owned.AddRange(items);
+        }
+
+        // Unregister only this transient graph, including native-created slots with a zero-guid owner.
+        foreach (var entity in owned.Where(entity => entity != null).Distinct())
+        {
+            if (entities.TryGetValue(entity.Guid, out var registered) && ReferenceEquals(registered, entity))
+            {
+                ServiceRepository.GetService<IRulesetEntityService>().UnregisterEntity(entity);
+            }
+        }
+    }
+
+    internal static class AppearanceEdition
+    {
+        private static AppearanceSession _session;
+
+        internal static bool IsEditing => _session != null;
+
+        internal static bool CanStart(string filename) =>
+            !IsEditing && !FunctorRespec.IsRespecing && CanEditCharacterPoolHero(filename);
+
+        internal static bool Owns(RulesetCharacterHero hero) => _session != null && _session.Hero == hero;
+
+        internal static string ResolveName(RulesetCharacterHero hero, string value, bool surname) =>
+            Owns(hero) ? surname ? _session.Original.SurName : _session.Original.Name : value;
+
+        internal static bool IsOriginalName(RulesetCharacterHero hero, string name) =>
+            Owns(hero) && string.Equals(name, _session.Original.Name, StringComparison.Ordinal);
+
+        internal static IEnumerator Start(string filename, GuiScreen originScreen)
+        {
+            if (!CanStart(filename) || !originScreen)
+            {
+                yield break;
+            }
+
+            var pool = ServiceRepository.GetService<ICharacterPoolService>();
+            var screen = Gui.GuiService.GetScreen<CharacterCreationScreen>();
+            var building = ServiceRepository.GetService<ICharacterBuildingService>() as CharacterBuildingManager;
+            if (!screen || !building || building.CurrentLocalHeroCharacter != null ||
+                screen.Visible || screen.Showing || screen.currentHero != null)
+            {
+                yield break;
+            }
+
+            RulesetCharacterHero original = null;
+            RulesetCharacterHero edited = null;
+            var previousOrigin = screen.OriginScreen;
+            var stages = screen.stagePanelsByName.ToArray();
+            var stageVisibility = stages.ToDictionary(pair => pair.Value, pair => pair.Value.gameObject.activeSelf);
+            var personalityVisibility = screen.personalityMapPanel.Visible;
+            var clothGravity = Physics.clothGravity;
+            AppearanceSession session = null;
+
+            try
+            {
+                pool.LoadCharacter(filename, out original, out _);
+                pool.LoadCharacter(filename, out edited, out _);
+                edited.GetOrCreateHeroBuildingData();
+                building.currentLocalHeroCharacter = edited;
+                session = new AppearanceSession(original, edited);
+                _session = session;
+
+                // The native identity panel edits a disposable copy. No creation/finalization
+                // command is issued against the original character's rules or inventory.
+                var identity = stages.Select(pair => pair.Value).OfType<CharacterStageIdentityDefinitionPanel>().Single();
+                foreach (var stage in stages)
+                {
+                    stage.Value.Hide(true);
+                    stage.Value.gameObject.SetActive(false);
+                }
+
+                screen.stagePanelsByName.Clear();
+                screen.stagePanelsByName.Add(identity.Name, identity);
+                screen.OriginScreen = null;
+                screen.CurrentHero = edited;
+                originScreen.Hide(true);
+                screen.Show();
+                // The standalone identity stage bypasses the background stage's summary refresh.
+                if (screen.personalityMapPanel.Visible)
+                {
+                    screen.personalityMapPanel.RefreshNow();
+                }
+                else
+                {
+                    screen.personalityMapPanel.Show(true);
+                }
+
+                while (screen.currentHero == edited || screen.Visible || screen.Hiding)
+                {
+                    yield return null;
+                }
+
+                if (!session.Accepted)
+                {
+                    yield break;
+                }
+
+                session.CopyAppearance();
+                original.BuiltIn = false;
+                ServiceRepository.GetService<IGraphicsCharacterPhotoService>()
+                    .ReleaseCharacterPhoto(pool.Pool[filename], false);
+                var saved = false;
+                yield return SaveCharacterPoolHero(original, success => saved = success);
+                if (saved)
+                {
+                    Global.LastLevelUpHeroFilename = pool.BuildCharacterFilename(original.Name, false);
+                }
+                else
+                {
+                    Gui.GuiService.ShowMessage(MessageModal.Severity.Informative1,
+                        "Screen/&CharacterAppearanceTitle", "Message/&CharacterAppearanceSaveFailedDescription",
+                        "Message/&MessageOkTitle", string.Empty, null, null);
+                }
+            }
+            finally
+            {
+                if (edited != null && screen.currentHero == edited)
+                {
+                    screen.Hide(true);
+                    screen.CurrentHero = null;
+                }
+
+                session?.RestoreControls();
+                screen.personalityMapPanel.gameObject.SetActive(personalityVisibility);
+                screen.stagePanelsByName.Clear();
+                foreach (var stage in stages)
+                {
+                    screen.stagePanelsByName.Add(stage.Key, stage.Value);
+                    stage.Value.gameObject.SetActive(stageVisibility[stage.Value]);
+                }
+
+                screen.OriginScreen = previousOrigin;
+                Physics.clothGravity = clothGravity;
+                if (edited != null)
+                {
+                    building.ReleaseCharacter(edited, true);
+                }
+                if (original != null)
+                {
+                    building.ReleaseCharacter(original, true);
+                }
+                ReleaseTransientHero(edited);
+                ReleaseTransientHero(original);
+                _session = null;
+                originScreen.Show();
+            }
+        }
+
+        internal static bool Finish(CharacterEditionScreen screen)
+        {
+            if (!Owns(screen.currentHero))
+            {
+                return false;
+            }
+
+            if (screen.onFinishCbLocked || !screen.currentStagePanel || !screen.currentStagePanel.CanProceedToNextStage(out _))
+            {
+                return true;
+            }
+
+            screen.onFinishCbLocked = true;
+            _session.Accepted = true;
+            screen.Hide(true);
+            screen.CurrentHero = null;
+            return true;
+        }
+
+        internal static void RefreshButtons(CharacterEditionScreen screen)
+        {
+            if (!Owns(screen.currentHero) || !screen.currentStagePanel)
+            {
+                return;
+            }
+
+            screen.continueButton.gameObject.SetActive(false);
+            screen.finishButton.gameObject.SetActive(!Gui.GamepadActive);
+            screen.finishButton.interactable = screen.nextValidateGamepadButton.interactable;
+            screen.finishButton.transform.Find("Label").GetComponent<GuiLabel>().Text = "Screen/&EditorSaveTitle";
+            screen.finishButtonTooltip.Content = "Screen/&CharacterAppearanceDescription";
+            screen.commonData.NextValidationGroup.Label.Text = "Screen/&EditorSaveTitle";
+            screen.nextValidateGamepadTooltip.Content = "Screen/&CharacterAppearanceDescription";
+        }
+
+        internal static void RefreshIdentity(CharacterStageIdentityDefinitionPanel panel)
+        {
+            if (!Owns(panel.currentHero) || !panel.Visible)
+            {
+                return;
+            }
+
+            panel.currentHero.Name = _session.Original.Name;
+            panel.currentHero.SurName = _session.Original.SurName;
+            panel.firstNameInputField.SetTextWithoutNotify(_session.Original.DisplayName);
+            panel.lastNameInputField.SetTextWithoutNotify(_session.Original.DisplaySurName);
+            _session.LockControls(panel);
+        }
+
+        internal static (int Index, GuiGamepadValidationGroup Selected) CaptureIdentityValidationGroup(
+            CharacterStageIdentityDefinitionPanel panel)
+        {
+            var index = panel.validationGroupIndex;
+            var groups = panel.validationGroups;
+            return Owns(panel.currentHero) && index >= 0 && index < groups.Count
+                ? (index, groups[index])
+                : (index, null);
+        }
+
+        internal static void FilterIdentityValidationGroups(
+            CharacterStageIdentityDefinitionPanel panel,
+            (int Index, GuiGamepadValidationGroup Selected) previous)
+        {
+            if (!Owns(panel.currentHero))
+            {
+                return;
+            }
+
+            var groups = panel.validationGroups;
+            var index = panel.validationGroupIndex;
+            // Native enumeration rebuilt this list. Preserve the group captured
+            // before rebuilding, unless native code explicitly chose a new index.
+            var selected = index == previous.Index
+                ? previous.Selected
+                : index >= 0 && index < groups.Count ? groups[index] : null;
+            groups.RemoveAll(group => group == panel.firstNameValidationGroup ||
+                                      group == panel.lastNameValidationGroup ||
+                                      group == panel.voiceModifier.ValidationGroup ||
+                                      group == panel.pronounModifier.ValidationGroup ||
+                                      group == panel.backstoryModifier.ValidationGroup);
+            panel.validationGroupIndex = selected && groups.Contains(selected)
+                ? groups.IndexOf(selected)
+                : Mathf.Clamp(index, 0, groups.Count - 1);
+        }
+
+        private sealed class AppearanceSession(RulesetCharacterHero original, RulesetCharacterHero hero)
+        {
+            internal readonly RulesetCharacterHero Original = original;
+            internal readonly RulesetCharacterHero Hero = hero;
+            internal bool Accepted;
+            private readonly Dictionary<GameObject, bool> _visibility = [];
+            private Dictionary<MorphotypeElementDefinition.ElementCategory, string> _initialElements;
+            private Dictionary<MorphotypeElementDefinition.ElementCategory, float> _initialValues;
+            private CharacterStageIdentityDefinitionPanel _identity;
+            private (bool FirstReadOnly, bool LastReadOnly, bool FirstRoll, bool LastRoll, bool FirstEdit, bool LastEdit) _controls;
+
+            internal void LockControls(CharacterStageIdentityDefinitionPanel panel)
+            {
+                if (!_identity)
+                {
+                    _identity = panel;
+                    _initialElements = new Dictionary<MorphotypeElementDefinition.ElementCategory, string>(Hero.MorphotypeElements);
+                    _initialValues = new Dictionary<MorphotypeElementDefinition.ElementCategory, float>(Hero.MorphotypeElementAdditionalValues);
+                    _controls = (panel.firstNameInputField.readOnly, panel.lastNameInputField.readOnly,
+                        panel.firstNameRollButton.interactable, panel.lastNameRollButton.interactable,
+                        panel.firstNameEditButton.interactable, panel.lastNameEditButton.interactable);
+                }
+
+                panel.firstNameInputField.readOnly = true;
+                panel.lastNameInputField.readOnly = true;
+                panel.firstNameRollButton.interactable = false;
+                panel.lastNameRollButton.interactable = false;
+                panel.firstNameEditButton.interactable = false;
+                panel.lastNameEditButton.interactable = false;
+                foreach (var control in new Component[] { panel.voiceModifier, panel.pronounModifier,
+                             panel.backstoryModifier, panel.backstoryInputField })
+                {
+                    if (!_visibility.ContainsKey(control.gameObject))
+                    {
+                        _visibility.Add(control.gameObject, control.gameObject.activeSelf);
+                    }
+
+                    control.gameObject.SetActive(false);
+                }
+            }
+
+            private static bool IsAppearanceMorph(MorphotypeElementDefinition.ElementCategory category) =>
+                category is not (MorphotypeElementDefinition.ElementCategory.Max or
+                    MorphotypeElementDefinition.ElementCategory.Voice or
+                    MorphotypeElementDefinition.ElementCategory.Backstory or
+                    MorphotypeElementDefinition.ElementCategory.Pronoun);
+
+            internal void CopyAppearance()
+            {
+                var replace = Original.sex != Hero.sex;
+                Original.sex = Hero.sex;
+                CopyMorphs(Hero.MorphotypeElements, Original.MorphotypeElements, _initialElements, replace);
+                CopyMorphs(Hero.MorphotypeElementAdditionalValues, Original.MorphotypeElementAdditionalValues,
+                    _initialValues, replace);
+                var sizeChanged = false;
+                Original.RefreshSizeParams(ref sizeChanged);
+            }
+
+            private static void CopyMorphs<T>(Dictionary<MorphotypeElementDefinition.ElementCategory, T> source,
+                Dictionary<MorphotypeElementDefinition.ElementCategory, T> destination,
+                Dictionary<MorphotypeElementDefinition.ElementCategory, T> baseline, bool replace)
+            {
+                foreach (var key in destination.Keys.Where(IsAppearanceMorph).ToArray())
+                {
+                    if (!source.ContainsKey(key) && (replace || baseline.ContainsKey(key)))
+                    {
+                        destination.Remove(key);
+                    }
+                }
+
+                foreach (var pair in source.Where(pair => IsAppearanceMorph(pair.Key)))
+                {
+                    // Native binding can substitute an unavailable class-restricted choice.
+                    // Keep it until the user edits that morph or changes the body sex.
+                    if (replace || !baseline.TryGetValue(pair.Key, out var initial) ||
+                        !EqualityComparer<T>.Default.Equals(initial, pair.Value))
+                    {
+                        destination[pair.Key] = pair.Value;
+                    }
+                }
+            }
+
+            internal void RestoreControls()
+            {
+                if (!_identity)
+                {
+                    return;
+                }
+
+                _identity.firstNameInputField.readOnly = _controls.FirstReadOnly;
+                _identity.lastNameInputField.readOnly = _controls.LastReadOnly;
+                _identity.firstNameRollButton.interactable = _controls.FirstRoll;
+                _identity.lastNameRollButton.interactable = _controls.LastRoll;
+                _identity.firstNameEditButton.interactable = _controls.FirstEdit;
+                _identity.lastNameEditButton.interactable = _controls.LastEdit;
+                foreach (var control in _visibility)
+                {
+                    if (control.Key)
+                    {
+                        control.Key.SetActive(control.Value);
+                    }
+                }
+            }
+        }
+    }
+
     internal sealed class FunctorRespec : Functor
     {
         private static RespecSession _session;
@@ -122,7 +576,7 @@ internal static class ToolsContext
 
         internal static bool CanStartFromCharacterPool(string filename)
         {
-            if (IsRespecing || Gui.Game || string.IsNullOrEmpty(filename) || !File.Exists(filename))
+            if (IsRespecing || AppearanceEdition.IsEditing || !CanEditCharacterPoolHero(filename))
             {
                 return false;
             }
@@ -142,13 +596,7 @@ internal static class ToolsContext
                 return false;
             }
 
-            var destination = pool.BuildCharacterFilename(snapshot.Name, false);
-
-            // Built-in heroes become custom heroes; an existing custom hero owns its name.
-            return snapshot.BuiltIn
-                ? !File.Exists(destination)
-                : string.Equals(Path.GetFullPath(filename), Path.GetFullPath(destination),
-                    StringComparison.OrdinalIgnoreCase);
+            return true;
         }
 
         internal static IEnumerator StartFromCharacterPool(string filename, GuiScreen originScreen)
@@ -191,7 +639,7 @@ internal static class ToolsContext
             var explorationScreen = Gui.GuiService.GetScreen<GameLocationScreenExploration>();
             var restModal = Gui.GuiService.GetScreen<RestModal>();
 
-            if (IsRespecing || functorParameters.RestingHero == null ||
+            if (IsRespecing || AppearanceEdition.IsEditing || functorParameters.RestingHero == null ||
                 !guiConsoleScreen || !explorationScreen || !restModal)
             {
                 yield break;
@@ -828,46 +1276,14 @@ internal static class ToolsContext
 
         private static IEnumerator SaveCharacterPoolHero(RespecSession session)
         {
-            // Photograph the preserved inventory before SaveCharacter reads the cached photo.
-            var photoReady = false;
-            Texture photo = null;
-            PortraitsContext.RequestCompletedPhoto(
-                ServiceRepository.GetService<IGraphicsCharacterPhotoService>(), session.Hero, false,
-                texture =>
-                {
-                    photo = texture;
-                    photoReady = true;
-                }, forceRefresh: true);
-
-            while (!photoReady)
-            {
-                yield return null;
-            }
-
-            if (!photo)
-            {
-                session.Aborted = true;
-                yield break;
-            }
-
-            var pool = ServiceRepository.GetService<ICharacterPoolService>();
-            var completed = false;
-            void Saved() => completed = true;
-            pool.CharacterPoolRefreshed += Saved;
-
             try
             {
                 session.Saving = true;
-                pool.SaveCharacter(session.Hero, true);
-
-                while (!completed)
-                {
-                    yield return null;
-                }
+                // Photograph the preserved inventory before SaveCharacter reads the cached photo.
+                yield return ToolsContext.SaveCharacterPoolHero(session.Hero, saved => session.Aborted |= !saved);
             }
             finally
             {
-                pool.CharacterPoolRefreshed -= Saved;
                 session.Saving = false;
             }
         }
@@ -919,41 +1335,6 @@ internal static class ToolsContext
                 "RestActivity/&RestActivityRespecTitle", "Message/&RespecSuccessfulDescription",
                 "Message/&MessageOkTitle", string.Empty, null, null);
             return true;
-        }
-
-        private static void ReleaseTransientHero(RulesetCharacterHero hero)
-        {
-            if (hero == null)
-            {
-                return;
-            }
-
-            var entities = ServiceRepository.GetService<IRulesetEntityService>()?.RulesetEntities;
-            if (entities == null)
-            {
-                return;
-            }
-
-            var owned = new List<RulesetEntity> { hero, hero.PersonalLightSource };
-            owned.AddRange(hero.AllConditions);
-            var inventory = hero.CharacterInventory;
-            if (inventory != null)
-            {
-                owned.Add(inventory.PersonalContainer);
-                owned.AddRange(inventory.EnumerateAllSlots(true, false, false));
-                var items = new List<RulesetItem>();
-                inventory.EnumerateAllItems(items);
-                owned.AddRange(items);
-            }
-
-            // Unregister only this transient graph, including native-created slots with a zero-guid owner.
-            foreach (var entity in owned.Where(entity => entity != null).Distinct())
-            {
-                if (entities.TryGetValue(entity.Guid, out var registered) && ReferenceEquals(registered, entity))
-                {
-                    ServiceRepository.GetService<IRulesetEntityService>().UnregisterEntity(entity);
-                }
-            }
         }
 
         private sealed class RespecSession(RulesetCharacterHero originalHero, bool fromCharacterPool)

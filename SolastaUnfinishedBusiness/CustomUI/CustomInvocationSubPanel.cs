@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using SolastaUnfinishedBusiness.Api;
@@ -81,11 +81,44 @@ public class CustomInvocationSubPanel : MonoBehaviour
         PrepareRelevantInvocations(panel, null);
     }
 
-    internal static void PrepareRelevantInvocations(InvocationSubPanel panel, RulesetCharacterHero hero)
+    internal static void RefreshSelectionCandidates(InvocationSubPanel panel, bool active)
+    {
+        var hero = panel.InspectedCharacter;
+        if (!CharacterInspectionScreenEnhancement.HasCreationSelectionContext(panel, hero) || !PrepareRelevantInvocations(panel, hero, active))
+        {
+            return;
+        }
+
+        // Native SetState can make another learn pool current without rebinding
+        // ProficienciesPanel. Bind its changed rows before native state/navigation.
+        var callback = panel.OnItemClicked;
+        for (var index = 0; index < panel.relevantInvocations.Count; index++)
+        {
+            panel.Table.GetChild(index).GetComponent<InvocationItem>()
+                .Bind(hero, panel.relevantInvocations[index], callback, true);
+        }
+
+        panel.DispatchItems();
+        CharacterInspectionScreenEnhancement.InvalidateProficiencyBindRefresh(
+            panel.GetComponentInParent<ProficienciesPanel>());
+    }
+
+    internal static bool PrepareRelevantInvocations(InvocationSubPanel panel, RulesetCharacterHero hero,
+        bool? selectionActive = null)
     {
         var custom = panel.GetComponent<CustomInvocationSubPanel>();
         var inspection = IsPassiveInspection(panel, hero);
-        IEnumerable<InvocationDefinition> source = inspection
+        var creation = CharacterInspectionScreenEnhancement.HasCreationSelectionContext(panel, hero);
+        var needsCandidates = true;
+        if (creation)
+        {
+            var stage = panel.GetComponentInParent<CharacterStageProficiencySelectionPanel>();
+            needsCandidates = selectionActive ??
+                (stage.IsInvocationStep(stage.currentLearnStep) ||
+                 stage.IsInvocationUnlearnStep(stage.currentLearnStep));
+        }
+
+        IEnumerable<InvocationDefinition> source = inspection || creation && !needsCandidates
             ? GetAcquiredInvocations(hero)
             : DatabaseRepository.GetDatabase<InvocationDefinition>();
         var invocations = source.Where(invocation => !invocation.GuiPresentation.Hidden &&
@@ -96,7 +129,11 @@ public class CustomInvocationSubPanel : MonoBehaviour
         var table = panel.Table;
         var relevantInvocations = panel.relevantInvocations;
 
+        var previous = relevantInvocations.ToArray();
         relevantInvocations.SetRange(invocations);
+        InvocationsContext.SortInvocations(panel);
+        var changed = !previous.SequenceEqual(relevantInvocations) ||
+                      table.childCount != relevantInvocations.Count;
 
         // get missing children from pool
         while (table.childCount < relevantInvocations.Count)
@@ -107,8 +144,12 @@ public class CustomInvocationSubPanel : MonoBehaviour
         // release extra children to pool
         while (table.childCount > relevantInvocations.Count)
         {
-            Gui.ReleaseInstanceToPool(table.GetChild(table.childCount - 1).gameObject);
+            var item = table.GetChild(table.childCount - 1).GetComponent<InvocationItem>();
+            item.Unbind();
+            Gui.ReleaseInstanceToPool(item.gameObject);
         }
+
+        return changed;
     }
 
     private static bool IsPassiveInspection(ProficienciesSubPanel panel, RulesetCharacterHero hero)

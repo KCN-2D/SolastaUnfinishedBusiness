@@ -35,6 +35,17 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# The extracted authoring AST resolves inputs in the caller's fixture scope.
+function Import-AuthoringContractBinding([hashtable]$Bindings) {
+    foreach($binding in $Bindings.GetEnumerator()) {
+        Set-Variable -Name $binding.Key -Value $binding.Value -Scope 1
+    }
+}
+function Assert-AuthoringContractProcessQuery([string]$ClassName,[string]$Filter,[string[]]$Property,[string[]]$ExpectedFilter,[string[]]$ExpectedProperty) {
+    if($ClassName -cne 'Win32_Process' -or $ExpectedFilter -cnotcontains $Filter -or
+        ($Property -join ',') -cne ($ExpectedProperty -join ',')){throw 'Unexpected native process query.'}
+}
+
 function Invoke-AuthoringInputValidationContracts([string]$EntryPath, [string]$OutputDirectory) {
     $entry=(Resolve-Path -LiteralPath $EntryPath).ProviderPath
     $entryHash=(Get-FileHash -LiteralPath $entry -Algorithm SHA256).Hash
@@ -125,7 +136,7 @@ function Invoke-AuthoringInputValidationContracts([string]$EntryPath, [string]$O
     $sourceRecipe=[ordered]@{schemaVersion=1;bundleName='contract_source';meshes=@();textures=@();sourceBundles=@(@{
         path='Source.bundle';sha256=$bundleSourceHash;assets=@(@{asset='assets/input/original.asset';type='Mesh';name='RepackedMesh'})})}
     $sourceVariants=@(
-        @{name='source-clone';modify={param($value)}},
+        @{name='source-clone';modify={}},
         @{name='source-mixed';modify={param($value)$value.meshes=$mesh.meshes;$value.textures=$texture.textures};dependencies=2},
         @{name='source-hash';modify={param($value)$value.sourceBundles[0].sha256='0'*64};error='The source bundle hash differs'},
         @{name='source-path-escape';modify={param($value)$value.sourceBundles[0].path='../Source.bundle'};error='Invalid or duplicate source bundle'},
@@ -144,6 +155,137 @@ function Invoke-AuthoringInputValidationContracts([string]$EntryPath, [string]$O
         if($variant.ContainsKey('error')){$case.error=$variant.error}
         $sourceInputs+=,$case
     }
+    $patchSource=[byte[]](0..111);$patchTarget=[byte[]]$patchSource.Clone();$patchTarget[20]=99
+    $patchSourcePath=Join-Path $inputs 'EncodedSource.bin';$patchTargetPath=Join-Path $inputs 'EncodedTarget.bin'
+    [IO.File]::WriteAllBytes($patchSourcePath,$patchSource);[IO.File]::WriteAllBytes($patchTargetPath,$patchTarget)
+    function Get-EncodedContractHash([byte[]]$Bytes,[int]$Offset=0,[int]$Count=-1) {
+        if($Count -lt 0){$Count=$Bytes.Length}
+        $sha=[Security.Cryptography.SHA256]::Create()
+        try{return ([BitConverter]::ToString($sha.ComputeHash($Bytes,$Offset,$Count))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}
+    }
+    $patchRecipe=$sourceRecipe|ConvertTo-Json -Depth 30|ConvertFrom-Json;$patchRecipe.sourceBundles[0].assets[0].type='Texture2D'
+    $patchMips=@();$patchOffset=0
+    foreach($level in 0..3){$length=if($level -eq 0){64}else{16};$allowed=[int[]]@();if($level -eq 0){$allowed=[int[]]@(1)};$patchMips+=@{level=$level;offset=$patchOffset;byteLength=$length;
+        sourceSha256=(Get-EncodedContractHash $patchSource $patchOffset $length);patchedSha256=(Get-EncodedContractHash $patchTarget $patchOffset $length);
+        allowedBlocks=$allowed};$patchOffset+=$length}
+    $patchRecipe.sourceBundles[0].assets[0]|Add-Member -NotePropertyName encodedTexturePatch -NotePropertyValue @{
+        sourceFormat='DXT5Crunched';outputFormat='DXT5';sourceRawSha256=('a'*64);width=8;height=8;mipCount=4;mips=$patchMips;
+        sourceMipPayload=@{path='EncodedSource.bin';sha256=(Get-EncodedContractHash $patchSource);byteLength=112};
+        patchedMipPayload=@{path='EncodedTarget.bin';sha256=(Get-EncodedContractHash $patchTarget);byteLength=112}}
+    $outside=[byte[]]$patchTarget.Clone();$outside[2]=100;$outsidePath=Join-Path $inputs 'EncodedOutside.bin';[IO.File]::WriteAllBytes($outsidePath,$outside)
+    $truncated=[byte[]]$patchSource[0..110];[IO.File]::WriteAllBytes((Join-Path $inputs 'EncodedTruncated.bin'),$truncated)
+    $patchInputs=@()
+    foreach($kind in @('valid','readable-true','readable-false','readable-string','readable-null','unknown-patch','unknown-mip','unknown-payload','format','dimensions','mips','offset','length','payload-sha','mip-sha','source-sha','block-bounds','block-order','block-duplicate','block-negative','block-fraction','block-null','outside','mesh-type','path-escape','dxt5-valid','dxt5-format','dxt5-truncated','dxt5-offset','dxt5-unknown','dxt5-source-sha')) {
+        $value=$patchRecipe|ConvertTo-Json -Depth 30|ConvertFrom-Json;$patch=$value.sourceBundles[0].assets[0].encodedTexturePatch;$errorPattern=$null
+        if($kind.StartsWith('dxt5-',[StringComparison]::Ordinal)){$patch.sourceFormat='DXT5';$patch.sourceRawSha256=$patch.sourceMipPayload.sha256}
+        switch($kind) {
+            'dxt5-format' {$patch.sourceFormat='DXT1';$errorPattern='format or dimensions'}
+            'dxt5-truncated' {$patch.sourceMipPayload.path='EncodedTruncated.bin';$patch.sourceMipPayload.byteLength=111;$patch.sourceMipPayload.sha256=Get-EncodedContractHash $truncated;$patch.sourceRawSha256=$patch.sourceMipPayload.sha256;$errorPattern='source and patched texture lengths differ'}
+            'dxt5-offset' {$patch.mips[1].offset=65;$errorPattern='mip offsets'}
+            'dxt5-unknown' {$patch|Add-Member -NotePropertyName foreign -NotePropertyValue 1;$errorPattern='encoded texture patch field'}
+            'dxt5-source-sha' {$patch.sourceRawSha256='0'*64;$errorPattern='raw DXT5 source and BC3 mip payload SHA256 differ'}
+            'readable-true' {$patch|Add-Member -NotePropertyName readable -NotePropertyValue $true}
+            'readable-false' {$patch|Add-Member -NotePropertyName readable -NotePropertyValue $false}
+            'readable-string' {$patch|Add-Member -NotePropertyName readable -NotePropertyValue 'false';$errorPattern='patch boolean is mistyped'}
+            'readable-null' {$patch|Add-Member -NotePropertyName readable -NotePropertyValue $null;$errorPattern='patch boolean is mistyped'}
+            'unknown-patch' {$patch|Add-Member -NotePropertyName foreign -NotePropertyValue 1;$errorPattern='encoded texture patch field'}
+            'unknown-mip' {$patch.mips[0]|Add-Member -NotePropertyName foreign -NotePropertyValue 1;$errorPattern='encoded texture patch field'}
+            'unknown-payload' {$patch.sourceMipPayload|Add-Member -NotePropertyName foreign -NotePropertyValue 1;$errorPattern='encoded texture patch field'}
+            'format' {$patch.outputFormat='BC7';$errorPattern='format or dimensions'}
+            'dimensions' {$patch.width=0;$errorPattern='format or dimensions'}
+            'mips' {$patch.mips=@($patch.mips[0..2]);$errorPattern='every source mip'}
+            'offset' {$patch.mips[1].offset=65;$errorPattern='mip offsets'}
+            'length' {$patch.patchedMipPayload.byteLength=111;$errorPattern='payload byte length'}
+            'payload-sha' {$patch.patchedMipPayload.sha256='0'*64;$errorPattern='payload SHA256'}
+            'mip-sha' {$patch.mips[0].sourceSha256='0'*64;$errorPattern='mip SHA256'}
+            'source-sha' {$patch.sourceRawSha256='invalid';$errorPattern='format or dimensions'}
+            'block-bounds' {$patch.mips[0].allowedBlocks=@(4);$errorPattern='sorted, unique and inside'}
+            'block-order' {$patch.mips[0].allowedBlocks=@(2,1);$errorPattern='sorted, unique and inside'}
+            'block-duplicate' {$patch.mips[0].allowedBlocks=@(1,1);$errorPattern='sorted, unique and inside'}
+            'block-negative' {$patch.mips[0].allowedBlocks=@(-1);$errorPattern='block index must be an integer'}
+            'block-fraction' {$patch.mips[0].allowedBlocks=@(1.5);$errorPattern='block index must be an integer'}
+            'block-null' {$patch.mips[0].allowedBlocks=$null;$errorPattern='patch array is mistyped'}
+            'outside' {$patch.patchedMipPayload.path='EncodedOutside.bin';$patch.patchedMipPayload.sha256=Get-EncodedContractHash $outside;$patch.mips[0].patchedSha256=Get-EncodedContractHash $outside 0 64;$errorPattern='outside the allowed blocks'}
+            'mesh-type' {$value.sourceBundles[0].assets[0].type='Mesh';$errorPattern='Only a source Texture2D'}
+            'path-escape' {$patch.sourceMipPayload.path='../EncodedSource.bin';$errorPattern='payload declaration'}
+        }
+        $path=Join-Path $inputs ('encoded-patch-'+$kind+'.json');Save-ValidationJson $path $value
+        $case=@{name=('encoded-patch-'+$kind);parameter='MeshRecipePath';path=$path;kind='mesh-templates';bundle='contract_source';dependencies=3}
+        if($errorPattern){$case.error=$errorPattern}
+        $patchInputs+=,$case
+    }
+    # BC1 stores eight bytes per 4x4 block, including each small tail mip.
+    # Rectangular and one-block fixtures reject accidental BC3 stride reuse.
+    $bc1Inputs=@()
+    foreach($shape in @(@{name='square';width=8;height=8},@{name='rectangular';width=9;height=5},@{name='single';width=1;height=1})) {
+        $levels=1
+        for($size=[Math]::Max($shape.width,$shape.height);$size -gt 1;$size=$size -shr 1){$levels++}
+        $mipRows=@();$bc1Length=0
+        for($level=0;$level -lt $levels;$level++) {
+            $width=[Math]::Max(1,$shape.width -shr $level);$height=[Math]::Max(1,$shape.height -shr $level)
+            $length=[int]([Math]::Ceiling($width/4.0)*[Math]::Ceiling($height/4.0)*8)
+            $mipRows+=@{level=$level;offset=$bc1Length;byteLength=$length;allowedBlocks=[int[]]@()};$bc1Length+=$length
+        }
+        $bc1Source=[byte[]](0..($bc1Length-1));$bc1Target=[byte[]]$bc1Source.Clone()
+        $allowedBlock=if($shape.name -ceq 'single'){0}else{1}
+        $bc1Target[$allowedBlock*8+2]=99;$mipRows[0].allowedBlocks=[int[]]@($allowedBlock)
+        foreach($mip in $mipRows){$mip.sourceSha256=Get-EncodedContractHash $bc1Source $mip.offset $mip.byteLength;$mip.patchedSha256=Get-EncodedContractHash $bc1Target $mip.offset $mip.byteLength}
+        $sourceName='Bc1Source-'+$shape.name+'.bin';$targetName='Bc1Target-'+$shape.name+'.bin'
+        [IO.File]::WriteAllBytes((Join-Path $inputs $sourceName),$bc1Source);[IO.File]::WriteAllBytes((Join-Path $inputs $targetName),$bc1Target)
+        foreach($kind in @('valid','readable-false','output-format','source-format','source-sha','mip-stride','block-bounds','outside','unknown')) {
+            $value=$patchRecipe|ConvertTo-Json -Depth 30|ConvertFrom-Json
+            $clonedMips=ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject @($mipRows) -Depth 20)
+            $patch=@{sourceFormat='DXT1';outputFormat='DXT1';sourceRawSha256=(Get-EncodedContractHash $bc1Source);width=$shape.width;height=$shape.height;mipCount=$levels;mips=@($clonedMips);
+                sourceMipPayload=@{path=$sourceName;sha256=(Get-EncodedContractHash $bc1Source);byteLength=$bc1Length};patchedMipPayload=@{path=$targetName;sha256=(Get-EncodedContractHash $bc1Target);byteLength=$bc1Length}}
+            $errorPattern=$null
+            switch($kind) {
+                'readable-false' {$patch.readable=$false}
+                'output-format' {$patch.outputFormat='DXT5';$errorPattern='format or dimensions'}
+                'source-format' {$patch.sourceFormat='DXT1Crunched';$errorPattern='format or dimensions'}
+                'source-sha' {$patch.sourceRawSha256='0'*64;$errorPattern='raw DXT1 source and BC1 mip payload SHA256 differ'}
+                'mip-stride' {$patch.mips[0].byteLength*=2;$errorPattern='mip offsets'}
+                'block-bounds' {$patch.mips[0].allowedBlocks=@([int]($patch.mips[0].byteLength/8));$errorPattern='sorted, unique and inside'}
+                'outside' {
+                    $outsideBytes=[byte[]]$bc1Target.Clone()
+                    if($shape.name -ceq 'single'){$patch.mips[0].allowedBlocks=@()}
+                    else{$outsideBytes[0]=100}
+                    $outsideName='Bc1Outside-'+$shape.name+'.bin';[IO.File]::WriteAllBytes((Join-Path $inputs $outsideName),$outsideBytes)
+                    $patch.patchedMipPayload.path=$outsideName;$patch.patchedMipPayload.sha256=Get-EncodedContractHash $outsideBytes;$patch.mips[0].patchedSha256=Get-EncodedContractHash $outsideBytes 0 $patch.mips[0].byteLength;$errorPattern='outside the allowed blocks'
+                }
+                'unknown' {$patch.foreign=1;$errorPattern='encoded texture patch field'}
+            }
+            $value.sourceBundles[0].assets[0].encodedTexturePatch=$patch
+            $name='encoded-bc1-'+$shape.name+'-'+$kind;$path=Join-Path $inputs ($name+'.json');Save-ValidationJson $path $value
+            $case=@{name=$name;parameter='MeshRecipePath';path=$path;kind='mesh-templates';bundle='contract_source';dependencies=3}
+            if($errorPattern){$case.error=$errorPattern};$bc1Inputs+=,$case
+        }
+    }
+    $patchInputs+=$bc1Inputs
+    $storageRecipe=Get-Content -LiteralPath $bc1Inputs[0].path -Raw|ConvertFrom-Json
+    $storageBytes=[byte[]](@(200..207)+@(0..55)+@(208..215))
+    $storageName='Bc1PinnedMember.bin';[IO.File]::WriteAllBytes((Join-Path $inputs $storageName),$storageBytes)
+    foreach($kind in @('valid','readable-false','unknown','null','pointer-zero','pointer-fraction','member-escape','offset-negative','range','chunk-sha','member-sha')) {
+        $value=$storageRecipe|ConvertTo-Json -Depth 30|ConvertFrom-Json;$patch=$value.sourceBundles[0].assets[0].encodedTexturePatch
+        $storage=@{serializedFile='CAB-0123456789abcdef';pathId='-123456789012345';textureName='NativeMask';streamMember='CAB-0123456789abcdef.resS';streamOffset=8;byteLength=56;storedImageCount=1;
+            streamPayload=@{path=$storageName;sha256=(Get-EncodedContractHash $storageBytes);byteLength=$storageBytes.Length}}
+        $errorPattern=$null
+        switch($kind) {
+            'readable-false' {$patch|Add-Member -NotePropertyName readable -NotePropertyValue $false -Force}
+            'unknown' {$storage.foreign=1;$errorPattern='encoded texture patch field'}
+            'null' {$storage=$null;$errorPattern='patch object is mistyped'}
+            'pointer-zero' {$storage.pathId='0';$errorPattern='stream pointer is invalid'}
+            'pointer-fraction' {$storage.pathId='1.5';$errorPattern='stream pointer is invalid'}
+            'member-escape' {$storage.streamMember='../CAB.resS';$errorPattern='stream pointer is invalid'}
+            'offset-negative' {$storage.streamOffset=-1;$errorPattern='patch integer is invalid'}
+            'range' {$storage.streamOffset=20;$errorPattern='stream range is outside'}
+            'chunk-sha' {$storage.streamOffset=7;$errorPattern='stream chunk SHA256 differs'}
+            'member-sha' {$storage.streamPayload.sha256='0'*64;$errorPattern='payload SHA256 differs'}
+        }
+        $patch|Add-Member -NotePropertyName sourceEncodedStorage -NotePropertyValue $storage -Force
+        $name='encoded-native-storage-'+$kind;$path=Join-Path $inputs ($name+'.json');Save-ValidationJson $path $value
+        $case=@{name=$name;parameter='MeshRecipePath';path=$path;kind='mesh-templates';bundle='contract_source';dependencies=4}
+        if($errorPattern){$case.error=$errorPattern};$patchInputs+=,$case
+    }
     $cases=@(
         @{name='mesh';parameter='MeshRecipePath';path=$meshPath;kind='mesh-templates';bundle='contract_mesh';dependencies=0;colorSpace='Gamma'},
         @{name='texture-only';parameter='MeshRecipePath';path=$texturePath;kind='mesh-templates';bundle='contract_texture';dependencies=1},
@@ -154,7 +296,7 @@ function Invoke-AuthoringInputValidationContracts([string]$EntryPath, [string]$O
         @{name='material-hash';parameter='MaterialRecipePath';path=$badMaterialPath;error='The material source hash differs'},
         @{name='uv-array';parameter='MeshRecipePath';path=$badUvPath;error='Invalid mesh UV length'},
         @{name='empty-executable-version-trap';parameter='MeshRecipePath';path=$meshPath;error='executable file version is not 2019.4.37';withoutValidate=$true}
-    )+$compressionInputs+$sourceInputs
+    )+$compressionInputs+$sourceInputs+$patchInputs
     $inputOwner=Join-Path (Split-Path -Parent $entry) 'UnityAssetBuild/Assets/Editor/AssetBundleBuilder.cs'
     $entryTokens=$null;$entryErrors=$null
     $entryAst=[Management.Automation.Language.Parser]::ParseFile($entry,[ref]$entryTokens,[ref]$entryErrors)
@@ -187,7 +329,97 @@ function Invoke-AuthoringInputValidationContracts([string]$EntryPath, [string]$O
                 $decoded.sourceBundles[0].assets[0].name -ceq 'RepackedMesh') $reason
         }
     }
+    foreach($case in $patchInputs) {
+        $decoded=$null;$reason=$null
+        try{$decoded=Read-ExternalMeshRecipe $case.path $inputOwner}catch{$reason=$_.Exception.ToString()}
+        if($case.ContainsKey('error')){Add-ValidationCheck ($case.name+'-typed-reader-rejects') ($null -ne $reason -and $reason -match [regex]::Escape($case.error)) $reason}
+        else{
+            $expectedPatch=(Get-Content -LiteralPath $case.path -Raw|ConvertFrom-Json).sourceBundles[0].assets[0].encodedTexturePatch
+            $actualPatch=if($null -ne $decoded){$decoded.sourceBundles[0].assets[0].encodedTexturePatch}else{$null}
+            Add-ValidationCheck ($case.name+'-typed-reader-preserves') ($null -eq $reason -and $null -ne $actualPatch -and
+                $actualPatch.mips.Count -eq $expectedPatch.mipCount -and $actualPatch.sourceFormat -ceq $expectedPatch.sourceFormat -and
+                $actualPatch.outputFormat -ceq $expectedPatch.outputFormat) $reason
+        }
+    }
     $codec=(Read-ExternalMeshRecipe $sourceInputs[0].path $inputOwner).GetType().DeclaringType
+    foreach($dimensionCase in @(
+        @{name='exact';width=2048;height=2048;mips=12;dimension='Tex2D';images=1;reject=$false},
+        @{name='width';width=0;height=2048;mips=12;dimension='Tex2D';images=1;reject=$true},
+        @{name='height';width=2048;height=1024;mips=12;dimension='Tex2D';images=1;reject=$true},
+        @{name='mips';width=2048;height=2048;mips=1;dimension='Tex2D';images=1;reject=$true},
+        @{name='kind';width=2048;height=2048;mips=12;dimension='Cube';images=1;reject=$true},
+        @{name='images';width=2048;height=2048;mips=12;dimension='Tex2D';images=6;reject=$true}
+    )) {
+        $rejected=$false;try{$codec::VerifyRuntimeTextureDimensions(2048,2048,12,$dimensionCase.width,$dimensionCase.height,$dimensionCase.mips,$dimensionCase.dimension,$dimensionCase.images)}catch{$rejected=$true}
+        Add-ValidationCheck ('encoded-runtime-dimensions-'+$dimensionCase.name) ($rejected -eq $dimensionCase.reject) $null
+    }
+    $metadataJson='{"Texture2D":{"m_IsReadable":true,"m_TextureFormat":29,"m_Width":8,"_typelessdata":"00112233445566778899aabbccddeeff","m_TextureSettings":{"m_FilterMode":1}}}'
+    function Get-ReferenceTextureMetadata([byte[]]$Bytes,[bool]$IgnoreReadability) {
+        $document=[Xml.XmlDocument]::new()
+        $reader=[Runtime.Serialization.Json.JsonReaderWriterFactory]::CreateJsonReader($Bytes,[Xml.XmlDictionaryReaderQuotas]::Max)
+        try{$document.Load($reader)}finally{$reader.Dispose()}
+        $body=$document.DocumentElement['Texture2D']
+        if($null -eq $body -or $body.GetAttribute('type') -cne 'object' -or $document.DocumentElement.ChildNodes.Count -ne 1){throw 'Invalid reference metadata body.'}
+        $storage=@('m_Name','m_TextureFormat','m_CompleteImageSize','m_ImageContentsHash','image data','_typelessdata','m_StreamData')
+        $retained=[Collections.Generic.SortedDictionary[string,string]]::new([StringComparer]::Ordinal)
+        foreach($node in $body.ChildNodes) {
+            $name=if($null -ne $node.Attributes['item']){$node.Attributes['item'].Value}else{$node.Name}
+            if($retained.ContainsKey($name)){throw 'Duplicate reference metadata field.'}
+            if($storage -cnotcontains $name -and !($IgnoreReadability -and $name -ceq 'm_IsReadable')){$retained.Add($name,$node.OuterXml)}
+        }
+        return ,$retained
+    }
+    $largeHex='00'*1048576
+    $metadataParity=@(
+        @{name='small';json=$metadataJson;rawHexCharacters=32},
+        @{name='empty';json='{"Texture2D":{}}';rawHexCharacters=0},
+        @{name='unreadable-source';json='{"Texture2D":{"m_Width":0,"m_Height":0,"m_MipCount":1,"m_ImageCount":0,"m_IsReadable":false,"m_TextureFormat":10,"m_ColorSpace":1,"m_StreamData":{"offset":7,"size":8,"path":"archive:/CAB/CAB.resS"},"unknown retained":{"nested":[1,2],"text":"keep this"}}}';rawHexCharacters=0},
+        @{name='large-raw';json=('{"Texture2D":{"m_IsReadable":false,"m_TextureFormat":10,"m_Width":1024,"m_Height":1024,"m_MipCount":11,"m_ImageCount":1,"m_ColorSpace":1,"_typelessdata":"'+$largeHex+'","m_TextureSettings":{"m_FilterMode":1,"m_WrapU":0},"unknown retained":{"nested":[1,2],"text":"keep this"}}}');rawHexCharacters=$largeHex.Length}
+    )
+    foreach($parity in $metadataParity) {
+        foreach($ignore in @($false,$true)) {
+            $bytes=[Text.Encoding]::UTF8.GetBytes($parity.json);$timer=[Diagnostics.Stopwatch]::StartNew()
+            $reference=Get-ReferenceTextureMetadata $bytes $ignore;$timer.Stop();$referenceTime=$timer.Elapsed.TotalMilliseconds
+            $timer.Restart();$actual=$codec::ReadTextureMetadata($bytes,$ignore);$timer.Stop()
+            $referenceText=@($reference.Keys|ForEach-Object {$_+'='+$reference[$_]}) -join "`n"
+            $actualText=@($actual.Keys|ForEach-Object {$_+'='+$actual[$_]}) -join "`n"
+            Add-ValidationCheck ('encoded-metadata-streaming-parity-'+$parity.name+'-'+$ignore) ($referenceText -ceq $actualText) @{
+                referenceMilliseconds=$referenceTime;streamingMilliseconds=$timer.Elapsed.TotalMilliseconds;rawHexCharactersSkipped=$parity.rawHexCharacters;retainedFields=$actual.Count
+            }
+        }
+    }
+    foreach($duplicate in @('{"Texture2D":{"unknown":1,"unknown":2}}','{"Texture2D":{"_typelessdata":"00","_typelessdata":"00"}}')) {
+        $rejected=$false
+        try{$null=$codec::ReadTextureMetadata([Text.Encoding]::UTF8.GetBytes($duplicate),$false)}catch{$rejected=$true}
+        Add-ValidationCheck ('encoded-metadata-streaming-duplicate-'+$duplicate.Length) $rejected $null
+    }
+    foreach($metadataCase in @(
+        @{name='missing-wrapper';json='{"m_Width":8}';reject=$true},
+        @{name='wrong-wrapper';json='{"Texture2D":[] }';reject=$true},
+        @{name='extra-wrapper';json='{"Texture2D":{},"Foreign":{}}';reject=$true},
+        @{name='duplicate-wrapper';json='{"Texture2D":{},"Texture2D":{}}';reject=$true},
+        @{name='unknown-metadata';json=$metadataJson.Replace('"m_Width":8','"m_Width":8,"FutureNativeFlag":true');same=$false},
+        @{name='nested-sampler';json=$metadataJson.Replace('"m_FilterMode":1','"m_FilterMode":0');same=$false},
+        @{name='format-storage-transition';json=$metadataJson.Replace('"m_TextureFormat":29','"m_TextureFormat":12');same=$true},
+        @{name='raw-storage-transition';json=$metadataJson.Replace('00112233445566778899aabbccddeeff','ffeeddccbbaa99887766554433221100');same=$true},
+        @{name='readability-default';json=$metadataJson.Replace('"m_IsReadable":true','"m_IsReadable":false');same=$false},
+        @{name='readability-explicit';json=$metadataJson.Replace('"m_IsReadable":true','"m_IsReadable":false');ignore=$true;same=$true}
+    )) {
+        $reason=$null;$actual=$null;$ignore=$metadataCase.ContainsKey('ignore') -and $metadataCase.ignore
+        try{$baseline=$codec::ReadTextureMetadata([Text.Encoding]::UTF8.GetBytes($metadataJson),$ignore);$actual=$codec::ReadTextureMetadata([Text.Encoding]::UTF8.GetBytes($metadataCase.json),$ignore)}catch{$reason=$_.Exception.Message}
+        $passed=if($metadataCase.ContainsKey('reject')){$null -ne $reason}else{$null -eq $reason -and
+            ([string]::Join("`n",[string[]]$baseline.Values) -ceq [string]::Join("`n",[string[]]$actual.Values)) -eq $metadataCase.same}
+        Add-ValidationCheck ('encoded-metadata-'+$metadataCase.name) $passed $reason
+    }
+    foreach($rawCase in @(
+        @{name='exact';json=$metadataJson;accept=$true},
+        @{name='odd';json=$metadataJson.Replace('00112233445566778899aabbccddeeff','00112233445566778899aabbccddeef');accept=$false},
+        @{name='nonhex';json=$metadataJson.Replace('00112233445566778899aabbccddeeff','zz112233445566778899aabbccddeeff');accept=$false},
+        @{name='missing';json='{"Texture2D":{"m_Width":8}}';accept=$false}
+    )) {
+        $raw=$null;$rejected=$false;try{$raw=$codec::ReadSerializedTextureData([Text.Encoding]::UTF8.GetBytes($rawCase.json))}catch{$rejected=$true}
+        Add-ValidationCheck ('encoded-serialized-raw-'+$rawCase.name) ($(if($rawCase.accept){!$rejected -and $raw.Length -eq 16 -and $raw[1] -eq 17 -and $raw[15] -eq 255}else{$rejected})) $null
+    }
     foreach($case in @(
         @{name='source-resolver-bundle';owner='.';path='Source.bundle';extensions=@('.bundle')},
         @{name='source-resolver-image';owner='.';path='Pixel.png';extensions=@('.png')},
@@ -415,7 +647,9 @@ $function=@($ast.FindAll({param($n)$n -is [Management.Automation.Language.Functi
 . ([scriptblock]::Create($function[0].Extent.Text))
 $workbench=Join-Path $OutputDirectory 'workspace';[void][IO.Directory]::CreateDirectory($workbench)
 $script:BlenderProcesses=@();$script:BlenderQueryFails=$false;$script:ProcessQueries=0
-function Get-CimInstance {param($ClassName,$Filter,$Property)$script:ProcessQueries++;if($script:BlenderQueryFails){throw 'fixture process query failed'};return $script:BlenderProcesses}
+function Get-CimInstance {param($ClassName,$Filter,$Property)
+ Assert-AuthoringContractProcessQuery $ClassName $Filter $Property @("Name = 'blender.exe'") @('ProcessId','ExecutablePath','CommandLine','CreationDate')
+ $script:ProcessQueries++;if($script:BlenderQueryFails){throw 'fixture process query failed'};return $script:BlenderProcesses}
 $checks=[Collections.Generic.List[object]]::new()
 function Need([string]$Name,[bool]$Passed){$checks.Add([ordered]@{name=$Name;passed=$Passed});if(-not $Passed){Write-Host "FAIL $Name"}}
 function Rejected([scriptblock]$Action){try{&$Action|Out-Null;return $false}catch{return $true}}
@@ -458,8 +692,8 @@ try{[IO.File]::WriteAllText($Ready,'ready');while(-not [IO.File]::Exists($Releas
 }
 function ReleaseOperation($Lease){[IO.File]::WriteAllText($Lease.release,'release');if(-not $Lease.process.WaitForExit(10000)){$Lease.process.Kill();throw 'Fixture storage lease did not exit.'};$Lease.process.Dispose()}
 function UnityClean([string]$Project,[hashtable]$Options=@{},[switch]$Apply){
- $args=@{Project=$Project;MaxAgeDays=1;Apply=[bool]$Apply};foreach($key in $Options.Keys){$args[$key]=$Options[$key]}
- $path=Clear-AssetAuthoringJobs @args;return Get-Content -LiteralPath $path -Raw|ConvertFrom-Json
+ $cleanupArguments=@{Project=$Project;MaxAgeDays=1;Apply=[bool]$Apply};foreach($key in $Options.Keys){$cleanupArguments[$key]=$Options[$key]}
+ $path=Clear-AssetAuthoringJobs @cleanupArguments;return Get-Content -LiteralPath $path -Raw|ConvertFrom-Json
 }
 function BlenderRun([string]$Root,[string]$Name,[string]$Status='passed',[string[]]$Dependencies=@()){
  $path=Directory (Join-Path $Root $Name);$inputs=Directory (Join-Path $path 'InputSources');$archive=Join-Path $inputs 'source.py';[IO.File]::WriteAllText($archive,'# source snapshot')
@@ -471,8 +705,8 @@ function BlenderRun([string]$Root,[string]$Name,[string]$Status='passed',[string
  Save (Join-Path $path 'run.json') $data;return $path
 }
 function BlenderClean([string]$Root,[hashtable]$Options=@{},[switch]$Apply){
- $args=@{Root=$Root;ReferenceFiles=@();Preserve=@();Latest=2;Age=1;Budget=0;Delete=[bool]$Apply};foreach($key in $Options.Keys){if($key -eq 'References'){$args.ReferenceFiles=$Options[$key]}else{$args[$key]=$Options[$key]}}
- $path=Clear-BlenderAuthoringOutputs @args;return Get-Content -LiteralPath $path -Raw|ConvertFrom-Json
+ $cleanupArguments=@{Root=$Root;ReferenceFiles=@();Preserve=@();Latest=2;Age=1;Budget=0;Delete=[bool]$Apply};foreach($key in $Options.Keys){if($key -eq 'References'){$cleanupArguments.ReferenceFiles=$Options[$key]}else{$cleanupArguments[$key]=$Options[$key]}}
+ $path=Clear-BlenderAuthoringOutputs @cleanupArguments;return Get-Content -LiteralPath $path -Raw|ConvertFrom-Json
 }
 
 foreach($representation in @('uniform','mixed')){foreach($reverse in @($false,$true)){
@@ -681,7 +915,10 @@ $r=Get-Content $path -Raw|ConvertFrom-Json
 Need 'Blender public cleanup entry needs no Blender executable or launch' ((Test-Path $run)-and $r.status -eq 'complete'-and -not $r.applied)
 $nativeCensus=(Get-Command Get-CimInstance).ScriptBlock
 try{
- function Get-CimInstance {param($ClassName,$Filter,$Property)return @()}
+ function Get-CimInstance {param($ClassName,$Filter,$Property)
+  Assert-AuthoringContractProcessQuery $ClassName $Filter $Property @("Name = 'blender.exe'") @('ProcessId','ExecutablePath','CommandLine','CreationDate')
+  return @()
+ }
  $zeroReport=& (Join-Path $candidate 'Invoke-AssetAuthoring.ps1') -Cleanup -OutputRoot $publicRoot -KeepLatest 0
 }finally{Set-Item -LiteralPath Function:Get-CimInstance -Value $nativeCensus}
 $zeroResult=Get-Content -LiteralPath $zeroReport -Raw|ConvertFrom-Json
@@ -772,21 +1009,21 @@ Need 'Unity owned job and asset paths cannot target an installation' ((Rejected 
 $installedReference=Join-Path $installation 'references.json';Save $installedReference @{schemaVersion=1;paths=@('Data/native.bundle')}
 $references=Get-AssetStorageReferences @($installedReference);Assert-AssetStorageReferences $references
 Need 'reference manifests and entries may be read from an installation' ($references.paths.Contains($installedInput) -and $references.paths.Contains($installedReference))
-$run=@{};$DependencyPath=@($installedInput);$declaredSources=@()
+$run=@{};Import-AuthoringContractBinding @{DependencyPath=@($installedInput)};$declaredSources=@()
 $assignment=@($ast.FindAll({param($node)$node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq '$run[''dependencies'']'},$true))
 if($assignment.Count -ne 1){throw 'The normal Blender dependency assignment is not unique.'}
 . ([scriptblock]::Create($assignment[0].Extent.Text))
 Need 'normal Blender dependency registration admits installed read-only inputs' ($run.dependencies.Count -eq 1 -and $run.dependencies[0] -eq $installedInput)
 $sourceAssignment=@($ast.FindAll({param($node)$node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq '$declaredSources'},$true))
 if($sourceAssignment.Count -ne 1){throw 'The declared authoring source resolution is not unique.'}
-$SourcePath=@($installedInput,$installedInput)
+Import-AuthoringContractBinding @{SourcePath=@($installedInput,$installedInput)}
 . ([scriptblock]::Create($sourceAssignment[0].Extent.Text))
 Need 'declared authoring sources admit read-only files and normalize repeated paths' ($declaredSources.Count -eq 1 -and $declaredSources[0] -eq $installedInput)
-$SourcePath=@($installation)
+Import-AuthoringContractBinding @{SourcePath=@($installation)}
 Need 'declared authoring sources reject directories' (Rejected {. ([scriptblock]::Create($sourceAssignment[0].Extent.Text))})
-$SourcePath=@((Join-Path $installation 'missing.py'))
+Import-AuthoringContractBinding @{SourcePath=@((Join-Path $installation 'missing.py'))}
 Need 'declared authoring sources reject missing files' (Rejected {. ([scriptblock]::Create($sourceAssignment[0].Extent.Text))})
-$SourcePath=@($installedReference)
+Import-AuthoringContractBinding @{SourcePath=@($installedReference)}
 . ([scriptblock]::Create($sourceAssignment[0].Extent.Text))
 . ([scriptblock]::Create($assignment[0].Extent.Text))
 Need 'declared execution sources also retain their cleanup dependency' ($run.dependencies.Count -eq 2 -and $installedReference -in $run.dependencies -and $installedInput -in $run.dependencies)
@@ -889,8 +1126,12 @@ Need 'JSON depth failure leaves no owned temporary files' (@(Get-ChildItem -Lite
     $first=[ordered]@{pid=101;path=$cli;startTimeUtc=$launched.AddSeconds(1).ToString('O');parentPid=100}
     $second=[ordered]@{pid=102;path=$cli;startTimeUtc=$launched.AddSeconds(2).ToString('O');parentPid=100}
     $script:censusRows=@();$script:censusProcesses=@{}
-    function Get-CimInstance {param($ClassName,$Filter,$Property) $script:censusRows}
-    function Get-Process {param($Id,$ErrorAction) $script:censusProcesses[[int]$Id]}
+    function Get-CimInstance {param($ClassName,$Filter,$Property)
+        $expectedProperty=if($Filter -ceq "ParentProcessId = 100 AND Name = 'Unity.exe'"){@('ProcessId','ParentProcessId','ExecutablePath','CreationDate')}else{@('ProcessId','ExecutablePath','CreationDate')}
+        Assert-AuthoringContractProcessQuery $ClassName $Filter $Property @("ParentProcessId = 100 AND Name = 'Unity.exe'","ParentProcessId = 100 AND Name = 'unity.exe'") $expectedProperty
+        $script:censusRows
+    }
+    function Get-Process {[CmdletBinding()]param([int]$Id) $script:censusProcesses[$Id]}
     $knownOnly=@(Find-AssetCliChildren 100 $cli $launched @($first,$second))
     Need 'child census retains separate OrderedDictionary identities' ($knownOnly.Count -eq 2 -and ($knownOnly.pid -join ',') -ceq '101,102')
     $receipt=$first|ConvertTo-Json|ConvertFrom-Json
@@ -935,11 +1176,16 @@ foreach($mode in @('startup-and-cleanup-fail','startup-fails-cleanup-succeeds','
     $startupCause=[FormatException]::new('fixture startup failure')
     $cleanupCause=[IO.IOException]::new('fixture cleanup failure')
     $session=[pscustomobject]@{RunDirectory=$Run;Lease=$null;Ready=$null}
-    $returnedReady=$false;$startupError=$null;$TimeoutSeconds=5
-    $parent=[pscustomobject]@{Path='fixture-caller.exe'};$repo=$Run;$cfg=@{desktop='fixture-desktop'};$config=Join-Path $Run 'configuration.json'
-    function Get-Command {param($Name) [pscustomobject]@{ScriptBlock=[pscustomobject]@{File='fixture-host.ps1'}}}
+    $returnedReady=$false
+    Import-AuthoringContractBinding @{
+        startupError=$null;TimeoutSeconds=5;parent=[pscustomobject]@{Path='fixture-caller.exe'}
+        repo=$Run;cfg=@{desktop='fixture-desktop'};config=(Join-Path $Run 'configuration.json')
+    }
+    function Get-Command {param($Name) if($Name -cne 'Invoke-AssetBackgroundHost'){throw 'Unexpected background host command.'}; [pscustomobject]@{ScriptBlock=[pscustomobject]@{File='fixture-host.ps1'}}}
     function Start-VerificationBackgroundProcess {
         param($FilePath,$WorkingDirectory,$DesktopName,$ArgumentList)
+        if($FilePath -cne 'fixture-caller.exe' -or $WorkingDirectory -cne $Run -or $DesktopName -cne 'fixture-desktop' -or
+            ($ArgumentList -join '|') -cne ('-NoProfile|-File|fixture-host.ps1|-Configuration|'+(Join-Path $Run 'configuration.json'))){throw 'Unexpected background host launch arguments.'}
         $calls.Add('start')
         if($Mode -ne 'startup-ready'){throw $startupCause}
         [IO.File]::WriteAllText((Join-Path $Run 'session.json'),'{"status":"ready"}')
@@ -947,6 +1193,7 @@ foreach($mode in @('startup-and-cleanup-fail','startup-fails-cleanup-succeeds','
     }
     function Stop-AssetBackgroundEditor {
         param($Session)
+        if($Session.RunDirectory -cne $Run){throw 'Unexpected background session cleanup owner.'}
         $calls.Add('cleanup')
         if($Mode -eq 'startup-and-cleanup-fail'){throw $cleanupCause}
     }
@@ -966,6 +1213,129 @@ foreach($mode in @('startup-and-cleanup-fail','startup-fails-cleanup-succeeds','
     }
  } $startupBlock (Join-Path $workbench ('StartupErrors/'+$mode)) $mode
 }
+
+$project=Project 'owned-authentication-log-redaction';$session=Session $project
+$unicode=[string]([char]0x7d42)+[char]0x4e86
+$editor="native diagnostic`r`n-accessToken`r`ndummy-editor-token`r`naccessToken text stays`r`n--accessToken `"dummy quoted value`" --keep unchanged`r`n$unicode`r`n"
+$expectedEditor=$editor.Replace('dummy-editor-token','[REDACTED]').Replace('dummy quoted value','[REDACTED]')
+$editorPath=Join-Path $session.RunDirectory 'Editor.log';$utf8=[Text.UTF8Encoding]::new($false)
+[IO.File]::WriteAllBytes($editorPath,([Text.UTF8Encoding]::new($true).GetPreamble()+$utf8.GetBytes($editor)))
+$cliPath=Join-Path $session.RunDirectory 'CLI.json';$cli='{ "accessToken":"dummy-json-value", "args":["-accessToken","dummy-array-value"], "sessionId":"keep-session" }'
+[IO.File]::WriteAllText($cliPath,$cli,$utf8)
+$stderrPath=Join-Path $session.RunDirectory 'CLI.stderr.txt';[IO.File]::WriteAllText($stderrPath,'-accessToken=dummy-stderr-value --safe unchanged',$utf8)
+$unrelated=Join-Path $session.RunDirectory 'source.txt';[IO.File]::WriteAllText($unrelated,'-accessToken dummy-unrelated-must-stay',$utf8);$unrelatedHash=(Get-FileHash -LiteralPath $unrelated).Hash
+$sanitized=Protect-AssetBackgroundLog $session.RunDirectory $session.OwnerId
+Need 'owned logs redact all native argument and JSON forms without returning values' ($sanitized.completed -and $sanitized.redactedArgumentValues -eq 5 -and ($sanitized|ConvertTo-Json -Depth 10 -Compress) -notmatch 'dummy-')
+$expectedBytes=[Text.UTF8Encoding]::new($true).GetPreamble()+$utf8.GetBytes($expectedEditor)
+Need 'log redaction preserves UTF8 BOM unicode CRLF and all nonargument text' ([BitConverter]::ToString([IO.File]::ReadAllBytes($editorPath)) -ceq [BitConverter]::ToString($expectedBytes))
+$redactedCli=Get-Content -LiteralPath $cliPath -Raw|ConvertFrom-Json
+Need 'log redaction keeps valid JSON and unrelated session identifiers' ($redactedCli.accessToken -ceq '[REDACTED]' -and $redactedCli.args[1] -ceq '[REDACTED]' -and $redactedCli.sessionId -ceq 'keep-session')
+Need 'log redaction preserves quoted values and equals argument delimiters' ([IO.File]::ReadAllText($stderrPath) -ceq '-accessToken=[REDACTED] --safe unchanged' -and [IO.File]::ReadAllText($editorPath).Contains('--accessToken "[REDACTED]" --keep unchanged'))
+Need 'log redaction does not edit configuration source or create raw backups' ((Get-FileHash -LiteralPath $unrelated).Hash -ceq $unrelatedHash -and @(Get-ChildItem -LiteralPath $session.RunDirectory -File|Where-Object{$_.Name -like '*.redacted-*' -or $_.Name -like '*.previous-*'}).Count -eq 0)
+if(-not ('SolastaAuthoringLogLockFixture' -as [type])){
+    Add-Type -TypeDefinition @'
+using System;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+public static class SolastaAuthoringLogLockFixture {
+    public static Task HoldInheritedWriter(string path, string ready) {
+        return Task.Run(() => {
+            using(var stream=new FileStream(path,FileMode.Append,FileAccess.Write,FileShare.ReadWrite)) {
+                var suffix=System.Text.Encoding.UTF8.GetBytes("\nowned helper tail");stream.Write(suffix,0,suffix.Length);stream.Flush();
+                File.WriteAllText(ready,"owned inherited writer");Thread.Sleep(4500);
+            }
+        });
+    }
+    public static Task HoldWriter(string path, string ready) {
+        return Task.Run(() => {
+            using(var stream=new FileStream(path,FileMode.Open,FileAccess.Write,FileShare.ReadWrite|FileShare.Delete)) {
+                File.WriteAllText(ready,"owned writer handle");Thread.Sleep(250);
+            }
+        });
+    }
+    public static Task Hold(string path, string ready) {
+        return Task.Run(() => {
+            using(var stream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read)) {
+                File.WriteAllText(ready,"owned read lock");Thread.Sleep(250);
+            }
+        });
+    }
+}
+'@
+}
+[IO.File]::WriteAllText($editorPath,'-accessToken dummy-locked-value --keep unchanged',$utf8)
+$readyPath=Join-Path $session.RunDirectory 'owned-lock-ready.txt'
+$heldLog=[SolastaAuthoringLogLockFixture]::Hold($editorPath,$readyPath)
+try{
+    $readyDeadline=[datetime]::UtcNow.AddSeconds(3)
+    while(-not[IO.File]::Exists($readyPath)-and[datetime]::UtcNow -lt $readyDeadline){Start-Sleep -Milliseconds 5}
+    if(-not[IO.File]::Exists($readyPath)){throw 'The owned log reader did not acquire its lock.'}
+    $afterContention=Protect-AssetBackgroundLog $session.RunDirectory $session.OwnerId
+}finally{$heldLog.GetAwaiter().GetResult()}
+Need 'log redaction retries a transient reader lock and preserves unrelated text' ($afterContention.completed -and [IO.File]::ReadAllText($editorPath) -ceq '-accessToken [REDACTED] --keep unchanged')
+[IO.File]::WriteAllText($editorPath,'-accessToken dummy-writer-token --keep unchanged')
+Remove-Item -LiteralPath $readyPath
+$heldLog=[SolastaAuthoringLogLockFixture]::HoldWriter($editorPath,$readyPath)
+try{
+    $readyDeadline=[datetime]::UtcNow.AddSeconds(3)
+    while(-not[IO.File]::Exists($readyPath)-and[datetime]::UtcNow -lt $readyDeadline){Start-Sleep -Milliseconds 5}
+    if(-not[IO.File]::Exists($readyPath)){throw 'The owned log writer did not acquire its handle.'}
+    $afterWriter=Protect-AssetBackgroundLog $session.RunDirectory $session.OwnerId
+}finally{$heldLog.GetAwaiter().GetResult()}
+Need 'log redaction reads a released-owner log with a shareable writer handle' ($afterWriter.completed -and [IO.File]::ReadAllText($editorPath) -ceq '-accessToken [REDACTED] --keep unchanged')
+[IO.File]::WriteAllText($editorPath,'日本語 -accessToken dummy-inherited-token --keep unchanged',$utf8)
+Remove-Item -LiteralPath $readyPath
+$heldLog=[SolastaAuthoringLogLockFixture]::HoldInheritedWriter($editorPath,$readyPath)
+try{
+    $readyDeadline=[datetime]::UtcNow.AddSeconds(3)
+    while(-not[IO.File]::Exists($readyPath)-and[datetime]::UtcNow -lt $readyDeadline){Start-Sleep -Milliseconds 5}
+    if(-not[IO.File]::Exists($readyPath)){throw 'The inherited writer fixture did not acquire its handle.'}
+    $lengthBefore=(Get-Item -LiteralPath $editorPath).Length
+    $afterInherited=Protect-AssetBackgroundLog $session.RunDirectory $session.OwnerId
+}finally{$heldLog.GetAwaiter().GetResult()}
+$inheritedText=[IO.File]::ReadAllText($editorPath)
+Need 'inherited append handle uses fixed byte masks and retains UTF8 prefix and appended tail' ($afterInherited.completed -and $inheritedText -ceq ('日本語 -accessToken '+('*'*'dummy-inherited-token'.Length)+" --keep unchanged`nowned helper tail") -and (Get-Item -LiteralPath $editorPath).Length -eq $lengthBefore)
+$stable=(Get-FileHash -LiteralPath $editorPath).Hash;$again=Protect-AssetBackgroundLog $session.RunDirectory $session.OwnerId
+Need 'owned log redaction is byte stable and counts no values twice' ($again.redactedArgumentValues -eq 0 -and (Get-FileHash -LiteralPath $editorPath).Hash -ceq $stable)
+$release=Read-AssetWorkerJson (Join-Path $session.RunDirectory 'session.json');$release.editorReleased=$false
+Need 'log redaction rejects an unreleased native owner before writes' ((RejectedAs {Protect-AssetBackgroundLog $session.RunDirectory $session.OwnerId $release} 'requires released native processes') -and (Get-FileHash -LiteralPath $editorPath).Hash -ceq $stable)
+Need 'log redaction rejects a different session identity before writes' ((Rejected {Protect-AssetBackgroundLog $session.RunDirectory ('0'*32)}) -and (Get-FileHash -LiteralPath $editorPath).Hash -ceq $stable)
+
+$project=Project 'unity-accounting-lifecycle';$session=Session $project;$job=Job $project 'lifecycle-unknown';$obsolete=Job $project 'obsolete'
+$data=Get-Content -LiteralPath $job.ownership.path -Raw|ConvertFrom-Json;$data.sessionDirectory=$session.RunDirectory;Save $job.ownership.path $data
+$state=Get-Content -LiteralPath (Join-Path $session.RunDirectory 'session.json') -Raw|ConvertFrom-Json;$state.PSObject.Properties.Remove('cli');Save (Join-Path $session.RunDirectory 'session.json') $state
+$cache=Directory (Join-Path $project 'Library');[IO.File]::WriteAllBytes((Join-Path $cache 'cache.bin'),[byte[]]::new(4096))
+[IO.File]::WriteAllBytes((Join-Path $project 'Assets/unregistered.bin'),[byte[]]::new(512))
+$preview=UnityClean $project @{KeepLatest=0;MaxRetainedBytes=1}
+$expectedOwned=[long]((@(Get-ChildItem -LiteralPath $job.job -File -Force -Recurse)+@(Get-ChildItem -LiteralPath $job.assets -File -Force -Recurse)+@(Get-Item -LiteralPath ($job.assets+'.meta'))+@(Get-ChildItem -LiteralPath $session.RunDirectory -File -Force -Recurse)|Measure-Object Length -Sum).Sum)
+Need 'lifecycle-unverified Unity outputs count toward the owned budget' ($preview.status -eq 'complete' -and $preview.retainedBytes -eq $expectedOwned -and $preview.unverifiedRetainedBytes -eq $expectedOwned -and $preview.registeredRetainedBytes -eq 0 -and $preview.budgetSatisfied -eq $false -and $preview.storageAccountingComplete)
+Need 'Unity accounting keeps unknown lifecycle output while retiring independent owned output' ($preview.actions.Count -eq 2 -and @($preview.actions|Where-Object jobDirectory -ne $obsolete.job).Count -eq 0 -and (Test-Path $job.job) -and (Test-Path $job.assets))
+$applied=UnityClean $project @{KeepLatest=0;MaxRetainedBytes=1} -Apply
+$expectedScope=[long]((Get-ChildItem -LiteralPath $project -Force -Recurse -File|Measure-Object Length -Sum).Sum)
+Need 'Unity preview accounting matches actual retained scope after apply' ($applied.retainedBytes -eq $preview.retainedBytes -and $applied.storageBytes -eq $preview.storageBytes -and $applied.storageBytes -eq $expectedScope -and $applied.projectCacheBytes -eq 4096 -and $applied.unmanagedRetainedBytes -eq $expectedScope-$expectedOwned)
+Need 'project cache and unregistered bytes remain visible without deletion authority' ((Test-Path (Join-Path $cache 'cache.bin')) -and (Test-Path (Join-Path $project 'Assets/unregistered.bin')) -and $applied.storageBytes -gt $applied.retainedBytes -and $applied.budgetScope -like 'Registered job/import/session*')
+$ownedBudget=$expectedOwned+1;$r=UnityClean $project @{KeepLatest=0;MaxRetainedBytes=$ownedBudget}
+Need 'owned budget remains separate from larger unmanaged project cache' ($r.budgetSatisfied -eq $true -and $r.maxRetainedBytes -eq $ownedBudget -and $r.retainedBytes -lt $ownedBudget -and $r.storageBytes -gt $ownedBudget -and $r.projectCacheBytes -eq 4096 -and $r.actions.Count -eq 0)
+$project=Project 'unity-accounting-malformed';$job=Job $project 'malformed';Save $job.ownership.path @{}
+$r=UnityClean $project @{KeepLatest=0;MaxRetainedBytes=100000000}
+Need 'unresolved ownership never reports a satisfied budget or disappears from full scope' ($null -eq $r.budgetSatisfied -and -not $r.storageAccountingComplete -and $r.unresolvedOwners -eq 1 -and $r.storageBytes -gt 2048 -and $r.actions.Count -eq 0 -and (Test-Path $job.job))
+$project=Project 'unity-accounting-changed';$job=Job $project 'changed';[IO.File]::AppendAllText((Join-Path $job.assets 'mesh.asset'),'changed')
+$r=UnityClean $project @{KeepLatest=0;MaxRetainedBytes=1}
+Need 'changed outputs remain in verified-unit byte accounting' ($r.retainedBytes -gt 2048 -and $r.retainedBytes -eq $r.registeredRetainedBytes -and $r.unverifiedRetainedBytes -eq 0 -and $r.budgetSatisfied -eq $false -and $r.actions.Count -eq 0)
+$fixedUnit=[pscustomobject]@{path=(Join-Path $project 'latest');roots=@((Join-Path $project 'latest'));dependencies=@();completedUtc='2020-01-01T00:00:00Z';bytes=5L;hardReason=$null}
+$fixedSelection=Select-AssetStorageUnits @($fixedUnit) ([pscustomobject]@{paths=@()}) 1 0 10 20
+Need 'unverified fixed bytes participate in the existing latest-retention budget' ($fixedSelection.retainedBytes -eq 20 -and $fixedSelection.budgetSatisfied -eq $false -and $fixedSelection.reasons.Count -eq 0)
+$emptyPlanned=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+$dedup=Get-AssetStorageRemainingBytes @() $emptyPlanned $true @($project,$job.job,$job.assets,($job.assets+'.meta'))
+Need 'nested accounting roots count each path once' ($dedup -eq [long]((Get-ChildItem -LiteralPath $project -Force -Recurse -File|Measure-Object Length -Sum).Sum))
+$project=Project 'unity-accounting-read-failure';$job=Job $project 'obsolete';$cache=Directory (Join-Path $project 'Library');$unreadable=Join-Path $cache 'unavailable.bin';[IO.File]::WriteAllBytes($unreadable,[byte[]]::new(128))
+function Get-Item {param([string]$LiteralPath,[switch]$Force,$ErrorAction)
+ if($LiteralPath -eq $unreadable){throw [IO.IOException]::new('fixture storage metadata read failed')}
+ Microsoft.PowerShell.Management\Get-Item @PSBoundParameters
+}
+try{$r=UnityClean $project @{KeepLatest=0;MaxRetainedBytes=1} -Apply}finally{Remove-Item Function:Get-Item}
+Need 'unavailable accounting preserves independent guarded cleanup and never reports success' ($r.status -eq 'complete' -and $null -eq $r.retainedBytes -and $null -eq $r.budgetSatisfied -and -not $r.storageAccountingComplete -and $r.storageAccountingError -eq 'fixture storage metadata read failed' -and -not(Test-Path $job.job) -and (Test-Path $unreadable))
 
 foreach($source in $sourceHashes){if((Get-FileHash -LiteralPath $source.path -Algorithm SHA256).Hash -cne $source.sha256){throw 'Candidate source changed during its contracts.'}}
 $result=[ordered]@{status=$(if(@($checks|Where-Object{-not $_.passed}).Count){'FAIL'}else{'PASS'});scope='Actual authoring storage sources in owned miniature files. No Unity/Blender/game launch; Blender process census is an external-boundary fixture.';checks=@($checks.ToArray());processQueries=$script:ProcessQueries;sourceHashes=$sourceHashes;powerShell=$PSVersionTable.PSVersion.ToString()}
@@ -1004,6 +1374,12 @@ function Invoke-MeshNumericInputContracts($SourceRecipe) {
     $negativeZero=[BitConverter]::ToSingle([byte[]]@(0,0,0,128),0)
     $fixture.meshes[0].vertices[0]=$negativeZero
     $fixture.meshes[0].blendShapes[0].frames[0].weight=$negativeZero
+    # A signed-zero-only sparse row and tiny V/N/T must survive the actual
+    # create/save/reload path, including cursor transitions between frames.
+    $fixture.meshes[0].blendShapes[0].frames[0].vertices[6]=$negativeZero
+    $fixture.meshes[0].blendShapes[0].frames[0].normals[7]=$negativeZero
+    $fixture.meshes[0].blendShapes[0].frames[0].tangents[8]=$negativeZero
+    foreach($channel in @('vertices','normals','tangents')){$fixture.meshes[0].blendShapes[0].frames[1].$channel[3]=[single]0.00000000186264514923095703125}
     $fixture.meshes[0]|Add-Member -NotePropertyName colors -NotePropertyValue @(1,0,0,1,0,1,0,1,0,0,1,1)
     $fixture.meshes[0].uvChannels+=@([pscustomobject]@{channel=7;dimension=4;values=@(0,0,0,1,1,0,0,1,0,1,0,1)})
     $fixture.meshes[0]|Add-Member -NotePropertyName skin -NotePropertyValue ([pscustomobject]@{
@@ -1106,9 +1482,9 @@ function Invoke-MeshNumericInputContracts($SourceRecipe) {
         if($kind -in @('truncated','trailing','magic','version','mesh-count','array-count','utf8','nonfinite','index-range')){
             $bad.numericPayload.byteLength=$data.Length;$bad.numericPayload.sha256=(Get-FileHash -LiteralPath $payload -Algorithm SHA256).Hash.ToLowerInvariant()
         }
-        $input=Join-Path $case 'mesh-recipe.json';[IO.File]::WriteAllText($input,($bad|ConvertTo-Json -Depth 10),[Text.UTF8Encoding]::new($false))
+        $recipeInput=Join-Path $case 'mesh-recipe.json';[IO.File]::WriteAllText($recipeInput,($bad|ConvertTo-Json -Depth 10),[Text.UTF8Encoding]::new($false))
         $rejected=$false;$reason=$null
-        try{Read-ExternalMeshRecipe $input $inputOwner|Out-Null}catch{$reason=$_.Exception.ToString();$rejected=$reason -match $pattern}
+        try{Read-ExternalMeshRecipe $recipeInput $inputOwner|Out-Null}catch{$reason=$_.Exception.ToString();$rejected=$reason -match $pattern}
         Add-Check ('mesh-numeric-reject-'+$kind) $rejected $reason
     }
     Add-Check 'mesh-numeric-original-payload-unchanged' ((Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant() -ceq $external.numericPayload.sha256) $binary
@@ -1122,7 +1498,7 @@ function Invoke-MeshBlendRecipeContracts {
     foreach($name in @('Assert-LocalPath','Copy-MaterialInputs','Assert-RecipeFields','Test-FiniteNumber','Assert-MeshNumbers','Assert-MeshRecipe','Read-ExternalMeshRecipe')){
         $definition=@($validationAst.FindAll({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -ceq $name},$true))
         if($definition.Count -ne 1){throw 'The shared recipe validator ownership changed.'}
-        Invoke-Expression $definition[0].Extent.Text
+        . ([scriptblock]::Create($definition[0].Extent.Text))
     }
     $contractProject='C:\UnityImportContracts\Project'
     $guiInput=[IO.Path]::Combine($contractProject,'Assets\AuthoringJobs\'+('0'*32)+'\Input')
@@ -1136,7 +1512,7 @@ function Invoke-MeshBlendRecipeContracts {
     Add-Check 'unity-import-meta-at-max-path' ($accepted -and ($boundary+'.meta').Length -eq 259) $boundary
     $rejected=$false;try{Assert-LocalPath ($boundary+'x') -UnityImport}catch{$rejected=$_.Exception.Message -like '*Shorten the project/workspace path or asset relative names*'}
     Add-Check 'unity-import-meta-over-max-path' $rejected ($boundary+'x')
-    $materialInputs=@([pscustomobject]@{path=('Textures/'+('x'*150)+'.png');source='C:\UnityImportContracts\source.png';sha256=('0'*64)})
+    Import-AuthoringContractBinding @{materialInputs=@([pscustomobject]@{path=('Textures/'+('x'*150)+'.png');source='C:\UnityImportContracts\source.png';sha256=('0'*64)})}
     $rejected=$false;try{Copy-MaterialInputs $guiInput -ValidateOnly}catch{$rejected=$_.Exception.Message -like '*Unity 2019 import path is too long*'}
     Add-Check 'unity-import-reject-before-material-copy' ($rejected -and -not [IO.Directory]::Exists($contractProject)) $guiInput
     $mesh=[ordered]@{name='BlendIndexControl';vertices=@(0,0,0,1,0,0,0,1,0);normals=@(0,0,1,0,0,1,0,0,1);tangents=@(1,0,0,1,1,0,0,1,1,0,0,1);
@@ -1216,18 +1592,18 @@ if ($MeshesOnly) {
             [IO.File]::ReadAllText($marker).Trim() -ceq 'SolastaUBAssetAuthoring:UnityJob:1'
     } | ForEach-Object Name) }
     function Invoke-MeshQueueContract($Recipe, [string]$Kind = 'mesh-templates', [object[]]$InputFiles = @()) {
-        $id=[guid]::NewGuid().ToString('N');$job=Join-Path $jobs $id;$input=Join-Path $project ('Assets/AuthoringJobs/'+$id+'/Input')
-        [void][IO.Directory]::CreateDirectory($job);[void][IO.Directory]::CreateDirectory($input)
+        $id=[guid]::NewGuid().ToString('N');$job=Join-Path $jobs $id;$recipeInput=Join-Path $project ('Assets/AuthoringJobs/'+$id+'/Input')
+        [void][IO.Directory]::CreateDirectory($job);[void][IO.Directory]::CreateDirectory($recipeInput)
         [IO.File]::WriteAllText((Join-Path $job '.solasta-asset-authoring-job'),'SolastaUBAssetAuthoring:UnityJob:1')
         foreach ($asset in $InputFiles) {
-            $destination=Join-Path $input $asset.path
+            $destination=Join-Path $recipeInput $asset.path
             [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($destination))
             [IO.File]::Copy($asset.source,$destination,$false)
         }
-        $copied=Join-Path $input 'mesh-recipe.json'
+        $copied=Join-Path $recipeInput 'mesh-recipe.json'
         [IO.File]::WriteAllText($copied,($Recipe|ConvertTo-Json -Depth 30),[Text.UTF8Encoding]::new($false))
         $path=Join-Path $job 'Output/unity-report.json'
-        $ownership=Register-AssetAuthoringJob -Project $project -JobDirectory $job -AssetDirectory (Split-Path -Parent $input) -ResultPath $path -DependencyPath @($InputFiles|ForEach-Object source) -Session $ownedSession
+        $ownership=Register-AssetAuthoringJob -Project $project -JobDirectory $job -AssetDirectory (Split-Path -Parent $recipeInput) -ResultPath $path -DependencyPath @($InputFiles|ForEach-Object source) -Session $ownedSession
         $queued=[pscustomobject]@{ownership=$ownership;succeeded=$false;failure='The worker did not return a result.'}
         $queuedJobs.Add($queued)
         $request=@{schemaVersion=1;jobId=$id;kind=$Kind;inputSha256=(Get-FileHash -LiteralPath $copied -Algorithm SHA256).Hash.ToLowerInvariant()}
@@ -1401,9 +1777,9 @@ if ($MeshesOnly) {
                 'missing-import-field' {$bad.textures[0].PSObject.Properties.Remove('mipmaps')}
                 'null-list' {$bad.textures=$null}
             }
-            $input=Join-Path $fixture ('texture-'+$kind+'.json');[IO.File]::WriteAllText($input,($bad|ConvertTo-Json -Depth 30),[Text.UTF8Encoding]::new($false))
-            $before=MeshJobIds;$rejected=$false;try{& $launcher @arguments -MeshRecipePath $input}catch{$rejected=$true}
-            Add-Check ('mesh-texture-preflight-reject-'+$kind) ($rejected -and @(MeshJobIds|Where-Object {$_ -notin $before}).Count -eq 0) $input
+            $recipeInput=Join-Path $fixture ('texture-'+$kind+'.json');[IO.File]::WriteAllText($recipeInput,($bad|ConvertTo-Json -Depth 30),[Text.UTF8Encoding]::new($false))
+            $before=MeshJobIds;$rejected=$false;try{& $launcher @arguments -MeshRecipePath $recipeInput}catch{$rejected=$true}
+            Add-Check ('mesh-texture-preflight-reject-'+$kind) ($rejected -and @(MeshJobIds|Where-Object {$_ -notin $before}).Count -eq 0) $recipeInput
             $negative=Invoke-MeshQueueContract $bad 'mesh-templates' $textureInputs
             Add-Check ('mesh-texture-worker-reject-'+$kind) (!$negative.report.success -and $negative.report.error -and
                 !(Test-Path -LiteralPath (Join-Path $project ('Assets/AuthoringJobs/'+$negative.id+'/Generated'))) -and
@@ -1429,11 +1805,11 @@ if ($MeshesOnly) {
                 'delta-length' {$mesh.blendShapes[0].frames[0].vertices=@(0,0,0)}
                 'delta-nonfinite' {$mesh.blendShapes[0].frames[0].normals[0]=[double]::PositiveInfinity}
             }
-            $input=Join-Path $fixture ($kind+'.json')
-            [IO.File]::WriteAllText($input,($bad|ConvertTo-Json -Depth 30),[Text.UTF8Encoding]::new($false))
+            $recipeInput=Join-Path $fixture ($kind+'.json')
+            [IO.File]::WriteAllText($recipeInput,($bad|ConvertTo-Json -Depth 30),[Text.UTF8Encoding]::new($false))
             $before=MeshJobIds;$rejected=$false
-            try { & $launcher @arguments -MeshRecipePath $input } catch { $rejected=$true }
-            Add-Check ('mesh-skin-preflight-reject-'+$kind) ($rejected -and @(MeshJobIds|Where-Object {$_ -notin $before}).Count -eq 0) $input
+            try { & $launcher @arguments -MeshRecipePath $recipeInput } catch { $rejected=$true }
+            Add-Check ('mesh-skin-preflight-reject-'+$kind) ($rejected -and @(MeshJobIds|Where-Object {$_ -notin $before}).Count -eq 0) $recipeInput
             if($kind -in @('bone-range','weight-sum','frame-order','delta-length')) {
                 $negative=Invoke-MeshQueueContract $bad
                 Add-Check ('mesh-skin-worker-reject-'+$kind) (!$negative.report.success -and $negative.report.error -and
@@ -1451,11 +1827,11 @@ if ($MeshesOnly) {
                 'duplicate-name' {$bad.meshes=@($bad.meshes)+@($bad.meshes[0])}
                 'path-name' {$bad.meshes[0].name='../outside'}
             }
-            $input=Join-Path $fixture ($kind+'.json')
-            [IO.File]::WriteAllText($input,($bad|ConvertTo-Json -Depth 20),[Text.UTF8Encoding]::new($false))
+            $recipeInput=Join-Path $fixture ($kind+'.json')
+            [IO.File]::WriteAllText($recipeInput,($bad|ConvertTo-Json -Depth 20),[Text.UTF8Encoding]::new($false))
             $before=MeshJobIds;$rejected=$false
-            try { & $launcher @arguments -MeshRecipePath $input } catch { $rejected=$true }
-            Add-Check ('mesh-preflight-reject-'+$kind) ($rejected -and @(MeshJobIds|Where-Object {$_ -notin $before}).Count -eq 0) $input
+            try { & $launcher @arguments -MeshRecipePath $recipeInput } catch { $rejected=$true }
+            Add-Check ('mesh-preflight-reject-'+$kind) ($rejected -and @(MeshJobIds|Where-Object {$_ -notin $before}).Count -eq 0) $recipeInput
         }
         # Existing input contracts remain before worker dispatch; no extra rig/material build.
         foreach($legacy in @('rig-extension','material-schema')) {
@@ -1543,7 +1919,7 @@ class ReceiptOnlyCli {
     $pipeline=[PowerShell]::Create()
     try {
         [void]$pipeline.AddScript('param($helper,$project,$editor,$cli,$hash); . $helper; Start-AssetBackgroundEditor $project $editor $cli $hash 60').AddArgument($helper).AddArgument($project).AddArgument($editor).AddArgument($fakeCli).AddArgument($sourceHash)
-        $pending=$pipeline.BeginInvoke()
+        [void]$pipeline.BeginInvoke()
         $statePath=Wait-CallerFixture $before
         $stopped=[DateTime]::UtcNow
         $pipeline.Stop()
@@ -1582,7 +1958,7 @@ if ($CliTimeoutOnly) {
     $before=@(Get-ChildItem -LiteralPath $sessions -Directory | ForEach-Object Name)
     $sourceHash=(Get-FileHash -LiteralPath (Join-Path $project 'Assets/Editor/AssetBundleBuilder.cs') -Algorithm SHA256).Hash.ToLowerInvariant()
     $failed=$false
-    try { $unexpected=Start-AssetBackgroundEditor $project (Resolve-Path -LiteralPath $UnityPath).ProviderPath $fakeCli $sourceHash 30 }
+    try { [void](Start-AssetBackgroundEditor $project (Resolve-Path -LiteralPath $UnityPath).ProviderPath $fakeCli $sourceHash 30 )}
     catch { $failed=$true }
     $created=@(Get-ChildItem -LiteralPath $sessions -Directory | Where-Object Name -NotIn $before)
     Add-Check 'one-timeout-session' ($failed -and $created.Count -eq 1) @($created.Name)
@@ -1616,13 +1992,13 @@ if ($BackgroundEditorOnly) {
             @($environment.editor_workers | Where-Object { $_.ready -and $_.isolated -and $_.process_id -eq $ownedSession.Ready.editor.pid }).Count -eq 1 -and
             (Get-FileHash -LiteralPath $environmentScript -Algorithm SHA256).Hash -eq $environmentHash) $environmentPath
         $rejected=$false
-        try { $unexpected=Start-AssetBackgroundEditor $project (Resolve-Path -LiteralPath $UnityPath).ProviderPath $cli $sourceHash $TimeoutSeconds }
+        try { [void](Start-AssetBackgroundEditor $project (Resolve-Path -LiteralPath $UnityPath).ProviderPath $cli $sourceHash $TimeoutSeconds )}
         catch { $rejected=$_.Exception.Message -like 'The selected project*open*' }
         Add-Check 'reject-second-owner' $rejected $ownedSession.RunDirectory
         $readyPath=Join-Path $jobs 'worker.json'
         [IO.File]::Delete($readyPath)
         $rejectedWithoutReceipt=$false
-        try { $unexpected=Start-AssetBackgroundEditor $project (Resolve-Path -LiteralPath $UnityPath).ProviderPath $cli $sourceHash $TimeoutSeconds }
+        try { [void](Start-AssetBackgroundEditor $project (Resolve-Path -LiteralPath $UnityPath).ProviderPath $cli $sourceHash $TimeoutSeconds )}
         catch { $rejectedWithoutReceipt=$_.Exception.Message -like '*native UnityLockfile is locked*' }
         Add-Check 'native-lock-without-worker-receipt' $rejectedWithoutReceipt $ownedSession.RunDirectory
         & $launcher -UnityPath $UnityPath -FbxPath $fbx -GuiProjectPath $project -TimeoutSeconds $TimeoutSeconds
@@ -1631,16 +2007,16 @@ if ($BackgroundEditorOnly) {
     $previousOwner = $null
     foreach ($cycle in @('first', 'repeat', 'rejected-input')) {
         $before = @(if (Test-Path -LiteralPath $sessions) { Get-ChildItem -LiteralPath $sessions -Directory | ForEach-Object Name })
-        $input = $fbx
+        $recipeInput = $fbx
         if ($cycle -eq 'rejected-input') {
-            $input = Join-Path $jobs ('invalid-' + [guid]::NewGuid().ToString('N') + '.fbx')
-            [IO.File]::WriteAllText($input, 'invalid FBX fixture')
+            $recipeInput = Join-Path $jobs ('invalid-' + [guid]::NewGuid().ToString('N') + '.fbx')
+            [IO.File]::WriteAllText($recipeInput, 'invalid FBX fixture')
         }
         $failed = $false
         try {
-            & $launcher -UnityPath $UnityPath -FbxPath $input -GuiProjectPath $project -StartBackgroundEditor -UnityCliPath $UnityCliPath -InstallGuiWorker:$InstallGuiWorker -TimeoutSeconds $TimeoutSeconds
+            & $launcher -UnityPath $UnityPath -FbxPath $recipeInput -GuiProjectPath $project -StartBackgroundEditor -UnityCliPath $UnityCliPath -InstallGuiWorker:$InstallGuiWorker -TimeoutSeconds $TimeoutSeconds
         } catch { $failed = $true; if ($cycle -ne 'rejected-input') { throw } }
-        finally { if ($cycle -eq 'rejected-input') { Remove-Item -LiteralPath $input -Force } }
+        finally { if ($cycle -eq 'rejected-input') { Remove-Item -LiteralPath $recipeInput -Force } }
         Add-Check ('background-result-' + $cycle) ($failed -eq ($cycle -eq 'rejected-input')) $failed
         $created = @(Get-ChildItem -LiteralPath $sessions -Directory | Where-Object Name -NotIn $before)
         Add-Check ('one-owned-session-' + $cycle) ($created.Count -eq 1) @($created.Name)
@@ -1704,11 +2080,11 @@ function Wait-ReloadedSource([string] $Hash, [DateTime] $PreviousAssemblyTime) {
 function Submit-RejectedJob([string] $Kind) {
     $id = [guid]::NewGuid().ToString('N')
     $jobRoot = Join-Path $jobs $id
-    $input = Join-Path $project ('Assets\AuthoringJobs\' + $id + '\Input')
+    $recipeInput = Join-Path $project ('Assets\AuthoringJobs\' + $id + '\Input')
     [IO.Directory]::CreateDirectory($jobRoot) | Out-Null
-    [IO.Directory]::CreateDirectory($input) | Out-Null
+    [IO.Directory]::CreateDirectory($recipeInput) | Out-Null
     [IO.File]::WriteAllText((Join-Path $jobRoot '.solasta-asset-authoring-job'), 'SolastaUBAssetAuthoring:UnityJob:1')
-    [IO.File]::Copy($fbx, (Join-Path $input 'SampleRig.fbx'), $false)
+    [IO.File]::Copy($fbx, (Join-Path $recipeInput 'SampleRig.fbx'), $false)
     $request = @{ schemaVersion = 1; jobId = $id; inputSha256 = $inputHash }
     switch ($Kind) {
         'changed-input' { $request.inputSha256 = '0' * 64 }
@@ -1762,11 +2138,11 @@ function Test-MaterialJobs {
             'numeric-type' { @($recipe.materials[0].properties | Where-Object kind -eq 'float')[0].value = 'invalid' }
             'asset-path' { $recipe.assets[0].path = '../Outside.shader' }
         }
-        $input = Join-Path $fixture ($kind + '.json')
-        [IO.File]::WriteAllText($input, ($recipe | ConvertTo-Json -Depth 20))
+        $recipeInput = Join-Path $fixture ($kind + '.json')
+        [IO.File]::WriteAllText($recipeInput, ($recipe | ConvertTo-Json -Depth 20))
         $before = Get-JobIds
         $rejected = $false
-        try { & $launcher -UnityPath $UnityPath -MaterialRecipePath $input -GuiProjectPath $project -TimeoutSeconds $TimeoutSeconds }
+        try { & $launcher -UnityPath $UnityPath -MaterialRecipePath $recipeInput -GuiProjectPath $project -TimeoutSeconds $TimeoutSeconds }
         catch { $rejected = $true }
         $created = @(Get-JobIds | Where-Object { $_ -notin $before })
         if ($kind -in @('required-pass', 'property-type')) {
@@ -1776,20 +2152,20 @@ function Test-MaterialJobs {
             Add-Check ('material-failed-report-' + $kind) (!$failed.success -and $failed.error -and $failed.validationScope -eq 'materials' -and
                 !(Test-Path -LiteralPath (Join-Path $jobs ($created[0] + '\Output\' + $originalRecipe.bundleName)))) $failedPath
         }
-        else { Add-Check ('material-preflight-reject-' + $kind) ($rejected -and $created.Count -eq 0) $input }
+        else { Add-Check ('material-preflight-reject-' + $kind) ($rejected -and $created.Count -eq 0) $recipeInput }
     }
 }
 
 function Test-MaterialIdentity {
     $id = [guid]::NewGuid().ToString('N')
     $jobRoot = Join-Path $jobs $id
-    $input = Join-Path $project ('Assets\AuthoringJobs\' + $id + '\Input')
+    $recipeInput = Join-Path $project ('Assets\AuthoringJobs\' + $id + '\Input')
     [IO.Directory]::CreateDirectory($jobRoot) | Out-Null
     [IO.File]::WriteAllText((Join-Path $jobRoot '.solasta-asset-authoring-job'), 'SolastaUBAssetAuthoring:UnityJob:1')
     $assets = @()
     Add-Type -AssemblyName System.Drawing
     foreach ($side in @('A', 'B')) {
-        $directory = Join-Path $input $side
+        $directory = Join-Path $recipeInput $side
         [IO.Directory]::CreateDirectory($directory) | Out-Null
         $tint = if ($side -eq 'A') { 'fixed3(1, 0.5, 0.5)' } else { 'fixed3(0.5, 0.5, 1)' }
         $shader = @"
@@ -1826,7 +2202,7 @@ Shader "AuthoringContracts/SharedIdentity" {
         @{name='Expected';shader='A/Shared.shader';requiredPasses=@('FORWARD');properties=@(@{name='_MainTex';kind='texture';texture='A/Shared.png'})},
         @{name='Alternative';shader='B/Shared.shader';requiredPasses=@('FORWARD');properties=@(@{name='_MainTex';kind='texture';texture='B/Shared.png'})}
     )}
-    $recipePath = Join-Path $input 'recipe.json'
+    $recipePath = Join-Path $recipeInput 'recipe.json'
     [IO.File]::WriteAllText($recipePath, ($recipe | ConvertTo-Json -Depth 10))
     $request = @{schemaVersion=1;jobId=$id;kind='material-identity-contracts';inputSha256=(Get-FileHash -LiteralPath $recipePath -Algorithm SHA256).Hash.ToLowerInvariant()}
     [IO.File]::WriteAllText((Join-Path $jobRoot 'request.writing'), ($request | ConvertTo-Json))
