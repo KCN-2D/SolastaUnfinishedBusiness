@@ -12,8 +12,10 @@
         float _FiberSmoothness, _FiberAnisotropy, _MacroNormalStrength;
         float _BakedColorDetail, _BakedColorMipBias, _FiberColorStrength;
         float _FiberAlphaCutoff, _CoreFineStrength, _CoreResponse, _AiryVisibility, _AiryDensity;
+        float _CoreAnisotropyScale, _CoreSmoothnessScale;
         float _FineAlphaCutoff, _CoreReliefStrength, _FineReliefStrength, _CoreGroomPigmentStrength;
         float _NativeCoreCull, _CullMode, _NativePigmentMean;
+        float _SupportInVertexFrame, _FlowInVertexFrame;
         #ifdef SOURCE_GROOM_ROLE_PROOF
         float _RoleDebug, _RoleOnly;
         #endif
@@ -97,7 +99,14 @@
             float tv=dot(t,viewDir),bv=dot(b,viewDir),tl=dot(t,l),bl=dot(b,l);
             float visibility=0.5/max(nl*sqrt(at*at*tv*tv+ab*ab*bv*bv+nv*nv)
                 +nv*sqrt(at*at*tl*tl+ab*ab*bl*bl+nl*nl),1e-5);
-            float specularTerm=max(distribution*visibility*UNITY_PI*nl,0);
+            // Fiber normals span the cross-section of each strand. Their
+            // normalized longitudinal distribution removes the solid-surface
+            // highlight while retaining the authored flow, roughness and dye.
+            float fiberDistribution=SourceGroomFiberDistribution(th,roughness);
+            float fiberMask=min(1,min(2*nh*nv/max(lh,1e-5),2*nh*nl/max(lh,1e-5)));
+            float fiberVisibility=fiberMask/(4*max(nv*nl,1e-5));
+            float specularTerm=max(lerp(distribution*visibility,fiberDistribution*fiberVisibility,
+                s.FiberAnisotropy)*UNITY_PI*nl,0);
             #if defined(_SPECULARHIGHLIGHTS_OFF)
                 specularTerm=0;
             #endif
@@ -130,7 +139,19 @@
             #ifdef SOURCE_GROOM_ROLE_PROOF
             if(_RoleDebug>0.5){gi=(UnityGI)0;return;}
             #endif
-            LightingStandard_GI(SourceGroomStandard(s),data,gi);
+            if(s.Metallic>0.5){LightingStandard_GI(SourceGroomStandard(s),data,gi);return;}
+            float3 n=normalize(s.Normal);
+            float3 t=SourceGroomSafeNormal(s.FiberDirection-n*dot(n,s.FiberDirection));
+            float3 radialView=data.worldViewDir-t*dot(t,data.worldViewDir);
+            float square=dot(radialView,radialView);
+            float3 fiberNormal=square>1e-8 ? radialView*rsqrt(square) : n;
+            float3 reflectionNormal=SourceGroomSafeNormal(lerp(n,fiberNormal,_CoreResponse*s.FiberAnisotropy));
+            float3 f0=lerp(unity_ColorSpaceDielectricSpec.rgb,0.03+0.02*saturate(_Spec_Color.rgb),_CoreResponse);
+            // Keep diffuse GI on the actual surface. Probe reflection follows
+            // the same fiber axis as direct light, with one existing probe lookup.
+            Unity_GlossyEnvironmentData glossy=UnityGlossyEnvironmentSetup(s.Smoothness,
+                data.worldViewDir,reflectionNormal,f0);
+            gi=UnityGlobalIllumination(data,s.Occlusion,n,glossy);
         }
 
 
@@ -144,6 +165,7 @@
             float4 texcoord1 : TEXCOORD1;
             float4 texcoord2 : TEXCOORD2;
             float4 texcoord3 : TEXCOORD3;
+            float4 texcoord4 : TEXCOORD4;
             fixed4 color : COLOR;
             UNITY_VERTEX_INPUT_INSTANCE_ID
         };
@@ -153,7 +175,8 @@
             float sourceFacing : VFACE;
             float4 sourceAndGroom;
             float4 groomRoleAndSign;
-            float3 sourceObjectPosition;
+            float3 worldFiberFirst;
+            float3 worldFiberSecond;
             float3 worldPos;
             float3 worldNormal;
             INTERNAL_DATA
@@ -171,8 +194,14 @@
             o.sourceAndGroom.xy = v.texcoord.xy * _texcoord_ST.xy + _texcoord_ST.zw;
             o.sourceAndGroom.zw = v.texcoord2.xy;
             o.groomRoleAndSign.xy = v.texcoord2.zw;
-            o.groomRoleAndSign.zw = v.texcoord.zw;
-            o.sourceObjectPosition = v.vertex.xyz;
+            o.groomRoleAndSign.zw = _FlowInVertexFrame>1.5 ? SourceGroomUnpackSignedPair(v.texcoord.z) : v.texcoord.zw;
+            float3 frameN=SourceGroomSafeNormal(v.normal);
+            float3 frameT=SourceGroomSafeNormal(v.tangent.xyz-frameN*dot(frameN,v.tangent.xyz));
+            float3 frameB=cross(frameN,frameT)*v.tangent.w;
+            float2 vertexFlow=_FlowInVertexFrame>1.5 ? SourceGroomUnpackSignedPair(v.texcoord.w) : v.texcoord4.xy;
+            float3 flow=UnityObjectToWorldDir(frameT*vertexFlow.x+frameB*vertexFlow.y);
+            o.worldFiberFirst=float3(flow.x*flow.x,flow.x*flow.y,flow.x*flow.z);
+            o.worldFiberSecond=float3(flow.y*flow.y,flow.y*flow.z,flow.z*flow.z);
         }
 
 
@@ -199,17 +228,20 @@
                 if(_CullMode>0.5 && _CullMode<1.5)clip(-i.sourceFacing);
                 else if(_CullMode>=1.5)clip(i.sourceFacing);
             }
-            // z is constant per triangle: 0=source/core, 1..16=groom tile+1.
+            // Roles: 0=source, 1..16=legacy tufts, 17..48=individual fibers,
+            // 49..64=layered cards using the atlas's full strand alpha/normal.
             // Local XY remain independent, physically scaled coordinates.
-            bool airy=i.groomRoleAndSign.x>=16.5;
-            bool edgeFiber=i.groomRoleAndSign.x>=32.5;
+            bool airy=i.groomRoleAndSign.x>=16.5 && i.groomRoleAndSign.x<48.5;
+            bool edgeFiber=airy && i.groomRoleAndSign.x>=32.5;
+            bool atlasCard=i.groomRoleAndSign.x>=48.5;
             // Only new roles carry hierarchy rank in abs(W)-1; its sign is retained.
-            if(airy){clip(_AiryVisibility-.5);clip(_AiryDensity-(abs(i.groomRoleAndSign.y)-1));}
+            if(airy || atlasCard){clip(_AiryVisibility-.5);clip(_AiryDensity-(abs(i.groomRoleAndSign.y)-1));}
             float tile=fmod(max(0,floor(i.groomRoleAndSign.x)-1),16);
             float2 origin=float2(fmod(tile,4),floor(tile/4))*0.25;
             float2 groomSampleScale=float2(0.92,0.95)*0.25;
             // Differentiate the continuous coordinates before tile-local Repeat.
-            float2 groomSampleUV=origin+float2(0.04,0.025)*0.25+frac(i.sourceAndGroom.zw)*groomSampleScale;
+            float2 groomCoordinates=atlasCard?saturate(i.sourceAndGroom.zw):frac(i.sourceAndGroom.zw);
+            float2 groomSampleUV=origin+float2(0.04,0.025)*0.25+groomCoordinates*groomSampleScale;
             float3 renderN=normalize(WorldNormalVector(i,float3(0,0,1)));
             float3 renderT=normalize(WorldNormalVector(i,float3(1,0,0)));
             float3 renderB=normalize(WorldNormalVector(i,float3(0,1,0)));
@@ -222,9 +254,16 @@
             if (fineCoordinates && mask <= 0.5)
             {
                 groom = tex2Dgrad(_GroomColor, groomSampleUV, dUVdx*groomSampleScale, dUVdy*groomSampleScale);
-                fine = SourceGroomUnpack(tex2Dgrad(_GroomNormal, groomSampleUV, dUVdx*groomSampleScale, dUVdy*groomSampleScale));
-                fine = lerp(float3(0,0,1),SourceGroomFineInRender(fine,dPdx,dPdy,dUVdx,dUVdy,renderN,renderT,renderB),fineWeight);
-                float reliefStrength=airy ? _FineReliefStrength : (i.groomRoleAndSign.x<0.5 ? _CoreReliefStrength : 1);
+                // The opaque support represents strand bundles. Its normal
+                // bands stay resolvable at portrait size; separate transparent
+                // fibers retain the atlas's individual-strand coordinates.
+                float2 normalScale=i.groomRoleAndSign.x<0.5 ? float2(0.4,1) : float2(1,1);
+                float2 normalCoordinates=atlasCard?groomCoordinates:frac(i.sourceAndGroom.zw*normalScale);
+                float2 normalUV=origin+float2(0.04,0.025)*0.25+normalCoordinates*groomSampleScale;
+                float2 normalDx=dUVdx*normalScale,normalDy=dUVdy*normalScale;
+                fine = SourceGroomUnpack(tex2Dgrad(_GroomNormal, normalUV, normalDx*groomSampleScale, normalDy*groomSampleScale));
+                fine = lerp(float3(0,0,1),SourceGroomFineInRender(fine,dPdx,dPdy,normalDx,normalDy,renderN,renderT,renderB),fineWeight);
+                float reliefStrength=(airy || atlasCard) ? _FineReliefStrength : (i.groomRoleAndSign.x<0.5 ? _CoreReliefStrength : 1);
                 if(reliefStrength<1 && !airy)fine=SourceGroomNativeIntensity(fine,reliefStrength);
                 if(airy)
                 {
@@ -238,13 +277,14 @@
 
             }
             SourceGroomClip(source.a, _Cutoff);
-            if(i.groomRoleAndSign.x >= 0.5 && !airy && mask <= 0.5 && _FiberAlphaCutoff > 0)
+            if(i.groomRoleAndSign.x >= 0.5 && !airy && !atlasCard && mask <= 0.5 && _FiberAlphaCutoff > 0)
             {
                 // Existing clumps and the new surface tufts use measured groom alpha.
                 // Sparse open-edge fibers use one tapered sheet per individual strand.
                 float coverage=edgeFiber ? saturate(4*i.sourceAndGroom.zw.x*(1-i.sourceAndGroom.zw.x)) : groom.a;
                 clip(coverage - _FiberAlphaCutoff);
             }
+            if(atlasCard && mask<=0.5)clip(groom.a-_FineAlphaCutoff);
             // New fine32 sheets own measured alpha; native core and legacy scalp
             // coverage retain their original alpha rule and separate cutoff.
             if(airy && mask<=0.5)
@@ -265,10 +305,14 @@
             macro.y *= i.groomRoleAndSign.y < 0 ? -1 : 1;
             // Native locks describe broad volume; their deep grooves must not
             // amplify the independent fine-fiber relief. Ornaments keep native N.
-            float3 shadingMacro = airy && mask<=0.5 ? float3(0,0,1) : (mask <= 0.5 ? SourceGroomNativeIntensity(macro, lerp(_MacroNormalStrength,_MacroNormalStrength*0.5,_CoreResponse)) : macro);
+            float3 shadingMacro = (airy || atlasCard) && mask<=0.5 ? float3(0,0,1) : (mask <= 0.5 ? SourceGroomNativeIntensity(macro, lerp(_MacroNormalStrength,_MacroNormalStrength*0.5,_CoreResponse)) : macro);
             float3 combined = fineCoordinates && mask <= 0.5 ? SourceGroomWhiteout(shadingMacro,fine) : shadingMacro;
             float3 normal = SourceGroomNativeIntensity(combined, _HP_Normal_Intensity);
-            if(mask<=0.5 && dot(i.groomRoleAndSign.zw,i.groomRoleAndSign.zw)>1e-12)
+            // Support normals use the standard vertex interpolator. The inverse
+            // carry restores the original frame for metallic source pixels.
+            // Older catalogs retain their original tangent-space carry layout.
+            bool applyCarry=_SupportInVertexFrame>0.5 ? mask>0.5 : mask<=0.5;
+            if(applyCarry && dot(i.groomRoleAndSign.zw,i.groomRoleAndSign.zw)>1e-12)
             {
                 float2 xy=i.groomRoleAndSign.zw;
                 float3 support=float3(xy,sqrt(saturate(1-dot(xy,xy))));
@@ -296,10 +340,16 @@
                     sourceDx*filterScale,sourceDy*filterScale).rgb;
                 float luminance=dot(pigment,float3(0.2126,0.7152,0.0722));
                 float filteredLuminance=dot(filtered,float3(0.2126,0.7152,0.0722));
-                // One pigment reference spans the atlas charts. Their painted
-                // lighting must not reappear as planar patches under new lights.
+                float localLuminance=filteredLuminance;
+                // De-light the broad painted volumes while retaining the
+                // native strand contrast above that local spatial frequency.
+                // The two samples use the actual projected mip footprint.
                 if(_NativePigmentMean>0)filteredLuminance=_NativePigmentMean;
-                float gain=lerp(filteredLuminance,luminance,lerp(_BakedColorDetail,_BakedColorDetail*0.4,_CoreResponse))/max(luminance,1e-4);
+                float legacyLuminance=lerp(filteredLuminance,luminance,_BakedColorDetail);
+                float nativeStrandRatio=clamp(luminance/max(localLuminance,1e-4),0.25,4);
+                float strandLuminance=filteredLuminance*lerp(1,nativeStrandRatio,_BakedColorDetail);
+                float modernWeight=_NativePigmentMean>0 ? _CoreResponse : 0;
+                float gain=lerp(legacyLuminance,strandLuminance,modernWeight)/max(luminance,1e-4);
 
                 // Filter brightness only: adjacent coloured atlas regions must
                 // not change this strand's native pigment chromaticity.
@@ -339,7 +389,8 @@
             // The same source-flow field changes the microscopic luster in both
             // Forward and Deferred. It is filtered before minification and never
             // changes native pigment alpha, geometry, native dye or metal masks.
-            float strandLuster=saturate(_FiberSmoothness*0.65+0.08*strandVariation
+            float lusterScale=i.groomRoleAndSign.x<0.5 ? _CoreSmoothnessScale : 1;
+            float strandLuster=saturate(_FiberSmoothness*lusterScale+0.08*strandVariation
                 +0.035*(groom.a-0.5));
             o.Smoothness = mask <= 0.5 ? lerp(_FiberSmoothness,strandLuster,_CoreResponse) : _Smoothness;
             o.Occlusion = 1;
@@ -349,10 +400,13 @@
             alongV-=renderN*dot(renderN,alongV);
             o.FiberDirection=fineCoordinates&&abs(det)>1e-20&&dot(alongV,alongV)>1e-20
                 ? SourceGroomSafeNormal(alongV) : renderB;
-            // The support represents the unresolved volume of many fibers.
-            // Its UV charts do not define a continuous strand direction.
-            // Individual fiber sheets retain their authored anisotropic response.
-            o.FiberAnisotropy=_FiberAnisotropy*(i.groomRoleAndSign.x<0.5 ? 1-_CoreResponse : 1);
+            float axisCoherence=1;
+            if(_FlowInVertexFrame>0.5)
+                o.FiberDirection=SourceGroomInterpolatedAxis(i.worldFiberFirst,i.worldFiberSecond,
+                    renderN,renderT,renderB,o.FiberDirection,axisCoherence);
+            // The measured groom coordinates supply the fiber direction on both
+            // the opaque support and the individual sheets.
+            o.FiberAnisotropy=axisCoherence*_FiberAnisotropy*(i.groomRoleAndSign.x<0.5 ? (fineCoordinates ? _CoreAnisotropyScale : 0) : 1);
 
             o.FineHair=airy && mask<=0.5 ? 1 : 0;
             o.FineWidthProfile=o.FineHair;
@@ -365,7 +419,7 @@
                 o.FineWidthVariance=float2(0,widthVariance);
             }
 
-            o.Emission = SGNativeEmission(i.sourceObjectPosition, i.worldPos.y, _DisolveValue,
+            o.Emission = SGNativeEmission(mul(unity_WorldToObject,float4(i.worldPos,1)).xyz, i.worldPos.y, _DisolveValue,
                 _CharacterHeight, _CharacterPosY, _DisolveNoiseScale, _EmissionColor.rgb,
                 _DisolveGlowColor.rgb, _DisolveHueScale, _DisolveColorWidth);
             #ifdef SOURCE_GROOM_ROLE_PROOF

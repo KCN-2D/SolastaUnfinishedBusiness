@@ -20,7 +20,7 @@ public static class BoundedSkinBc7PersistentPair
     [Serializable] sealed class Input {public string status,protectedMask,protectedMaskSha256,ownedMask,ownedMaskSha256;public Task[] tasks;public float[] ageScalars;public string scalarAuthority;}
     [Serializable] sealed class ErrorStats {public long pixels,unequalPixels;public long[] unequalComponents=new long[4];public double[] maximumAbsolute=new double[4],meanAbsolute=new double[4],rootMeanSquare=new double[4];}
     [Serializable] sealed class Mip {public int level,width,allowedPixels,protectedPixels;public bool nativeRgbaExpansionExact,fieldReferenceProtectionExact,bc7FieldProtectionExact,bc7NormalRbExact;public string nativeGpuSha256,referenceFieldGpuSha256,bc7NativeGpuSha256,bc7FieldGpuSha256;public ErrorStats nativeReencode,fieldEncoding,outsideOwned,protectedFace,normalCarriers,controlFieldOutside,controlFieldProtected;public bool controlFieldProtectedPixelsExact,protectedBlocksExact,whollyUnownedBlocksExact;public int protectedBlocks,changedProtectedBlocks,whollyUnownedBlocks,changedWhollyUnownedBlocks;public Angular[] nativeCodecAngular,fieldCodecAngular;}
-    [Serializable] sealed class Row {public string id,role,format,graphicsFormat;public long rawBytes;public int compressionQuality;public double totalSeconds,compressSeconds,gpuProofSeconds,saveSeconds;public bool precompressedReuse;public bool sourceUnchanged,strictProtectedAccepted;public Mip[] mips;}
+    [Serializable] sealed class Row {public string id,role,format,graphicsFormat;public long rawBytes;public int compressionQuality;public double totalSeconds,compressSeconds,gpuProofSeconds,saveSeconds;public bool precompressedReuse,identicalPreparedControlReuse;public bool sourceUnchanged,strictProtectedAccepted;public Mip[] mips;}
     [Serializable] sealed class Report {public string status,inputSha256,error,graphicsDevice,scope;public double totalSeconds,compressionSeconds,saveBuildSeconds,reloadSeconds,gpuReadbackSeconds,hashSeconds;public string currentTask,currentStage;public int nativeReencodeStatsCacheHits,nativeReencodeStatsCacheMisses;public long peakWorkingSetBytes;public bool completed,supportsBc7,strictAcceptance,actorRenderAccepted,savedReloadAccepted;public Row[] rows;public Saved[] saved;public string bundlePath,bundleSha256;public bool savedReloadGpuExact;public ProductionBundle production;}
     [Serializable] sealed class Angular {public string decodeModel,scalarSource;public float bumpScale;public long pixels;public double maximumDegrees,meanDegrees,rootMeanSquareDegrees;}
     [Serializable] sealed class Saved {public string id,variant,asset,encodedPath,encodedSha256,graphicsFormat;public long encodedBytes,runtimeBytes;public bool unreadable,reloadGpuExact;public SavedMip[] mips;}
@@ -292,7 +292,18 @@ public static class BoundedSkinBc7PersistentPair
                     Need(native.width==task.width&&native.height==task.height&&native.mipmapCount==task.mipCount,"Selected native texture layout differs. task="+task.id+" asset="+task.asset+" expected="+task.width+"x"+task.height+"/"+task.mipCount+" actual="+native.width+"x"+native.height+"/"+native.mipmapCount);
                     var originalJson=EditorJsonUtility.ToJson(native);
                     expanded=Make(task,task.nativeRaw);field=Make(task,task.raw);Owner("CopyTextureMetadata",native,expanded);Owner("CopyTextureMetadata",native,field);
-                    report.currentStage="compress-native-and-field";write();var stageWatch=System.Diagnostics.Stopwatch.StartNew();nativeBc7=Compressed(task,task.nativeRaw,native);fieldBc7=Compressed(task,task.raw,native);row.compressSeconds=stageWatch.Elapsed.TotalSeconds;row.precompressedReuse=!string.IsNullOrEmpty(task.precompressedField);report.currentStage="gpu-native-expansion-ownership-codec-statistics";write();stageWatch.Restart();
+                    report.currentStage="compress-native-and-field";write();var stageWatch=System.Diagnostics.Stopwatch.StartNew();
+                    fieldBc7=Compressed(task,task.raw,native);
+                    if(task.rawSha256==task.nativeRawSha256)
+                    {
+                        // Prepared fields are also their exact GPU control. A
+                        // second encode of the same complete mips adds no proof.
+                        nativeBc7=new Texture2D(task.width,task.height,TextureFormat.BC7,true,!task.sRGB);
+                        nativeBc7.LoadRawTextureData(fieldBc7.GetRawTextureData());nativeBc7.Apply(false,false);
+                        Owner("CopyTextureMetadata",native,nativeBc7);row.identicalPreparedControlReuse=true;
+                    }
+                    else nativeBc7=Compressed(task,task.nativeRaw,native);
+                    row.compressSeconds=stageWatch.Elapsed.TotalSeconds;row.precompressedReuse=!string.IsNullOrEmpty(task.precompressedField);report.currentStage="gpu-native-expansion-ownership-codec-statistics";write();stageWatch.Restart();
                     row.format=fieldBc7.format.ToString();row.graphicsFormat=fieldBc7.graphicsFormat.ToString();row.rawBytes=fieldBc7.GetRawTextureData().Length;
                     Need(row.rawBytes==Enumerable.Range(0,task.mipCount).Sum(level=>((Math.Max(1,task.width>>level)+3)/4)*((Math.Max(1,task.height>>level)+3)/4)*16),"The actual complete BC7 payload size differs.");
                     var encodedControl=nativeBc7.GetRawTextureData();var encodedField=fieldBc7.GetRawTextureData();var mipOffset=0;

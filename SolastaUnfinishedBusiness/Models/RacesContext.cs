@@ -66,6 +66,7 @@ internal static class RacesContext
         _characterModelsUnloading = false;
         if (_characterModelCatalog == null) _characterModelCatalogAttempted = false;
         Morphotypes.Load();
+        LoadBodyShapeFields();
 
         LoadRace(RaceBattlebornBuilder.RaceBattleborn);
         LoadRace(RaceBolgrifBuilder.RaceBolgrif);
@@ -261,7 +262,6 @@ internal static class RacesContext
     private const string BodyVolumeNegative = "UB_BodyVolumeNegative";
     private static readonly ConditionalWeakTable<Mesh, BodyShapeRest> BodyShapeRestCache = new();
     private static readonly BodyShapeField[] BodyShapeFields = new BodyShapeField[2];
-    private static readonly bool[] BodyShapeFieldLoading = new bool[2];
     private static readonly HashSet<string> BodyShapeErrors = [];
     private static readonly HashSet<BodyShapePresentation> BodyShapeOwners = [];
     private static bool _bodyShapesUnloading;
@@ -303,6 +303,40 @@ internal static class RacesContext
     [ThreadStatic] private static CancellationToken _characterModelReadCancellation;
     private static int _characterModelPreparationGeneration;
     private static bool _characterModelPreparationStarted;
+
+    internal static bool CharacterModelsReady => !SettingsContext.GuiModManagerInstance.EnableCustomFaces ||
+        !_characterModelsUnloading && _characterModelCatalog is { IsRetiring: false };
+
+    internal static bool CharacterModelPreparationFailed => !CharacterModelsReady &&
+        _characterModelCatalogAttempted && _characterModelPreparation == null;
+
+    internal static string CharacterModelPreparationStatus => UpdateContext.CharacterModelsDownloading &&
+                                                            UpdateContext.CharacterModelsDownloadProgress < 100
+        ? Gui.Format("ModUi/&CharacterModelsDownloadProgress", UpdateContext.CharacterModelsDownloadProgress.ToString())
+        : Gui.Localize(CharacterModelPreparationFailed
+            ? "ModUi/&CharacterModelsUnavailable"
+            : "ModUi/&CharacterModelsPreparing");
+
+    internal static void RetryCharacterModels()
+    {
+        if (CharacterModelsReady) return;
+        CancelCharacterModelCatalogPreparation();
+        _characterModelCatalogAttempted = false;
+        PrepareCharacterModelCatalog();
+    }
+
+    internal static IEnumerator WaitForCharacterModels(IEnumerator action)
+    {
+        try
+        {
+            if (!CharacterModelsReady) PrepareCharacterModelCatalog();
+            while (!_characterModelsUnloading && !Main.IsApplicationQuitting && !CharacterModelsReady)
+                yield return null;
+            if (_characterModelsUnloading || Main.IsApplicationQuitting) yield break;
+            while (action.MoveNext()) yield return action.Current;
+        }
+        finally { (action as IDisposable)?.Dispose(); }
+    }
 
     private static void PrepareCharacterModelCatalog()
     {
@@ -981,7 +1015,10 @@ internal static class RacesContext
             if (Current())
             {
                 PrepareCharacterModelCatalog();
-                while (Current() && _characterModelCatalog == null && _characterModelPreparation != null) yield return null;
+                while (Current() && !CharacterModelsReady) yield return null;
+                if (_characterModelsUnloading || !factory || !graphics ||
+                    !ReferenceEquals(actor, graphics.RulesetCharacter) || factory.IsAbortingGraphicsCharacter(graphics))
+                    yield break;
                 if (Current() && _characterModelCatalog?.UsesCompleteParts == true)
                 {
                     var catalog = _characterModelCatalog;
@@ -1082,9 +1119,19 @@ internal static class RacesContext
             {
                 PrepareCharacterModelCatalog();
                 while (factory && !_characterModelsUnloading && SettingsContext.GuiModManagerInstance.EnableCustomFaces &&
-                       _characterModelCatalog == null && _characterModelPreparation != null) yield return null;
+                       !CharacterModelsReady &&
+                       (requestId < 0 || !factory.pendingAbortRequests.Contains(requestId)) &&
+                       (!existing || !factory.IsAbortingGraphicsCharacter(existing))) yield return null;
             }
             if (!factory || _characterModelsUnloading) yield break;
+            if (existing && factory.IsAbortingGraphicsCharacter(existing)) yield break;
+            if (requestId >= 0 && factory.pendingAbortRequests.Contains(requestId) &&
+                !factory.characterPerRequestId.ContainsKey(requestId))
+            {
+                factory.pendingBeforeDestroyedCallbacks.Remove(requestId);
+                factory.FastDestroyGraphicsCharacter(requestId, default, null, default);
+                yield break;
+            }
             generation = _characterModelPreparationGeneration;
             RetainCreation();
             while (native.MoveNext())
@@ -1977,6 +2024,48 @@ internal static class RacesContext
     }
     private static bool JointVector(Vector3 a, Vector3 b) => BodyShapeFinite(a) && BodyShapeFinite(b) && (a - b).sqrMagnitude <= 0.000002f * 0.000002f;
     private static bool JointPose(Matrix4x4 a, Matrix4x4 b) => Enumerable.Range(0, 16).All(i => BodyShapeFinite(a[i]) && BodyShapeFinite(b[i]) && Mathf.Abs(a[i] - b[i]) <= 0.000001f);
+
+    private static bool TrySkinPaletteFrame(Transform[] receiverBones, Matrix4x4[] receiverPoses,
+        Transform[] donorBones, Matrix4x4[] donorPoses, out Matrix4x4 frame, out int[] donorToReceiver, out int[] receiverToDonor)
+    {
+        const float tolerance = 0.0001f;
+        frame = default; donorToReceiver = []; receiverToDonor = [];
+        if (receiverBones.Length < receiverPoses.Length || donorBones.Length < donorPoses.Length ||
+            receiverPoses.Concat(donorPoses).Any(pose => Enumerable.Range(0, 16).Any(i => !BodyShapeFinite(pose[i])))) return false;
+        var common = (from donor in Enumerable.Range(0, donorPoses.Length)
+                      from receiver in Enumerable.Range(0, receiverPoses.Length)
+                      where donorBones[donor] && ReferenceEquals(donorBones[donor], receiverBones[receiver])
+                      select (Donor: donor, Receiver: receiver, Bone: donorBones[donor])).ToArray();
+        if (common.Length == 0) return false;
+        // One live transform can occupy multiple slots with distinct native bind poses.
+        var groups = common.GroupBy(pair => pair.Bone).ToArray();
+        var candidates = new List<Matrix4x4>();
+        foreach (var pair in common)
+        {
+            if (Mathf.Abs(donorPoses[pair.Donor].determinant) < 1e-12f) continue;
+            var candidate = donorPoses[pair.Donor].inverse * receiverPoses[pair.Receiver];
+            if (Enumerable.Range(0, 16).Any(i => !BodyShapeFinite(candidate[i])) ||
+                Mathf.Abs(candidate.determinant) < 1e-12f || candidates.Any(old => Same(old, candidate)) ||
+                groups.Any(group => !group.Any(slot => Same(receiverPoses[slot.Receiver], donorPoses[slot.Donor] * candidate)))) continue;
+            candidates.Add(candidate);
+        }
+        if (candidates.Count != 1) return false;
+        frame = candidates[0];
+        var selectedFrame = frame;
+        donorToReceiver = Enumerable.Range(0, donorPoses.Length).Select(donor => common.Where(pair => pair.Donor == donor)
+            .Select(pair => (pair.Receiver, Error(receiverPoses[pair.Receiver], donorPoses[donor] * selectedFrame)))
+            .Where(pair => pair.Item2 <= tolerance).OrderBy(pair => pair.Item2).ThenBy(pair => pair.Receiver)
+            .Select(pair => pair.Receiver).DefaultIfEmpty(-1).First()).ToArray();
+        receiverToDonor = Enumerable.Range(0, receiverPoses.Length).Select(receiver => common.Where(pair => pair.Receiver == receiver)
+            .Select(pair => (pair.Donor, Error(receiverPoses[receiver], donorPoses[pair.Donor] * selectedFrame)))
+            .Where(pair => pair.Item2 <= tolerance).OrderBy(pair => pair.Item2).ThenBy(pair => pair.Donor)
+            .Select(pair => pair.Donor).DefaultIfEmpty(-1).First()).ToArray();
+        return true;
+
+        static float Error(Matrix4x4 first, Matrix4x4 second) => Enumerable.Range(0, 16).Max(i => Mathf.Abs(first[i] - second[i]));
+        static bool Same(Matrix4x4 first, Matrix4x4 second) => Enumerable.Range(0, 16).All(i =>
+            BodyShapeFinite(first[i]) && BodyShapeFinite(second[i]) && Mathf.Abs(first[i] - second[i]) <= tolerance);
+    }
 
     private static void ValidateJointTangents(CharacterModelMeshData target, int[] origins, int[] strip,
         Vector3[] positions, Vector3[] normals, CharacterModelMeshData.Frame physical,
@@ -4607,14 +4696,8 @@ internal static class RacesContext
                     body.Authored.vertexCount != body.Source.Original.vertexCount && !bindings.ContainsKey(body.Renderer)) continue;
                 var hBones = head.Renderer.bones; var bBones = body.Renderer.bones;
                 var hRest = ReadBodyShapeRest(head.Authored); var bRest = ReadBodyShapeRest(body.Authored);
-                if (hBones.Length < hRest.BindPoses.Length || bBones.Length < bRest.BindPoses.Length) continue;
-                var bToH = Enumerable.Range(0, bRest.BindPoses.Length).Select(index => bBones[index] ? Array.IndexOf(hBones, bBones[index]) : -1).ToArray();
-                var hToB = Enumerable.Range(0, hRest.BindPoses.Length).Select(index => hBones[index] ? Array.IndexOf(bBones, hBones[index]) : -1).ToArray();
-                var anchor = Array.FindIndex(bToH, index => index >= 0 && index < hRest.BindPoses.Length);
-                if (anchor < 0) continue;
-                var hToBody = bRest.BindPoses[anchor].inverse * hRest.BindPoses[bToH[anchor]];
-                if (Enumerable.Range(0, bToH.Length).Any(index => bToH[index] >= 0 &&
-                    !SameMatrix(hRest.BindPoses[bToH[index]], bRest.BindPoses[index] * hToBody))) continue;
+                if (!TrySkinPaletteFrame(hBones, hRest.BindPoses, bBones, bRest.BindPoses,
+                        out var hToBody, out var bToH, out var hToB)) continue;
                 var normalToHead = hToBody.transpose;
                 var toHead = hToBody.inverse;
                 var headDistanceScale = Mathf.Sqrt(((Vector3)toHead.GetColumn(0)).sqrMagnitude +
@@ -4746,8 +4829,6 @@ internal static class RacesContext
 
             static IEnumerable<SkinnedMeshRenderer> Part(SkinnedMeshRenderer[][] parts, GraphicsCharacterDefinitions.BodyPart part) =>
                 parts != null && (int)part < parts.Length ? parts[(int)part] ?? [] : [];
-            static bool SameMatrix(Matrix4x4 first, Matrix4x4 second) => Enumerable.Range(0, 16).All(index =>
-                BodyShapeFinite(first[index]) && BodyShapeFinite(second[index]) && Mathf.Abs(first[index] - second[index]) <= weld);
             static bool Remap(BoneWeight source, int[] indices, int targetCount, out BoneWeight result)
             {
                 result = default;
@@ -5650,7 +5731,7 @@ internal static class RacesContext
 
     }
 
-    // Authored native muscle references. Target selection uses the actual skin, not race or item names.
+    // Source identities used to validate the baked muscle calibration.
     private static readonly string[][] BodyShapeSampleKeys =
     [
         ["f710eacb3971f134d8fc4789d28eaf1c", "7dff7203cd76ba44fa32480f6493b741"],
@@ -5672,35 +5753,20 @@ internal static class RacesContext
         owner.Refresh(graphics, field, value, defaultValue, supplemental);
     }
 
-    private static BodyShapeField GetBodyShapeField(int sex)
+    private static BodyShapeField GetBodyShapeField(int sex) => _bodyShapesUnloading ? null : BodyShapeFields[sex];
+
+    private static void LoadBodyShapeFields()
     {
-        if (_bodyShapesUnloading) return null;
-        if (BodyShapeFields[sex] != null || BodyShapeFieldLoading[sex]) return BodyShapeFields[sex];
-        BodyShapeFieldLoading[sex] = true;
-        var first = Addressables.LoadAssetAsync<GameObject>(BodyShapeSampleKeys[sex][0]);
-        var second = Addressables.LoadAssetAsync<GameObject>(BodyShapeSampleKeys[sex][1]);
-        var finished = false;
-        first.Completed += _ => Complete();
-        second.Completed += _ => Complete();
-        return BodyShapeFields[sex];
-        void Complete()
+        for (var sex = 0; sex < BodyShapeFields.Length; sex++)
         {
-            if (finished || !first.IsDone || !second.IsDone) return;
-            finished = true;
+            if (BodyShapeFields[sex] != null) continue;
             try
             {
-                if (!_bodyShapesUnloading)
-                {
-                    if (!first.Result || !second.Result) throw new InvalidOperationException("Native body-shape calibration did not load.");
-                    BodyShapeFields[sex] = BodyShapeField.Create(first.Result, second.Result);
-                }
+                var filename = sex == 0 ? "BodyShapeFieldMale.json" : "BodyShapeFieldFemale.json";
+                var path = System.IO.Path.Combine(Main.ModFolder, "BlenderModels", "BodyShapes", filename);
+                BodyShapeFields[sex] = BodyShapeField.FromCalibration(JObject.Parse(System.IO.File.ReadAllText(path)), sex);
             }
             catch (Exception exception) { ReportBodyShapeError("calibration-" + sex, exception); }
-            finally { BodyShapeFieldLoading[sex] = false; Addressables.Release(first); Addressables.Release(second); }
-            if (_bodyShapesUnloading || BodyShapeFields[sex] == null || !SettingsContext.GuiModManagerInstance.EnableAllRaceBodyShapes) return;
-            var factory = ServiceRepository.GetService<IGraphicsCharacterFactoryService>();
-            if (factory == null) return;
-            foreach (var character in factory.GraphicsCharacters.ToArray()) RefreshBodyShape(character);
         }
     }
 
@@ -6119,8 +6185,55 @@ internal static class RacesContext
     {
         private readonly Dictionary<string, BodyShapeSample[]> _samples;
         private readonly Dictionary<string, float> _support;
+        private readonly Dictionary<string, SampleIndex> _indices;
         private readonly BodyShapeField _parent;
-        private BodyShapeField(Dictionary<string, List<BodyShapeSample>> samples, BodyShapeField parent = null)
+        private BodyShapeField(Dictionary<string, BodyShapeSample[]> samples, Dictionary<string, float> support)
+        {
+            _samples = samples;
+            _support = support;
+            _indices = samples.ToDictionary(pair => pair.Key, pair => new SampleIndex(pair.Value), StringComparer.Ordinal);
+        }
+        internal static BodyShapeField FromCalibration(JObject document, int sex)
+        {
+            if ((int?)document["schemaVersion"] != 1 || (int?)document["sex"] != sex ||
+                (string)document["coordinateDomain"] != "normalized-native-bone-local" ||
+                document["sourceKeys"] is not JArray sources || !sources.Values<string>().SequenceEqual(BodyShapeSampleKeys[sex]) ||
+                document["samples"] is not JArray rows || rows.Count == 0)
+                throw new InvalidOperationException("The body-shape calibration has an incompatible source or schema.");
+            var samples = new Dictionary<string, BodyShapeSample[]>(StringComparer.Ordinal);
+            var support = new Dictionary<string, float>(StringComparer.Ordinal);
+            foreach (var row in rows)
+            {
+                var bone = (string)row["bone"];
+                if (string.IsNullOrWhiteSpace(bone) || samples.ContainsKey(bone) ||
+                    row["points"] is not JArray points || row["delta"] is not JArray delta ||
+                    row["weights"] is not JArray weights || weights.Count == 0 ||
+                    points.Count != weights.Count * 3 || delta.Count != points.Count)
+                    throw new InvalidOperationException("The body-shape calibration has an incomplete bone sample.");
+                var radius = Number(row["support"]);
+                if (radius <= 0f) throw new InvalidOperationException("A body-shape calibration has no spatial support.");
+                var values = new BodyShapeSample[weights.Count];
+                for (var index = 0; index < values.Length; index++)
+                {
+                    var weight = Number(weights[index]);
+                    if (weight <= 0f || weight > 1f) throw new InvalidOperationException("A body-shape calibration has an invalid skin weight.");
+                    values[index] = new BodyShapeSample(Vector(points, index), Vector(delta, index), weight);
+                }
+                samples.Add(bone, values);
+                support.Add(bone, radius);
+            }
+            return new BodyShapeField(samples, support);
+
+            static float Number(JToken value)
+            {
+                if (value == null || value.Type is not (JTokenType.Float or JTokenType.Integer) || !BodyShapeFinite((float)value))
+                    throw new InvalidOperationException("A body-shape calibration has a nonfinite or nonnumeric sample.");
+                return (float)value;
+            }
+            static Vector3 Vector(JArray values, int index) => new(Number(values[index * 3]),
+                Number(values[index * 3 + 1]), Number(values[index * 3 + 2]));
+        }
+        private BodyShapeField(Dictionary<string, List<BodyShapeSample>> samples, BodyShapeField parent)
         {
             _parent = parent;
             _samples = samples.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray());
@@ -6164,38 +6277,7 @@ internal static class RacesContext
                 distances.Sort();
                 _support.Add(pair.Key, distances[(distances.Count - 1) * 3 / 4] * 3f);
             }
-        }
-        internal static BodyShapeField Create(params GameObject[] prefabs)
-        {
-            var samples = new Dictionary<string, List<BodyShapeSample>>(StringComparer.Ordinal);
-            var seen = new HashSet<Mesh>();
-            foreach (var skin in prefabs.SelectMany(prefab => prefab.GetComponentsInChildren<SkinnedMeshRenderer>(true)))
-            {
-                var mesh = skin.sharedMesh;
-                if (!mesh || !mesh.name.EndsWith("LOD0", StringComparison.Ordinal) || !seen.Add(mesh) || mesh.GetBlendShapeIndex("Muscular") < 0) continue;
-                var rest = ReadBodyShapeRest(mesh);
-                var bones = skin.bones.Take(rest.BindPoses.Length).ToArray();
-                if (bones.Length < rest.BindPoses.Length || rest.Muscular == null) throw new InvalidOperationException("A native muscle calibration skin is incomplete.");
-                var protectedBones = bones.Select(IsProtectedBodyBone).ToArray();
-                var lengths = bones.Select(BodyShapeBoneLength).ToArray();
-                for (var vertex = 0; vertex < rest.Vertices.Length; vertex++)
-                {
-                    var weights = rest.Weights[vertex];
-                    for (var influence = 0; influence < 4; influence++)
-                    {
-                        var weight = BodyShapeWeight(weights, influence);
-                        if (weight <= 0f) continue;
-                        var index = BodyShapeWeightIndex(weights, influence);
-                        if (protectedBones[index]) continue;
-                        var name = bones[index].name;
-                        if (!samples.TryGetValue(name, out var list)) samples.Add(name, list = []);
-                        list.Add(new BodyShapeSample(rest.BindPoses[index].MultiplyPoint3x4(rest.Vertices[vertex]) / lengths[index],
-                            rest.BindPoses[index].MultiplyVector(rest.Muscular[vertex]) / lengths[index], weight));
-                    }
-                }
-            }
-            if (samples.Count == 0) throw new InvalidOperationException("The native muscle field contains no samples.");
-            return new BodyShapeField(samples);
+            _indices = _samples.ToDictionary(pair => pair.Key, pair => new SampleIndex(pair.Value), StringComparer.Ordinal);
         }
         private bool Contains(string bone) => _samples.ContainsKey(bone) || _parent != null && _parent.Contains(bone);
         internal int ResolveAnchor(Transform[] bones, int influence)
@@ -6256,39 +6338,132 @@ internal static class RacesContext
                 if (_parent != null) return _parent.Evaluate(bone, point);
                 throw new InvalidOperationException("The native muscle field has no bone: " + bone);
             }
-            var distances = new[] { float.MaxValue, float.MaxValue, float.MaxValue, float.MaxValue };
-            var closest = new BodyShapeSample[4];
-            foreach (var sample in samples)
-            {
-                var distance = (sample.Point - point).sqrMagnitude;
-                if (distance < 1e-10f) return sample.Delta;
-                for (var index = 0; index < 4; index++)
-                {
-                    if (distance >= distances[index]) continue;
-                    for (var next = 3; next > index; next--) { distances[next] = distances[next - 1]; closest[next] = closest[next - 1]; }
-                    distances[index] = distance;
-                    closest[index] = sample;
-                    break;
-                }
-            }
+            var nearest = _indices[bone].Find(point);
+            if (nearest.Exact != int.MaxValue) return samples[nearest.Exact].Delta;
             var support = _support[bone];
-            var confidence = _parent == null ? Mathf.Clamp01(1f - distances[0] / (support * support)) : 1f;
+            var confidence = _parent == null ? Mathf.Clamp01(1f - nearest.FirstDistance / (support * support)) : 1f;
             if (_parent == null && confidence == 0f) return Vector3.zero;
-            var blend = _parent == null ? 0f : Mathf.Clamp01((Mathf.Sqrt(distances[0]) - support) / support);
+            var blend = _parent == null ? 0f : Mathf.Clamp01((Mathf.Sqrt(nearest.FirstDistance) - support) / support);
             blend = blend * blend * (3f - 2f * blend);
             if (blend == 1f) return _parent.Contains(bone) ? _parent.Evaluate(bone, point) : Vector3.zero;
             var result = Vector3.zero;
             var total = 0f;
-            for (var index = 0; index < 4 && closest[index] != null; index++)
+            for (var index = 0; index < 4; index++)
             {
-                var weight = closest[index].Weight / distances[index];
-                result += closest[index].Delta * weight;
+                var (sampleIndex, distance) = nearest.Get(index);
+                if (sampleIndex == int.MaxValue) break;
+                var weight = samples[sampleIndex].Weight / distance;
+                result += samples[sampleIndex].Delta * weight;
                 total += weight;
             }
             var local = result / total;
             if (_parent == null) return local * confidence * confidence;
             if (blend == 0f) return local;
             return Vector3.Lerp(local, _parent.Contains(bone) ? _parent.Evaluate(bone, point) : Vector3.zero, blend);
+        }
+
+        private sealed class SampleIndex
+        {
+            private readonly BodyShapeSample[] _samples;
+            private readonly int[] _order;
+            private readonly byte[] _axes;
+            private readonly IComparer<int>[] _comparers;
+
+            internal SampleIndex(BodyShapeSample[] samples)
+            {
+                _samples = samples;
+                _order = Enumerable.Range(0, samples.Length).ToArray();
+                _axes = new byte[samples.Length];
+                _comparers = Enumerable.Range(0, 3).Select(axis => Comparer<int>.Create((first, second) =>
+                {
+                    var comparison = samples[first].Point[axis].CompareTo(samples[second].Point[axis]);
+                    return comparison != 0 ? comparison : first.CompareTo(second);
+                })).ToArray();
+                Build(0, samples.Length);
+            }
+
+            private void Build(int first, int end)
+            {
+                if (first >= end) return;
+                var minimum = _samples[_order[first]].Point;
+                var maximum = minimum;
+                for (var index = first + 1; index < end; index++)
+                {
+                    var point = _samples[_order[index]].Point;
+                    minimum = Vector3.Min(minimum, point);
+                    maximum = Vector3.Max(maximum, point);
+                }
+                var spread = maximum - minimum;
+                var axis = spread.y > spread.x ? 1 : 0;
+                if (spread.z > spread[axis]) axis = 2;
+                Array.Sort(_order, first, end - first, _comparers[axis]);
+                var middle = first + (end - first) / 2;
+                _axes[middle] = (byte)axis;
+                Build(first, middle);
+                Build(middle + 1, end);
+            }
+
+            internal Neighbours Find(Vector3 point)
+            {
+                var result = new Neighbours();
+                result.Initialize();
+                Search(0, _order.Length, point, ref result);
+                return result;
+            }
+
+            private void Search(int first, int end, Vector3 point, ref Neighbours result)
+            {
+                if (first >= end) return;
+                var middle = first + (end - first) / 2;
+                var source = _order[middle];
+                var delta = _samples[source].Point - point;
+                result.Offer(source, delta.sqrMagnitude);
+                var difference = delta[_axes[middle]];
+                if (difference > 0f) Search(first, middle, point, ref result);
+                else Search(middle + 1, end, point, ref result);
+                // Keep equal-distance candidates and the first source within
+                // the original exact-match radius, regardless of tree order.
+                if (difference * difference > result.Radius) return;
+                if (difference > 0f) Search(middle + 1, end, point, ref result);
+                else Search(first, middle, point, ref result);
+            }
+
+            internal struct Neighbours
+            {
+                private int _first, _second, _third, _fourth;
+                private float _one, _two, _three, _four;
+                internal int Exact;
+                internal float FirstDistance => _one;
+                internal float Radius => Exact == int.MaxValue ? _four : 1e-10f;
+                internal void Initialize()
+                {
+                    _first = _second = _third = _fourth = Exact = int.MaxValue;
+                    _one = _two = _three = _four = float.MaxValue;
+                }
+                private static bool Earlier(float distance, int source, float currentDistance, int current) =>
+                    distance < currentDistance || distance == currentDistance && source < current;
+                internal void Offer(int source, float distance)
+                {
+                    if (distance < 1e-10f) { Exact = Math.Min(Exact, source); return; }
+                    if (Exact != int.MaxValue || !Earlier(distance, source, _four, _fourth)) return;
+                    if (Earlier(distance, source, _three, _third))
+                    {
+                        _four = _three; _fourth = _third;
+                        if (Earlier(distance, source, _two, _second))
+                        {
+                            _three = _two; _third = _second;
+                            if (Earlier(distance, source, _one, _first))
+                            { _two = _one; _second = _first; _one = distance; _first = source; }
+                            else { _two = distance; _second = source; }
+                        }
+                        else { _three = distance; _third = source; }
+                    }
+                    else { _four = distance; _fourth = source; }
+                }
+                internal (int Index, float Distance) Get(int index) => index switch
+                { 0 => (_first, _one), 1 => (_second, _two), 2 => (_third, _three), 3 => (_fourth, _four),
+                    _ => throw new ArgumentOutOfRangeException(nameof(index)) };
+            }
         }
     }
 
@@ -6302,25 +6477,51 @@ internal static class RacesContext
         internal bool Identity;
     }
 
-    private sealed class BodyShapeSeam(Vector3 point, Vector3 delta, Vector3 normal, Vector3 tangent, bool native,
-        Matrix4x4? derivative = null)
+    private sealed class BodyShapeSeam(Vector3 point, Vector3 delta, bool native,
+        Matrix4x4? derivative = null, Quaternion? positiveRotation = null, Quaternion? negativeRotation = null)
     {
         internal readonly Vector3 Point = point;
-        internal readonly Vector3 Delta = delta, Normal = normal, Tangent = tangent;
+        internal readonly Vector3 Delta = delta;
         internal readonly bool Native = native;
         internal readonly Matrix4x4? Derivative = derivative;
+        internal readonly Quaternion? PositiveRotation = positiveRotation, NegativeRotation = negativeRotation;
     }
 
     private sealed class BodyShapeSeams
     {
         private const float Weld = 0.0001f;
         private readonly Dictionary<(string, int, int, int), List<BodyShapeSeam>> _points = [];
-        internal void Add(string bone, Vector3 point, Vector3 delta, Vector3 normal, Vector3 tangent, bool native,
-            Matrix4x4? derivative = null)
+        internal void Add(string bone, Vector3 point, Vector3 delta, Matrix4x4 derivative) =>
+            Add(bone, new BodyShapeSeam(point, delta, false, derivative));
+
+        internal void AddNative(string bone, Vector3 point, Vector3 delta, Vector3 normal, Vector3? tangent,
+            Vector3 deltaNormal, Vector3 deltaTangent)
         {
-            var key = Key(bone, point);
+            if (tangent is { } nativeTangent)
+            {
+                var rest = Quaternion.Inverse(Orientation(normal, nativeTangent));
+                Add(bone, new BodyShapeSeam(point, delta, true, positiveRotation: Orientation(normal + deltaNormal, nativeTangent + deltaTangent) * rest,
+                    negativeRotation: Orientation(normal - deltaNormal, nativeTangent - deltaTangent) * rest));
+            }
+            else Add(bone, new BodyShapeSeam(point, delta, true,
+                positiveRotation: Quaternion.FromToRotation(normal, normal + deltaNormal),
+                negativeRotation: Quaternion.FromToRotation(normal, normal - deltaNormal)));
+        }
+
+        private static Quaternion Orientation(Vector3 normal, Vector3 tangent)
+        {
+            normal.Normalize();
+            tangent = (tangent - normal * Vector3.Dot(normal, tangent)).normalized;
+            if (!BodyShapeFinite(normal) || !BodyShapeFinite(tangent) || normal.sqrMagnitude < 0.99f || tangent.sqrMagnitude < 0.99f)
+                throw new InvalidOperationException("A native body cut has an invalid surface frame.");
+            return Quaternion.LookRotation(normal, tangent);
+        }
+
+        private void Add(string bone, BodyShapeSeam seam)
+        {
+            var key = Key(bone, seam.Point);
             if (!_points.TryGetValue(key, out var list)) _points.Add(key, list = []);
-            list.Add(new BodyShapeSeam(point, delta, normal, tangent, native, derivative));
+            list.Add(seam);
         }
         internal bool TryGet(string bone, Vector3 point, out BodyShapeSeam seam)
         {
@@ -6525,13 +6726,6 @@ internal static class RacesContext
                     if (_pieces.Count != 0) throw new InvalidOperationException("Native body sources have not finished restoring.");
                     rows = CaptureBodyShapeRenderers(graphics);
                     sources = rows.Where(row => !row.Identity && row.UseNativeFrame && row.Original.GetBlendShapeIndex("Muscular") >= 0).ToList();
-                    try { _field = supplemental ? BodyShapeField.Complete(field, sources) : null; }
-                    catch (Exception exception)
-                    {
-                        // Native rows use their own frames; unavailable calibration only defers supplemental rows.
-                        _field = null;
-                        ReportBodyShapeError("actor-native-field", exception);
-                    }
                     _baseField = field;
                     _supplemental = supplemental;
                     _fieldRig = graphics.Animator;
@@ -6539,6 +6733,19 @@ internal static class RacesContext
                     _fieldActor = graphics.RulesetCharacter;
                     _fieldSources.AddRange(sources.Select(row => new FieldSource(row)));
                     _fieldSourcesReady = true;
+                }
+                var fieldAttempted = false;
+                BodyShapeField GetField()
+                {
+                    if (_field != null || fieldAttempted) return _field;
+                    fieldAttempted = true;
+                    try { _field = supplemental ? BodyShapeField.Complete(field, sources) : null; }
+                    catch (Exception exception)
+                    {
+                        // Native rows retain their own frames if supplemental calibration is unavailable.
+                        ReportBodyShapeError("actor-native-field", exception);
+                    }
+                    return _field;
                 }
                 BodyShapeSeams seams = null;
                 var readingSeams = false;
@@ -6559,10 +6766,13 @@ internal static class RacesContext
                             var dominant = BodyShapeDominantBone(rest.Weights[vertex], bones);
                             if (dominant < 0) continue;
                             var body = BodyShapeBodyWeight(rest.Weights[vertex], protectedBones, out _);
-                            seams.Add(bones[dominant].name, rest.BindPoses[dominant].MultiplyPoint3x4(rest.Vertices[vertex]),
+                            var basis = rest.BindPoses[dominant];
+                            seams.AddNative(bones[dominant].name, basis.MultiplyPoint3x4(rest.Vertices[vertex]),
                                 rest.BindPoses[dominant].MultiplyVector(rest.Muscular[vertex] * body),
-                                rest.BindPoses[dominant].inverse.transpose.MultiplyVector(rest.MuscularNormals[vertex] * body),
-                                rest.BindPoses[dominant].MultiplyVector(rest.MuscularTangents[vertex] * body), true);
+                                basis.inverse.transpose.MultiplyVector(rest.Normals[vertex]),
+                                rest.Tangents.Length == rest.Vertices.Length ? basis.MultiplyVector((Vector3)rest.Tangents[vertex]) : null,
+                                basis.inverse.transpose.MultiplyVector(rest.MuscularNormals[vertex] * body),
+                                basis.MultiplyVector(rest.MuscularTangents[vertex] * body));
                         }
                     }
                     readingSeams = false;
@@ -6578,7 +6788,7 @@ internal static class RacesContext
                         var baseline = row.PreserveNativeWeight ? row.Renderer.GetBlendShapeWeight(native) : defaultValue;
                         if (value == baseline) continue;
                     }
-                    try { BodyShapePiece.Create(graphics, row, _field, GetSeams, _pieces, supplemental); }
+                    try { BodyShapePiece.Create(graphics, row, GetField, GetSeams, _pieces, supplemental); }
                     catch (Exception exception)
                     {
                         if (readingSeams) throw;
@@ -6670,11 +6880,11 @@ internal static class RacesContext
             bounds.Expand(expansion * 2f);
             _appliedBounds = bounds;
         }
-        internal static void Create(GraphicsCharacter graphics, BodyShapeRenderer row, BodyShapeField field, Func<BodyShapeSeams> getSeams,
+        internal static void Create(GraphicsCharacter graphics, BodyShapeRenderer row, Func<BodyShapeField> getField, Func<BodyShapeSeams> getSeams,
             List<BodyShapePiece> pieces, bool supplemental)
         {
             var hasNativeFrame = row.UseNativeFrame && row.Original.GetBlendShapeIndex("Muscular") >= 0;
-            if ((row.Identity || !supplemental || field == null) && !hasNativeFrame) return;
+            if ((row.Identity || !supplemental) && !hasNativeFrame) return;
             if ((row.PreserveNativeWeight || !hasNativeFrame) &&
                 row.Renderer.bones.All(IsProtectedBodyBone)) return;
             var rest = ReadBodyShapeRest(row.Original);
@@ -6684,6 +6894,9 @@ internal static class RacesContext
             // With no protected positive influences, native correction has body / total = 1 everywhere.
             if (hasNativeFrame && !row.PreserveNativeWeight && rest.AllVerticesWeighted &&
                 rest.WeightedBones is { } usedBones && usedBones.All(index => !protectedBones[index])) return;
+            if (!hasNativeFrame && rest.WeightedBones.All(index => protectedBones[index])) return;
+            var field = hasNativeFrame ? null : getField();
+            if (!hasNativeFrame && field == null) return;
             var lengths = !hasNativeFrame ? bones.Select(BodyShapeBoneLength).ToArray() : null;
             var inverse = !hasNativeFrame ? rest.BindPoses.Select(matrix => matrix.inverse).ToArray() : null;
             var anchors = !hasNativeFrame ? Enumerable.Repeat(-1, bones.Length).ToArray() : null;
@@ -6738,28 +6951,25 @@ internal static class RacesContext
                                 if (!BodyShapeFinite(column)) throw new InvalidOperationException("A body field has a nonfinite surface derivative.");
                                 derivative.SetColumn(axis, new Vector4(column.x, column.y, column.z, 0f));
                             }
-                            seams.Add(bones[dominant].name, point, basis.MultiplyVector(delta[vertex]),
-                                Vector3.zero, Vector3.zero, false, derivative);
+                            seams.Add(bones[dominant].name, point, basis.MultiplyVector(delta[vertex]), derivative);
                             if (!seams.TryGet(bones[dominant].name, point, out seam))
                                 throw new InvalidOperationException("A body field lost its shared surface derivative.");
                         }
                         delta[vertex] = inverse[dominant].MultiplyVector(seam.Delta);
-                        if (seam.Derivative is { } derivativeFrame && rest.Tangents.Length == delta.Length)
                         {
                             var nativeNormal = rest.Normals[vertex] + (baseline == 0f ? Vector3.zero : rest.MuscularNormals[vertex] * baseline);
-                            var nativeTangent = (Vector3)rest.Tangents[vertex] + (baseline == 0f ? Vector3.zero : rest.MuscularTangents[vertex] * baseline);
-                            var positive = SurfaceFrame(derivativeFrame, basis, nativeNormal, nativeTangent, 1f);
-                            var negative = SurfaceFrame(derivativeFrame, basis, nativeNormal, nativeTangent, -1f);
+                            var nativeTangent = rest.Tangents.Length == delta.Length
+                                ? (Vector3)rest.Tangents[vertex] + (baseline == 0f ? Vector3.zero : rest.MuscularTangents[vertex] * baseline)
+                                : Vector3.zero;
+                            var positive = seam.Native
+                                ? TransportFrame(seam.PositiveRotation.Value, basis, nativeNormal, nativeTangent)
+                                : SurfaceFrame(seam.Derivative.Value, basis, nativeNormal, nativeTangent, 1f);
+                            var negative = seam.Native
+                                ? TransportFrame(seam.NegativeRotation.Value, basis, nativeNormal, nativeTangent)
+                                : SurfaceFrame(seam.Derivative.Value, basis, nativeNormal, nativeTangent, -1f);
                             seamNormals[vertex] = (positive.Normal, positive.Tangent, negative.Normal, negative.Tangent);
                             changed |= positive.Normal.sqrMagnitude > 0f || positive.Tangent.sqrMagnitude > 0f ||
                                 negative.Normal.sqrMagnitude > 0f || negative.Tangent.sqrMagnitude > 0f;
-                        }
-                        else
-                        {
-                            var normal = basis.transpose.MultiplyVector(seam.Normal);
-                            var tangent = inverse[dominant].MultiplyVector(seam.Tangent);
-                            seamNormals[vertex] = (normal, tangent, -normal, -tangent);
-                            changed |= normal.sqrMagnitude > 0f || tangent.sqrMagnitude > 0f;
                         }
                     }
                 }
@@ -6813,6 +7023,14 @@ internal static class RacesContext
             }
         }
 
+        private static (Vector3 Normal, Vector3 Tangent) TransportFrame(Quaternion rotation, Matrix4x4 basis,
+            Vector3 normal, Vector3 tangent)
+        {
+            var transformedNormal = rotation * basis.inverse.transpose.MultiplyVector(normal);
+            var transformedTangent = rotation * basis.MultiplyVector(tangent);
+            return FrameDelta(basis, normal, tangent, transformedNormal, transformedTangent);
+        }
+
         private static (Vector3 Normal, Vector3 Tangent) SurfaceFrame(Matrix4x4 derivative, Matrix4x4 basis,
             Vector3 normal, Vector3 tangent, float sign)
         {
@@ -6824,12 +7042,21 @@ internal static class RacesContext
             var inverseBasis = basis.inverse;
             var transformedNormal = transform.inverse.transpose.MultiplyVector(inverseBasis.transpose.MultiplyVector(normal)).normalized;
             var transformedTangent = transform.MultiplyVector(basis.MultiplyVector(tangent));
-            transformedTangent = (transformedTangent - transformedNormal * Vector3.Dot(transformedNormal, transformedTangent)).normalized;
+            return FrameDelta(basis, normal, tangent, transformedNormal, transformedTangent);
+        }
+
+        private static (Vector3 Normal, Vector3 Tangent) FrameDelta(Matrix4x4 basis, Vector3 normal, Vector3 tangent,
+            Vector3 transformedNormal, Vector3 transformedTangent)
+        {
+            transformedNormal.Normalize();
             var targetNormal = basis.transpose.MultiplyVector(transformedNormal).normalized;
-            var targetTangent = inverseBasis.MultiplyVector(transformedTangent);
+            if (!BodyShapeFinite(targetNormal) || targetNormal.sqrMagnitude < 0.99f)
+                throw new InvalidOperationException("A body field has an invalid surface normal.");
+            if (tangent.sqrMagnitude == 0f) return (targetNormal - normal, Vector3.zero);
+            transformedTangent = (transformedTangent - transformedNormal * Vector3.Dot(transformedNormal, transformedTangent)).normalized;
+            var targetTangent = basis.inverse.MultiplyVector(transformedTangent);
             targetTangent = (targetTangent - targetNormal * Vector3.Dot(targetNormal, targetTangent)).normalized;
-            if (!BodyShapeFinite(targetNormal) || !BodyShapeFinite(targetTangent) ||
-                targetNormal.sqrMagnitude < 0.99f || targetTangent.sqrMagnitude < 0.99f)
+            if (!BodyShapeFinite(targetTangent) || targetTangent.sqrMagnitude < 0.99f)
                 throw new InvalidOperationException("A body field has an invalid surface frame.");
             return (targetNormal - normal, targetTangent - tangent);
         }

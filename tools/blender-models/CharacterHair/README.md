@@ -3,6 +3,10 @@
 髪とヒゲには共通のshaderを使い、ゲームの色選択、透過、dissolve、金具のmaskを引き継ぎます。`materials.json`にshaderとincludeを登録し、`SourceGroomProgram.cginc`で表面の描画を処理します。
 制作と作業データの管理は[asset-authoring](../../asset-authoring/README.md)を参照してください。
 
+髪の滑らかな法線・接線は頂点データと物理変形の接続へ反映します。金具の領域は元のフレームへ戻す座標を使います。`_SupportInVertexFrame`でこの形式を識別し、旧形式の資源も同じshaderで読み取ります。実行時のbundleはLZ4で保存します。
+
+UV0.xyは元の画像、UV2は毛束の座標と役割、UV4は制作時の毛流れを持ちます。`_FlowInVertexFrame=2`の資源は、金具のフレーム復元と毛流れの各2成分をUV0.zwへ12bitずつ格納し、頂点shaderで復元します。UV1の既存データを保ち、UV3は実行時のGPU曲面変形に使います。
+
 ## 材質の生成
 
 shader/includeを変更したら、`materials.json`の`assets[].sha256`を更新します。ライセンス認証済みのUnity Projectを使います。
@@ -34,6 +38,9 @@ shader/includeを変更したら、`materials.json`の`assets[].sha256`を更新
 
 `GenerateFlowCoverageSweptProfile.py`がnative source表面から髪・ヒゲのgeometry、全physical frames、skinと明示的なsource triangle/barycentric bindingを生成します。`PrepareGroup.py`が既存のprefix/winding検証と共通`mesh_recipe_codec.py`を使ってUnity入力へ渡します。
 
+共通の毛束画像は、同じgeneratorへ`--workspace <作業先> --output <新しい出力先> --strand-atlas`を渡して作成します。独立した毛の透過・法線・明暗を16タイルへ収め、生成した`MeshRecipe.json`を共通のUnity builderへ渡します。画像は無彩色に保ち、髪色はゲームの色選択で決まります。
+`refine-groom-frames`へ`--texture-report <生成report>`を渡すと、資源の参照とsamplerを保って共通画像を差し替えます。
+
 入力にはnative packet・材質・profileを持つ`Input`/`CompletedGroup`を指定し、新しい作業先へ生成します。
 
 ```powershell
@@ -46,3 +53,7 @@ shader/includeを変更したら、`materials.json`の`assets[].sha256`を更新
 `--workspace`は`tools/asset-authoring/workspace/`または`tools/game-test/artifacts/`の下に指定します。sourceコードと材質recipeをGitで管理し、生成データはこの作業先へ保存します。Unityへの保存・採用は[CharacterFacesの手順](../CharacterFaces/README.md)へ進みます。
 
 追加頂点の元三角形と補間座標を保存し、UVの継ぎ目を跨ぐ曲面にはUBSFB004の共通駆動面を使います。binding形式の詳細は[共通レシピ仕様](../../asset-authoring/README.md#骨格付きfbxのunity資産への変換)を参照してください。
+
+曲面の土台へ割り当てる頂点数は、細い毛のシートを単位に制限します。細い毛の予約量を超える場合は土台の細分化を減らし、元の頂点を共有します。
+
+毛束の幅方向は各physical frameの中心線から求めます。UVや元の表面が不連続になる箇所では毛束を分け、それぞれの先端を細くします。全frameで三角形の向きと面積を検証し、元三角形・補間座標・skinの対応を保存します。

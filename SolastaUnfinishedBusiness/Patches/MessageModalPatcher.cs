@@ -3,6 +3,7 @@ using HarmonyLib;
 using JetBrains.Annotations;
 using TMPro;
 using UnityEngine.EventSystems;
+using SolastaUnfinishedBusiness.Models;
 using static SolastaUnfinishedBusiness.Models.CharacterExportContext;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -10,6 +11,43 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class MessageModalPatcher
 {
+    [HarmonyPatch(typeof(MessageModal), nameof(MessageModal.HandleInput))]
+    [UsedImplicitly]
+    public static class HandleInput_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(MessageModal __instance, ref bool __result)
+        {
+            if (UpdateContext.IsCharacterModelModal(__instance)) __result = true;
+        }
+    }
+
+    [HarmonyPatch(typeof(MessageModal), nameof(MessageModal.OnValidateCb))]
+    [UsedImplicitly]
+    public static class OnValidateCb_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(MessageModal __instance) =>
+            !UpdateContext.HandleCharacterModelModalAction(__instance, true);
+    }
+
+    [HarmonyPatch(typeof(MessageModal), nameof(MessageModal.OnCancelCb))]
+    [UsedImplicitly]
+    public static class OnCancelCb_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(MessageModal __instance) =>
+            !UpdateContext.HandleCharacterModelModalAction(__instance, false);
+    }
+
+    [HarmonyPatch(typeof(MessageModal), nameof(MessageModal.OnRoomLeft))]
+    [UsedImplicitly]
+    public static class OnRoomLeft_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(MessageModal __instance) => !UpdateContext.IsCharacterModelModal(__instance);
+    }
+
     [HarmonyPatch(typeof(MessageModal), nameof(MessageModal.OnEndShow))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

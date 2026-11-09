@@ -6,9 +6,19 @@
 
 人間、エルフ、ドワーフ、ハーフリング、ノーム、ティーフリングの顔と、同じ顔の骨格を持つNPCを対象にします。NPCの全身メッシュでは顔の領域へ適用します。ドラゴンボーンとモンスターは各形態の制作データを使います。
 
-顎・頬・鼻・目元を元モデルの骨格寸法に合わせて変形します。共有する眼球、まつ毛、口内は同じ生成条件で扱い、全LODと全フレームの面の向きを保てる強度を一組の部品全体へ適用します。年齢、肌色、化粧、傷などの選択値はゲームが管理します。
+最初に頭蓋・頬・顎・首の基礎形状を整え、眼球とまぶた、唇と口内の接続を確認します。正面・斜め・側面を同じカメラ条件で比較してから、表情、LOD、材質へ進みます。造形には各キャラクターのゲーム内の中立姿勢を使います。`captured_neutral_pose`で頭部の参照先、全描画部品の頂点数と骨の順序、変形ウェイトを照合し、`reference_pose_surface_to_rest`で頂点ごとの骨ウェイトを使って保存時の座標へ戻します。造形ガイドは元メッシュの頂点・骨・座標系と対応させ、`production.py`が接触面、共有部品、表情フレームへの適用を管理します。年齢、肌色、化粧、傷などの選択値はゲームが管理します。
 
-まぶたの骨に結び付く接触面、眼球、まつ毛は元の位置・法線・接線と全フレームを保持します。顔の骨を省いた低LODも、同じsourceのLOD0接触領域を引き継ぎます。変形との境界は周囲の頂点へ滑らかにつなぎます。
+造形ガイドには、まぶたの接触面、眼球、まつ毛と首の接続部を保護範囲として宣言します。低LODと表情フレームにも同じガイドを適用し、付属パーツを動かす場合は元の三角形との対応を指定します。変形との境界は周囲の頂点へ滑らかにつなぎます。
+
+`face-designs.json`には、種族・性別・フェイスタイプごとの輪郭、頬、鼻、口、顎の調整量をミリメートルで保存します。`compile-face-designs --census <原本Mesh>/Census.json --reference-index <中立姿勢JSON> --fixtures <対象一覧JSON> --output <新しい出力先>`で、各原本と中立姿勢に対応した`Profiles.json`を作ります。上下の唇が接する範囲は一体として移動し、眼球とまぶたの接触面を保ちます。
+
+造形用の原本は、元bundleからMeshの数値データを直接取り出します。`extract --native-index <元資源の対応表JSON> --census <元モデル一覧JSON> --output <原本Mesh>`で取得し、以降の`--census`には`<原本Mesh>/Census.json`を指定します。描画部品と骨の対応、元bundleのSHA256とMeshの物理IDを記録します。
+
+独立したキャラクター資源へ顔を組み込む場合は、次の引数を使います。元資源の材質、髪、装備と首の接続を引き継ぎ、造形ガイドを適用した候補を作ります。
+
+```text
+--workspace <作業先> refine-native-faces --source <元の組み立て済み資源> --native-index <元資源の対応表JSON> --census <原本Mesh>/Census.json --profiles <造形ガイドJSON> --output <候補資源>
+```
 
 作業先には`tools/asset-authoring/workspace/`または`tools/game-test/artifacts/`内の実行フォルダーを指定します。以下の`<作業先>`はすべて同じ場所です。最初に`capture --destination <原本フォルダー>`で元のcatalogを保持し、共通引数`--source-directory <原本フォルダー>`でその原本を指定します。
 
@@ -16,7 +26,7 @@
 | --- | --- |
 | 対象の抽出 | `--workspace <作業先> scope --scope editable --output <作業先>\Selection.json` |
 | 現行Meshの読み取り | `--workspace <作業先> --source-directory <原本フォルダー> extract --selection <作業先>\Selection.json --output <作業先>\CurrentHumanoids` |
-| 顔・目・まつ毛・口内の生成 | `--workspace <作業先> generate` |
+| 顔・目・まつ毛・口内の生成 | `--workspace <作業先> generate --profiles <造形ガイドJSON>` |
 | Unity入力の作成 | `--workspace <作業先> prepare --generation <作業先>\ModernHumanoids\Index.json --destination <作業先>\UnityInput` |
 
 各行は`build_models.py`に渡す引数です。`extract`と`prepare`には既存のUnityPy環境、`generate`にはBlender同梱Pythonを使います。
@@ -29,7 +39,7 @@
   .\tools\blender-models\CharacterFaces\build_models.py <引数>
 ```
 
-全身メッシュのNPCは`scope --scope npc`で選び、抽出先を`CurrentNpcHumanoids`にして`generate-npc`を実行します。出力は`ModernNpcHumanoids/Index.json`です。
+全身メッシュのNPCは`scope --scope npc`で選び、抽出先を`CurrentNpcHumanoids`にして`generate-npc --profiles <造形ガイドJSON>`を実行します。出力は`ModernNpcHumanoids/Index.json`です。どちらの生成も、同じ造形ガイドと部品の適用処理を使います。
 
 `extract`は指定したcatalogのMeshを全チャンネルとフレームから再構成し、canonical fingerprintを照合します。`prepare`はその原本と生成Meshから、参照されているTexture・未変更MeshだけをUnityレシピへ収めます。Unity側では作成、保存、bundle再読み込みの数値と元資産のデータを照合します。
 
@@ -38,6 +48,12 @@ Unityの共通入口`Invoke-UnityAssetBuild.ps1 -MeshRecipePath`には、`Plan.j
 `Invoke-ModelBuild.ps1 -PlanPath <Plan.jsonの配列> -OutputDirectory <完了結果の保存先> -GuiProjectPath <Unity project> -UnityPath <Unity.exe>`は、共通入口を8件ずつ呼び出して結果を`Actual.json`へ記録します。入力のSHA256を確認し、同じ引数で再実行すると完了分を再利用します。保存先に`STOP`ファイルを置くと現在の組の完了後にEditorを通常終了します。再開前にそのファイルを除去します。
 
 `finalize --plan <Plan.json> --results <完了結果.json> --destination <候補catalog>`で、生成したbundleのMesh fingerprintと参照先を照合し、新しいcatalogへまとめます。複数のPlanは`--plan`を繰り返して指定します。
+
+## 体格補正
+
+体格スライダーの補正基準は`SolastaUnfinishedBusiness/BlenderModels/BodyShapes/`で管理します。各骨の座標と変位、ウェイト、補間範囲を保存し、MOD起動時に読み込みます。基準を更新するときは、元資源から抽出した全サンプルと補間結果を照合します。
+
+頭部と胴体の境界は、共通の骨・bind poseと元の接合点から対応を決めます。LODごとに頂点数が異なる境界は、`generate-skin-boundaries --rebuild-collars --inputs <入力JSON> --destination <新しい出力先>`で接合部を再構成します。胴体側の頂点、骨のウェイトと変形フレームを引き継ぎ、頭部のUVに合わせた法線テクスチャを用意します。入力には全LODの原本、骨の順序と実際のサンプラー設定を指定します。
 
 ## 手足の生成
 
@@ -96,7 +112,9 @@ HeadはLOD0を先に生成し、その`Coefficient.json`のpath/SHAをLOD1/2の�
 
 組み立て結果は作業先の`ResourceAssembly.json`、候補catalogの宣言は出力先の`CharacterModels.manifest.json`へ保存します。
 
-顔と肌の仕上げは、全prefabの対応表と元の表情チャンネルを使って実行します。肌の校正には`surface-local-v4`を使い、目元・眉・口の濃淡と接続部のデータを保ちます。
+`repair-resource-bone-orders --source <組み立て結果の作業先> --native-index <元資源の対応表JSON>`は、全prefabの骨対応を元メッシュの骨名ハッシュと照合します。並びが異なる描画部品を修正し、頂点、ウェイト、結合行列、材質、追加した骨スロットを保存後に照合します。`--audit-only`は照合結果だけを出力します。
+
+顔と肌の仕上げは、造形ガイド、全prefabの対応表、元の表情チャンネルを使って実行します。制作した顔と付属部品を組み立て済みの首へつなぎ、接続頂点とフレームを保ちます。顔の色・濃淡・滑らかさは元のテクスチャを使い、Headと首の骨ウェイトに沿って首・胸の校正結果へ補間します。校正済みのBC7ブロックを保持し、顔のRGBと材質アルファを独立したパレットでも符号化して、保存後の復号値を原本と照合します。
 
 ```powershell
 & .\tools\asset-authoring\workspace\Python\Scripts\python.exe `
@@ -104,6 +122,7 @@ HeadはLOD0を先に生成し、その`Coefficient.json`のpath/SHAをLOD1/2の�
   --workspace <候補作業先> prepare-appearance-resources `
   --source <組み立て済み資源の作業先> --native-index <元資源の対応表JSON> `
   --census <元の顔のCensus.json> --material-contexts <材質の対応表JSON> `
+  --profiles <造形ガイドJSON> `
   --tone-inputs <元の色校正Taskの作業先> --authoring-sources <制作原本catalog>
 ```
 
@@ -133,6 +152,12 @@ HeadはLOD0を先に生成し、その`Coefficient.json`のpath/SHAをLOD1/2の�
 公開名は原本モデル・部位・各モデルのLOD・用途で決めます（例：`human_male_af-as-ca-ho_hands_lod0-1_pn.bundle`）。原本の対応表を`capture`または`publish`の`--name-source-metadata <原本inventory.json>`で指定すると、既存の共有名を保ち、ハッシュ・連番を付けずに名前とmanifest参照を同時更新します。同名衝突は原本との対応を示して停止します。ハッシュは検証用メタデータへ残します。
 
 制作コード、元bundle、NativeSources、採用catalog、品質の記録、代表プレビューを保持します。抽出Mesh、数値レシピ、Unity取込用コピー、失敗・旧候補は、採用結果と原本への参照を確認した後に[共通の整理手順](../../asset-authoring/README.md#作業データの整理)で整理します。
+
+### 旧catalogの整理
+
+採用候補、原本、継続する制作入力、比較画像を保持対象JSONへ登録します。完了した旧catalogを `plan-resource-retirement --retire-directory <旧候補> --reference <保持対象JSON>` へ渡すと、共通の `--workspace` に `PayloadRetirementPlan.json` を作成します。複数の旧候補は `--retire-directory` を繰り返して指定します。保持対象に含まれるファイル・フォルダーと制作記録は残ります。
+
+作成した一覧を[証跡の整理ツール](../../game-test/README.md#証跡の容量管理)へ渡し、対象と容量を確認してから `-Apply` で削除します。新しい候補を採用した時点で旧候補を整理し、完了した候補の全コピーを保存し続けないようにします。
 
 ## Main fieldのBC7保存と再読取
 
@@ -191,3 +216,20 @@ python .\tools\blender-models\CharacterFaces\build_models.py --workspace <制作
 ```
 
 出力の`Preparation.json`にレシピと元データの対応を記録します。レシピのビルドには[資産制作のmesh batch](../../asset-authoring/README.md)を使います。
+
+顔と身体の肌色は同じ補正基準で仕上げます。`finish_resource_pigments`は、各LODの原本と現在のUV・ボーンの順序を使い、顔のRGBを首・胴体の色へ合わせます。眉や唇などの濃淡と、現在の素材アルファを保ちます。
+
+肌色の補正後は、`finish-skin-lods`でLOD0の首の肌模様を低LODの実際の表面へ転写します。共通のbind poseで対応する三角形を求め、各LODのUVへ焼き込みます。顔側のRGBを保持し、対象の圧縮ブロックと全mipを保存後に照合します。
+
+```powershell
+python .\tools\blender-models\CharacterFaces\build_models.py --workspace <新しい出力先> `
+  finish-skin-lods --source <肌色補正済みworkspace> `
+  --geometry <PigmentCorrections/SavedLodGeometry.json>
+```
+
+髪とひげは、prefabの実際のLODGroupと描画部品から検査します。`complete-groom-frames`は、下位LODに残った無地の素材へ同じグループの仕上げ済み素材を割り当て、元のUVチャートと毛流れから描画用データを生成します。髪色を反映するパラメーターも各LODの描画部品へ設定し、保存後に照合します。
+
+```powershell
+python .\tools\blender-models\CharacterFaces\build_models.py --workspace <新しい出力先> `
+  complete-groom-frames --source <仕上げ済みworkspace>
+```

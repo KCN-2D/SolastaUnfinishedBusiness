@@ -6,6 +6,16 @@ $ErrorActionPreference = "Stop"
 
 $buildRoot = Split-Path -Parent $PSScriptRoot
 
+function Enter-PackageBuildLock {
+    $mutex = [Threading.Mutex]::new($false, 'Local\SolastaUBGameTest')
+    try { $acquired = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $acquired = $true }
+    if (-not $acquired) {
+        $mutex.Dispose()
+        throw 'Another build or game-test operation owns the deployment lock.'
+    }
+    return $mutex
+}
+
 function Assert-Command {
     param(
         [Parameter(Mandatory = $true)]
@@ -615,9 +625,10 @@ if ($Preflight) {
     return
 }
 
-Write-Host "SolastaUnfinishedBusiness.zip を作成します..."
+$buildLock = Enter-PackageBuildLock
 
 try {
+    Write-Host "SolastaUnfinishedBusiness.zip を作成します..."
     New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
 
     $temporaryWorkspaceMode = Invoke-Step -Description "作業用フォルダを準備しています..." -Action {
@@ -814,25 +825,31 @@ try {
     Write-BuildCompleted -OutputPath $outputZip -NextStep "作成された ZIP を UMM に入れて、ゲームを起動してください。"
 }
 finally {
-    if ($null -eq $originalSolastaInstallDir) {
-        Remove-Item Env:SolastaInstallDir -ErrorAction SilentlyContinue
-    }
-    else {
-        $env:SolastaInstallDir = $originalSolastaInstallDir
-    }
+    try {
+        if ($null -eq $originalSolastaInstallDir) {
+            Remove-Item Env:SolastaInstallDir -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:SolastaInstallDir = $originalSolastaInstallDir
+        }
 
-    if ($null -eq $originalUnityModManagerDir) {
-        Remove-Item Env:UnityModManagerDir -ErrorAction SilentlyContinue
-    }
-    else {
-        $env:UnityModManagerDir = $originalUnityModManagerDir
-    }
+        if ($null -eq $originalUnityModManagerDir) {
+            Remove-Item Env:UnityModManagerDir -ErrorAction SilentlyContinue
+        }
+        else {
+            $env:UnityModManagerDir = $originalUnityModManagerDir
+        }
 
-    if ($temporaryWorktreeCreated) {
-        Remove-TemporaryWorktree -RepositoryRoot $repoRoot -RepositoryGitPath $repoGitPath -WorktreePath $tempRepo
-    }
+        if ($temporaryWorktreeCreated) {
+            Remove-TemporaryWorktree -RepositoryRoot $repoRoot -RepositoryGitPath $repoGitPath -WorktreePath $tempRepo
+        }
 
-    if (Test-Path -LiteralPath $tempRoot) {
-        Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path -LiteralPath $tempRoot) {
+            Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    finally {
+        $buildLock.ReleaseMutex()
+        $buildLock.Dispose()
     }
 }

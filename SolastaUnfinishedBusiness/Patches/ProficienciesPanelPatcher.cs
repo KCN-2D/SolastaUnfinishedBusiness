@@ -29,6 +29,13 @@ public static class ProficienciesPanelPatcher
         }
 
         [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            instructions.ReplaceCalls(AccessTools.Method(typeof(GameObject), nameof(GameObject.SetActive)),
+                2, "ProficienciesPanel.Bind.NativeInitialization",
+                new CodeInstruction(OpCodes.Call,
+                    new System.Action<GameObject, bool>(UiHelpers.RestorePreparedPanelActive).Method));
+
+        [UsedImplicitly]
         public static void Postfix(ProficienciesPanel __instance)
         {
             CharacterInspectionScreenEnhancement.CompleteProficiencyBindRefresh(__instance);

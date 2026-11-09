@@ -360,10 +360,10 @@ function Read-ValidatedMaterialFieldInput([string]$Path) {
     $ids=@{}
     foreach($task in $materialFieldInput.tasks) {
         foreach($name in @('id','name','role','raw','rawSha256','nativeRaw','nativeRawSha256','ownedMask','ownedMaskSha256','protectedMask','protectedMaskSha256','sourceBundle','sourceBundleSha256','asset','sourceEncodedSha256','width','height','mipCount','sRGB','mips')) { if (!$task.PSObject.Properties[$name]) { throw "Material-field task is missing $name" } }
-        if ($task.id -isnot [string] -or $task.id -cnotmatch '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$' -or $ids.ContainsKey($task.id) -or $task.name -cne $task.id -or $task.role -cne 'Main') { throw 'Material-field task identity or Main role differs.' }
+        if ($task.id -isnot [string] -or $task.id -cnotmatch '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$' -or $ids.ContainsKey($task.id) -or $task.name -cne $task.id -or $task.role -cnotin @('Main','Normal')) { throw 'Material-field task identity or skin texture role differs.' }
         $ids[$task.id]=$true
         foreach($name in @('width','height','mipCount')) { if (!(Test-FiniteNumber $task.$name) -or $task.$name -ne [Math]::Truncate($task.$name) -or $task.$name -le 0) { throw 'Material-field dimensions must be positive integers.' } }
-        if ($task.width -gt 16384 -or $task.height -gt 16384 -or $task.width -ne $task.height -or $task.sRGB -isnot [bool] -or !$task.sRGB -or $task.mips -isnot [array] -or $task.mips.Count -ne $task.mipCount) { throw 'Material-field Main layout or colour space differs.' }
+        if ($task.width -gt 16384 -or $task.height -gt 16384 -or $task.width -ne $task.height -or $task.sRGB -isnot [bool] -or $task.sRGB -ne ($task.role -ceq 'Main') -or $task.mips -isnot [array] -or $task.mips.Count -ne $task.mipCount) { throw 'Material-field skin texture layout or colour space differs.' }
         foreach($name in @('precompressedField','precompressedFieldSha256')) { if($task.PSObject.Properties[$name] -and ![string]::IsNullOrWhiteSpace([string]$task.$name)){throw 'A changed-field checkpoint needs a separate explicit prior-codec proof; implicit field precompression is not accepted.'} }
         $fullMips=1;for($size=[Math]::Max($task.width,$task.height);$size -gt 1;$size=[int][Math]::Floor($size/2)){$fullMips++}
         if ($task.mipCount -ne $fullMips) { throw 'Material-field Main must include every physical mip.' }

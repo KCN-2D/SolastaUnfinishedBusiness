@@ -74,6 +74,62 @@ function Write-GtJson([string] $Path, [object] $Value) {
 
 function Get-GtHash([string] $Path) { Assert-GtFile $Path; return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash }
 
+function Assert-GtGeneratedPayloadBatch([object[]]$Files) {
+    if (-not ('SolastaUB.Tools.GeneratedPayloadValidator' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Concurrent;
+using System.ComponentModel;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Threading.Tasks;
+using Microsoft.Win32.SafeHandles;
+namespace SolastaUB.Tools {
+    public static class GeneratedPayloadValidator {
+        [StructLayout(LayoutKind.Sequential)]
+        private struct FileIdentity {
+            public uint Attributes, CreationLow, CreationHigh, AccessLow, AccessHigh,
+                WriteLow, WriteHigh, Volume, SizeHigh, SizeLow, Links, IndexHigh, IndexLow;
+        }
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetFileInformationByHandle(SafeFileHandle handle, out FileIdentity identity);
+        public static void Validate(string[] paths, long[] sizes, long[] ticks, string[] hashes) {
+            var checkedFiles = new ConcurrentDictionary<string, Lazy<string>>(StringComparer.Ordinal);
+            Parallel.For(0, paths.Length, new ParallelOptions { MaxDegreeOfParallelism = 3 }, i => {
+                var file = new FileInfo(paths[i]);
+                if (!file.Exists || (file.Attributes & FileAttributes.ReparsePoint) != 0 ||
+                    file.Length != sizes[i] || file.LastWriteTimeUtc.Ticks != ticks[i])
+                    throw new IOException("Generated payload changed after planning: " + paths[i]);
+                using (var input = new FileStream(paths[i], FileMode.Open, FileAccess.Read,
+                    FileShare.Read, 1024 * 1024, FileOptions.SequentialScan)) {
+                    FileIdentity identity;
+                    if (!GetFileInformationByHandle(input.SafeFileHandle, out identity))
+                        throw new Win32Exception(Marshal.GetLastWin32Error());
+                    var key = identity.Volume.ToString("X8") + identity.IndexHigh.ToString("X8") +
+                        identity.IndexLow.ToString("X8") + ":" + sizes[i] + ":" + ticks[i];
+                    // Hardlink aliases have one file identity. Validate their data once,
+                    // while still comparing each declared name, size, time and digest.
+                    var observed = checkedFiles.GetOrAdd(key, _ => new Lazy<string>(() => {
+                        using (var algorithm = SHA256.Create())
+                            return BitConverter.ToString(algorithm.ComputeHash(input)).Replace("-", "");
+                    })).Value;
+                    file.Refresh();
+                    if (!String.Equals(observed, hashes[i], StringComparison.OrdinalIgnoreCase) ||
+                        file.Length != sizes[i] || file.LastWriteTimeUtc.Ticks != ticks[i])
+                        throw new IOException("Generated payload changed after planning: " + paths[i]);
+                }
+            });
+        }
+    }
+}
+'@
+    }
+    [SolastaUB.Tools.GeneratedPayloadValidator]::Validate(
+        [string[]]@($Files | ForEach-Object path),[long[]]@($Files | ForEach-Object bytes),
+        [long[]]@($Files | ForEach-Object lastWriteUtcTicks),[string[]]@($Files | ForEach-Object sha256))
+}
+
 function Clear-GtRestoredBackup([string] $RunDirectory, [switch] $Preview) {
     $run = Get-GtPath $RunDirectory
     if ($run -eq (Get-GtPath $script:GameTestArtifactRoot) -or -not (Test-GtWithin $run $script:GameTestArtifactRoot)) {
@@ -167,7 +223,7 @@ function Get-GtAssemblyCaches([string] $Directory, [string] $AssemblyName) {
 function Enter-GtLock {
     $mutex=[Threading.Mutex]::new($false,'Local\SolastaUBGameTest')
     try { $acquired=$mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $acquired=$true }
-    if (-not $acquired) { $mutex.Dispose(); throw 'Another game-test operation owns the deployment lock.' }
+    if (-not $acquired) { $mutex.Dispose(); throw 'Another build or game-test operation owns the deployment lock.' }
     return $mutex
 }
 
@@ -853,7 +909,10 @@ function Get-GtNativeUserDataCompanions([string]$Run) {
 
 function Read-GtStorageReferences([string[]]$ReferencePath) {
     $paths=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-    $inputs=@(foreach($path in $ReferencePath){
+    $selected=@($ReferencePath)
+    $workspaceReferences=Join-Path $script:GameTestArtifactRoot 'StorageReferences.json'
+    if ([IO.File]::Exists($workspaceReferences) -and $workspaceReferences -notin $selected) { $selected=@($workspaceReferences)+$selected }
+    $inputs=@(foreach($path in $selected | Select-Object -Unique){
         $manifestPath=Get-GtPath $path
         Assert-GtFile $manifestPath
         if(Test-GtWithin $manifestPath $script:GameTestArtifactRoot){[void]$paths.Add($manifestPath)}

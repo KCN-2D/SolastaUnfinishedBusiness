@@ -329,6 +329,7 @@ __pycache__/
 /tools/blender-models/*
 !/tools/blender-models/CharacterFaces/
 /tools/blender-models/CharacterFaces/*
+!/tools/blender-models/CharacterFaces/face-designs.json
 !/tools/blender-models/CharacterFaces/build_models.py
 !/tools/blender-models/CharacterFaces/collect_sources.py
 !/tools/blender-models/CharacterFaces/production.py

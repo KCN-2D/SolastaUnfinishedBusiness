@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse, copy, gzip, hashlib, json, math, re, struct, sys
 from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 REPO = Path(__file__).resolve().parents[3]
 DEFAULT_EXPORTER = REPO / 'tools/game-test/Scenarios/FacePresentation/ExportFaceSources.cs'
@@ -73,6 +73,9 @@ def validate_packet(p):
     need(isinstance(p,dict) and all(k in p for k in required), 'Missing mesh channel or source fingerprint.')
     n = p['vertexCount']; need(integer(n) and n > 0 and integer(p['indexFormat']) and p['indexFormat'] in (0,1), 'Invalid vertex count/index format.')
     need(type(p.get('name')) is str and type(p.get('nativeReadable')) is bool, 'Missing source provenance fields.')
+    mode=p.get('sourceReadMode','native-readable-mesh' if p['nativeReadable'] else 'skinned-bind-proxy')
+    need(mode in ('native-readable-mesh','skinned-bind-proxy','serialized-mesh-data') and
+         (mode!='native-readable-mesh' or p['nativeReadable']), 'Invalid native geometry extraction mode.')
     floats(p.get('bounds'),6,'source bounds')
     floats(p['vertices'], n*3, 'vertices'); floats(p['normals'], n*3, 'normals')
     for key in ('tangents','colors'):
@@ -103,7 +106,7 @@ def validate_packet(p):
             for key in ('vertices','normals','tangents'): floats(frame[key], n*3, 'blend '+key)
     actual, secondary, length = fingerprint(p)
     need(type(p['sourceFingerprint']) is str and re.fullmatch('[a-f0-9]{64}',p['sourceFingerprint']) and actual==p['sourceFingerprint'], 'Native canonical mesh fingerprint differs.')
-    return {'fingerprint':actual,'canonicalSha512':secondary,'canonicalBytes':length,'vertexCount':n,'indexFormat':p['indexFormat'],'boneCount':bones,'skinning':'PRESENT' if bones else 'ABSENT_IN_SOURCE','normals':len(p['normals']),'tangents':len(p['tangents']),'colors':len(p['colors']),'submeshIndexCounts':[len(v) for v in p['subMeshes']],'uv':[{'channel':v['channel'],'dimension':v['dimension']} for v in p['uv']],'blendShapes':[{'name':v['name'],'frameWeights':[x['weight'] for x in v['frames']]} for v in p['shapes']]}
+    return {'fingerprint':actual,'canonicalSha512':secondary,'canonicalBytes':length,'geometryReadMode':mode,'vertexCount':n,'indexFormat':p['indexFormat'],'boneCount':bones,'skinning':'PRESENT' if bones else 'ABSENT_IN_SOURCE','normals':len(p['normals']),'tangents':len(p['tangents']),'colors':len(p['colors']),'submeshIndexCounts':[len(v) for v in p['subMeshes']],'uv':[{'channel':v['channel'],'dimension':v['dimension']} for v in p['uv']],'blendShapes':[{'name':v['name'],'frameWeights':[x['weight'] for x in v['frames']]} for v in p['shapes']]}
 
 def exporter_contract(text):
     start=text.index('    static string Fingerprint(Packet p)')
@@ -125,19 +128,35 @@ def within_file(base,value):
     path=(base/value).resolve();need(path.is_relative_to(base.resolve()) and path.is_file(),'Missing or escaped source file: '+value)
     return path
 
+def material_content(material: dict[str, Any] | None, image_digest: Callable[[str], str]) -> dict[str, Any] | None:
+    if material is None:return None
+    need(type(material) is dict and type(material.get('properties')) is list and type(material.get('shader')) is str,'Missing material shader/property channel.')
+    semantic: dict[str, Any]={'shader':material['shader'],'keywords':material['keywords'],'renderQueue':material['renderQueue'],'properties':[]}
+    for prop in material['properties']:
+        need(prop['type'] in ('Texture','Float','Range','Color','Vector'),'Unknown source shader property type.')
+        row={k:prop[k] for k in ('name','type','value','vector','scale','offset','width','height','mipmaps','format','colorSpace')}
+        row['imageFileSha256']=image_digest(prop['textureFile']) if prop.get('textureFile') else None
+        semantic['properties'].append(row)
+    return semantic
+
+
+def source_content_key(asset: dict[str, Any], image_digest: Callable[[str], str]) -> str:
+    semantic=[dict(path=skin['path'],sourceFingerprint=skin['sourceFingerprint'],rootBone=skin['rootBone'],
+        bones=skin['bones'],rendererToPrefab=skin['rendererToPrefab'],bonesToPrefab=skin['bonesToPrefab'],
+        materials=[material_content(material,image_digest)for material in skin['materials']]) for skin in asset['skins']]
+    return digest(json.dumps(semantic,sort_keys=True,separators=(',',':')).encode())
+
+
 def canonical_material(material: dict[str, Any] | None, files, base) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     if material is None:return None,None
     need(type(material) is dict and type(material.get('properties')) is list and type(material.get('shader')) is str,'Missing material shader/property channel.')
-    output=copy.deepcopy(material)
-    semantic: dict[str, Any]={'shader':material['shader'],'keywords':material['keywords'],'renderQueue':material['renderQueue'],'properties':[]}
-    for prop,export in zip(material['properties'],output['properties']):
-        need(prop['type'] in ('Texture','Float','Range','Color','Vector'),'Unknown source shader property type.')
-        row={k:prop[k] for k in ('name','type','value','vector','scale','offset','width','height','mipmaps','format','colorSpace')}
+    output=copy.deepcopy(material);hashes={}
+    for prop in output['properties']:
         if prop.get('textureFile'):
-            path=within_file(base,prop['textureFile']);data=files.read(path);need(path.stem==digest(data),'Texture image file hash differs from its native content filename.')
-            export['textureFile']=str(path);row['imageFileSha256']=digest(data)
-        else:row['imageFileSha256']=None
-        semantic['properties'].append(row)
+            path=within_file(base,prop['textureFile']);data=files.read(path);signature=digest(data)
+            need(path.stem==signature,'Texture image file hash differs from its native content filename.')
+            prop['textureFile']=str(path);hashes[str(path)]=signature
+    semantic=material_content(output,lambda path:hashes[path])
     return output,semantic
 
 def merge_asset(combined, asset, content, provenance):
@@ -174,7 +193,7 @@ def collect(runtime_roots,output,exporter,expected_assets=None):
         all_scanned.update(c.get('scannedWithoutFace',[]))
         for asset in c['assets']:
             need(type(asset.get('internalId')) is str and asset['internalId'] and type(asset.get('skins')) is list and len(asset['skins'])>0,'Census contains a missing/empty skinned asset.')
-            a=copy.deepcopy(asset);a['sourceProvenance']=[provenance];semantic=[]
+            a=copy.deepcopy(asset);a['sourceProvenance']=[provenance]
             for skin,out in zip(asset['skins'],a['skins']):
                 path=within_file(base,skin['meshFile'])
                 if path not in packets:
@@ -189,19 +208,17 @@ def collect(runtime_roots,output,exporter,expected_assets=None):
                 meta=packets[path];need(skin['vertexCount']==meta['vertexCount'] and len(skin['bones'])==meta['boneCount'],'Renderer vertex/bone mapping differs from its source packet.')
                 floats(skin['rendererToPrefab'],16,'renderer matrix');floats(skin['bonesToPrefab'],len(skin['bones'])*16,'bone matrices')
                 out['meshFile']=str(path);out['sourceFingerprint']=meta['fingerprint'];out['sourceProvenance']={'census':str(census_path),'runtime':str(runtime)}
-                materials=[]
                 for material_index,material in enumerate(skin['materials']):
-                    exported,m=canonical_material(material,files,base);out['materials'][material_index]=exported;materials.append(m)
+                    exported,m=canonical_material(material,files,base);out['materials'][material_index]=exported
                     key=json.dumps(m,sort_keys=True,separators=(',',':'));material_keys.setdefault(digest(key.encode()),m)
                     if m is not None:
                         assert exported is not None
                         shaders[m['shader']]+=1
                         for prop in exported['properties']:
                             if prop.get('textureFile'):textures.add(prop['textureFile'])
-                semantic.append({'path':skin['path'],'sourceFingerprint':meta['fingerprint'],'rootBone':skin['rootBone'],'bones':skin['bones'],'rendererToPrefab':skin['rendererToPrefab'],'bonesToPrefab':skin['bonesToPrefab'],'materials':materials})
                 match=re.search(r'(?:^|[_/])LOD(\d+)(?:$|[_/])',skin['path']+'/'+skin['mesh'],re.I);lods[match.group(1) if match else 'UNLABELLED']+=1
                 bone_names.update(p.rsplit('/',1)[-1] if p else '<UNRESOLVED>' for p in skin['bones'])
-            content=digest(json.dumps(semantic,sort_keys=True,separators=(',',':')).encode());key=asset['internalId']
+            content=source_content_key(a,lambda path:files.rows[Path(path).resolve()]['sha256']);key=asset['internalId']
             merge_asset(combined,a,content,provenance)
         print(json.dumps({'validatedRuntime':str(runtime),'assets':len(c['assets']),'uniquePacketsSoFar':len(packets),'uniqueMeshesSoFar':len(unique)}),flush=True)
     if expected_assets is not None:need(len(combined)==expected_assets,'Combined asset count differs from explicit expectation.')

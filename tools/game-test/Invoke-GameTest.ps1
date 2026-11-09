@@ -19,6 +19,7 @@ param(
     [Nullable[bool]]$ScenarioSaveScenario=$null,
     [string[]]$ScenarioReferencePath=@(),
     [string[]]$StorageReferencePath=@(),
+    [ValidateRange(0,9223372036854775807)][long]$MaxRetainedEvidenceBytes=21474836480,
     [switch]$KeepNativeUserData
 )
 . (Join-Path $PSScriptRoot 'GameTest.Common.ps1')
@@ -322,12 +323,21 @@ finally {
             }
             Write-GtJson (Join-Path $run 'Result.json') $result
         }
-        if (-not $ValidateOnly -and $result.runtimeResult -and $result.restored -and $result.status -eq 'PASS') {
-            try {
-                $release=Clear-GtNativeUserData -RunDirectory $run -ReferencePath $StorageReferencePath -Keep:$KeepNativeUserData
-                if ($release.status -eq 'RETAINED') { Write-Warning ('Native user data retained: '+$release.reason) }
-            } catch {
-                Write-Warning ('Native data release did not complete: '+$_.Exception.Message)
+        if (-not $ValidateOnly -and $result.runtimeResult -and $result.restored) {
+            if ($result.status -eq 'PASS') {
+                try {
+                    $release=Clear-GtNativeUserData -RunDirectory $run -ReferencePath $StorageReferencePath -Keep:$KeepNativeUserData
+                    if ($release.status -eq 'RETAINED') { Write-Warning ('Native user data retained: '+$release.reason) }
+                } catch {
+                    Write-Warning ('Native data release did not complete: '+$_.Exception.Message)
+                }
+            }
+            if ($MaxRetainedEvidenceBytes -gt 0) {
+                try {
+                    & (Join-Path $PSScriptRoot 'Clear-GameTestArtifacts.ps1') -ArtifactRoot $EvidenceRoot `
+                        -PruneSuperseded -MaxRetainedBytes $MaxRetainedEvidenceBytes `
+                        -ReferencePath $StorageReferencePath -PreserveDirectory @($run) -Apply *> (Join-Path $run 'ArtifactRetention.log')
+                } catch { Write-Warning ('Artifact retention did not complete: '+$_.Exception.Message) }
             }
         }
     } finally {

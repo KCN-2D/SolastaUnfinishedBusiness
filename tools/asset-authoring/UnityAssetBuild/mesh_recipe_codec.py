@@ -7,6 +7,7 @@ import json
 import math
 import re
 import struct
+import zlib
 from pathlib import Path
 
 FORMAT = 'Solasta.MeshNumeric.1'
@@ -16,6 +17,58 @@ SURFACE_MAGIC = b'UBSFB001'
 SURFACE_MULTI_SOURCE_MAGIC = b'UBSFB002'
 SURFACE_EXPLICIT_SOURCE_MAGIC = b'UBSFB003'
 SURFACE_GEOMETRY_FRAME_MAGIC = b'UBSFB004'
+
+
+def skin_bone_order(bone_paths: list[str], bone_hashes: list[int]) -> list[int]:
+    """Resolve serialized mesh slots against full prefab-relative bone paths."""
+    if any(not isinstance(path,str)or not path or path.startswith('/')or path.endswith('/')or '//'in path for path in bone_paths):
+        raise ValueError('A skin palette has an invalid prefab-relative bone path.')
+    if not bone_hashes:return list(range(len(bone_paths)))
+    if len(bone_hashes)!=len(bone_paths)or any(type(value)is not int or not 0<=value<=0xffffffff for value in bone_hashes):
+        raise ValueError('Serialized bone name hashes do not cover the native skin palette.')
+    parts=[path.split('/')for path in bone_paths];orders=set()
+    for prefix in range(min(map(len,parts))):
+        if any(path[:prefix]!=parts[0][:prefix]for path in parts):break
+        owners: dict[int,dict[str,int]]={}
+        for index,path in enumerate(parts):
+            relative='/'.join(path[prefix:]);owners.setdefault(zlib.crc32(relative.encode('utf-8')),{}).setdefault(relative,index)
+        matches=[owners.get(value,{})for value in bone_hashes]
+        if all(len(found)==1 for found in matches):orders.add(tuple(next(iter(found.values()))for found in matches))
+    if len(orders)!=1:raise ValueError('A serialized bone name hash has missing or ambiguous transform ownership.')
+    return list(next(iter(orders)))
+
+
+def skin_palette_frame(packet,donor,bone_paths,donor_bone_paths,tolerance=1e-4):
+    """Match bone slots by path and bind pose without merging native aliases."""
+    import numpy as np
+    if not math.isfinite(tolerance)or tolerance<=0:raise ValueError('A skin palette needs a finite positive frame tolerance.')
+    if any(not isinstance(path,str)or not path for path in (*bone_paths,*donor_bone_paths)):raise ValueError('A skin palette has an invalid bone path.')
+    def canonical(path):
+        parts=path.split('/');return '/'.join(parts[parts.index('Bip001'):]if'Bip001'in parts else parts)
+    bone_paths=[canonical(path)for path in bone_paths];donor_bone_paths=[canonical(path)for path in donor_bone_paths]
+    receiver_poses=np.asarray(packet['bindPoses'],float).reshape(-1,4,4).transpose(0,2,1)
+    donor_poses=np.asarray(donor['bindPoses'],float).reshape(-1,4,4).transpose(0,2,1)
+    if len(receiver_poses)!=len(bone_paths)or len(donor_poses)!=len(donor_bone_paths):
+        raise ValueError('A skin palette has incomplete native bone slots.')
+    if not np.isfinite(receiver_poses).all()or not np.isfinite(donor_poses).all():raise ValueError('A skin palette has nonfinite native bind poses.')
+    common=[(i,j,name)for i,name in enumerate(donor_bone_paths)for j,other in enumerate(bone_paths)if name==other]
+    if not common:raise ValueError('Skin cuts have no shared native bind frame.')
+    names={name for _,_,name in common};candidates=[]
+    for first,second,_ in common:
+        try:frame=np.linalg.inv(donor_poses[first])@receiver_poses[second]
+        except np.linalg.LinAlgError:continue
+        errors=[(name,float(np.abs(receiver_poses[j]-donor_poses[i]@frame).max()))for i,j,name in common]
+        if not np.isfinite(frame).all()or any(min(error for path,error in errors if path==name)>tolerance for name in names):continue
+        if not any(float(np.abs(frame-old).max())<=tolerance for old in candidates):candidates.append(frame)
+    if len(candidates)!=1:raise ValueError('Skin cut parts have incompatible or ambiguous native bind frames.')
+    frame=candidates[0];mapped={};errors=[]
+    for index,name in enumerate(donor_bone_paths):
+        matches=[(float(np.abs(receiver_poses[j]-donor_poses[index]@frame).max()),j)for j,other in enumerate(bone_paths)if name==other]
+        compatible=[(error,j)for error,j in matches if error<=tolerance]
+        if compatible:
+            error,j=min(compatible);mapped[index]=j;errors.append(error)
+    return frame,mapped,max(errors,default=0.)
+
 
 
 def need(value, message):

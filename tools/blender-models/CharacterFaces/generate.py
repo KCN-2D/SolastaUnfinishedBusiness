@@ -13,6 +13,8 @@ import numpy as np
 
 REPO = next(p for p in Path(__file__).resolve().parents if (p / 'SolastaUnfinishedBusiness.sln').is_file())
 sys.path.insert(0, str(REPO / 'tools/asset-authoring'))
+sys.path.insert(0, str(REPO / 'tools/asset-authoring/UnityAssetBuild'))
+from mesh_recipe_codec import skin_palette_frame
 from blender_pipeline import Matrix, Vector, preview_receipt
 import asset_names as resource_naming
 
@@ -90,7 +92,11 @@ def native_normals(packet, transform):
 
 
 def weld_groups(positions):
-    _, groups = np.unique(np.round(positions / 1e-6).astype(np.int64), axis=0, return_inverse=True)
+    if not np.isfinite(positions).all():
+        raise ValueError('A physical surface contains nonfinite source positions.')
+    # Retain the metric bins as floats: corrupt but finite native morphs can
+    # exceed int64's micrometre range before their owning LOD is recovered.
+    _, groups = np.unique(np.round(positions / 1e-6), axis=0, return_inverse=True)
     return groups
 
 
@@ -109,14 +115,7 @@ def coherent_displacements(original, delta, mask):
 
 def shared_skin_boundary_pairs(packet, donor, bone_paths, donor_bone_paths, tolerance=1e-4, common_frame=None):
     """Match physical open edges, excluding duplicated UV chart edges."""
-    receiver_poses=np.asarray(packet['bindPoses'],float).reshape(-1,4,4).transpose(0,2,1)
-    donor_poses=np.asarray(donor['bindPoses'],float).reshape(-1,4,4).transpose(0,2,1)
-    common=[(i,bone_paths.index(name))for i,name in enumerate(donor_bone_paths)if name in bone_paths]
-    if not common:raise ValueError('Skin cuts have no shared native bind frame.')
-    first,second=common[0];frame=np.linalg.inv(donor_poses[first])@receiver_poses[second]if common_frame is None else np.asarray(common_frame,float)
-    errors=[(bone_paths[j],float(np.abs(receiver_poses[j]-donor_poses[i]@frame).max()))for i,j in common]
-    if common_frame is None and max(error for _,error in errors)>1e-4:
-        raise ValueError('Skin cut parts have incompatible native bind frames: '+str(sorted(errors,key=lambda item:item[1],reverse=True)[:4]))
+    frame=skin_palette_frame(packet,donor,bone_paths,donor_bone_paths)[0]if common_frame is None else np.asarray(common_frame,float)
     positions=np.asarray(packet['vertices'],float).reshape(-1,3)
     _,groups=np.unique(positions,axis=0,return_inverse=True);edges={}
     for submesh in packet['subMeshes']:
@@ -172,12 +171,17 @@ def overlap_skin_boundary(packet,donor,correspondences,common_frame,overlap_metr
     result=copy.deepcopy(packet);positions=receiver.copy();positions[indices]=boundary_positions(donor_positions);result['vertices']=positions.astype(np.float32).ravel().tolist()
     shading_changes=0
     def unit(value):return value/np.maximum(np.linalg.norm(value,axis=1)[:,None],1e-30)
-    def rotate(value,before,after):
-        axis=np.cross(before,after);cosine=np.sum(before*after,axis=1)
-        if np.any(cosine<-.95):raise ValueError('A shared skin shading frame reverses its source normal.')
-        return value+np.cross(axis,value)+np.cross(axis,np.cross(axis,value))/np.maximum(1+cosine[:,None],1e-8)
     base_normals=np.asarray(packet['normals']).reshape(-1,3)
     base_tangents=np.asarray(packet['tangents']).reshape(-1,4)[:,:3]
+    donor_tangents=np.asarray(donor['tangents']).reshape(-1,4)[:,:3]
+    def donor_basis(normal,tangent):
+        n=unit(normal[donors]@frame[:3,:3])
+        t=tangent[donors]@inverse[:3,:3].T
+        t=t-n*np.sum(t*n,axis=1)[:,None]
+        if np.any(np.linalg.norm(t,axis=1)<1e-12):raise ValueError('A shared skin donor has a singular tangent frame.')
+        t=unit(t)
+        return np.stack((t,np.cross(n,t),n),axis=2)
+    rest_basis=donor_basis(normals,donor_tangents)if follow_donor_shading else None
     for shape in result['shapes']:
         source=next((s for s in donor['shapes']if s['name']==shape['name']),None)
         for physical_frame in shape['frames']:
@@ -188,14 +192,26 @@ def overlap_skin_boundary(packet,donor,correspondences,common_frame,overlap_metr
                 posed_normals=normals+np.asarray(source_frame['normals'],float).reshape(-1,3)
                 vertices[indices]=boundary_positions(posed)-positions[indices]
                 if follow_donor_shading:
-                    before=unit(normals[donors]@frame[:3,:3]);after=unit(posed_normals[donors]@frame[:3,:3])
-                    target=unit(rotate(unit(base_normals[indices]),before,after))
+                    assert rest_basis is not None
+                    # UV charts may have different rest tangents. Transport the
+                    # receiver's complete rest frame by the donor's physical
+                    # rotation, retaining that chart difference in every pose.
+                    # A normal-only rotation misses tangent changes even when
+                    # both cut normals already agree.
+                    posed_tangents=donor_tangents+np.asarray(source_frame['tangents'],float).reshape(-1,3)
+                    posed_basis=donor_basis(posed_normals,posed_tangents)
+                    transport=posed_basis@np.swapaxes(rest_basis,1,2)
+                    target=unit(np.einsum('nij,nj->ni',transport,unit(base_normals[indices])))
+                    target_tangent=np.einsum('nij,nj->ni',transport,unit(base_tangents[indices]))
+                    target_tangent=unit(target_tangent-target*np.sum(target_tangent*target,axis=1)[:,None])
                     delta_normal=np.asarray(physical_frame['normals']).reshape(-1,3).copy()
                     delta_tangent=np.asarray(physical_frame['tangents']).reshape(-1,3).copy()
-                    old=unit(base_normals[indices]+delta_normal[indices]);changed=np.linalg.norm(old-target,axis=1)>1e-6
+                    old=unit(base_normals[indices]+delta_normal[indices])
+                    old_tangent=unit(base_tangents[indices]+delta_tangent[indices])
+                    changed=(np.linalg.norm(old-target,axis=1)>1e-6)|(np.linalg.norm(old_tangent-target_tangent,axis=1)>1e-6)
                     if changed.any():
-                        selected=indices[changed];tangent=unit(base_tangents[selected]+delta_tangent[selected])
-                        delta_tangent[selected]=unit(rotate(tangent,old[changed],target[changed]))-base_tangents[selected]
+                        selected=indices[changed]
+                        delta_tangent[selected]=target_tangent[changed]-base_tangents[selected]
                         delta_normal[selected]=target[changed]-base_normals[selected]
                         physical_frame['normals']=delta_normal.astype(np.float32).ravel().tolist()
                         physical_frame['tangents']=delta_tangent.astype(np.float32).ravel().tolist();shading_changes+=int(changed.sum())
@@ -208,23 +224,17 @@ def overlap_skin_boundary(packet,donor,correspondences,common_frame,overlap_metr
     result['bounds']=np.r_[(minimum+maximum)*.5,maximum-minimum].tolist()
     return result,dict(sharedVertices=len(pairs),maximumSourceGap=float(gaps.max()),donorInteriorOverlapMetres=overlap_metres,
         skinAndShadingChannelsExact=not bool(shading_changes),skinAndRestShadingChannelsExact=True,posedShadingFollowsDonor=follow_donor_shading,
-        changedShadingFrameVertices=shading_changes,physicalChannelIdentityExact=True,frameCount=sum(len(s['frames'])for s in result['shapes']))
+        posedTangentsFollowDonor=follow_donor_shading,changedShadingFrameVertices=shading_changes,
+        physicalChannelIdentityExact=True,frameCount=sum(len(s['frames'])for s in result['shapes']))
 
 
 def conform_skin_boundary(packet, donor, bone_paths, donor_bone_paths, correspondences, maximum_source_gap=1e-4, shading_frame_owner='donor'):
     """Transport one shared physical cut, including skinning and physical frames."""
     if shading_frame_owner not in ('receiver','donor'):
         raise ValueError('A shared skin boundary needs an explicit shading-frame owner.')
-    if len(set(bone_paths))!=len(bone_paths) or len(set(donor_bone_paths))!=len(donor_bone_paths):
-        raise ValueError('A shared skin boundary needs unique native bone paths.')
-    target={name:index for index,name in enumerate(bone_paths)}
-    common=[(index,target[name])for index,name in enumerate(donor_bone_paths)if name in target]
-    if not common:raise ValueError('A shared skin boundary has no common native palette.')
     receiver_poses=np.asarray(packet['bindPoses'],np.float64).reshape(-1,4,4).transpose(0,2,1)
     donor_poses=np.asarray(donor['bindPoses'],np.float64).reshape(-1,4,4).transpose(0,2,1)
-    first,second=common[0];frame=np.linalg.inv(donor_poses[first])@receiver_poses[second]
-    bind_error=max(float(np.abs(receiver_poses[j]-donor_poses[i]@frame).max())for i,j in common)
-    if bind_error>1e-4:raise ValueError('The shared native palettes have incompatible renderer frames.')
+    frame,target,bind_error=skin_palette_frame(packet,donor,bone_paths,donor_bone_paths)
     inverse=np.linalg.inv(frame);normal_frame=frame[:3,:3]
     output=copy.deepcopy(packet)
     pairs=list(correspondences)
@@ -248,8 +258,8 @@ def conform_skin_boundary(packet, donor, bone_paths, donor_bone_paths, correspon
     appended=[];poses=list(receiver_poses)
     for bone in required:
         name=donor_bone_paths[bone]
-        if name in target:continue
-        index=len(poses);target[name]=index;poses.append(donor_poses[bone]@frame)
+        if bone in target:continue
+        index=len(poses);target[bone]=index;poses.append(donor_poses[bone]@frame)
         appended.append(dict(donor=bone,index=index,path=name))
     output['bindPoses']=np.asarray(poses,np.float32).transpose(0,2,1).ravel().tolist()
     shapes={shape['name']:shape for shape in output['shapes']}
@@ -270,7 +280,7 @@ def conform_skin_boundary(packet, donor, bone_paths, donor_bone_paths, correspon
         desired=points(donor_positions[[source_index]],inverse)[0]
         maximum_gap=max(maximum_gap,float(np.linalg.norm(points(before[None],frame)[0]-donor_positions[source_index])))
         if maximum_gap>maximum_source_gap:raise ValueError('A declared shared cut no longer matches its source position.')
-        mapped=[target[donor_bone_paths[bone]]if weight>0 and donor_bone_paths[bone]in target else 0 if weight<=0 else -1 for bone,weight in zip(donor_indices[source_index],donor_weights[source_index])]
+        mapped=[target[bone]if weight>0 and bone in target else 0 if weight<=0 else -1 for bone,weight in zip(donor_indices[source_index],donor_weights[source_index])]
         if min(mapped)<0:raise ValueError('A positive donor influence is missing from the receiver palette.')
         changed_weights+=int(not(np.array_equal(weights[index],donor_weights[source_index])and np.array_equal(indices[index],mapped)))
         donor_normal=unit(donor_normals[source_index]@normal_frame)
@@ -310,6 +320,307 @@ def conform_skin_boundary(packet, donor, bone_paths, donor_bone_paths, correspon
     output['bounds']=np.r_[center,extent*2].tolist()
     return output,dict(sharedVertices=len(pairs),skinWeightsTransported=changed_weights,appendedBones=appended,maximumSourceGap=maximum_gap,maximumSharedBindError=bind_error,
                        frames=sum(len(s['frames'])for s in output['shapes']),sourceUvAndTopologyUnchanged=True,shadingFrameOwner=shading_frame_owner)
+
+
+def skin_boundary_loops(packet, triangles=None):
+    """Directed physical loops; UV/normal aliases remain separate attributes."""
+    from collections import defaultdict
+    positions=np.asarray(packet['vertices'],np.float32).reshape(-1,3)
+    _,groups=np.unique(positions,axis=0,return_inverse=True)
+    faces=np.concatenate([np.asarray(s,int).reshape(-1,3)for s in packet['subMeshes']])if triangles is None else triangles
+    edges=defaultdict(list)
+    for face in faces:
+        if len(set(groups[face]))!=3:continue
+        for a,z in zip(face,np.roll(face,-1)):
+            edges[tuple(sorted((int(groups[a]),int(groups[z]))))].append((int(a),int(z)))
+    outgoing=defaultdict(list);incoming=defaultdict(int)
+    for values in edges.values():
+        if len(values)!=1:continue
+        a,z=values[0];outgoing[int(groups[a])].append((a,z));incoming[int(groups[z])]+=1
+    remaining=set(outgoing);loops=[]
+    while remaining:
+        seed=min(remaining);at=seed;loop=[]
+        while at in remaining and len(outgoing[at])==incoming[at]==1:
+            remaining.remove(at);a,z=outgoing[at][0];loop.append(a);at=int(groups[z])
+            if at==seed:loops.append(np.asarray(loop,int));break
+        remaining.discard(seed)
+    return loops,groups
+
+
+def skin_cut_edges(packet,loop,groups):
+    """Use each cut triangle's attribute vertices across physical UV aliases."""
+    from collections import defaultdict
+    edges=defaultdict(list)
+    for sub in packet['subMeshes']:
+        for face in np.asarray(sub,int).reshape(-1,3):
+            if len(set(groups[face]))!=3:continue
+            for a,z in zip(face,np.roll(face,-1)):
+                edges[tuple(sorted((int(groups[a]),int(groups[z]))))].append((int(a),int(z)))
+    result=[]
+    for a,z in zip(loop,np.roll(loop,-1)):
+        owners=edges[tuple(sorted((int(groups[a]),int(groups[z]))))]
+        if len(owners)!=1:raise ValueError('A skin cut has no unique boundary triangle attribute owner.')
+        first,last=owners[0]
+        result.append((first,last)if groups[first]==groups[a]else(last,first))
+    return np.asarray(result,int)
+
+
+def skin_cut_ring(positions):
+    delta=np.roll(positions,-1,axis=0)-positions;length=np.linalg.norm(delta,axis=1)
+    if len(positions)<3 or np.any(length<=1e-12):raise ValueError('A skin cut has a collapsed physical edge.')
+    return dict(p=positions,delta=delta,length=length,cumulative=np.r_[0.,np.cumsum(length)])
+
+
+def sample_skin_cut(ring,fraction):
+    distance=(np.asarray(fraction)%1)*ring['cumulative'][-1]
+    edge=np.minimum(np.searchsorted(ring['cumulative'],distance,side='right')-1,len(ring['length'])-1)
+    amount=(distance-ring['cumulative'][edge])/ring['length'][edge]
+    return ring['p'][edge]+amount[:,None]*ring['delta'][edge],edge,amount
+
+
+def nearest_skin_cut(ring,positions):
+    amount=np.clip(np.sum((positions[:,None]-ring['p'])*ring['delta'],axis=2)/ring['length']**2,0,1)
+    distance=np.linalg.norm(ring['p']+amount[:,:,None]*ring['delta']-positions[:,None],axis=2)
+    edge=distance.argmin(axis=1);fraction=amount[np.arange(len(positions)),edge]
+    return distance[np.arange(len(positions)),edge],(ring['cumulative'][edge]+fraction*ring['length'][edge])/ring['cumulative'][-1]
+
+
+def align_skin_cuts(receiver,donor):
+    """The existing closed-arc correspondence, independent of vertex density."""
+    sample=np.arange(256)/256;positions=sample_skin_cut(receiver,sample)[0];choices=[]
+    for direction in (1,-1):
+        for offset in np.arange(512)/512:
+            other=sample_skin_cut(donor,direction*sample+offset)[0]
+            choices.append((float(np.mean(np.sum((positions-other)**2,axis=1))),direction,offset))
+    score,direction,offset=min(choices);radius=1/512
+    for _ in range(12):
+        score,offset=min((float(np.mean(np.sum((positions-sample_skin_cut(donor,direction*sample+at)[0])**2,axis=1))),at)for at in (offset-radius,offset,offset+radius))
+        radius*=.5
+    return direction,offset%1,score
+
+
+def triangulate_skin_collar(inner,outer,positions,tex,normals,physical_frames=()):
+    """Retain each boundary edge in an outward, noncollapsed annular strip."""
+    best=None
+    for offset in range(len(outer)):
+        boundary=np.roll(outer,-offset);nh,nb=len(inner),len(boundary)
+        cost=np.full((nh+1,nb+1),np.inf);cost[0,0]=0.;previous={}
+        for i in range(nh+1):
+            for j in range(nb+1):
+                if not np.isfinite(cost[i,j]):continue
+                h,z=int(inner[i%nh]),int(boundary[j%nb]);choices=[]
+                if i<nh:choices.append((i+1,j,[int(inner[(i+1)%nh]),h,z]))
+                if j<nb:choices.append((i,j+1,[h,z,int(boundary[(j+1)%nb])]))
+                for ni,nj,face in choices:
+                    a,b=positions[face[1:]]-positions[face[0]];cross=np.cross(a,b);area=np.linalg.norm(cross)
+                    u,v=tex[face[1:]]-tex[face[0]];det=u[0]*v[1]-u[1]*v[0]
+                    if area<=1e-12 or abs(det)<=1e-14 or cross@normals[face].mean(axis=0)<=1e-12:continue
+                    valid=True
+                    for posed,posed_normals in physical_frames:
+                        pa,pb=posed[face[1:]]-posed[face[0]];pcross=np.cross(pa,pb)
+                        if pcross@posed_normals[face].mean(axis=0)<=1e-12:valid=False;break
+                    if not valid:continue
+                    value=cost[i,j]+(a@a+b@b+np.sum((a-b)**2))/area
+                    if value<cost[ni,nj]:cost[ni,nj]=value;previous[ni,nj]=(i,j,face)
+        if not np.isfinite(cost[-1,-1]):continue
+        faces=[];at=(nh,nb)
+        while at!=(0,0):
+            i,j,face=previous[at];faces.append(face);at=(i,j)
+        if best is None or cost[-1,-1]<best[0]:best=(cost[-1,-1],np.asarray(faces[::-1],int))
+    return None if best is None else best[1]
+
+
+def rebuild_skin_boundary(packet,donor,bone_paths,donor_bone_paths,maximum_cut_gap=None,repeat_uv=False):
+    """Rebuild a mismatched cut with the donor's exact vertices and skinning.
+
+    The retained native head is immutable. Only its first valid collar cavity
+    is retriangulated; the other head components and source UV charts survive.
+    """
+    from collections import defaultdict
+    from itertools import product
+    def array(p,key,width=3):return np.asarray(p[key],float).reshape(-1,width)
+    def unit(value):
+        length=np.linalg.norm(value,axis=1)
+        if np.any(length<=1e-12):raise ValueError('A skin collar has a singular shading frame.')
+        return value/length[:,None]
+    def tex(p,channel=0):
+        field=next(u for u in p['uv']if u['channel']==channel)
+        return np.asarray(field['values'],float).reshape(p['vertexCount'],-1)
+    def sample(shape,key,weight,count):
+        if shape is None:return np.zeros((count,3))
+        frames={float(f['weight']):array(f,key)for f in shape['frames']}
+        frames.setdefault(0.,np.zeros((count,3)));knots=sorted(frames)
+        if weight in frames:return frames[weight]
+        i=int(np.clip(np.searchsorted(knots,weight)-1,0,len(knots)-2));a,z=knots[i:i+2]
+        return frames[a]+(frames[z]-frames[a])*((weight-a)/(z-a))
+    if len(packet['subMeshes'])!=1:raise ValueError('Skin collar topology requires its single material-slot owner.')
+    hp,bp=array(packet,'vertices'),array(donor,'vertices');hc,bc=len(hp),len(bp)
+    hposes=array(packet,'bindPoses',16);bposes=array(donor,'bindPoses',16)
+    frame,bone_slots,bind_error=skin_palette_frame(packet,donor,bone_paths,donor_bone_paths);inverse=np.linalg.inv(frame)
+    loops,groups=skin_boundary_loops(packet);body_loops,_=skin_boundary_loops(donor);candidates=[]
+    for hl in loops:
+        rh=skin_cut_ring(points(hp[hl],frame))
+        for bl in body_loops:
+            rb=skin_cut_ring(bp[bl]);anchors=rh['p'][np.linalg.norm(rh['p'][:,None]-rb['p'],axis=2).min(axis=1)<=1e-4]
+            # Shared, noncollinear native vertices identify the same physical
+            # aperture. A nearby eye, mouth or wrist is not a collar donor.
+            if len(anchors)<3 or np.linalg.matrix_rank(anchors-anchors.mean(axis=0),tol=1e-5)<2:continue
+            distances=np.r_[nearest_skin_cut(rb,sample_skin_cut(rh,np.arange(256)/256)[0])[0],nearest_skin_cut(rh,sample_skin_cut(rb,np.arange(256)/256)[0])[0]]
+            candidates.append((float(distances.mean()),float(distances.max()),hl,bl,rh,rb))
+    if not candidates:raise ValueError('Skin collar sources have no matching native physical cut anchors.')
+    _,gap,outer,body_loop,rh,rb=min(candidates,key=lambda value:value[:2])
+    if maximum_cut_gap is not None and gap>maximum_cut_gap:raise ValueError('The nearest native skin cuts do not share a collar.')
+    direction,offset,_=align_skin_cuts(rh,rb)
+    fractions=((rb['cumulative'][:-1]/rb['cumulative'][-1]-offset)/direction)%1
+    _,edge,amount=sample_skin_cut(rh,fractions)
+    huv=tex(packet);cut_edges=skin_cut_edges(packet,outer,groups);source_edges=cut_edges[edge]
+    seam_uv=huv[source_edges[:,0]]*(1-amount[:,None])+huv[source_edges[:,1]]*amount[:,None]
+    positions=np.r_[hp,points(bp[body_loop],inverse)];coords=np.r_[huv,seam_uv]
+    normals=np.r_[array(packet,'normals'),unit(array(donor,'normals')[body_loop]@frame[:3,:3])]
+    original=np.asarray(packet['subMeshes'][0],int).reshape(-1,3);adjacency=defaultdict(set);incidence=defaultdict(int)
+    for face in groups[original]:
+        for a,z in zip(face,np.roll(face,-1)):
+            adjacency[int(a)].add(int(z));adjacency[int(z)].add(int(a))
+            if a!=z:incidence[tuple(sorted((int(a),int(z))))]+=1
+    native_open={edge for edge,count in incidence.items()if count==1}
+    component=set();pending=[int(groups[outer[0]])]
+    while pending:
+        at=pending.pop()
+        if at in component:continue
+        component.add(at);pending.extend(adjacency[at]-component)
+    physical_frames=[]
+    for name in sorted({s['name']for p in (packet,donor)for s in p['shapes']}):
+        head_shape=next((s for s in packet['shapes']if s['name']==name),None);body_shape=next((s for s in donor['shapes']if s['name']==name),None)
+        for knot in sorted({float(f['weight'])for shape in (head_shape,body_shape)if shape for f in shape['frames']}):
+            posed=np.r_[hp+sample(head_shape,'vertices',knot,hc),positions[hc:]+sample(body_shape,'vertices',knot,bc)[body_loop]@inverse[:3,:3].T]
+            posed_normals=np.r_[array(packet,'normals')+sample(head_shape,'normals',knot,hc),unit((array(donor,'normals')+sample(body_shape,'normals',knot,bc))[body_loop]@frame[:3,:3])]
+            physical_frames.append((posed,posed_normals))
+    neck=next((i for i,path in enumerate(bone_paths)if path.rsplit('/',1)[-1]=='Bip001 Neck'),None)
+    head_bone=next((i for i,path in enumerate(bone_paths)if path.rsplit('/',1)[-1]=='Bip001 Head'),None)
+    collar_height=None
+    if neck is not None and head_bone is not None:
+        neck_origin=np.linalg.inv(matrix(hposes[neck]))[:3,3];head_origin=np.linalg.inv(matrix(hposes[head_bone]))[:3,3]
+        up=head_origin-neck_origin
+        if np.linalg.norm(up)>1e-8:collar_height=(hp-neck_origin)@(up/np.linalg.norm(up))
+    eligible=np.isin(groups[original[:,0]],list(component));selected=set(map(int,groups[outer]));removed=np.zeros(len(original),bool);strip=None;depth=0
+    # Subdivision changes ring density. Expand the physical collar cavity up to
+    # its native Neck plane instead of treating three rings as a fixed width.
+    for depth in range(1,len(component)+1):
+        candidate=removed|(eligible&np.any(np.isin(groups[original],list(selected)),axis=1))
+        if np.array_equal(candidate,removed):break
+        if depth>3 and(collar_height is None or np.any(collar_height[original[candidate&~removed]]>=0)):break
+        removed=candidate;selected.update(map(int,groups[original[removed]].ravel()))
+        inner_loops,_=skin_boundary_loops(packet,original[eligible&~removed])
+        # Mouth, ear and other existing holes do not belong to the cavity.
+        inner_loops=[loop for loop in inner_loops if any(tuple(sorted((int(groups[a]),int(groups[z]))))not in native_open for a,z in zip(loop,np.roll(loop,-1)))]
+        if not inner_loops:continue
+        inner=min(inner_loops,key=lambda loop:float(nearest_skin_cut(rh,points(hp[loop],frame))[0].mean()))
+        inner_direction,inner_offset,_=align_skin_cuts(skin_cut_ring(points(hp[inner],frame)),rb)
+        order=np.argsort(((rb['cumulative'][:-1]/rb['cumulative'][-1]-inner_offset)/inner_direction)%1)
+        strip=triangulate_skin_collar(inner,hc+order,positions,coords,normals,physical_frames)
+        if strip is not None:break
+    if strip is None:raise ValueError('The native skin cut has no outward, nondegenerate collar strip.')
+    # Per-triangle Repeat aliases preserve the source chart instead of stretching
+    # a triangle across an atlas wrap. Native vertices are never overwritten.
+    attribute_aliases={}
+    for index,group in enumerate(groups):attribute_aliases.setdefault(int(group),[]).append(index)
+    # A physical corner can border two separate atlas charts. Keep both source
+    # attribute owners and choose the local chart for each new triangle.
+    donor_choices=[]
+    for point in positions[hc:]:
+        common=points(point[None],frame)[0]
+        delta=common-rh['p'];fraction=np.clip(np.sum(delta*rh['delta'],axis=1)/rh['length']**2,0,1)
+        distance=np.linalg.norm(delta-fraction[:,None]*rh['delta'],axis=1)
+        allowed=np.flatnonzero(distance<=distance.min()+max(gap,1e-5))
+        donor_choices.append([(cut_edges[i],float(fraction[i]))for i in allowed])
+    origins=list(range(hc));new_positions=list(positions[:hc]);new_coords=list(coords[:hc]);new_samples=[];aliases={};faces=[]
+    for face in strip:
+        choices=[]
+        for index in face:
+            if index<hc:choices.append([(alias,huv[alias],None)for alias in attribute_aliases[int(groups[index])]])
+            else:choices.append([(int(index),huv[pair[0]]*(1-fraction)+huv[pair[1]]*fraction,(pair,fraction))for pair,fraction in donor_choices[index-hc]])
+        best=None
+        lengths=np.maximum(np.sum((positions[face]-positions[np.roll(face,-1)])**2,axis=1),1e-20)
+        for option in product(*choices):
+            uv=np.asarray([value[1]for value in option],dtype=float).reshape(3,-1)
+            for channel in range(min(2,uv.shape[1])if repeat_uv else 0):
+                if np.ptp(uv[:,channel])>.5:uv[1:,channel]-=np.round(uv[1:,channel]-uv[0,channel])
+            a,z=uv[1:,:2]-uv[0,:2]
+            if abs(a[0]*z[1]-a[1]*z[0])<=1e-14:continue
+            cost=float(np.sum(np.sum((uv[:,:2]-np.roll(uv[:,:2],-1,axis=0))**2,axis=1)/lengths))
+            if best is None or cost<best[0]:best=(cost,option,uv)
+        if best is None:raise ValueError('A skin collar triangle has no nondegenerate local source UV chart.')
+        _,option,uv=best;face=np.asarray([value[0]for value in option],int)
+        for channel in range(min(2,uv.shape[1])if repeat_uv else 0):
+            if np.ptp(uv[:,channel])>.5:uv[1:,channel]-=np.round(uv[1:,channel]-uv[0,channel])
+        a,z=uv[1:,:2]-uv[0,:2];hand=int(np.sign(a[0]*z[1]-a[1]*z[0]));indices=[]
+        for index,value,choice in zip(face,uv,option):
+            if index<hc and np.array_equal(value.astype(np.float32),coords[index].astype(np.float32)):indices.append(int(index));continue
+            attribute_sample=choice[2]
+            sample_key=None if attribute_sample is None else(tuple(map(int,attribute_sample[0])),float(attribute_sample[1]))
+            key=(int(index),tuple(value.astype(np.float32)),hand,sample_key)
+            if key not in aliases:
+                aliases[key]=len(origins);origins.append(int(index));new_positions.append(positions[index]);new_coords.append(value);new_samples.append(choice[2])
+            indices.append(aliases[key])
+        faces.append(indices)
+    origins=np.asarray(origins,int);positions=np.asarray(new_positions);coords=np.asarray(new_coords);strip=np.asarray(faces,int);normals=normals[origins]
+    added=origins[hc:];foreign=added>=hc;donor_ids=body_loop[np.maximum(added-hc,0).clip(max=len(body_loop)-1)]
+    def tangent_frame(pos,n):
+        a,z=(pos[strip[:,1:]]-pos[strip[:,0,None]]).transpose(1,0,2);u,v=(coords[strip[:,1:]]-coords[strip[:,0,None]]).transpose(1,0,2)[:,:,:2]
+        determinant=u[:,0]*v[:,1]-u[:,1]*v[:,0]
+        if np.any(np.abs(determinant)<=1e-14):raise ValueError('A generated skin collar has a collapsed UV triangle.')
+        ts=(a*v[:,1,None]-z*u[:,1,None])/determinant[:,None];bs=(z*u[:,0,None]-a*v[:,0,None])/determinant[:,None]
+        t=np.zeros((len(pos),3));bt=np.zeros_like(t)
+        for column in range(3):np.add.at(t,strip[:,column],ts);np.add.at(bt,strip[:,column],bs)
+        t=unit(t[hc:]-n*np.sum(t[hc:]*n,axis=1)[:,None]);hand=np.sign(np.sum(np.cross(n,t)*bt[hc:],axis=1))
+        if np.any(np.abs(hand)!=1):raise ValueError('A skin collar has ambiguous UV handedness.')
+        return np.c_[t,hand]
+    tangents=tangent_frame(positions,normals[hc:]);tangents[~foreign]=array(packet,'tangents',4)[added[~foreign]]
+    indices=array(donor,'boneIndices',4).astype(int)[donor_ids];weights=array(donor,'weights',4)[donor_ids]
+    needed=sorted({int(i)for row,w in zip(indices[foreign],weights[foreign])for i,value in zip(row,w)if value>0 and int(i)not in bone_slots})
+    poses=[*hposes,*[(matrix(bposes[i])@frame).T.ravel()for i in needed]]
+    bone_slots.update({bone:len(bone_paths)+i for i,bone in enumerate(needed)})
+    mapped=np.zeros_like(indices)
+    for row in np.flatnonzero(foreign):mapped[row]=[bone_slots[int(i)]if w>0 else 0 for i,w in zip(indices[row],weights[row])]
+    mapped[~foreign]=array(packet,'boneIndices',4).astype(int)[added[~foreign]];weights[~foreign]=array(packet,'weights',4)[added[~foreign]]
+    names=[s['name']for s in packet['shapes']];names.extend(s['name']for s in donor['shapes']if s['name']not in names);shapes=[]
+    for name in names:
+        head=next((s for s in packet['shapes']if s['name']==name),None);body=next((s for s in donor['shapes']if s['name']==name),None);frames=[]
+        for knot in sorted({float(f['weight'])for shape in (head,body)if shape for f in shape['frames']}):
+            hd={key:sample(head,key,knot,hc)for key in ('vertices','normals','tangents')};bd={key:sample(body,key,knot,bc)[donor_ids]for key in hd}
+            delta=bd['vertices']@inverse[:3,:3].T;pn=unit((array(donor,'normals')[donor_ids]+bd['normals'])@frame[:3,:3])
+            delta[~foreign]=hd['vertices'][added[~foreign]];pn[~foreign]=array(packet,'normals')[added[~foreign]]+hd['normals'][added[~foreign]]
+            posed=np.r_[hp+hd['vertices'],positions[hc:]+delta];pt=tangent_frame(posed,pn)
+            pt[~foreign,:3]=array(packet,'tangents',4)[added[~foreign],:3]+hd['tangents'][added[~foreign]];pt[~foreign,3]=array(packet,'tangents',4)[added[~foreign],3]
+            if not np.array_equal(pt[:,3],tangents[:,3]):raise ValueError('A physical skin collar frame changes UV handedness.')
+            cross=np.cross(posed[strip[:,1]]-posed[strip[:,0]],posed[strip[:,2]]-posed[strip[:,0]])
+            if np.any(np.sum(cross*np.r_[array(packet,'normals')+hd['normals'],pn][strip].mean(axis=1),axis=1)<=1e-12):raise ValueError('A physical skin collar frame folds inward.')
+            frames.append(dict(weight=knot,vertices=np.r_[hd['vertices'],delta].astype(np.float32).ravel().tolist(),normals=np.r_[hd['normals'],pn-normals[hc:]].astype(np.float32).ravel().tolist(),tangents=np.r_[hd['tangents'],pt[:,:3]-tangents[:,:3]].astype(np.float32).ravel().tolist()))
+        shapes.append(dict(index=len(shapes),name=name,frames=frames))
+    result=copy.deepcopy(packet);result.update(vertexCount=len(positions),vertices=positions.astype(np.float32).ravel().tolist(),normals=normals.astype(np.float32).ravel().tolist(),tangents=np.r_[array(packet,'tangents',4),tangents].astype(np.float32).ravel().tolist(),weights=np.r_[array(packet,'weights',4),weights].astype(np.float32).ravel().tolist(),boneIndices=np.r_[array(packet,'boneIndices',4).astype(int),mapped].ravel().tolist(),bindPoses=np.asarray(poses,np.float32).ravel().tolist(),subMeshes=[np.r_[original[~removed],strip].ravel().tolist()],shapes=shapes)
+    result['uv']=[]
+    for field in packet['uv']:
+        native=tex(packet,field['channel']);extra=native[source_edges[:,0]]*(1-amount[:,None])+native[source_edges[:,1]]*amount[:,None]
+        values=coords if field['channel']==0 else np.r_[native,extra][origins]
+        if field['channel']!=0:
+            for index,source in enumerate(new_samples,start=hc):
+                if source is not None:
+                    pair,fraction=source;values[index]=native[pair[0]]*(1-fraction)+native[pair[1]]*fraction
+        result['uv'].append(dict(field,values=values.astype(np.float32).ravel().tolist()))
+    if packet.get('colors'):
+        native=array(packet,'colors',4);extra=native[source_edges[:,0]]*(1-amount[:,None])+native[source_edges[:,1]]*amount[:,None]
+        values=np.r_[native,extra][origins]
+        for index,source in enumerate(new_samples,start=hc):
+            if source is not None:
+                pair,fraction=source;values[index]=native[pair[0]]*(1-fraction)+native[pair[1]]*fraction
+        result['colors']=values.astype(np.float32).ravel().tolist()
+    low=positions.copy();high=positions.copy()
+    for shape in shapes:
+        values=np.asarray([np.zeros_like(positions),*[array(f,'vertices')for f in shape['frames']]])
+        low+=values.min(axis=0);high+=values.max(axis=0)
+    minimum,maximum=low.min(axis=0),high.max(axis=0);old=np.asarray(packet['bounds']);minimum=np.minimum(minimum,old[:3]-old[3:]*.5);maximum=np.maximum(maximum,old[:3]+old[3:]*.5)
+    center=np.asarray((minimum+maximum)*.5,np.float32);extent=np.nextafter(np.asarray(np.maximum(maximum-center,center-minimum),np.float32),np.float32(np.inf));result['bounds']=np.r_[center,extent*2].tolist()
+    return result,dict(kind='rebuilt-native-skin-collar',sourceCut=outer.tolist(),bodyCut=body_loop.tolist(),removedTriangles=np.flatnonzero(removed).tolist(),strip=strip.tolist(),origins=origins.tolist(),sourceUvEdges=source_edges.tolist(),sourceUvFractions=amount.tolist(),sourceAttributeSamples=[None if value is None else dict(edge=list(map(int,value[0])),fraction=float(value[1]))for value in new_samples],appendedBones=[dict(donor=i,index=len(bone_paths)+j,path=donor_bone_paths[i])for j,i in enumerate(needed)],depth=depth,maximumNativeCutGap=gap,maximumSharedBindError=bind_error,nativeVertexPrefixExact=True,repeatUvAliases=bool(repeat_uv),physicalFrames=sum(len(s['frames'])for s in shapes))
 
 
 def native_boundary_vertices(packet, slots=None):

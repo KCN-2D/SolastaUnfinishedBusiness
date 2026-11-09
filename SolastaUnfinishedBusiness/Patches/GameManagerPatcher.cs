@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Collections;
 using System.Linq;
 using HarmonyLib;
 using JetBrains.Annotations;
@@ -10,6 +11,15 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameManagerPatcher
 {
+    [HarmonyPatch(typeof(GameManager), nameof(GameManager.CreateGameAsync))]
+    [UsedImplicitly]
+    public static class CreateGameAsync_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(ref IEnumerator __result) =>
+            __result = RacesContext.WaitForCharacterModels(__result);
+    }
+
     [HarmonyPatch(typeof(GameManager), nameof(GameManager.Update))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

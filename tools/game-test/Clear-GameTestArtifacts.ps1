@@ -10,6 +10,7 @@ param(
     [switch]$ReleaseNativeUserData,
     [switch]$AuditInputValidation,
     [string]$InputProducerPath,
+    [string]$GeneratedPayloadPlanPath,
     [switch]$Apply
 )
 . (Join-Path $PSScriptRoot 'GameTest.Common.ps1')
@@ -20,6 +21,9 @@ if($AuditInputValidation -and ($ReleaseNativeUserData -or $PruneSuperseded -or $
     throw 'Input-validation audit requires its producer source and runs separately from payload cleanup.'
 }
 if($InputProducerPath -and -not $AuditInputValidation){throw 'InputProducerPath is only used by an input-validation audit.'}
+if($GeneratedPayloadPlanPath -and ($ReleaseNativeUserData -or $AuditInputValidation -or $PruneSuperseded -or $MaxAgeDays -gt 0 -or $MaxRetainedBytes -gt 0)) {
+    throw 'Generated payload retirement runs separately from run/build cleanup.'
+}
 function Test-ArtifactEnvironment([string]$Path) {
     return [IO.File]::Exists([IO.Path]::Combine($Path,'tools','game-test','GameTest.Common.ps1'))
 }
@@ -104,6 +108,7 @@ $policy=[ordered]@{keepLatestPerCase=$KeepLatestPerCase;maxAgeDays=$MaxAgeDays;m
 $report=Join-Path $root ('Storage-Cleanup-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff') + '-' + [guid]::NewGuid().ToString('N').Substring(0,8) + '.json')
 $journalPath=[IO.Path]::ChangeExtension($report,'.jsonl')
 $journal=$null
+$payloadInputLeases=[Collections.Generic.List[IO.FileStream]]::new()
 $journalState=[ordered]@{actions=0;retired=0;completed=[Collections.Generic.HashSet[int]]::new();events=0;bytes=[long]0;flushes=0;summaryWrites=0}
 function Write-CleanupEvent($Value) {
     $bytes=[Text.UTF8Encoding]::new($false).GetBytes(($Value|ConvertTo-Json -Depth 20 -Compress)+[Environment]::NewLine)
@@ -149,6 +154,81 @@ try {
     $journal=[IO.File]::Open($journalPath,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::Read)
     Write-CleanupEvent ([ordered]@{event='cleanup-start';schemaVersion=1;utc=[DateTime]::UtcNow.ToString('O');applied=[bool]$Apply;policy=$policy;referenceInputs=$referenceInputs})
     $journal.Flush($true);$journalState.flushes++
+    if ($GeneratedPayloadPlanPath) {
+        $planPath=Get-GtPath $GeneratedPayloadPlanPath
+        Assert-GtFile $planPath
+        $planHash=Get-GtHash $planPath
+        $plan=Read-GtObject $planPath
+        Assert-GtProperties $plan @('schemaVersion','artifactRoot','scope','utc','reference','roots','files','logicalBytes','estimatedReclaimableFileBytes','retainedReferencedFiles') @('schemaVersion','artifactRoot','reference','roots','files')
+        if ($plan.schemaVersion -ne 1 -or (Get-GtPath $plan.artifactRoot) -ne $root -or $plan.roots -isnot [array] -or $plan.files -isnot [array]) {
+            throw 'Generated payload plan does not identify this artifact root.'
+        }
+        Assert-GtProperties $plan.reference @('path','sha256') @('path','sha256')
+        $reference=@($referenceInputs | Where-Object { $_.path -eq (Get-GtPath $plan.reference.path) -and $_.sha256 -ieq $plan.reference.sha256 })
+        if ($reference.Count -ne 1) { throw 'The generated payload plan requires its unchanged current-input reference manifest.' }
+        # Read leases prevent source-plan/reference replacement during the batch.
+        foreach ($inputPath in @($planPath)+@($referenceInputs | ForEach-Object path)) {
+            $payloadInputLeases.Add([IO.File]::Open($inputPath,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read))
+        }
+        Assert-ReferencesCurrent
+        if ((Get-GtHash $planPath) -ne $planHash) { throw 'Generated payload plan changed before validation.' }
+        Write-CleanupEvent ([ordered]@{event='generated-payload-plan';path=$planPath;sha256=$planHash})
+        $payloadRoots=@(foreach ($entry in $plan.roots) {
+            if ($entry -isnot [string] -or [IO.Path]::IsPathRooted($entry)) { throw 'Generated payload roots must be relative artifact directories.' }
+            $candidate=Get-GtPath (Join-Path $root $entry)
+            if ($candidate -eq $root -or -not (Test-GtWithin $candidate $root) -or
+                (Test-GtWithin $candidate (Join-Path $script:GameTestArtifactRoot '.native'))) { throw 'Generated payload root escaped its artifact scope.' }
+            Assert-GtTree $candidate
+            $candidate
+        })
+        $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        $checkedPayloadParents=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        $extensions=@('.bundle','.bin','.bytes','.gz','.rgba8','.cpu-rgba8','.bc3','.bc7','.u8','.encoded','.png','.zip')
+        foreach ($row in $plan.files) {
+            Assert-GtProperties $row @('path','bytes','sha256','lastWriteUtcTicks') @('path','bytes','sha256','lastWriteUtcTicks')
+            $path=Get-GtPath $row.path
+            $numericPacket=[IO.Path]::GetFileName($path) -cmatch '^[a-f0-9]{64}\.json$'
+            if ($path -eq $planPath -or -not $seen.Add($path) -or -not @($payloadRoots | Where-Object { Test-GtWithin $path $_ }).Count -or
+                ($extensions -cnotcontains [IO.Path]::GetExtension($path) -and -not $numericPacket) -or
+                ($row.bytes -isnot [long] -and $row.bytes -isnot [int]) -or $row.bytes -lt 0 -or
+                $row.sha256 -isnot [string] -or $row.sha256 -cnotmatch '^[a-f0-9]{64}$' -or
+                ($row.lastWriteUtcTicks -isnot [long] -and $row.lastWriteUtcTicks -isnot [int]) -or
+                (Test-Preserved $path) -or (Test-Referenced $path)) { throw "Generated payload is outside the unreferenced declared selection: $path" }
+            $ancestor=Split-Path -Parent $path
+            while ($ancestor -and $ancestor -ne $root) {
+                if ($checkedPayloadParents.Contains($ancestor)) { break }
+                if (Test-ArtifactEnvironment $ancestor) { throw 'Copied tool environments must be cleaned by their own tools.' }
+                $transactionPath=Join-Path $ancestor 'Transaction.json'
+                if (Test-Path -LiteralPath $transactionPath -PathType Leaf) {
+                    if ((Read-GtObject $transactionPath).state -cne 'restored') { throw 'Generated payload retirement encountered an unresolved transaction.' }
+                }
+                [void]$checkedPayloadParents.Add($ancestor)
+                $ancestor=Split-Path -Parent $ancestor
+            }
+            $actions.Add([pscustomobject]@{kind='generated-payload';path=$path;bytes=[long]$row.bytes;sha256=$row.sha256;lastWriteUtcTicks=$row.lastWriteUtcTicks;applied=$false})
+        }
+        Assert-GtGeneratedPayloadBatch $actions.ToArray()
+        Assert-ArtifactGameStopped
+        Assert-ReferencesCurrent
+        if ((Get-GtHash $planPath) -ne $planHash) { throw 'Generated payload plan changed during validation.' }
+        Save-CleanupReport
+        if ($Apply) {
+            $removedPayloads=0
+            foreach ($action in $actions) {
+                if ($removedPayloads % 256 -eq 0) { Assert-ArtifactGameStopped }
+                Assert-GtFile $action.path
+                $item=Get-Item -LiteralPath $action.path -Force
+                if ($item.Length -ne $action.bytes -or $item.LastWriteTimeUtc.Ticks -ne $action.lastWriteUtcTicks) { throw 'Generated payload changed before retirement.' }
+                Remove-Item -LiteralPath $action.path -Force
+                $action.applied=$true
+                Save-CleanupReport $action
+                $removedPayloads++
+            }
+        }
+        Write-Host ('{0} declared generated payloads; applied={1}' -f $actions.Count,[bool]$Apply)
+        Write-Host "Report: $report"
+        return
+    }
     $directories=@(Get-ArtifactBoundaries $root)
     if($AuditInputValidation) {
         foreach($directory in $directories) {
@@ -318,7 +398,8 @@ try {
         }
         $buildHashes=@{}
         # A consumer outside the selected cleanup subtree still owns its build.
-        $dependencyDirectories=if ($root -eq $script:GameTestArtifactRoot) { $directories }
+        $dependencyDirectories=if ($buildDirectories.Count -eq 0) { @() }
+            elseif ($root -eq $script:GameTestArtifactRoot) { $directories }
             else { @(Get-ArtifactBoundaries $script:GameTestArtifactRoot) }
         foreach ($directory in $dependencyDirectories) {
             if ($buildDirectories.Contains($directory.FullName)) { continue }
@@ -393,7 +474,7 @@ try {
         }
         $plannedConsumers=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
         foreach ($phase in @('consumers','builds')) {
-            if ($phase -eq 'builds') {
+            if ($phase -eq 'builds' -and $buildDirectories.Count -gt 0) {
                 # Only successful consumer removals can release a build. A
                 # skipped, failed or newly present consumer still owns it.
                 $remainingBuilds=Get-RemainingRequiredBuilds
@@ -475,5 +556,8 @@ try {
     Write-Host ('{0} entries; {1:N0} bytes; applied={2}' -f $actions.Count,$totalBytes,[bool]$Apply)
     Write-Host "Report: $report"
 } finally {
-    try { if($journal){Save-CleanupReport -Final} } finally { if($journal){$journal.Dispose()};$lock.ReleaseMutex();$lock.Dispose() }
+    try { if($journal){Save-CleanupReport -Final} } finally {
+        foreach($lease in $payloadInputLeases){$lease.Dispose()}
+        if($journal){$journal.Dispose()};$lock.ReleaseMutex();$lock.Dispose()
+    }
 }

@@ -218,6 +218,8 @@ $evidence = '.\tools\game-test\artifacts'
 
 制作処理などが参照する入力は、`-ReferencePath '<参照JSON>'`で保持します。JSONは`{"schemaVersion":1,"paths":["<保持する証跡のパス>"]}`の形式で、`paths`に`tools/game-test/artifacts/`内のファイル・フォルダを指定します。相対パスは参照JSONの場所を基準にします。
 
+作業をまたいで保持する入力は `artifacts/StorageReferences.json` へ同じ形式で登録します。各整理処理はこのファイルを自動で読み込みます。採用候補の変更時に参照先を更新し、現在必要な原本・制作入力・比較結果を登録します。
+
 保持する実行に `Build.json` が保存されている場合は、その原本と一致する検証ビルドも保持します。`-ValidateOnly`で完了したGameTest・Runtimeの入力検証も整理対象です。整理結果の `retainedDirectories` に、最新の実行・参照先・ビルド入力などの保持理由を記録します。
 
 実行状態の記録がない入力検証は、実行元スクリプトと記録されたSHA-256が一致し、入力・イベント・非実行を確認できる場合に監査できます。`InputValidationAudit.json`へ証明を保存してから、通常の整理を実行します。
@@ -232,11 +234,15 @@ $evidence = '.\tools\game-test\artifacts'
 
 `Invoke-GameTest.ps1`は`PASS`で終了し復元できた実行の`artifacts/.native/`を解放し、`NativeUserDataRelease.json`に記録します。保存が必要な実行は`-KeepNativeUserData`、制作入力として再利用するパスは`-StorageReferencePath '<参照JSON>'`で指定します。`Saves/Characters`に出力がある場合や、所有・復元・停止を確認できない場合は保持します。
 
+復元が完了した検証の終了後に、その保存先の古い実行をケースごとに最新2件・合計20GiBを目安に整理します。検証の成否にかかわらず今回の実行と保持対象の入力は残します。容量は `-MaxRetainedEvidenceBytes` で変更でき、0でこの自動整理を行いません。結果は `ArtifactRetention.log` と整理レポートへ記録します。
+
 `New-GameTestBuild.ps1`は最新2件の検証ビルドにモデル資源を保持し、それ以前の同じ保存先のビルドではモデル資源を解放します。DLL・ビルドの記録・検証結果は保持し、解放内容を`BuildAssetRelease.json`へ記録します。古いビルドの再実行に使う資源は、`-StorageReferencePath '<参照JSON>'`で保持します。今回のビルド時に解放を行わない場合は`-KeepStagedAssets`を指定します。
 
 既存の検証用データを個別に整理するには、`Clear-GameTestArtifacts.ps1 -ArtifactRoot $evidence -ReleaseNativeUserData -ReferencePath '<参照JSON>'`で候補を確認し、`-Apply`を付けます。
 
 比較用などの証跡は `-PreserveDirectory` に配列で指定します。指定したフォルダとその配下はバックアップも含めて保持します。`tools/game-test/Cases/`・`tools/game-test/Scenarios/` から名前を参照される実行フォルダ、復元未完了の実行、未解決の配置マーカーがあるゲームの証跡、未知のバックアップファイルも保持します。対象は `tools/game-test/artifacts/` 配下に限り、reparse pointを含むツリーの整理は拒否します。
+
+モデル制作の旧catalogは、[モデル制作の整理](../blender-models/CharacterFaces/README.md#旧catalogの整理)で作った一覧を `-GeneratedPayloadPlanPath '<PayloadRetirementPlan.json>' -ReferencePath '<保持する入力のJSON>'` に渡して整理します。実行・ビルドの整理とは別に実行し、一覧の全ファイルについてSHA256・容量・更新時刻と保持対象を照合します。ソース、manifest、レシピ、ログは保持します。
 
 ## Gitの追跡範囲
 

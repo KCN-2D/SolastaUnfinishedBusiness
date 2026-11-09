@@ -16,6 +16,7 @@ using JetBrains.Annotations;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.ModKit.Utility;
 using SolastaUnfinishedBusiness.CustomUI;
 using UnityEngine;
@@ -57,6 +58,90 @@ internal static class UpdateContext
     internal static int CharacterModelsDownloadProgress => (int)Math.Min(100,
         100d * Interlocked.Read(ref _characterModelDownloadBytes) /
         Math.Max(1, Interlocked.Read(ref _characterModelDownloadTotal)));
+
+    private static MessageModal _characterModelModal;
+    private static int _characterModelModalProgress = -2;
+    private static bool _characterModelModalFailed;
+    private static string _characterModelModalLanguage;
+
+    private static bool OwnsCharacterModelModal => _characterModelModal &&
+        _characterModelModal.MessageCancelled == UseStandardCharacterModels;
+
+    internal static bool IsCharacterModelModal(MessageModal modal) =>
+        modal && modal == _characterModelModal && OwnsCharacterModelModal;
+
+    internal static bool HandleCharacterModelModalAction(MessageModal modal, bool retry)
+    {
+        if (!IsCharacterModelModal(modal)) return false;
+        if (retry)
+        {
+            if (RacesContext.CharacterModelPreparationFailed) RetryCharacterModels();
+        }
+        else
+        {
+            UseStandardCharacterModels();
+            CloseCharacterModelModal();
+        }
+        return true;
+    }
+
+    private static void UseStandardCharacterModels() =>
+        SettingsContext.GuiModManagerInstance.EnableCustomFaces = false;
+
+    private static void RetryCharacterModels() => RacesContext.RetryCharacterModels();
+
+    private static void CloseCharacterModelModal()
+    {
+        if (OwnsCharacterModelModal && !_characterModelModal.Hiding)
+        {
+            UiTextHelpers.ReleaseCharacterModelStatus(_characterModelModal);
+            _characterModelModal.MessageCancelled = null;
+            _characterModelModal.MessageValidated = null;
+            _characterModelModal.Hide(true);
+        }
+        UiTextHelpers.HideCharacterModelProgress();
+        _characterModelModalProgress = -2;
+    }
+
+    private static void RefreshCharacterModelModal()
+    {
+        if (Unloading || Main.IsApplicationQuitting || RacesContext.CharacterModelsReady)
+        {
+            CloseCharacterModelModal();
+            return;
+        }
+        var modal = Gui.GuiService?.GetScreen<MessageModal>();
+        if (!modal || modal.Hiding) return;
+        if (modal.Visible && !OwnsCharacterModelModal)
+        {
+            UiTextHelpers.HideCharacterModelProgress();
+            return;
+        }
+        var progress = CharacterModelsDownloading ? CharacterModelsDownloadProgress : -1;
+        var failed = RacesContext.CharacterModelPreparationFailed;
+        var language = I2.Loc.LocalizationManager.CurrentLanguage;
+        if (!modal.Visible)
+        {
+            _characterModelModal = modal;
+            modal.Show(failed ? MessageModal.Severity.Serious3 : MessageModal.Severity.Informative1,
+                "Setting/&EnableCustomFacesTitle", RacesContext.CharacterModelPreparationStatus,
+                failed ? "ModUi/&CharacterModelsRetryTitle" : string.Empty,
+                "ModUi/&CharacterModelsUseStandard", RetryCharacterModels, UseStandardCharacterModels,
+                true, true, false, false);
+            ((GuiPanel)modal).Show(true);
+            _characterModelModalProgress = -2;
+        }
+        if (_characterModelModalProgress == progress && _characterModelModalFailed == failed &&
+            _characterModelModalLanguage == language) return;
+        _characterModelModalProgress = progress;
+        _characterModelModalFailed = failed;
+        _characterModelModalLanguage = language;
+        modal.validateCaption = failed ? "ModUi/&CharacterModelsRetryTitle" : string.Empty;
+        modal.validateLabel.Text = modal.validateCaption;
+        modal.validateButton.gameObject.SetActive(failed);
+        modal.validateButton.interactable = failed;
+        UiTextHelpers.RefreshCharacterModelStatus(modal, RacesContext.CharacterModelPreparationStatus, progress);
+    }
 
     internal static void CancelCharacterModelDownload()
     {
@@ -162,12 +247,9 @@ internal static class UpdateContext
             return InstallCharacterModelFiles(directory, source.Token);
         }
         catch (OperationCanceledException) { throw; }
-        catch (Exception exception)
+        catch (Exception)
         {
             if (source.IsCancellationRequested) throw new OperationCanceledException(source.Token);
-            QueueMainThread(() => ShowMessage(
-                Gui.Format("ModUi/&CharacterModelsDownloadFailed", exception.Message), "Message/&MessageOkTitle",
-                title: "Setting/&EnableCustomFacesTitle", severity: MessageModal.Severity.Serious3), UpdateGeneration);
             throw;
         }
         finally
@@ -393,6 +475,7 @@ internal static class UpdateContext
 
     internal static void Unload()
     {
+        CloseCharacterModelModal();
         CancelCharacterModelDownload();
         Unloading = true;
         NextUpdateGeneration();
@@ -819,6 +902,7 @@ internal static class UpdateContext
 
     private static void ProcessMainThreadActions()
     {
+        if (!RacesContext.CharacterModelsReady) return;
         while (MainThreadActions.TryDequeue(out var action))
         {
             if (Unloading)
@@ -863,6 +947,7 @@ internal static class UpdateContext
     {
         private void Update()
         {
+            RefreshCharacterModelModal();
             ProcessMainThreadActions();
         }
     }

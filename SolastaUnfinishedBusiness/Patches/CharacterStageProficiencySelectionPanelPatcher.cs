@@ -1175,6 +1175,27 @@ public static class CharacterStageProficiencySelectionPanelPatcher
     }
 
     [HarmonyPatch(typeof(CharacterStageProficiencySelectionPanel),
+        nameof(CharacterStageProficiencySelectionPanel.OnBeginShow))]
+    [UsedImplicitly]
+    public static class OnBeginShow_Patch
+    {
+        [UsedImplicitly]
+        internal static void Prefix(CharacterStageProficiencySelectionPanel __instance,
+            out UiHelpers.NativePanelInitialization __state)
+        {
+            var panel = __instance.proficienciesPanel;
+            var hero = __instance.currentHero;
+            __state = UiHelpers.BeginNativePanelInitialization(__instance, panel,
+                () => hero != null && ReferenceEquals(__instance.currentHero, hero) &&
+                      __instance.proficienciesPanel == panel);
+        }
+
+        [UsedImplicitly]
+        internal static Exception Finalizer(UiHelpers.NativePanelInitialization __state, Exception __exception) =>
+            __state == null ? __exception : __state.Finish(__exception);
+    }
+
+    [HarmonyPatch(typeof(CharacterStageProficiencySelectionPanel),
         nameof(CharacterStageProficiencySelectionPanel.OnFeatSelected))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

@@ -87,7 +87,7 @@ def profile_anchor(anchor: 'dict[str, Any]', packet: 'dict[str, Any]', skin: 'di
     return (np.linalg.inv(bind) @ np.r_[point, 1.])[:3]
 
 
-def load_profiles(census: 'dict[str, Any]', path):
+def load_profiles(census: 'dict[str, Any]', path, *, resource_owners=False):
     document = art.read_json(path)
     if not (type(document) is dict and set(document) == {'schemaVersion', 'profiles'} and document['schemaVersion'] == 1 and type(document['profiles']) is list): raise ValueError('Invalid face profile document.')
     by_source = {(a['sourceContentKey'], s['path']): (a, s) for a in census['assets'] for s in a['skins']}
@@ -165,7 +165,7 @@ def load_profiles(census: 'dict[str, Any]', path):
             ready['guideControls'] = guide_controls
             if 'compiledField' in parameters:ready['compiledGuide']=parameters['compiledField']
         semantic = json.dumps({k: v for k,v in ready.items() if k != 'id'}, sort_keys=True, separators=(',', ':'), allow_nan=False)
-        fingerprint_key = packet['sourceFingerprint']
+        fingerprint_key = (source['assetSourceContentKey'],packet['sourceFingerprint']) if resource_owners else packet['sourceFingerprint']
         if not (fingerprint_key not in shared or shared[fingerprint_key] == semantic): raise ValueError('Shared native source has inconsistent face authoring profiles.')
         shared[fingerprint_key] = semantic; resolved[key] = ready
     supplied = {p['source']['nativeFingerprint'] for p in document['profiles'] if p['operation'] != 'source-lod-transfer' and lod_index(by_source[(p['source']['assetSourceContentKey'], p['source']['rendererPath'])][1]) == 0}
@@ -385,14 +385,17 @@ def lower_face_strength(packet,donor,donor_strength):
     return result
 
 
-def anatomy_surface_anchor(positions, normals, ownership, point, candidates):
+def anatomy_surface_anchor(positions, normals, ownership, point, candidates, *, outward_direction=(0., -1., 0.)):
     ids = np.flatnonzero((ownership > 0) & candidates)
     if not len(ids):
         raise ValueError('No owned native surface exists at the declared anatomical region.')
-    forward = normals[ids, 1] < 0
-    if not np.any(forward):
-        raise ValueError('The declared anatomical tissue has no native forward-facing surface.')
-    ids = ids[forward]
+    direction = np.asarray(outward_direction, dtype=float)
+    require(direction.shape == (3,) and np.isfinite(direction).all() and np.linalg.norm(direction) > 0,
+            'An anatomical surface direction must be a finite nonzero vector.')
+    outward = normals[ids] @ direction > 0
+    if not np.any(outward):
+        raise ValueError('The declared anatomical tissue has no native surface facing its owned direction.')
+    ids = ids[outward]
     return int(ids[np.argmin(np.sum((positions[ids] - point) ** 2, axis=1))])
 
 
@@ -473,9 +476,7 @@ def anatomy_contact_curves(asset, skin: 'dict[str, Any]', packet: 'dict[str, Any
     if len(eyes) != 1:
         raise ValueError('An unambiguous native ocular owner is required for contact construction.')
     eye = eyes[0]
-    with gzip.open(eye['meshFile'], 'rt', encoding='utf8') as stream:
-        ep = json.load(stream)
-    assert fingerprint(ep)[0] == eye['sourceFingerprint']
+    ep = native_packet(eye)
     ev = functions['points'](ep['vertices'], art.CONVERT @ functions['matrix'](eye['rendererToPrefab']))
     et = np.concatenate([np.asarray(s, dtype=int).reshape(-1, 3) for s in ep['subMeshes']])
     eye_bones = [b.rsplit('/', 1)[-1].lower() if b else '' for b in eye['bones']]
@@ -938,6 +939,57 @@ def prepare_source_triangle_anchors(packet: 'dict[str, Any]', skin: 'dict[str, A
     return anchors,dict(sourceVertices=len(positions),nativeDonorTriangles=len(triangles),largestNativeAttachmentOffsetMetres=largest_distance)
 
 
+def recover_source_lod_frames(packet, skin, donor_packet, donor_skin):
+    """Recover impossible native LOD morphs from their same-source LOD0."""
+    diagonal = float(np.linalg.norm(np.ptp(np.asarray(packet['vertices']).reshape(-1, 3), axis=0)))
+    invalid = []
+    for si, shape in enumerate(packet['shapes']):
+        for fi, frame in enumerate(shape['frames']):
+            delta = np.asarray(frame['vertices']).reshape(-1, 3)
+            if not np.isfinite(delta).all() or float(np.linalg.norm(delta, axis=1).max()) > diagonal:
+                invalid.append((si, fi))
+    if not invalid: return packet, []
+    require(lod_index(skin) > 0 and lod_index(donor_skin) == 0,
+            'An impossible native physical frame requires its own valid LOD0 source.')
+    anchors, projection = prepare_source_triangle_anchors(packet, skin, donor_packet, donor_skin)
+    triangles = np.asarray([donor_packet['subMeshes'][a['subMesh']][a['triangleOrdinal']*3:a['triangleOrdinal']*3+3]
+                            for a in anchors], dtype=np.int64)
+    bary = np.asarray([a['barycentric'] for a in anchors])
+    transform = art.CONVERT @ art.matrix(skin['rendererToPrefab'])
+    source_transform = art.CONVERT @ art.matrix(donor_skin['rendererToPrefab'])
+    own_matrix = transform[:3, :3]; source_matrix = source_transform[:3, :3]
+    source_normal = np.asarray(donor_packet['normals']).reshape(-1, 3)
+    own_normal = np.asarray(packet['normals']).reshape(-1, 3)
+    own_tangent = np.asarray(packet['tangents']).reshape(-1, 4)[:, :3]
+    def interpolate(values): return np.einsum('vi,vij->vj', bary, values[triangles])
+    rest_n = normalise(interpolate(normalise(source_normal @ np.linalg.inv(source_matrix))))
+    own_n = normalise(own_normal @ np.linalg.inv(own_matrix))
+    own_t = normalise(own_tangent @ own_matrix.T)
+    result = copy.deepcopy(packet); reports = []
+    for si, fi in invalid:
+        channel = packet['shapes'][si]; frame = channel['frames'][fi]
+        matching = [s for s in donor_packet['shapes'] if s['name'] == channel['name']]
+        require(len(matching) == 1, 'A broken native LOD frame has no unambiguous source channel.')
+        frames = [f for f in matching[0]['frames'] if f['weight'] == frame['weight']]
+        require(len(frames) == 1, 'A broken native LOD frame has no matching source weight.')
+        source = frames[0]; delta = np.asarray(source['vertices']).reshape(-1, 3)
+        source_diagonal = float(np.linalg.norm(np.ptp(np.asarray(donor_packet['vertices']).reshape(-1, 3), axis=0)))
+        require(np.isfinite(delta).all() and float(np.linalg.norm(delta, axis=1).max()) <= source_diagonal,
+                'The native LOD0 physical source is also outside its mesh envelope.')
+        target = result['shapes'][si]['frames'][fi]
+        target['vertices'] = (interpolate(delta @ source_matrix.T) @ np.linalg.inv(own_matrix).T).astype(np.float32).ravel().tolist()
+        posed_n = normalise(interpolate(normalise((source_normal + np.asarray(source['normals']).reshape(-1, 3)) @ np.linalg.inv(source_matrix))))
+        new_n = normalise(rotate_between(own_n, rest_n, posed_n) @ own_matrix)
+        new_t = rotate_between(own_t, rest_n, posed_n) @ np.linalg.inv(own_matrix).T
+        new_t = normalise(new_t - np.sum(new_t * new_n, axis=1)[:, None] * new_n)
+        target['normals'] = (new_n - own_normal).astype(np.float32).ravel().tolist()
+        target['tangents'] = (new_t - own_tangent).astype(np.float32).ravel().tolist()
+        reports.append(dict(channelIndex=si, name=channel['name'], weight=frame['weight'],
+            nativeSourceFingerprint=packet['sourceFingerprint'], donorSourceFingerprint=donor_packet['sourceFingerprint'],
+            method='same-source LOD0 triangle barycentric displacement and normal-frame rotation', **projection))
+    return result, reports
+
+
 def load_material_channels(path):
     document = art.read_json(path)
     if not (type(document) is dict and set(document) == {'schemaVersion', 'contracts'} and document['schemaVersion'] == 1 and type(document['contracts']) is list): raise ValueError('Invalid material channel document.')
@@ -1085,6 +1137,10 @@ def normal_groups(positions, native_normals):
     return result
 
 
+
+
+
+
 def cohere_skin_frame_normals(packet):
     """Keep an authored smooth skin surface smooth at every physical frame."""
     positions=np.asarray(packet['vertices'],float).reshape(-1,3);base_normals=np.asarray(packet['normals'],float).reshape(-1,3)
@@ -1184,6 +1240,135 @@ def preserve_surface_orientation(reference, candidate, triangles, transform):
     raise ValueError('The native reference surface cannot retain its source-facing triangles.')
 
 
+def interpolate_source_handles(packet, skin, pose, positions, controls, reports, ownership, transform, units=()):
+    """Positive surface interpolation keeps handle edits local and bounded."""
+    rest = art.points(packet['vertices'], transform)
+    groups = art.weld_groups(rest)
+    count = int(groups.max()) + 1
+    triangles = np.concatenate([np.asarray(s,dtype=int).reshape(-1,3) for s in packet['subMeshes']])
+    displacement = np.zeros((count, 3))
+    allowed = ownership > 0
+    inside = np.zeros(len(rest), dtype=bool)
+    for origin, _, radius in controls:
+        inside |= np.linalg.norm(positions-origin, axis=1) < radius
+    unit_rows = []
+    indices = np.asarray(packet['boneIndices'], dtype=int).reshape(len(rest), -1)
+    weights = np.asarray(packet['weights']).reshape(len(rest), -1)
+    for unit in units:
+        prefixes = tuple(unit['bonePrefixes'])
+        require(prefixes and all(isinstance(value, str) and value for value in prefixes),
+                'A contact unit requires explicit source bone prefixes.')
+        bones = np.array([bool(name) and name.rsplit('/', 1)[-1].lower().startswith(prefixes)
+                          for name in skin['bones']])
+        selected = np.any(bones[indices] & (weights > 0), axis=1) & allowed
+        require(np.any(selected), 'The declared contact unit has no owned source tissue.')
+        handle = next((i for i, report in enumerate(reports) if report['name'] == unit['handle']), None)
+        require(handle is not None, 'A contact unit has no matching authored handle.')
+        offset = controls[handle][1] - controls[handle][0]
+        unit_rows.append((selected, offset, handle))
+        inside |= selected
+    allowed &= inside
+    group_allowed = np.ones(count, dtype=bool)
+    np.logical_and.at(group_allowed, groups, allowed)
+    fixed = ~group_allowed
+    assigned_distance = np.full(count, np.inf)
+    for (origin, target, _), report in zip(controls, reports):
+        index = report['sourceVertex']
+        if not group_allowed[groups[index]]:
+            continue
+        endpoint = origin + (target-origin)*ownership[index]
+        target_rest = (reference_pose_surface_to_rest(packet, skin, pose, [index], [endpoint])[0]
+                       if pose is not None else endpoint)
+        delta = target_rest-rest[index]
+        distance=np.linalg.norm(rest-rest[index],axis=1)
+        # A hard handle owns its immediate source tissue, including coarse and
+        # thin triangles. A fixed metric patch alone can pinch a single corner
+        # when the source edge is longer than the patch radius.
+        ring=np.unique(triangles[np.any(groups[triangles]==groups[index],axis=1)])
+        patch=np.union1d(np.flatnonzero(distance<=.003),ring)
+        patch=patch[group_allowed[groups[patch]]]
+        for vertex in patch:
+            group=int(groups[vertex])
+            if distance[vertex]<assigned_distance[group]:
+                assigned_distance[group]=distance[vertex]
+                fixed[group]=True
+                displacement[group]=delta
+        report['sourcePatchVertices']=len(patch)
+    # Closed lip rims and other declared articulated units share one neutral
+    # displacement. Independent nearest handles can expose an internal triangle
+    # even when every individual triangle retains a positive signed area.
+    for selected, offset, handle in unit_rows:
+        ids = np.flatnonzero(selected)
+        targets = positions[ids] + offset
+        targets = reference_pose_surface_to_rest(packet, skin, pose, ids, targets) if pose is not None else targets
+        values = targets - rest[ids]
+        for group in np.unique(groups[ids]):
+            local = values[groups[ids] == group]
+            require(float(np.linalg.norm(local-local.mean(axis=0), axis=1).max()) <= 1e-6,
+                    'A contact unit has conflicting coincident source skin transforms.')
+            fixed[group] = True
+            displacement[group] = local.mean(axis=0)
+        reports[handle]['contactUnitVertices'] = len(ids)
+        reports[handle]['contactUnitOffsetMm'] = (offset*1000).tolist()
+    edges = np.unique(np.sort(groups[np.concatenate((triangles[:,[0,1]], triangles[:,[1,2]], triangles[:,[2,0]]))],axis=1),axis=0)
+    edges = edges[edges[:,0]!=edges[:,1]]
+    _, representatives = np.unique(groups,return_index=True)
+    lengths = np.linalg.norm(rest[representatives[edges[:,0]]]-rest[representatives[edges[:,1]]],axis=1)
+    weights = 1/np.maximum(lengths,1e-6)
+    laplace = np.zeros((count,count))
+    for (a,b), weight in zip(edges,weights):
+        laplace[a,a] += weight; laplace[b,b] += weight
+        laplace[a,b] -= weight; laplace[b,a] -= weight
+    free = np.flatnonzero(~fixed)
+    anchored = np.flatnonzero(fixed)
+    if len(free):
+        displacement[free] = np.linalg.solve(laplace[np.ix_(free,free)], -laplace[np.ix_(free,anchored)]@displacement[anchored])
+    if not np.isfinite(displacement).all():
+        raise ValueError('The source surface edit is not finite.')
+    # Every free sample is a positive harmonic combination of explicit handles.
+    if np.linalg.norm(displacement,axis=1).max() > np.linalg.norm(displacement[anchored],axis=1).max()+1e-10:
+        raise ValueError('The source handle interpolation overshot its owned targets.')
+    return rest+displacement[groups]
+
+
+
+def retain_local_surface_areas(packet, reference, target, ownership):
+    """Keep thin sculpted tissue open with bounded local corrections."""
+    triangles = np.concatenate([np.asarray(s, dtype=np.int64).reshape(-1, 3) for s in packet['subMeshes']])
+    groups = art.weld_groups(reference)
+    group_owned = np.ones(int(groups.max()) + 1, dtype=bool)
+    np.logical_and.at(group_owned, groups, np.asarray(ownership) > 0)
+    source = reference[triangles]
+    edges = np.stack((source[:, 1] - source[:, 0], source[:, 2] - source[:, 0]), axis=1)
+    area = np.cross(edges[:, 0], edges[:, 1]); square = np.sum(area * area, axis=1)
+    length = np.max(np.linalg.norm(edges, axis=2), axis=1)
+    supported = np.sqrt(square) > np.finfo(np.float32).eps * 16 * (np.max(np.abs(source), axis=(1, 2)) * length + length * length)
+    result = target.copy(); initial = 0
+    for iteration in range(16):
+        current = result[triangles]
+        updated = np.cross(current[:, 1] - current[:, 0], current[:, 2] - current[:, 0])
+        ratios = np.divide(np.sum(area * updated, axis=1), square, out=np.ones(len(square)), where=square > 0)
+        bad = np.flatnonzero(supported & (ratios < .075))
+        if iteration == 0: initial = len(bad)
+        if not len(bad):
+            return result, dict(repairedTriangles=initial, iterations=iteration,
+                maximumCorrectionMm=float(np.linalg.norm(result-target, axis=1).max()) * 1000,
+                minimumSourceProjectedAreaRatio=.075)
+        for index in bad:
+            a, b, c = result[triangles[index]]; n = area[index] / square[index]
+            gb = np.cross(c-a, n); gc = np.cross(n, b-a)
+            grouped = {}
+            for group, gradient in zip(groups[triangles[index]], (-gb-gc, gb, gc)):
+                if group_owned[group]: grouped[group] = grouped.get(group, np.zeros(3)) + gradient
+            denominator = sum(float(g @ g) for g in grouped.values())
+            require(denominator > 1e-20, 'Compressed surface tissue has no editable source vertex.')
+            correction = (.10 - float(np.dot(area[index], np.cross(b-a, c-a)) / square[index])) / denominator
+            for group, gradient in grouped.items(): result[groups == group] += gradient * correction
+        require(float(np.linalg.norm(result-target, axis=1).max()) <= .00025,
+                'Surface tissue requires more than a 0.25 mm local correction.')
+    raise ValueError('Surface tissue has unresolved local compression.')
+
+
 def surface_basis(reference, positions, source_normals, source_tangents, triangles, transform, mask, skin: bool):
     before = art.points(reference.ravel().tolist(), transform)
     after = art.points(positions.ravel().tolist(), transform)
@@ -1211,17 +1396,19 @@ def surface_basis(reference, positions, source_normals, source_tangents, triangl
 def native_packet(skin: 'dict[str, Any]') -> 'dict[str, Any]':
     with gzip.open(art.source_path(skin['meshFile']), 'rt', encoding='utf-8') as stream:
         packet = json.load(stream)
+    if not packet.get('nativeReadable', False) and packet.get('sourceReadMode') != 'serialized-mesh-data':
+        raise ValueError('Facial authoring requires original serialized mesh data; a skinned read proxy is not a native rest source: ' + skin['meshFile'])
     if fingerprint(packet)[0] != packet['sourceFingerprint']:
         raise ValueError('Native packet fingerprint mismatch: ' + skin['meshFile'])
     return packet
 
 
 def role(skin: 'dict[str, Any]'):
+    if skin.get('_faceProfile',{}).get('operation')=='source-guide-follow':return 'attached'
     shaders=[m['shader']for m in skin['materials']if m]
     contact_name=(skin['mesh']+'/'+skin['path']).lower()
     if not any('/Skin'in shader for shader in shaders)and ('Custom/CharacterEye'in shaders or any(token in contact_name for token in ('eyelash','eyeocclud','jaw','teeth','tongue'))):
         return 'native'
-    if skin.get('_faceProfile',{}).get('operation')=='source-guide-follow':return 'attached'
     if skin.get('_faceProfile') is not None or skin.get('_faceLodDonor') is not None:
         return 'skin'
     if skin.get('_guideCompanionPreserved'):
@@ -1276,7 +1463,12 @@ def sculpt_surface(packet: 'dict[str, Any]', skin: 'dict[str, Any]', which):
             selected[np.asarray(packet['subMeshes'][slot], dtype=np.int64)] = True
         mask = mask * selected
         surface[~selected] = original[~selected]
-        strength=face_surface_strength(packet,skin)
+        profile = skin.get('_faceProfile')
+        # A source guide already declares its target and protected tissue. A
+        # second procedural anatomy mask would change that target and attenuate
+        # it again in its LOD and physical-frame consumers.
+        strength = (np.ones(packet['vertexCount']) if profile is not None and
+                    profile['operation'] == 'source-guide' else face_surface_strength(packet, skin))
         surface=original+(surface-original)*strength[:,None]
         mask*=strength
         report['facialMaterialSlots'] = slots
@@ -1336,9 +1528,12 @@ def guide_channels(packet: 'dict[str, Any]', authored, skin: 'dict[str, Any]', t
         split_groups.append(cohorts.setdefault(key,len(cohorts)))
     groups = np.asarray(split_groups,dtype=np.int64)
 
+    tissue_reports = []
     def transformed(p, n, t):
         world = art.points(p.ravel().tolist(), transform)
         changed = art.evaluate_guide(world, mask, compiled)
+        changed, tissue = retain_local_surface_areas(packet, world, changed, mask)
+        tissue_reports.append(tissue)
         local_p = art.points(changed.ravel().tolist(), inverse)
         world_n = normalise(n @ np.linalg.inv(matrix))
         before = surface_normals(world, oriented, groups, world, world_n)
@@ -1372,6 +1567,7 @@ def guide_channels(packet: 'dict[str, Any]', authored, skin: 'dict[str, Any]', t
                 target_frame[name] = value.astype(np.float32).ravel().tolist()
             physical += 1
     return dict(operation='F(base+nativeFrame)-F(base)', physicalFrames=physical,
+                localTissueCorrections=tissue_reports,
                 normalTangentTransport='native-to-authored actual triangle area-normal rotation per native smooth-normal and exact skin group; tangent transported by the same rotation',
                 protectedVertices=int(np.count_nonzero(protected)), boneWeightsBindposesUvAndFrameIdentityPreserved=True)
 
@@ -1459,7 +1655,8 @@ def refine_packet(packet: 'dict[str, Any]', skin: 'dict[str, Any]', lod, donor=N
     which = role(skin)
     p, transform, mask, report = sculpt_surface(packet, skin, which)
     original = art.points(packet['vertices'], transform)
-    if lod > 0 and donor is not None and which == 'skin':
+    if (lod > 0 and donor is not None and which == 'skin'
+            and (profile is None or profile['operation'] != 'source-guide')):
         p, mask = lower_detail_surface(packet, skin, donor)
         report['mode'] = 'source-matched-lod-surface-transfer'
         if which == 'skin':
@@ -1705,7 +1902,7 @@ def extremity_skin_influences(weights, indices, i):
     # Preserve source duplicates and order. Only the derived mixed result merges bones.
     return [(int(index), weight) for weight, index in zip(extremity_native_effective_row(weights[i]), indices[i]) if weight > 0]
 
-def extremity_canonical_skin_values(weights, indices, sources):
+def canonical_skin_values(weights, indices, sources):
     result = {}
     for source, contribution in sources:
         for bone, weight in extremity_skin_influences(weights, indices, source):
@@ -1714,8 +1911,8 @@ def extremity_canonical_skin_values(weights, indices, sources):
     assert 1 <= len(ordered) <= 4
     return ordered
 
-def extremity_canonical_skin(weights, indices, sources):
-    ordered = extremity_canonical_skin_values(weights, indices, sources)
+def canonical_skin(weights, indices, sources):
+    ordered = canonical_skin_values(weights, indices, sources)
     total = sum(weight for _, weight in ordered)
     return [bone for bone, _ in ordered] + [0] * (4 - len(ordered)), extremity_f32([weight / total for _, weight in ordered] + [0.0] * (4 - len(ordered)))
 
@@ -1731,8 +1928,9 @@ def extremity_midpoint(p, n, a, b):
     c1 = (2 * p[b] + p[a] + np.dot(edge, n[b]) * n[b]) / 3
     return (p[a] + 3 * c0 + 3 * c1 + p[b]) / 8
 
-def refine_native_extremity_surface(native, current_frames, matrix, lod, forbidden=None, attempts=0):
-    settings = extremity_refinement_profile()
+def refine_native_skin_surface(native, current_frames, matrix, lod, forbidden=None, attempts=0,
+                               *, profile=None, vertex_ownership=None):
+    settings = extremity_refinement_profile() if profile is None else profile
     forbidden = set() if forbidden is None else forbidden
     assert attempts < 12, 'Adaptive physical-edge orientation protection did not converge'
     p = np.asarray(native['vertices'], dtype=np.float64).reshape(-1, 3)
@@ -1743,6 +1941,9 @@ def refine_native_extremity_surface(native, current_frames, matrix, lod, forbidd
     indices = np.asarray(native['boneIndices'], dtype=np.int64).reshape(-1, 4)
     m = np.asarray(matrix, dtype=np.float64).reshape(4, 4).T[:3, :3]
     world = p @ m.T
+    ownership = np.ones(len(p)) if vertex_ownership is None else np.asarray(vertex_ownership, dtype=float)
+    require(ownership.shape == (len(p),) and np.isfinite(ownership).all()
+            and np.all((ownership >= 0) & (ownership <= 1)), 'Invalid native skin surface ownership.')
     faces = [np.asarray(s, dtype=np.int64).reshape(-1, 3) for s in native['subMeshes']]
     edge_faces = {}
     for slot, triangles in enumerate(faces):
@@ -1753,6 +1954,13 @@ def refine_native_extremity_surface(native, current_frames, matrix, lod, forbidd
     for i, pos in enumerate(world):
         position_groups.setdefault(tuple(np.round(pos / 1e-6).astype(np.int64)), []).append(i)
     canonical_vertices = {i: min(g) for g in position_groups.values() for i in g}
+    frame_motion = [np.asarray(frame['vertices'], dtype=np.float32).reshape(-1, 3)
+                    for shape in current_frames for frame in shape.get('frames', [])]
+    motion_seams = set()
+    for group in position_groups.values():
+        motions = [(extremity_skin_map(weights, indices, i), b''.join(frame[i].tobytes() for frame in frame_motion)) for i in group]
+        if any(value != motions[0] for value in motions[1:]):
+            motion_seams.update(canonical_vertices[i] for i in group)
     physical = {}
     for edge, members in edge_faces.items():
         key = tuple(sorted((canonical_vertices[edge[0]], canonical_vertices[edge[1]])))
@@ -1762,18 +1970,18 @@ def refine_native_extremity_surface(native, current_frames, matrix, lod, forbidd
     for a, b in physical:
         graph.setdefault(a, set()).add(b)
         graph.setdefault(b, set()).add(a)
-    cut_vertices = set()
+    cut_vertices = set();cut_edges = set()
     for edge, twins in physical.items():
         if len(set(f for t in twins for f in edge_faces[t])) == 1:
-            cut_vertices.update(edge)
-    protected = set(cut_vertices)
+            cut_vertices.update(edge);cut_edges.add(edge)
+    protected = set(cut_vertices) if settings.get('protectCutVertices', True) else set()
     for _ in range(settings['protectedOpenCutRings']):
         protected |= set(v for i in list(protected) for v in graph.get(i, []))
     hard = set()
     for group in position_groups.values():
         if len(group) > 1 and np.min(n[group] @ n[group].T) < np.cos(np.radians(settings['hardSeamNormalAngleDegrees'])):
             hard.update(canonical_vertices[i] for i in group)
-    protected |= hard
+    protected |= hard | motion_seams
     rejected = {}
     selected = {}
     for key, twins in physical.items():
@@ -1783,8 +1991,12 @@ def refine_native_extremity_surface(native, current_frames, matrix, lod, forbidd
         angle = np.degrees(np.arccos(np.clip(np.dot(n[a0], n[b0]), -1, 1)))
         if key in forbidden:
             reason = 'physical-frame-orientation-protected-face'
+        elif key in cut_edges:
+            reason = 'native-open-cut-edge'
         elif any(i in protected for i in key):
             reason = 'protected-cut-or-hard-seam'
+        elif min(ownership[i] for edge in twins for i in edge) <= 0:
+            reason = 'unowned-source-surface'
         elif length * 1000 < settings['minimumEdgeMillimetres'][lod]:
             reason = 'short-edge'
         elif not settings['minimumNormalAngleDegrees'] <= angle <= settings['maximumNormalAngleDegrees']:
@@ -1813,7 +2025,7 @@ def refine_native_extremity_surface(native, current_frames, matrix, lod, forbidd
             rejected[reason] = rejected.get(reason, 0) + 1
             continue
         maximum = min(settings['maximumBowMillimetres'] / 1000, length * settings['maximumBowEdgeFraction'])
-        factor = min(1, maximum / max(bow_length, 1e-30))
+        factor = min(1, maximum / max(bow_length, 1e-30)) * min(ownership[i] for edge in twins for i in edge)
         selected[key] = dict(twins=twins, position=linear + bow * factor, factor=factor,
                              bowMetres=min(maximum, bow_length), normal=extremity_normalized(np.mean(n[[i for edge in twins for i in edge]], axis=0)))
     positions = list(p)
@@ -1834,7 +2046,7 @@ def refine_native_extremity_surface(native, current_frames, matrix, lod, forbidd
             t = extremity_normalized(t - np.dot(t, entry['normal']) * entry['normal'])
             new_tangents.append(np.r_[t, tangents[a, 3]])
             new_uv.append((uv[a] + uv[b]) / 2)
-            ids, skin = extremity_canonical_skin(weights, indices, [(a, 0.5), (b, 0.5)])
+            ids, skin = canonical_skin(weights, indices, [(a, 0.5), (b, 0.5)])
             new_indices.append(ids)
             new_weights.append(skin)
             added.append(dict(index=idx, edge=[a, b], physicalEdge=list(physical_key), factor=entry['factor']))
@@ -1943,7 +2155,8 @@ def refine_native_extremity_surface(native, current_frames, matrix, lod, forbidd
                 if key in selected:
                     refuse.add(key)
         assert refuse - forbidden, 'Native parent triangle itself is degenerate or inverted'
-        return refine_native_extremity_surface(native, current_frames, matrix, lod, forbidden | refuse, attempts + 1)
+        return refine_native_skin_surface(native, current_frames, matrix, lod, forbidden | refuse, attempts + 1,
+                                          profile=profile, vertex_ownership=vertex_ownership)
     # Detect accidental topology inversion in the direct geometric sample.
     finite = all(np.isfinite(np.asarray(output[k])).all() for k in ['vertices', 'normals', 'tangents', 'uv0', 'weights'])
     assert finite and np.all(new_faces >= 0) and np.all(new_faces < len(pp))
@@ -1952,7 +2165,7 @@ def refine_native_extremity_surface(native, current_frames, matrix, lod, forbidd
     report: dict[str, Any] = dict(originalVertices=original_vertex_count, candidateVertices=len(pp), addedVertices=len(added),
                   originalTriangles=sum(len(s) // 3 for s in native['subMeshes']), candidateTriangles=len(new_faces),
                   selectedPhysicalEdges=len(selected), protectedCutVertices=len(cut_vertices), protectedCutRingVertices=len(protected - hard),
-                  protectedHardSeamVertices=len(hard), rejectedEdges=rejected,
+                  protectedHardSeamVertices=len(hard), protectedMotionSeamVertices=len(motion_seams), rejectedEdges=rejected,
                   maxActualBowMillimetres=max([entry['bowMetres'] * 1000 for entry in selected.values()] or [0]),
                   allOriginalVertexChannelsExact=True, allOriginalPhysicalFrameSamplesExact=True,
                   nativeBindPosesExact=True, originalBoundaryLoopSamplesAndEdgesExact=True,
@@ -1969,7 +2182,7 @@ def refine_native_extremity_surface(native, current_frames, matrix, lod, forbidd
                                                    max=np.max(np.concatenate([v for _, v in poses]),axis=0).tolist()))
     return output, new_frames, added, report
 
-def refine_extremity_packet(packet: 'dict[str, Any]', renderer_to_prefab, lod):
+def refine_skin_packet(packet: 'dict[str, Any]', renderer_to_prefab, lod, *, profile=None, vertex_ownership=None):
     """Refine source curvature while retaining native cuts, skin and frames."""
     require(type(lod) is int and lod in (0, 1, 2), 'An extremity requires a native LOD from 0 to 2.')
     transform = np.asarray(renderer_to_prefab, dtype=float).reshape(4, 4).T
@@ -1980,19 +2193,8 @@ def refine_extremity_packet(packet: 'dict[str, Any]', renderer_to_prefab, lod):
     basic['uv0'] = np.asarray(uv0['values']).reshape(-1, 4)[:, :2].ravel().tolist()
     basic['bindPoses'] = np.asarray(packet['bindPoses']).reshape(-1, 16).tolist()
     basic['blendShapeChannels'] = len(packet['shapes'])
-    positions = np.asarray(packet['vertices']).reshape(-1, 3)
-    weights = np.asarray(packet['weights']).reshape(-1, 4)
-    bones = np.asarray(packet['boneIndices']).reshape(-1, 4)
-    frame_positions = [np.asarray(frame['vertices'], dtype=np.float32).reshape(-1, 3)
-                       for shape in packet['shapes'] for frame in shape['frames']]
-    groups = {}
-    for index, position in enumerate(positions):
-        key = tuple(np.rint(position / 1e-6).astype(np.int64))
-        motion = (tuple(sorted((int(bone), float(weight)) for bone, weight in zip(bones[index], weights[index]) if weight > 0)),
-                  b''.join(frame[index].tobytes() for frame in frame_positions))
-        require(key not in groups or groups[key] == motion, 'A coincident native cut has different skin or frame motion.')
-        groups[key] = motion
-    refined, frames, added, metrics = refine_native_extremity_surface(basic, packet['shapes'], renderer_to_prefab, lod)
+    refined, frames, added, metrics = refine_native_skin_surface(basic, packet['shapes'], renderer_to_prefab, lod,
+                                                               profile=profile, vertex_ownership=vertex_ownership)
     candidate = copy.deepcopy(packet)
     for key in ('vertices', 'normals', 'tangents', 'weights', 'boneIndices', 'subMeshes'):
         candidate[key] = refined[key]
@@ -2024,6 +2226,10 @@ def refine_extremity_packet(packet: 'dict[str, Any]', renderer_to_prefab, lod):
                 require(target[key][:len(source[key])] == source[key], 'An extremity changed a native physical frame.')
     candidate['sourceFingerprint'] = fingerprint(candidate)[0]
     return candidate, added, metrics
+
+
+def refine_extremity_packet(packet: 'dict[str, Any]', renderer_to_prefab, lod):
+    return refine_skin_packet(packet, renderer_to_prefab, lod)
 
 
 def indexed_surface_uv_metrics(packet: 'dict[str, Any]',skin: 'dict[str, Any]',slot,shape,feather,sampler,vertex_field=None):
@@ -2137,11 +2343,9 @@ def source_surface_junction(first,first_skin,first_slot,second,second_skin,secon
         height=abs(np.cross(line,pixels[2]-pixels[0]))/max(np.linalg.norm(line),1e-20)
         return np.asarray([[((1-t)*p[0]+t*p[1])*(1-min(.2,depth/max(height,1e-20)))+p[2]*min(.2,depth/max(height,1e-20)) for depth in (.5,1.5,2.5)] for t in (.25,.5,.75)])
     fv=np.asarray(first['vertices'],dtype=float).reshape(-1,3);sv=np.asarray(second['vertices'],dtype=float).reshape(-1,3)
-    fn={p.rsplit('/',1)[-1]:i for i,p in enumerate(first_skin['bones'])};sn={p.rsplit('/',1)[-1]:i for i,p in enumerate(second_skin['bones'])}
-    require(len(fn)==len(first_skin['bones']) and len(sn)==len(second_skin['bones']), 'Ambiguous native bone identities at source junction.')
-    common=sorted(fn.keys()&sn.keys());require(common,'No shared native bind frame at source junction.')
+    transform,slots,_=art.skin_palette_frame(first,second,first_skin['bones'],second_skin['bones'])
     fb=np.asarray(first['bindPoses']).reshape(-1,4,4).transpose(0,2,1);sb=np.asarray(second['bindPoses']).reshape(-1,4,4).transpose(0,2,1)
-    transforms=[np.linalg.inv(sb[sn[n]])@fb[fn[n]] for n in common];transform=transforms[0];homogeneous=np.c_[fv,np.ones(len(fv))]
+    transforms=[np.linalg.inv(sb[donor])@fb[receiver]for donor,receiver in slots.items()];homogeneous=np.c_[fv,np.ones(len(fv))]
     frame_error=max(float(np.linalg.norm((homogeneous@(m-transform).T)[:,:3],axis=1).max()) for m in transforms)
     require(frame_error<tolerance/10,'Source bind frames do not share a consistent rest transform.')
     points=(homogeneous@transform.T)[:,:3]
@@ -2170,7 +2374,7 @@ def source_surface_junction(first,first_skin,first_slot,second,second_skin,secon
         if length<=np.finfo(float).eps:continue
         pairs.append(dict(firstEdge=list(edge),secondEdge=list(other),firstUv=inside_uv(edge,fu,first_shape).tolist(),secondUv=inside_uv(other,su,second_shape).tolist(),lengthMetres=length))
         contact.update((a,b))
-    return dict(pairs=pairs,firstContactVertices=sorted(contact),sharedNativeBindFrames=len(common),maximumBindFrameDeviationMetres=frame_error,maximumContactGapMetres=float(distances[list(contact)].max()) if contact else None,toleranceMetres=tolerance)
+    return dict(pairs=pairs,firstContactVertices=sorted(contact),sharedNativeBindFrames=len({second_skin['bones'][index]for index in slots}),maximumBindFrameDeviationMetres=frame_error,maximumContactGapMetres=float(distances[list(contact)].max()) if contact else None,toleranceMetres=tolerance)
 
 
 def rgb_junction_gain(first_samples,second_samples,weights):
@@ -2547,8 +2751,34 @@ def authored_asset_closure(asset, index):
     return result
 
 
-def apply_native_reference_pose(packet: 'dict[str, Any]', skin: 'dict[str, Any]', pose):
-    """DCC articulation only: the guide itself is always evaluated in native rest."""
+def captured_neutral_pose(asset: 'dict[str, Any]', capture: 'dict[str, Any]'):
+    """Bind a measured game neutral to its complete native renderer palettes."""
+    require(capture.get('name') == 'Neutral' and capture.get('headSource') == asset['address']
+            and capture.get('coordinateDomain') == 'runtime-part-instance-metres',
+            'The captured neutral belongs to another native head or coordinate domain.')
+    skins = {skin['path']: skin for skin in asset['skins'] if lod_index(skin) == 0}
+    renderers = capture.get('renderers', [])
+    require(len(renderers) == len(skins) and {row['renderer'] for row in renderers} == set(skins),
+            'The captured neutral must own every native LOD0 renderer exactly once.')
+    for row in renderers:
+        skin = skins[row['renderer']]
+        require(row['vertexCount'] == skin['vertexCount'] and row['bonePathsOrdered'] == skin['bones'],
+                'The captured neutral renderer topology or ordered bone palette differs.')
+        require(all(type(value['weight']) in (int, float) and value['weight'] == 0
+                    for value in row['morphs']), 'A sculpt reference requires zero native morph weights.')
+    matrices = capture.get('worldMatrices', {})
+    for skin in asset['skins']:
+        require(all(bone in matrices for bone in skin['bones']), 'The captured neutral is missing a native renderer bone.')
+    for values in matrices.values():
+        matrix = np.asarray(values, dtype=np.float64)
+        require(matrix.shape == (16,) and np.isfinite(matrix).all()
+                and np.allclose(matrix.reshape(4, 4)[:, 3], [0., 0., 0., 1.], rtol=0, atol=1e-6),
+                'A captured neutral bone matrix must be a finite native affine transform.')
+    return dict(worldMatrices=copy.deepcopy(matrices), currentMorphBySource=[], allNativeMorphWeightsZero=True)
+
+
+def reference_skinning_matrices(packet: 'dict[str, Any]', skin: 'dict[str, Any]', pose):
+    """One native LBS transform per vertex, in the prefab's own reference rig."""
     matrices = pose['worldMatrices']
     require(all(bone in matrices for bone in skin['bones']), 'Frozen native pose is missing a renderer bone.')
     bone_world = np.stack([art.matrix(matrices[bone]) for bone in skin['bones']])
@@ -2556,7 +2786,34 @@ def apply_native_reference_pose(packet: 'dict[str, Any]', skin: 'dict[str, Any]'
     matrices = bone_world @ bindposes
     indices = np.asarray(packet['boneIndices']).reshape(-1, 4)
     weights = np.asarray(packet['weights']).reshape(-1, 4)
-    selected = matrices[indices]
+    selected = np.sum(matrices[indices] * weights[:, :, None, None], axis=1)
+    require(np.isfinite(selected).all(), 'Native reference skinning contains nonfinite transforms.')
+    return selected
+
+
+def reference_pose_surface_to_rest(packet: 'dict[str, Any]', skin: 'dict[str, Any]', pose,
+                                   active_vertices, target_positions):
+    """Convert a sculpted neutral DCC surface to source-rest guide coordinates."""
+    require(pose['allNativeMorphWeightsZero'] and not any(
+        value['weight'] != 0 for row in pose.get('currentMorphBySource', []) for value in row['weights']),
+        'A source-rest sculpt target requires a zero-morph native reference pose.')
+    ids = np.asarray(active_vertices, dtype=np.int64)
+    target = np.asarray(target_positions, dtype=np.float64)
+    require(ids.ndim == 1 and len(ids) == len(np.unique(ids)) and np.all((ids >= 0) & (ids < packet['vertexCount']))
+            and target.shape == (len(ids), 3) and np.isfinite(target).all(), 'Invalid neutral sculpt target ownership.')
+    selected = reference_skinning_matrices(packet, skin, pose)[ids]
+    linear = selected[:, :3, :3]
+    require(np.all(np.abs(np.linalg.det(linear)) > 1e-12), 'The neutral sculpt has a singular source skin transform.')
+    neutral = art.points(target.ravel().tolist(), np.linalg.inv(art.CONVERT))
+    local = np.linalg.solve(linear, (neutral - selected[:, :3, 3])[:, :, None])[:, :, 0]
+    restored = np.einsum('vij,vj->vi', linear, local) + selected[:, :3, 3]
+    require(np.allclose(restored, neutral, rtol=0, atol=1e-9), 'Neutral sculpt inverse skinning lost its target.')
+    return art.points(local.ravel().tolist(), art.CONVERT @ art.matrix(skin['rendererToPrefab']))
+
+
+def apply_native_reference_pose(packet: 'dict[str, Any]', skin: 'dict[str, Any]', pose):
+    """DCC articulation only: compiled guides retain source-rest coordinates."""
+    selected = reference_skinning_matrices(packet, skin, pose)
     original = np.asarray(packet['vertices'], dtype=np.float32).astype(np.float64).reshape(-1, 3).copy()
     source_normals = np.asarray(packet['normals'], dtype=np.float32).astype(np.float64).reshape(-1, 3).copy()
     source_tangent = np.asarray(packet['tangents'], dtype=np.float32).astype(np.float64).reshape(-1, 4).copy() if packet['tangents'] else None
@@ -2572,12 +2829,12 @@ def apply_native_reference_pose(packet: 'dict[str, Any]', skin: 'dict[str, Any]'
             original += np.asarray(frame[0]['vertices'], dtype=np.float32).astype(np.float64).reshape(-1, 3)
             source_normals += np.asarray(frame[0]['normals'], dtype=np.float32).astype(np.float64).reshape(-1, 3)
             if source_tangent is not None: source_tangent[:, :3] += np.asarray(frame[0]['tangents'], dtype=np.float32).astype(np.float64).reshape(-1, 3)
-    vertices = np.sum((np.einsum('vbij,vj->vbi', selected[:, :, :3, :3], original) + selected[:, :, :3, 3]) * weights[:, :, None], axis=1)
-    normals = normalise(np.sum(np.einsum('vbij,vj->vbi', selected[:, :, :3, :3], source_normals) * weights[:, :, None], axis=1))
+    vertices = np.einsum('vij,vj->vi', selected[:, :3, :3], original) + selected[:, :3, 3]
+    normals = normalise(np.einsum('vij,vj->vi', selected[:, :3, :3], source_normals))
     result = dict(packet, vertices=vertices.ravel().tolist(), normals=normals.ravel().tolist())
     if source_tangent is not None:
         tangent = source_tangent
-        xyz = np.sum(np.einsum('vbij,vj->vbi', selected[:, :, :3, :3], tangent[:, :3]) * weights[:, :, None], axis=1)
+        xyz = np.einsum('vij,vj->vi', selected[:, :3, :3], tangent[:, :3])
         xyz = normalise(xyz - np.sum(xyz*normals, axis=1)[:, None]*normals)
         result['tangents'] = np.column_stack((xyz, tangent[:, 3])).ravel().tolist()
     return result
@@ -2680,41 +2937,6 @@ def review_asset(asset, directory, authored_sources=None, destination=None, face
 
 
 
-def humanoid_face_style_field(points, marks, strength=1.0):
-    """One continuous field owns skin, oral and eyelash contact surfaces alike."""
-    left, right, mouth, nose = (marks[k] for k in ('left', 'right', 'mouth', 'nose'))
-    eye = (left + right) * 0.5
-    span = np.linalg.norm(left - right)
-    height = abs(eye[2] - mouth[2])
-    x = points[:, 0] - eye[0]
-    z = points[:, 2]
-    front = art.smooth((eye[1] + span * 0.5 - points[:, 1]) / (span * 0.75))
-    neck = art.smooth((z - mouth[2] + height * 1.45) / (height * 0.65))
-    sides = 1 - art.smooth((abs(x) - span * 1.12) / (span * 0.3))
-    mask = front * neck * sides
-
-    def patch(xc, zc, rx, rz):
-        return np.exp(-((x - xc) / (span * rx)) ** 2 - ((z - zc) / (height * rz)) ** 2)
-    change = np.zeros_like(points)
-    lower = np.exp(-((z - (mouth[2] - height * 0.28)) / (height * 0.85)) ** 2)
-    change[:, 0] -= x * 0.105 * lower
-    cheek = patch(span * 0.63, eye[2] - height * 0.47, 0.38, 0.52) + patch(-span * 0.63, eye[2] - height * 0.47, 0.38, 0.52)
-    change[:, 1] += span * 0.014 * cheek
-    malar = patch(span * 0.55, eye[2] - height * 0.16, 0.32, 0.35) + patch(-span * 0.55, eye[2] - height * 0.16, 0.32, 0.35)
-    change[:, 1] -= span * 0.01 * malar
-    nasal = patch(nose[0] - eye[0], nose[2] + height * 0.08, 0.28, 0.42)
-    change[:, 0] -= (points[:, 0] - nose[0]) * 0.1 * nasal
-    change[:, 1] += span * 0.018 * nasal
-    change[:, 2] += span * 0.014 * nasal
-    change[:, 2] += span * 0.023 * lower
-    for center in (left, right):
-        dx = points[:, 0] - center[0]
-        dz = points[:, 2] - center[2]
-        lower_orbit = np.exp(-(dx / (span * 0.43)) ** 2 - ((dz + height * 0.22) / (height * 0.24)) ** 2)
-        change[:, 1] -= span * 0.014 * lower_orbit
-        brow = np.exp(-(dx / (span * 0.45)) ** 2 - ((dz - height * 0.28) / (height * 0.22)) ** 2)
-        change[:, 1] += span * 0.006 * brow
-    return (points + change * mask[:, None] * strength, mask)
 
 
 def humanoid_face_contact_regions(packet: 'dict[str, Any]',skin: 'dict[str, Any]'):
@@ -2733,81 +2955,197 @@ def humanoid_face_contact_regions(packet: 'dict[str, Any]',skin: 'dict[str, Any]
     return regions
 
 
-def humanoid_face_contact_guard(packet: 'dict[str, Any]', skin: 'dict[str, Any]', regions=()):
-    """Preserve animated eye contact in the source skinning domain."""
+def humanoid_face_contact_guard(packet: 'dict[str, Any]', skin: 'dict[str, Any]', regions=(), *,
+                                contact_bone_prefixes=('b_eye_','b_eyelid_','b_lip_')):
+    """Preserve the articulated ocular unit and source oral contact rims."""
     count=packet['vertexCount']
+    if not any(material and material['shader'].startswith('Lux/Human/Skin') for material in skin['materials']):
+        return np.zeros(count)
     if any(token in skin['mesh'].lower() for token in ('eyelash','eyeoccluder','eye_occluder')) or (
             any(material and material['shader']=='Custom/CharacterEye' for material in skin['materials']) and
             not any(material and material['shader'].startswith('Lux/Human/Skin') for material in skin['materials'])):
         return np.zeros(count)
-    eye_bones=np.array([bool(name) and name.rsplit('/',1)[-1].lower().startswith(('b_eye_','b_eyelid_'))
+    eye_bones=np.array([bool(name) and name.rsplit('/',1)[-1].lower().startswith(contact_bone_prefixes)
         for name in skin['bones']])
+    _,groups=np.unique(np.asarray(packet['vertices']).reshape(-1,3),axis=0,return_inverse=True)
+    surface=np.concatenate([np.asarray(t).reshape(-1,3)for t in packet['subMeshes']])
+    edges=np.sort(np.concatenate([groups[surface[:,pair]]for pair in ([0,1],[1,2],[2,0])]),axis=1)
+    edges=edges[edges[:,0]!=edges[:,1]]
+    physical,counts=np.unique(edges,axis=0,return_counts=True)
     protected=np.zeros(count,dtype=bool)
     if len(eye_bones) and np.any(eye_bones) and packet['weights']:
         indices=np.asarray(packet['boneIndices'],dtype=int).reshape(count,-1)
         weights=np.asarray(packet['weights']).reshape(count,-1)
-        protected=np.any(eye_bones[indices] & (weights>0),axis=1)
+        contact_influence=np.sum(np.where(eye_bones[indices],weights,0),axis=1)
+        # An eyelid can be a closed surface: open-edge detection then misses
+        # its contact tissue. Keep every vertex driven by an ocular bone with
+        # its eye, lash and occluder consumers. Oral sculpting retains its
+        # separate rim constraint.
+        ocular_bones=np.array([bool(name) and name.rsplit('/',1)[-1].lower().startswith(('b_eye_','b_eyelid_'))
+            for name in skin['bones']])&eye_bones
+        ocular_influence=np.sum(np.where(ocular_bones[indices],weights,0),axis=1)
+        boundary=np.isin(groups,np.unique(physical[counts==1]))
+        oral=contact_influence-ocular_influence
+        oral_rim=boundary&(oral>0)
+        if not oral_rim.any():oral_rim=oral>=.85
+        protected=(ocular_influence>0)|oral_rim
     elif regions:
         positions=art.points(packet['vertices'],art.CONVERT@art.matrix(skin['rendererToPrefab']))
         for region in regions:
             protected|=np.all((positions>=np.asarray(region['minimum'])-.002)&
                 (positions<=np.asarray(region['maximum'])+.002),axis=1)
-    guard=np.ones(count);guard[protected]=0
-    triangles=np.concatenate([np.asarray(t).reshape(-1,3) for t in packet['subMeshes']])
-    visited=protected.copy()
-    for amount in (.25,.75):
-        neighbours=np.unique(triangles[np.any(visited[triangles],axis=1)])
-        ring=neighbours[~visited[neighbours]]
-        guard[ring]=amount;visited[ring]=True
-    return guard
+    positions=np.asarray(packet['vertices']).reshape(-1,3)
+    _,_,marks=art.landmarks(packet,skin,np.eye(4))
+    radius=float(np.linalg.norm(marks['left']-marks['right']))*.20 if marks['left'] is not None and marks['right'] is not None else .012
+    contact=np.unique(positions[protected],axis=0)
+    if not len(contact):return np.ones(count)
+    # Physical distance gives coincident vertices the same fade and avoids
+    # triangulation-dependent jumps across narrow eyelid triangles.
+    distances=np.concatenate([np.linalg.norm(chunk[:,None]-contact[None],axis=2).min(axis=1)
+        for chunk in np.array_split(positions,max(1,count//512))])
+    return art.smooth(distances/radius)
 
 
-def refine_humanoid_face_style(packet: 'dict[str, Any]', skin: 'dict[str, Any]', marks, strength=1.0):
+
+
+def refine_native_face_contours(native: 'dict[str, Any]', authored: 'dict[str, Any]', skin: 'dict[str, Any]', marks: 'dict[str, Any] | None'=None, collar_vertices=(), *, refined=None, guide_report=None):
+    """Compose an owned face target with the assembled collar and its poses."""
     transform = art.CONVERT @ art.matrix(skin['rendererToPrefab'])
-    before = np.asarray(packet['vertices'], dtype=float).reshape(-1, 3)
-    world = art.points(before, transform)
-    guard=humanoid_face_contact_guard(packet,skin,marks.get('eyeContactRegions',()))
-    protected=guard==0
-    target, mask = humanoid_face_style_field(world, marks, strength)
-    target=world+(target-world)*guard[:,None]
-    mask=mask*guard
-    after = art.points(target, np.linalg.inv(transform))
-    after[protected]=before[protected]
-    triangles = np.concatenate([np.asarray(t).reshape(-1, 3) for t in packet['subMeshes']])
-    after, orientation = preserve_surface_orientation(before, after, triangles, transform)
-    require(orientation['surfaceScaleFactor'] == 1.0, 'The contour field requires a shared closure strength reduction.')
-    normals = np.asarray(packet['normals']).reshape(-1, 3)
-    tangents = np.asarray(packet['tangents']).reshape(-1, 4)
-    normal, tangent = surface_basis(before, after, normals, tangents, triangles, transform, mask, False)
-    normal[protected]=normals[protected]
-    if len(tangent):tangent[protected]=tangents[protected]
-    result = copy.deepcopy(packet)
-    for key, value in (('vertices', after), ('normals', normal), ('tangents', tangent)):
+    if marks is None:
+        _, _, marks = art.landmarks(native, skin, transform)
+        marks['eyeContactRegions'] = humanoid_face_contact_regions(native, skin)
+    require(all(marks[k] is not None for k in ('left', 'right', 'mouth', 'nose', 'head')),
+            'Native facial contours require their own anatomical landmarks.')
+    if refined is None:
+        refined = copy.deepcopy(native)
+        details: dict[str, Any] = dict(operation="native-neutral-recovery", artisticAcceptance="not-reviewed")
+    else:
+        for key in ('vertexCount','uv','weights','boneIndices','bindPoses','subMeshes','indexFormat'):
+            require(refined[key] == native[key], 'A face target changes native correspondence: ' + key)
+        details = dict(guide_report or {}, operation="source-guide-collar-composition", artisticAcceptance="not-reviewed")
+    count = native['vertexCount']
+    require(count <= authored['vertexCount'], 'The assembled face lost its native vertex prefix.')
+    points = art.points(native['vertices'], transform)
+    height = abs(((marks['left'] + marks['right']) * .5)[2] - marks['mouth'][2])
+    weight = art.smooth((points[:, 2] - marks['mouth'][2] + height * 1.35) / (height * .65))
+    collar = np.asarray(sorted(set(collar_vertices)), dtype=np.int64)
+    require(np.all((collar >= 0) & (collar < authored['vertexCount'])), 'A collar constraint is outside its assembled face.')
+    if len(collar):
+        protected = np.zeros(authored['vertexCount'], dtype=bool); protected[collar] = True
+        face_triangles = np.concatenate([np.asarray(t).reshape(-1, 3) for t in authored['subMeshes']])
+        fade = np.ones(authored['vertexCount']); fade[protected] = 0
+        for amount in (0., .25, .75):
+            neighbours = np.unique(face_triangles[np.any(protected[face_triangles], axis=1)])
+            ring = neighbours[~protected[neighbours]]
+            fade[ring] = amount; protected[ring] = True
+        weight *= fade[:count]
+    result = copy.deepcopy(authored)
+    triangles = np.concatenate([np.asarray(t).reshape(-1, 3) for t in authored['subMeshes']])
+
+    def compose(current_p, current_n, current_t, source_p, source_n, source_t, reference_p):
+        positions, normals, tangents = current_p.copy(), current_n.copy(), current_t.copy()
+        positions[:count] += (source_p - positions[:count]) * weight[:, None]
+        normals[:count] = normalise(normals[:count] * (1 - weight[:, None]) + source_n * weight[:, None])
+        tangent = tangents[:count, :3] * (1 - weight[:, None]) + source_t[:, :3] * weight[:, None]
+        tangents[:count, :3] = normalise(tangent - normals[:count] * np.sum(tangent * normals[:count], axis=1, keepdims=True))
+        reference = current_p.copy()
+        reference[:count] += (reference_p - reference[:count]) * weight[:, None]
+        positions, orientation = preserve_surface_orientation(reference, positions, triangles, transform)
+        require(orientation['surfaceScaleFactor'] == 1, 'Native contour replacement reverses an assembled surface.')
+        # Exact source contacts and exact assembled collars also retain their frames.
+        for output, current, source in ((positions, current_p, source_p), (normals, current_n, source_n), (tangents, current_t, source_t)):
+            output[:count][weight == 1] = source[weight == 1]
+            output[:count][weight == 0] = current[:count][weight == 0]
+        return positions, normals, tangents
+
+    old = [np.asarray(authored[k]).reshape(-1, d) for k, d in (('vertices', 3), ('normals', 3), ('tangents', 4))]
+    new = [np.asarray(refined[k]).reshape(-1, d) for k, d in (('vertices', 3), ('normals', 3), ('tangents', 4))]
+    original = [np.asarray(native[k]).reshape(-1, d) for k, d in (('vertices', 3), ('normals', 3), ('tangents', 4))]
+    base = compose(old[0],old[1],old[2],new[0],new[1],new[2],original[0])
+    for key, value in zip(('vertices', 'normals', 'tangents'), base):
         result[key] = value.astype(np.float32).ravel().tolist()
-    for source_shape, target_shape in zip(packet['shapes'], result['shapes']):
-        for source_frame, target_frame in zip(source_shape['frames'], target_shape['frames']):
-            posed = before + np.asarray(source_frame['vertices']).reshape(-1, 3)
-            posed_world=art.points(posed, transform)
-            changed, _ = humanoid_face_style_field(posed_world, marks, strength)
-            changed=posed_world+(changed-posed_world)*guard[:,None]
-            posed_target = art.points(changed, np.linalg.inv(transform))
-            target_frame['vertices'] = (posed_target - after).astype(np.float32).ravel().tolist()
-            source_normal = normals + np.asarray(source_frame['normals']).reshape(-1, 3)
-            source_tangent = tangents.copy()
-            if len(source_tangent):
-                source_tangent[:, :3] += np.asarray(source_frame['tangents']).reshape(-1, 3)
-            posed_normal, posed_tangent = surface_basis(posed, posed_target, source_normal, source_tangent, triangles, transform, mask, False)
-            target_frame['normals'] = (posed_normal - normal).astype(np.float32).ravel().tolist()
-            target_frame['tangents'] = (posed_tangent[:, :3] - tangent[:, :3]).astype(np.float32).ravel().tolist() if len(tangent) else source_frame['tangents']
-            for key in ('vertices','normals','tangents'):
-                values=np.asarray(target_frame[key]).reshape(-1,3)
-                values[protected]=np.asarray(source_frame[key]).reshape(-1,3)[protected]
-                target_frame[key]=values.ravel().tolist()
+    channels = {shape['name']: shape for shape in refined['shapes']}
+    native_channels = {shape['name']: shape for shape in refined.get('_sourceFrameReference', native['shapes'])}
+    inherited_channels = []; collar_frame_error = 0.
+    for current_shape, target_shape in zip(authored['shapes'], result['shapes']):
+        source_shape = channels.get(current_shape['name'])
+        if source_shape is None:
+            inherited_channels.append(current_shape['name'])
+        sources = {f['weight']: f for f in source_shape['frames']} if source_shape else {}
+        for current, target in zip(current_shape['frames'], target_shape['frames']):
+            source = sources.get(current['weight'])
+            if source is None:
+                require(source_shape is None, 'An authored frame has no native weight.')
+                source = {key: [0.] * (count * 3) for key in ('vertices', 'normals', 'tangents')}
+            def posed(frame, rest):
+                p, n, t = (v.copy() for v in rest)
+                p += np.asarray(frame['vertices']).reshape(-1, 3)
+                n += np.asarray(frame['normals']).reshape(-1, 3)
+                t[:, :3] += np.asarray(frame['tangents']).reshape(-1, 3)
+                return p, n, t
+            original_shape = native_channels.get(current_shape['name'])
+            original_frame = next((f for f in original_shape['frames'] if f['weight']==current['weight']), None) if original_shape else None
+            reference_p = original[0] + np.asarray(original_frame['vertices']).reshape(-1,3) if original_frame else original[0]
+            value = compose(*posed(current, old), *posed(source, new), reference_p)
+            for key, field, rest in zip(('vertices', 'normals', 'tangents'), value, base):
+                target[key] = (field[:, :3] - rest[:, :3]).astype(np.float32).ravel().tolist()
+                if len(collar):
+                    a = np.asarray(target[key]).reshape(-1, 3)[collar]
+                    b = np.asarray(current[key]).reshape(-1, 3)[collar]
+                    collar_frame_error = max(collar_frame_error, float(np.max(np.abs(a - b))))
     result['sourceFingerprint'] = fingerprint(result)[0]
     result['bounds'] = physical_mesh_bounds(result)
-    return (result, dict(vertices=len(before), maximumDisplacementMm=float(np.linalg.norm(after - before, axis=1).max() * 1000),
-        triangleInversions=0, sourceStrength=strength, orientation=orientation,eyeContactVerticesPreserved=int(protected.sum()),
-        eyeContactBaseAndFramesExact=True))
+    details.update(nativeContourBaseline=native['sourceFingerprint'],
+                   assembledCollarVertices=len(collar), collarFrameMaximumError=collar_frame_error,
+                   nativeFaceVertices=int(np.count_nonzero(weight == 1)),
+                   collarOnlyInheritedChannels=inherited_channels)
+    return result, details
+
+
+def refine_source_asset(asset: 'dict[str, Any]') -> 'list[dict[str, Any]]':
+    """Evaluate one declared anatomical guide and its LOD/attachment consumers."""
+    require_selected_guides([asset])
+    donors = {}; guide_surfaces = {}; native_donors = {}; result = []
+    for source_skin in asset['skins']:
+        source_role = role(source_skin)
+        if lod_index(source_skin) != 0 or source_role not in ('skin', 'lashes'):
+            continue
+        packet = native_packet(source_skin)
+        native_donors[packet['sourceFingerprint']] = (packet, source_skin)
+        surface, transform, ownership, _ = sculpt_surface(packet, source_skin, source_role)
+        if not np.any(ownership):
+            continue
+        source_points = art.points(packet['vertices'], transform)
+        donor = (source_points, surface - source_points, ownership)
+        profile = source_skin.get('_faceProfile')
+        if profile is not None and profile['operation'] == 'source-guide':
+            donor += (art.compile_guide(profile, transform),)
+        donors[packet['sourceFingerprint']] = donor
+        if source_role not in donors or np.count_nonzero(ownership) > np.count_nonzero(donors[source_role][2]):
+            donors[source_role] = donor
+    for skin in sorted(asset['skins'], key=lambda value: (lod_index(value), role(value) == 'attached')):
+        packet = native_packet(skin); identity = packet['sourceFingerprint']; which = role(skin)
+        if which == 'native':
+            result.append(dict(skin=skin, native=packet, authored=packet, mask=np.zeros(packet['vertexCount']),
+                details=dict(sourceFingerprint=identity, authoredFingerprint=identity, role=which,
+                             displacementMaximumMm=0., sourceTopologyPreserved=True)))
+            continue
+        profile = skin.get('_faceProfile')
+        donor_key = profile['donorSourceFingerprint'] if profile is not None and profile['operation'] in ('source-lod-transfer', 'source-guide-follow') else skin.get('_faceLodDonor', which)
+        if profile is not None and profile['operation'] == 'source-lod-transfer':
+            require(donor_key in donors, 'Profile lower LOD donor is unavailable in the same source asset.')
+        donor = guide_surfaces.get(donor_key) if which == 'attached' else donors.get(donor_key)
+        working = packet; recoveries = []
+        if lod_index(skin) > 0 and donor_key in native_donors:
+            working, recoveries = recover_source_lod_frames(packet, skin, *native_donors[donor_key])
+        authored, mask, details = refine_packet(working, skin, lod_index(skin), donor)
+        if recoveries:
+            authored['_sourceFrameReference'] = working['shapes']
+            details['sourcePhysicalFrameRecovery'] = recoveries
+        if profile is not None and profile['operation'] in ('source-guide', 'source-lod-transfer'):
+            guide_surfaces[identity] = dict(native=packet, skin=skin, authored=authored)
+        result.append(dict(skin=skin, native=packet, authored=authored, mask=mask, details=details))
+    return result
 
 
 def main(input_path=None):
@@ -2896,35 +3234,14 @@ def main(input_path=None):
         target = root / 'Assets' / asset_key(asset); target.mkdir(parents=True, exist_ok=True)
         recipe: dict[str, Any] = dict(schemaVersion=1, bundleName=resource_naming.source_label(asset['internalId']).lower() + '.bundle', meshes=[], textures=[])
         declarations = []; material_maps = []; reports = []
-        donors = {}
-        for source_skin in asset['skins']:
-            source_role = role(source_skin)
-            if lod_index(source_skin) != 0 or source_role not in ('skin', 'lashes'):
-                continue
-            source_packet = native_packet(source_skin)
-            surface, transform, ownership, _ = sculpt_surface(source_packet, source_skin, source_role)
-            if np.any(ownership):
-                source_points = art.points(source_packet['vertices'], transform)
-                donor = (source_points, surface - source_points, ownership)
-                source_profile = source_skin.get('_faceProfile')
-                if source_profile is not None and source_profile['operation'] == 'source-guide':
-                    donor += (art.compile_guide(source_profile, transform),)
-                donors[source_packet['sourceFingerprint']] = donor
-                if source_role not in donors or np.count_nonzero(ownership) > np.count_nonzero(donors[source_role][2]):
-                    donors[source_role] = donor
-        skin_material_maps = {};guide_surfaces={}
-        for skin in sorted(asset['skins'], key=lambda value:(lod_index(value),role(value)=='attached')):
-            packet = native_packet(skin); source_fingerprint = packet['sourceFingerprint']; which = role(skin)
+        skin_material_maps = {}
+        for row in refine_source_asset(asset):
+            skin = row['skin']; packet = row['native']; source_fingerprint = packet['sourceFingerprint']; which = role(skin)
             lod = lod_index(skin)
             if which == 'native':
                 declarations.append(dict(sourceFingerprint=source_fingerprint, mode='native')); continue
             profile = skin.get('_faceProfile')
-            donor_key = profile['donorSourceFingerprint'] if profile is not None and profile['operation'] in ('source-lod-transfer','source-guide-follow') else skin.get('_faceLodDonor', which)
-            if profile is not None and profile['operation'] == 'source-lod-transfer':
-                require(donor_key in donors, 'Profile lower LOD source donor is unavailable in the same source asset.')
-            selected_donor=guide_surfaces.get(donor_key) if which=='attached' else donors.get(donor_key)
-            authored, mask, details = refine_packet(packet, skin, lod, selected_donor)
-            if profile is not None and profile['operation'] in ('source-guide','source-lod-transfer'):guide_surfaces[source_fingerprint]=dict(native=packet,skin=skin,authored=authored)
+            authored, mask, details = row['authored'], row['mask'], row['details']
             if which == 'skin':
                 details['materialChannelWork'] = [dict(slot=i, **material_channels(skin['materials'][i])) for i in facial_material_slots(packet, skin) if skin['materials'][i]]
             if which == 'eye':

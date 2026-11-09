@@ -75,6 +75,46 @@ def check_distribution(smoothness, anisotropy):
             "maximumIsotropicRotationError": maximum_isotropic_error}
 
 
+def check_fiber_distribution(smoothness):
+    roughness = max((1 - smoothness) ** 2, .002)
+    exponent = max(2 / max(roughness * roughness, 1e-6) - 2, 0)
+    z = .5 * (exponent + 3)
+    inverse = 1 / z
+    normalization = math.sqrt(z) * (1 - inverse / 8 + inverse ** 2 / 128
+        + 5 * inverse ** 3 / 1024 - 21 * inverse ** 4 / 32768) / (2 * math.sqrt(math.pi))
+    exact = math.exp(math.lgamma(z + .5) - math.lgamma(z)) / (2 * math.sqrt(math.pi))
+    error = abs(normalization / exact - 1)
+    assert error < .0002, error
+    # Integrating projected solid angle analytically also covers grazing axes.
+    projected_area = normalization / exact
+    rng = random.Random(20261109)
+    maximum_reciprocity_error = 0.
+    for _ in range(4096):
+        light_z, view_z = rng.uniform(1e-5, 1), rng.uniform(1e-5, 1)
+        light_phi, view_phi = rng.uniform(0, 2 * math.pi), rng.uniform(0, 2 * math.pi)
+        light_r, view_r = math.sqrt(1-light_z**2), math.sqrt(1-view_z**2)
+        light = (light_r * math.cos(light_phi), light_r * math.sin(light_phi), light_z)
+        view = (view_r * math.cos(view_phi), view_r * math.sin(view_phi), view_z)
+        half_vector = tuple(a+b for a, b in zip(light, view))
+        length = math.sqrt(sum(a*a for a in half_vector))
+        half_vector = tuple(a/length for a in half_vector)
+        half_light = sum(a*b for a, b in zip(half_vector, light))
+        half_view = sum(a*b for a, b in zip(half_vector, view))
+        distribution = normalization * max(1-half_vector[0]**2, 0) ** (.5 * exponent)
+        def visibility(incident_z, outgoing_z, half_incident):
+            mask = min(1, 2*half_vector[2]*incident_z/max(half_incident, 1e-5),
+                2*half_vector[2]*outgoing_z/max(half_incident, 1e-5))
+            return mask/(4*max(incident_z*outgoing_z, 1e-5))
+        first = distribution * visibility(light_z, view_z, half_light)
+        reverse = distribution * visibility(view_z, light_z, half_view)
+        assert math.isfinite(first) and first >= 0
+        maximum_reciprocity_error = max(maximum_reciprocity_error, abs(first-reverse))
+    assert maximum_reciprocity_error < 1e-8
+    return dict(smoothness=smoothness, fiberProjectedArea=projected_area,
+        normalizationRelativeError=error, directionPairs=4096,
+        maximumReciprocityError=maximum_reciprocity_error)
+
+
 def compiled_passes(shader):
     result=[]
     for subshader in shader.m_ParsedForm.m_SubShaders:
@@ -148,7 +188,12 @@ def main():
               "candidateFloats": {name: floats[name] for name in authored_floats},
               "passes": report["materials"][0]["passes"],
               "culling": culling, "compiledPasses": actual_passes, "baselineCompiledPasses": baseline_passes,
-              "numericalContracts": [check_distribution(authored_floats['_FiberSmoothness'], authored_floats['_FiberAnisotropy']), check_distribution(authored_floats['_FiberSmoothness'], 0)],
+              "numericalContracts": [check_distribution(authored_floats['_FiberSmoothness'], authored_floats['_FiberAnisotropy']),
+                  check_distribution(authored_floats['_FiberSmoothness']*authored_floats.get('_CoreSmoothnessScale',1),
+                                     authored_floats['_FiberAnisotropy']*authored_floats.get('_CoreAnisotropyScale',0)),
+                  check_distribution(authored_floats['_FiberSmoothness'], 0)],
+              "fiberNumericalContracts": [check_fiber_distribution(value) for value in
+                  (0, authored_floats['_FiberSmoothness'], .95)],
               "nativeRenderedAcceptance": "pending"}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     assert not args.output.exists()

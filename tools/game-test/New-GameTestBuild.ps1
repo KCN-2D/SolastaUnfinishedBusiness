@@ -11,11 +11,17 @@ param(
 if (-not $EvidenceRoot) { $EvidenceRoot = $script:GameTestArtifactRoot }
 $directory = New-GtDirectory $EvidenceRoot 'Build'
 $result = [ordered]@{ schemaVersion=1; status='ERROR'; reason='Build has not completed.'; startedUtc=[datetime]::UtcNow.ToString('O'); stage='Stage/SolastaUnfinishedBusiness'; environment=$null; manifest=@() }
+$operationLock = $null
 try {
+    $operationLock = Enter-GtLock
     $result.environment = Get-GtEnvironment $GameExePath $TargetCommit
     # The formal wrapper overrides SolastaInstallDir with its disposable reference snapshot.
     $wrapper = Join-Path $script:GameTestBuildRoot 'BuildCustomLocalPackage.cmd'
     Assert-GtFile $wrapper
+    # The child wrapper owns the same lock while it changes the formal output.
+    $operationLock.ReleaseMutex()
+    $operationLock.Dispose()
+    $operationLock = $null
     $previousErrorPreference = $ErrorActionPreference
     try {
         # Windows PowerShell treats native stderr (including Git warnings) as errors.
@@ -25,6 +31,7 @@ try {
         $buildExitCode = $LASTEXITCODE
     }
     finally { $ErrorActionPreference = $previousErrorPreference }
+    $operationLock = Enter-GtLock
     if ($buildExitCode -ne 0) { throw "Package build failed with exit code $buildExitCode. See Build.log." }
     $after = Get-GtSourceIdentity $TargetCommit
     if (-not (Test-GtSourceContent -Expected $result.environment.source -Actual $after)) { throw 'Source changed during the build. Build again after edits finish.' }
@@ -47,7 +54,11 @@ try {
     $result.status = 'PASS'; $result.reason = 'Formal package build and staging hash verification succeeded.'
 }
 catch { $result.reason=$_.Exception.Message; $_ | Out-String | Set-Content -LiteralPath (Join-Path $directory 'Build-error.log') -Encoding UTF8 }
-finally { $result['completedUtc']=[datetime]::UtcNow.ToString('O'); Write-GtJson (Join-Path $directory 'Build.json') $result }
+finally {
+    if ($null -ne $operationLock) { $operationLock.ReleaseMutex(); $operationLock.Dispose() }
+    $result['completedUtc']=[datetime]::UtcNow.ToString('O')
+    Write-GtJson (Join-Path $directory 'Build.json') $result
+}
 if ($result.status -ne 'PASS') { throw $result.reason }
 if(-not $KeepStagedAssets){
     try { Write-GtJson (Join-Path $directory 'BuildAssetRetention.json') (Clear-GtSupersededBuildAssets -BuildDirectory $directory -ReferencePath $StorageReferencePath) }

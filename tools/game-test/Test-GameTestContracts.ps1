@@ -959,7 +959,14 @@ function Invoke-BuildStageContracts($CommonAst,[string]$Directory) {
     } $CommonAst $Directory
 }
 
-function Invoke-BuildDiagnosticContracts([object]$Ast,[string]$Directory) {
+function Invoke-BuildDiagnosticContracts([object]$Ast,[object]$CommonAst,[string]$Directory) {
+    $packagePath=Join-Path $script:GameTestBuildRoot 'internal/BuildCustomLocalPackage.ps1'
+    $packageTokens=$null; $packageErrors=$null
+    $packageAst=[Management.Automation.Language.Parser]::ParseFile($packagePath,[ref]$packageTokens,[ref]$packageErrors)
+    if ($packageErrors.Count) { throw 'The formal package wrapper has syntax errors.' }
+    $packageGate=@($packageAst.EndBlock.Statements|Where-Object {$_ -is [Management.Automation.Language.AssignmentStatementAst] -and $_.Left.Extent.Text -ceq '$buildLock'})
+    $packageBody=@($packageAst.EndBlock.Statements|Where-Object {$_ -is [Management.Automation.Language.TryStatementAst] -and $_.Extent.StartOffset -gt $packageGate[0].Extent.StartOffset})
+    if ($packageGate.Count -ne 1 -or $packageBody.Count -ne 1) { throw 'The formal package output has no unique operation lock boundary.' }
     $blocks=@($Ast.FindAll({
         param($node)
         $node -is [Management.Automation.Language.TryStatementAst] -and
@@ -993,8 +1000,112 @@ $previousErrorPreference=$ErrorActionPreference
             }
             $checks+=@{shell=$shell;exitCode=$exitCode;status='PASS'}
         }
+        $fixture=Join-Path $Directory ([guid]::NewGuid().ToString('N'))
+        [void][IO.Directory]::CreateDirectory($fixture)
+        $mutexName='Local\SolastaUBBuildContract_'+[guid]::NewGuid().ToString('N')
+        $lockSource=(Read-ContractFunction $CommonAst 'Enter-GtLock').Replace('Local\SolastaUBGameTest',$mutexName)
+        $packageLockSource=(Read-ContractFunction $packageAst 'Enter-PackageBuildLock').Replace('Local\SolastaUBGameTest',$mutexName)
+        # Retain the wrapper's actual gate and cleanup; inject failure at its first mutation.
+        $packageTry=$packageBody[0].Extent.Text
+        $bodyStart=$packageBody[0].Body.Extent.StartOffset-$packageBody[0].Extent.StartOffset
+        $bodyEnd=$packageBody[0].Body.Extent.EndOffset-$packageBody[0].Extent.StartOffset
+        $packageTry=$packageTry.Substring(0,$bodyStart)+@'
+{
+    [IO.File]::WriteAllText($Marker,'entered')
+    if ($Outcome -ceq 'failure') { throw 'Injected package failure.' }
+}
+'@+$packageTry.Substring($bodyEnd)
+        $packageProbe=Join-Path $fixture 'Package.ps1'
+        $packageHeader=@'
+param($Marker,$Outcome)
+$ErrorActionPreference='Stop'
+$originalSolastaInstallDir=$env:SolastaInstallDir
+$originalUnityModManagerDir=$env:UnityModManagerDir
+$temporaryWorktreeCreated=$false
+$tempRoot=Join-Path $PSScriptRoot 'NeverCreated'
+'@
+        [IO.File]::WriteAllText($packageProbe,($packageHeader+[Environment]::NewLine+$packageLockSource+[Environment]::NewLine+$packageGate[0].Extent.Text+[Environment]::NewLine+$packageTry),[Text.UTF8Encoding]::new($true))
+        $commonSource=@'
+$ErrorActionPreference='Stop'
+function New-GtDirectory($EvidenceRoot) { [void][IO.Directory]::CreateDirectory($EvidenceRoot); return $EvidenceRoot }
+function Get-GtEnvironment { [IO.File]::WriteAllText((Join-Path $PSScriptRoot 'EnvironmentTouched'),'called'); throw 'Fixture reached the environment.' }
+function Write-GtJson($Path,$Value) { $Value | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $Path -Encoding UTF8 }
+'@ + [Environment]::NewLine + $lockSource
+        [IO.File]::WriteAllText((Join-Path $fixture 'GameTest.Common.ps1'),$commonSource,[Text.UTF8Encoding]::new($true))
+        $buildProbe=Join-Path $fixture 'New-GameTestBuild.ps1'
+        [IO.File]::WriteAllText($buildProbe,$Ast.Extent.Text,[Text.UTF8Encoding]::new($true))
+        $ready=Join-Path $fixture 'Ready'; $release=Join-Path $fixture 'Release'
+        $holderSource=@'
+$mutex=[Threading.Mutex]::new($false,'__MUTEX__')
+if (-not $mutex.WaitOne(0)) { throw 'The isolated build contract lock is already owned.' }
+try {
+    [IO.File]::WriteAllText('__READY__','ready')
+    $deadline=[datetime]::UtcNow.AddSeconds(45)
+    while (-not [IO.File]::Exists('__RELEASE__') -and [datetime]::UtcNow -lt $deadline) { [Threading.Thread]::Sleep(20) }
+} finally { $mutex.ReleaseMutex(); $mutex.Dispose() }
+'@
+        $holderSource=$holderSource.Replace('__MUTEX__',$mutexName).Replace('__READY__',$ready.Replace("'","''")).Replace('__RELEASE__',$release.Replace("'","''"))
+        $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($holderSource))
+        $holder=Start-Process -FilePath $shell -ArgumentList @('-NoProfile','-NonInteractive','-EncodedCommand',$encoded) -WindowStyle Hidden -PassThru
+        try {
+            $deadline=[datetime]::UtcNow.AddSeconds(10)
+            while (-not [IO.File]::Exists($ready) -and -not $holder.HasExited -and [datetime]::UtcNow -lt $deadline) { [Threading.Thread]::Sleep(20) }
+            if (-not [IO.File]::Exists($ready)) { throw 'The isolated build lock holder did not start.' }
+            $busy=Join-Path $fixture 'Busy'
+            $preference=$ErrorActionPreference
+            try {
+                $ErrorActionPreference='Continue'
+                & $shell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $buildProbe -GameExePath 'Unused.exe' -EvidenceRoot $busy *> (Join-Path $fixture 'Busy.log')
+                $busyExit=$LASTEXITCODE
+            } finally { $ErrorActionPreference=$preference }
+            $observed=Read-GtObject (Join-Path $busy 'Build.json')
+            if ($busyExit -eq 0 -or $observed.status -ne 'ERROR' -or $observed.reason -notmatch '^Another build or game-test operation owns the deployment lock\.$' -or [IO.File]::Exists((Join-Path $fixture 'EnvironmentTouched'))) {
+                throw 'A formal build entered its environment or output while a game-test operation owned the lock.'
+            }
+            $marker=Join-Path $fixture 'PackageBusy'
+            try {
+                $ErrorActionPreference='Continue'
+                & $shell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $packageProbe -Marker $marker -Outcome success *> (Join-Path $fixture 'PackageBusy.log')
+                $packageExit=$LASTEXITCODE
+            } finally { $ErrorActionPreference=$preference }
+            if ($packageExit -eq 0 -or [IO.File]::Exists($marker)) { throw 'The direct formal wrapper changed output while the game-test lock was held.' }
+        } finally {
+            [IO.File]::WriteAllText($release,'release')
+            if (-not $holder.WaitForExit(10000)) { $holder.Kill(); throw 'The isolated build lock holder did not exit.' }
+            $holder.Dispose()
+        }
+        $retry=Join-Path $fixture 'Retry'
+        $preference=$ErrorActionPreference
+        try {
+            $ErrorActionPreference='Continue'
+            & $shell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $buildProbe -GameExePath 'Unused.exe' -EvidenceRoot $retry *> (Join-Path $fixture 'Retry.log')
+            $retryExit=$LASTEXITCODE
+        } finally { $ErrorActionPreference=$preference }
+        $observed=Read-GtObject (Join-Path $retry 'Build.json')
+        if ($retryExit -eq 0 -or $observed.reason -cne 'Fixture reached the environment.' -or -not [IO.File]::Exists((Join-Path $fixture 'EnvironmentTouched'))) { throw 'A released build lock prevented the next build from reaching its environment.' }
+        foreach ($outcome in @('failure','success')) {
+            $marker=Join-Path $fixture ('Package-'+$outcome)
+            try {
+                $ErrorActionPreference='Continue'
+                & $shell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $packageProbe -Marker $marker -Outcome $outcome *> (Join-Path $fixture ('Package-'+$outcome+'.log'))
+                $packageExit=$LASTEXITCODE
+            } finally { $ErrorActionPreference=$preference }
+            if (-not [IO.File]::Exists($marker) -or (($packageExit -eq 0) -ne ($outcome -ceq 'success'))) { throw 'The direct package wrapper lost its mutation or failure boundary.' }
+            $mutex=[Threading.Mutex]::new($false,$mutexName); $acquired=$false
+            try {
+                try { $acquired=$mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { throw 'The direct package wrapper abandoned the operation lock.' }
+                if (-not $acquired) { throw 'The direct package wrapper retained the operation lock.' }
+            } finally { if ($acquired) { $mutex.ReleaseMutex() }; $mutex.Dispose() }
+            $checks+=@{shell=$shell;status='PASS';directWrapperOutcome=$outcome;directWrapperReleasedLock=$true}
+        }
+        $mutex=[Threading.Mutex]::new($false,$mutexName); $acquired=$false
+        try {
+            try { $acquired=$mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { throw 'A failing formal build abandoned the operation lock.' }
+            if (-not $acquired) { throw 'A failing formal build retained the operation lock.' }
+        } finally { if ($acquired) { $mutex.ReleaseMutex() }; $mutex.Dispose() }
+        $checks+=@{shell=$shell;status='PASS';exclusiveBuildRejectedBeforeEnvironment=$true;directWrapperRejectedBeforeMutation=$true;retryEnteredEnvironment=$true;failureReleasedLock=$true}
     }
-    return [ordered]@{status='PASS';scope='Actual build invocation AST with native stderr and successful or failing exit codes on the current shell and Windows PowerShell.';cases=$checks}
+    return [ordered]@{status='PASS';scope='Actual build invocation with native diagnostics, a separate process holding its isolated operation lock, rejection before environment access, and retry after failure on both PowerShell editions.';cases=$checks}
 }
 
 function Invoke-SourceIdentityContracts([object]$Ast,[string]$Directory) {
@@ -1291,6 +1402,75 @@ function Get-VerificationProcessState {
             $report=Get-ChildItem -LiteralPath $Root -Filter 'Storage-Cleanup-*.json' -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
             return Read-GtObject $report.FullName
         }
+
+        function New-GeneratedPayloadFixture([string]$Name) {
+            $area=Join-Path $script:GameTestArtifactRoot ('generated-'+$Name)
+            $payloadRoot=Join-Path $area 'Retired'
+            [void][IO.Directory]::CreateDirectory($payloadRoot)
+            $first=Join-Path $payloadRoot 'packet[1].bin'
+            $second=Join-Path $payloadRoot (('a'*64)+'.json')
+            $retained=Join-Path $payloadRoot 'retained.bin'
+            foreach($path in @($first,$second,$retained)){[IO.File]::WriteAllText($path,'generated data')}
+            $reference=Join-Path $area 'References.json'
+            Write-GtJson $reference @{schemaVersion=1;paths=@($retained)}
+            $plan=Join-Path $area 'PayloadPlan.json'
+            $document=[ordered]@{schemaVersion=1;artifactRoot=$area;reference=@{path=$reference;sha256=(Get-GtHash $reference).ToLowerInvariant()};roots=@('Retired');files=@(
+                foreach($path in @($first,$second)){$file=Get-Item -LiteralPath $path;[ordered]@{path=$path;bytes=$file.Length;lastWriteUtcTicks=$file.LastWriteTimeUtc.Ticks;sha256=(Get-GtHash $path).ToLowerInvariant()}}
+            )}
+            Write-GtJson $plan $document
+            return [pscustomobject]@{area=$area;first=$first;second=$second;retained=$retained;plan=$plan;reference=$reference;document=$document}
+        }
+        $payload=New-GeneratedPayloadFixture 'preview'
+        $options=@{GeneratedPayloadPlanPath=$payload.plan;ReferencePath=@($payload.reference)}
+        $preview=Invoke-StorageCleanup $payload.area -Options $options
+        Add-StorageCheck 'generated payload preview validates literal paths and preserves all data' ((Test-Path -LiteralPath $payload.first) -and (Test-Path -LiteralPath $payload.second) -and @($preview.actions|Where-Object kind -eq 'generated-payload').Count -eq 2 -and -not $preview.applied)
+        $retainedHash=Get-GtHash $payload.retained
+        $applied=Invoke-StorageCleanup $payload.area -Options $options -Apply
+        Add-StorageCheck 'generated payload apply retires only selected data and keeps referenced bytes' (-not(Test-Path -LiteralPath $payload.first) -and -not(Test-Path -LiteralPath $payload.second) -and (Get-GtHash $payload.retained) -ceq $retainedHash -and @($applied.actions|Where-Object applied -eq $true).Count -eq 2)
+        foreach($failure in @('root-escape','file-escape','reference-selected','changed-sha','changed-length','changed-time','changed-content','duplicate','source-file','missing-reference','reference-epoch','unrestored','running-game')) {
+            $payload=New-GeneratedPayloadFixture $failure
+            $options=@{GeneratedPayloadPlanPath=$payload.plan;ReferencePath=@($payload.reference)}
+            switch($failure) {
+                'root-escape'{$payload.document.roots=@('../outside')}
+                'file-escape'{$payload.document.files[1].path=$payload.reference}
+                'reference-selected'{$payload.document.files[1].path=$payload.retained}
+                'changed-sha'{$payload.document.files[1].sha256='0'*64}
+                'changed-length'{$payload.document.files[1].bytes++}
+                'changed-time'{$payload.document.files[1].lastWriteUtcTicks--}
+                'changed-content'{[IO.File]::WriteAllText($payload.second,'changed bytes!');[IO.File]::SetLastWriteTimeUtc($payload.second,[datetime]::new($payload.document.files[1].lastWriteUtcTicks,[DateTimeKind]::Utc))}
+                'duplicate'{$payload.document.files+=@($payload.document.files[0])}
+                'source-file'{$source=Join-Path (Split-Path -Parent $payload.first) 'source.py';[IO.File]::WriteAllText($source,'generated data');$payload.document.files[1].path=$source}
+                'missing-reference'{$options.ReferencePath=@()}
+                'reference-epoch'{$payload.document.reference.sha256='0'*64}
+                'unrestored'{Write-GtJson (Join-Path (Split-Path -Parent $payload.first) 'Transaction.json') @{schemaVersion=1;state='deployed'}}
+                'running-game'{Write-GtJson $processFixture @{querySucceeded=$true;matches=@(@{processId=12345})}}
+            }
+            Write-GtJson $payload.plan $payload.document
+            try {$rejected=Test-StorageRejection {Invoke-StorageCleanup $payload.area -Options $options -Apply}}
+            finally {if(Test-Path -LiteralPath $processFixture){Remove-Item -LiteralPath $processFixture -Force}}
+            Add-StorageCheck ('generated payload batch rejects before deleting valid earlier members: '+$failure) ($rejected -and (Test-Path -LiteralPath $payload.first) -and (Test-Path -LiteralPath $payload.second) -and (Test-Path -LiteralPath $payload.retained))
+            # Failed validation must release the input leases as well as the mutex.
+            [IO.File]::WriteAllText($payload.plan,'{}')
+            [IO.File]::WriteAllText($payload.reference,'{}')
+        }
+        $payload=New-GeneratedPayloadFixture 'hardlink'
+        $alias=Join-Path (Split-Path -Parent $payload.first) 'shared.bin'
+        [void](New-Item -ItemType HardLink -Path $alias -Target $payload.first)
+        Write-GtJson $payload.reference @{schemaVersion=1;paths=@($payload.retained,$alias)}
+        $payload.document.reference.sha256=(Get-GtHash $payload.reference).ToLowerInvariant()
+        Write-GtJson $payload.plan $payload.document
+        $aliasHash=Get-GtHash $alias
+        $applied=Invoke-StorageCleanup $payload.area -Options @{GeneratedPayloadPlanPath=$payload.plan;ReferencePath=@($payload.reference)} -Apply
+        Add-StorageCheck 'generated hardlink retirement preserves a referenced alias and its exact bytes' (-not(Test-Path -LiteralPath $payload.first) -and (Get-GtHash $alias) -ceq $aliasHash -and @($applied.actions|Where-Object applied -eq $true).Count -eq 2)
+
+        $defaultArea=Join-Path $script:GameTestArtifactRoot 'workspace-reference';[void][IO.Directory]::CreateDirectory($defaultArea)
+        $defaultRun=New-StorageRun 'workspace-reference/current-input' 'restored' 'workspace-reference'
+        $workspaceReference=Join-Path $script:GameTestArtifactRoot 'StorageReferences.json'
+        Write-GtJson $workspaceReference @{schemaVersion=1;paths=@($defaultRun)}
+        try {
+            $protectedByDefault=Invoke-StorageCleanup $defaultArea -Prune -Options @{KeepLatestPerCase=0} -Apply
+            Add-StorageCheck 'workspace input references protect active work without per-command arguments' ((Test-Path -LiteralPath $defaultRun) -and @($protectedByDefault.referenceInputs|Where-Object path -eq $workspaceReference).Count -eq 1)
+        } finally {Remove-Item -LiteralPath $workspaceReference -Force}
 
         $zeroArea=Join-Path $script:GameTestArtifactRoot 'zero-latest';[void][IO.Directory]::CreateDirectory($zeroArea)
         $obsolete=New-StorageRun 'zero-latest/obsolete' 'restored' 'zero-latest'
@@ -1647,6 +1827,50 @@ else {
         $tokens=$null;$parseErrors=$null
         $invokeAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $tool 'Invoke-GameTest.ps1'),[ref]$tokens,[ref]$parseErrors)
         if($parseErrors.Count){throw 'The current validation producer does not parse.'}
+        $retentionBlocks=@($invokeAst.FindAll({param($node)
+            $node -is [Management.Automation.Language.IfStatementAst] -and
+            $node.Clauses.Count -eq 1 -and $node.Clauses[0].Item1.Extent.Text.Contains('$result.restored') -and
+            $node.Extent.Text.Contains('$MaxRetainedEvidenceBytes')
+        },$true))
+        if($retentionBlocks.Count -ne 1){throw 'The runner has no unique restored-run retention boundary.'}
+        $retentionChecks=& {
+            param($RetentionSource,[string]$FixtureDirectory)
+            $source=$RetentionSource.Replace("& (Join-Path `$PSScriptRoot 'Clear-GameTestArtifacts.ps1')",'Invoke-RetentionFixtureClear')
+            if($source -ceq $RetentionSource){throw 'The retention fixture did not isolate artifact deletion.'}
+            function Invoke-RetentionFixtureClear {
+                param([string]$ArtifactRoot,[switch]$PruneSuperseded,[long]$MaxRetainedBytes,[string[]]$ReferencePath,[string[]]$PreserveDirectory,[switch]$Apply)
+                $calls.retention++;$calls.argumentsExact=($ArtifactRoot -ceq $EvidenceRoot -and $PruneSuperseded -and $Apply -and
+                    $MaxRetainedBytes -eq $MaxRetainedEvidenceBytes -and $ReferencePath.Count -eq 1 -and
+                    $ReferencePath[0] -ceq $StorageReferencePath[0] -and $PreserveDirectory.Count -eq 1 -and $PreserveDirectory[0] -ceq $run)
+            }
+            function Clear-GtNativeUserData {
+                param([string]$RunDirectory,[string[]]$ReferencePath,[switch]$Keep)
+                $calls.release++;$calls.releaseArgumentsExact=($RunDirectory -ceq $run -and $ReferencePath[0] -ceq $StorageReferencePath[0] -and $Keep -eq $KeepNativeUserData)
+                return @{status='RELEASED'}
+            }
+            foreach($fixture in @(
+                @{name='passed run';status='PASS';retention=1;release=1},
+                @{name='failed run';status='FAIL';retention=1;release=0},
+                @{name='runtime error';status='ERROR';retention=1;release=0},
+                @{name='blocked run';status='BLOCKED';retention=1;release=0},
+                @{name='unrestored run';status='PASS';restored=$false;retention=0;release=0},
+                @{name='validation only';status='PASS';validateOnly=$true;retention=0;release=0},
+                @{name='retention disabled';status='PASS';budget=0;retention=0;release=1},
+                @{name='no runtime result';status='ERROR';runtime=$false;retention=0;release=0},
+                @{name='native data retained';status='PASS';keepNative=$true;retention=1;release=1}
+            )) {
+                $run=Join-Path $FixtureDirectory $fixture.name;[void][IO.Directory]::CreateDirectory($run)
+                $calls=@{retention=0;release=0;argumentsExact=$true;releaseArgumentsExact=$true}
+                Import-ContractBinding @{result=@{status=$fixture.status;runtimeResult=$(if($fixture.ContainsKey('runtime') -and -not $fixture.runtime){$null}else{'Runtime/Result.json'});
+                    restored=$(if($fixture.ContainsKey('restored')){$fixture.restored}else{$true})};
+                    EvidenceRoot=$FixtureDirectory;StorageReferencePath=@('CurrentInputs.json');
+                    ValidateOnly=[bool]$fixture['validateOnly'];KeepNativeUserData=[bool]$fixture['keepNative'];
+                    MaxRetainedEvidenceBytes=$(if($fixture.ContainsKey('budget')){$fixture.budget}else{21474836480})}
+                . ([scriptblock]::Create($source))
+                @{name=$fixture.name;passed=($calls.retention -eq $fixture.retention -and $calls.release -eq $fixture.release -and $calls.argumentsExact -and $calls.releaseArgumentsExact)}
+            }
+        } $retentionBlocks[0].Extent.Text (Join-Path $Directory 'RunnerRetention')
+        foreach($check in $retentionChecks){Add-StorageCheck ('automatic retention observes restoration, native release and current input ownership: '+$check.name) $check.passed}
         $executionAssignment=@($invokeAst.FindAll({param($node)$node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq "`$result['execution']"},$true))
         $validatedAssignment=@($invokeAst.FindAll({param($node)$node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq '$result.execution.validationComplete'},$true))
         $effectsAssignment=@($invokeAst.FindAll({param($node)$node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq '$result.execution.sideEffectsStarted'},$true))
@@ -3117,7 +3341,7 @@ try {
     $result.nativeEvidencePaths=Invoke-NativeEvidencePathContracts $archived['tools/runtime-verification/EvidencePaths.ps1'] $common $runtime (Join-Path $run 'NativeEvidencePaths')
     $result.packageManifest=Invoke-PackageManifestContracts (Join-Path $run 'PackageManifest')
     $buildScript=Read-ContractSource $archived['tools/game-test/New-GameTestBuild.ps1']
-    $result.buildDiagnostics=Invoke-BuildDiagnosticContracts $buildScript (Join-Path $run 'BuildDiagnostics')
+    $result.buildDiagnostics=Invoke-BuildDiagnosticContracts $buildScript $common (Join-Path $run 'BuildDiagnostics')
     $result.buildStage=Invoke-BuildStageContracts $common (Join-Path $run 'BuildStage')
     $result.buildAssetRetention=Invoke-BuildAssetRetentionContracts (Join-Path $run 'BuildAssetRetention')
     $result.sourceIdentity=Invoke-SourceIdentityContracts $common (Join-Path $run 'SourceIdentity')

@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
 using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
@@ -10,6 +12,23 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GameSerializationManagerPatcher
 {
+    [HarmonyPatch]
+    [UsedImplicitly]
+    public static class LoadGameAsync_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<MethodBase> TargetMethods()
+        {
+            yield return AccessTools.Method(typeof(GameSerializationManager), nameof(GameSerializationManager.LoadGameAsync));
+            yield return AccessTools.Method(typeof(GameSerializationManager), nameof(GameSerializationManager.LoadGameAsServerAsync));
+            yield return AccessTools.Method(typeof(GameSerializationManager), nameof(GameSerializationManager.LoadGameAsClientAsync));
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(ref IEnumerator __result) =>
+            __result = RacesContext.WaitForCharacterModels(__result);
+    }
+
     [HarmonyPatch(typeof(GameSerializationManager), nameof(GameSerializationManager.SaveGame))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

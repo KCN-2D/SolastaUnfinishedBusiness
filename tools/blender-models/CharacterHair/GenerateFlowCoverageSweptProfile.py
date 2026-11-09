@@ -21,9 +21,33 @@ from PIL import Image
 HERE=Path(__file__).resolve().parent
 ROOT=next(p for p in HERE.parents if(p/'SolastaUnfinishedBusiness.sln').is_file())
 PUBLIC=ROOT/'SolastaUnfinishedBusiness/BlenderModels/CharacterModels'
-read=lambda p:json.loads(Path(p).read_text(encoding='utf-8-sig'))
+def read(path):
+    path=Path(path)
+    if path.suffix=='.gz':
+        with gzip.open(path,'rt',encoding='utf-8-sig')as stream:return json.load(stream)
+    return json.loads(path.read_text(encoding='utf-8-sig'))
 sha=lambda p:hashlib.sha256(Path(p).read_bytes()).hexdigest()
 unit=lambda value:np.asarray(value)/np.maximum(np.linalg.norm(value,axis=-1,keepdims=True),1e-20)
+
+
+def save_groom_packet(output, entry, packet):
+    """Keep LOD-specific results distinct when native meshes share a fingerprint."""
+    asset=entry['asset'];lod=entry['lod']
+    if not isinstance(asset,str) or re.fullmatch(r'[A-Za-z0-9_]+',asset) is None or type(lod)is not int or lod not in (0,1,2):
+        raise ValueError('A groom packet requires its declared asset and LOD owner.')
+    path=Path(output)/(asset+'_LOD'+str(lod)+'.json')
+    path.write_text(json.dumps(packet,separators=(',',':')),encoding='utf-8')
+    return path
+
+
+def native_flow_surface(packet, native, binding, groom):
+    """Identify native geometry independently of the chosen fine primitive."""
+    if packet['vertexCount']!=native['vertexCount'] or not np.all(np.asarray(groom)[:,2]==0):return False
+    if len(binding['vertices'])!=native['vertexCount'] or not all(row['native']for row in binding['vertices']):return False
+    for channel in ('vertices','normals','tangents','colors','weights','boneIndices','bindPoses','subMeshes','shapes'):
+        if packet[channel]!=native[channel]:raise ValueError('A native flow surface changed a protected source channel: '+channel)
+    return True
+
 # Source-only definitions moved verbatim from their recorded owners.
 def encode_legacy_binding(binding,path):
     for vertex in binding['vertices']:
@@ -78,9 +102,9 @@ def texture_sampler(row):
     def sample(uv):
         uv=np.asarray(uv)*row['scale']+row['offset'];height,width=pixels.shape[:2]
         xy=uv*[width,height]-.5;low=np.floor(xy).astype(int);f=xy-low
-        value=np.zeros(4)
-        for dx,dy,weight in ((0,0,(1-f[0])*(1-f[1])),(1,0,f[0]*(1-f[1])),(0,1,(1-f[0])*f[1]),(1,1,f[0]*f[1])):
-            value+=pixels[(low[1]+dy)%height,(low[0]+dx)%width]*weight
+        value=np.zeros((*uv.shape[:-1],4))
+        for dx,dy,weight in ((0,0,(1-f[...,0])*(1-f[...,1])),(1,0,f[...,0]*(1-f[...,1])),(0,1,(1-f[...,0])*f[...,1]),(1,1,f[...,0]*f[...,1])):
+            value+=pixels[(low[...,1]+dy)%height,(low[...,0]+dx)%width]*weight[...,None]
         return value
     return sample
 
@@ -95,6 +119,136 @@ def closest_triangle(point,triangles):
     for weights in candidates:
         dist=np.sum((np.einsum('ij,ijk->ik',weights,triangles)-p)**2,axis=1);use=(~inside)&(dist<best);bary[use]=weights[use];best[use]=dist[use]
     index=int(np.argmin(best));return index,bary[index],float(math.sqrt(best[index]))
+
+def native_core_visibility(uv,triangles,slots,samplers):
+    """Use each source material's actual alpha and UV transform for crown rays."""
+    uv=np.asarray(uv,float);triangles=np.asarray(triangles,int);slots=np.asarray(slots,int)
+    if len(slots)!=len(triangles)or np.any(slots<0)or np.any(slots>=len(samplers)):
+        raise ValueError('Crown opacity requires the source material slot of every triangle.')
+    lookup=[texture_sampler(row)for row in samplers]
+    def visible(ids,b,c):
+        vertices=uv[triangles[ids]]
+        query=vertices[None,:,0]+b[:,:,None]*(vertices[None,:,1]-vertices[None,:,0])+c[:,:,None]*(vertices[None,:,2]-vertices[None,:,0])
+        result=np.ones(b.shape,bool)
+        for slot in np.unique(slots[ids]):
+            sampler=lookup[slot]
+            if sampler is None:continue
+            selected=slots[ids]==slot
+            result[:,selected]=sampler(query[:,selected])[:,:,3]>=samplers[slot].get('cutoff',.5)
+        return result
+    return visible
+
+
+def crown_vertical_envelope(triangles,queries,weights=None,visibility=None):
+    """Find the uppermost real triangle, excluding hidden interior sheets."""
+    triangles=np.asarray(triangles,float);queries=np.asarray(queries,float)
+    xy=triangles[:,:,[0,2]];a=xy[:,0];u=xy[:,1]-a;v=xy[:,2]-a;det=u[:,0]*v[:,1]-u[:,1]*v[:,0]
+    valid=abs(det)>1e-14;source_ids=np.flatnonzero(valid);triangles=triangles[valid];xy=xy[valid];a=a[valid];u=u[valid];v=v[valid];det=det[valid]
+    values=np.zeros((len(triangles),3))if weights is None else np.asarray(weights,float)[valid]
+    result=np.full(len(queries),-np.inf);influence=np.zeros(len(queries))
+    if not len(triangles)or not len(queries):return result,influence
+    size=.01;origin=xy.min(axis=(0,1));cells=np.floor((queries[:,[0,2]]-origin)/size).astype(int)
+    low=xy.min(axis=1);high=xy.max(axis=1)
+    for cell in np.unique(cells,axis=0):
+        query_ids=np.flatnonzero(np.all(cells==cell,axis=1));cell_low=origin+cell*size
+        owners=np.flatnonzero(np.all(high>=cell_low-1e-9,axis=1)&np.all(low<=cell_low+size+1e-9,axis=1))
+        if not len(owners):continue
+        for first in range(0,len(query_ids),256):
+            ids=query_ids[first:first+256];r=queries[ids,None][:,:,[0,2]]-a[None,owners]
+            b=(r[:,:,0]*v[None,owners,1]-r[:,:,1]*v[None,owners,0])/det[owners]
+            c=(u[None,owners,0]*r[:,:,1]-u[None,owners,1]*r[:,:,0])/det[owners]
+            inside=(b>=-1e-9)&(c>=-1e-9)&(b+c<=1+1e-9)
+            if visibility is not None:inside&=visibility(source_ids[owners],b,c)
+            heights=triangles[None,owners,0,1]+b*(triangles[None,owners,1,1]-triangles[None,owners,0,1])+c*(triangles[None,owners,2,1]-triangles[None,owners,0,1])
+            heights=np.where(inside,heights,-np.inf);selected=heights.argmax(axis=1);batch=np.arange(len(ids))
+            result[ids]=heights[batch,selected]
+            interpolated=values[None,owners,0]+b*(values[None,owners,1]-values[None,owners,0])+c*(values[None,owners,2]-values[None,owners,0])
+            influence[ids]=interpolated[batch,selected]
+    return result,influence
+
+
+def fit_crown_clearance(points,core_triangles,scalp_triangles,*,margin=.0015,maximum=.008,core_visibility=None):
+    """Fit the visible outer crown to the compatible source scalp in metres.
+
+    Hidden inner sheets do not drive the fit. All vertices share the same
+    height field, so strands and ornaments follow their core without adding
+    hair to uncovered or shaved areas.
+    """
+    p=np.asarray(points,float);faces=np.asarray(core_triangles,int);scalp=np.asarray(scalp_triangles,float)
+    if p.ndim!=2 or p.shape[1]!=3 or faces.ndim!=2 or faces.shape[1]!=3 or scalp.ndim!=3 or scalp.shape[1:]!=(3,3):
+        raise ValueError('Crown fitting requires complete source points and triangles.')
+    if not np.isfinite(p).all()or not np.isfinite(scalp).all()or not 0<margin<maximum:
+        raise ValueError('Crown fitting has invalid coordinates or clearance bounds.')
+    top=float(scalp[:,:,1].max());bottom=float(scalp[:,:,1].min());span=min(.05,max(.02,(top-bottom)*.25));start=top-span
+    delta=np.cross(scalp[:,1]-scalp[:,0],scalp[:,2]-scalp[:,0]);length=np.linalg.norm(delta,axis=1)
+    keep=(scalp[:,:,1].max(axis=1)>start+span*.5)&(np.abs(delta[:,1])>length*.25)&(length>1e-14)
+    scalp=scalp[keep]
+    if not len(scalp):raise ValueError('No upper scalp surface owns the crown fit.')
+    t=np.clip((p[:,1]-start)/span,0,1);weights=t*t*(3-2*t)
+    selected_ids=np.flatnonzero(p[faces,1].max(axis=1)>start+span*.5);selected=faces[selected_ids]
+    bary=np.array([[1,0,0],[0,1,0],[0,0,1],[.5,.5,0],[0,.5,.5],[.5,0,.5],[1/3,1/3,1/3]])
+    queries=np.einsum('bi,tij->tbj',bary,p[selected]).reshape(-1,3)
+    envelope,_=crown_vertical_envelope(scalp,queries)
+    visible=None if core_visibility is None else lambda ids,b,c:core_visibility(selected_ids[ids],b,c)
+    outer,influence=crown_vertical_envelope(p[selected],queries,weights[selected],visible)
+    # Buried roots are part of the haircut, including shaved/partial styles.
+    # Only near-contact outer surfaces at the crown drive this bounded lift.
+    candidates=np.isfinite(envelope)&np.isfinite(outer)&(envelope>start+span*.75)&(outer>start+span*.75)&(influence>1e-8)
+    finite=np.isfinite(envelope)&np.isfinite(outer)
+    gap=np.zeros_like(envelope);np.subtract(envelope,outer,out=gap,where=finite)
+    buried=finite&(gap>maximum*.5)
+    active=candidates&~buried
+    amplitude=max(0.,float(np.max((envelope[active]+margin-outer[active])/influence[active])))if active.any()else 0.
+    penetration=max(0.,float(np.max(envelope[active]-outer[active])))if active.any()else 0.
+    if amplitude>maximum:raise ValueError('The source crown needs more than the bounded clearance field: '+str(amplitude))
+    moved=p.copy();moved[:,1]+=amplitude*weights;derivative=amplitude*6*t*(1-t)/span
+    return moved,derivative,dict(policy='source-scalp-crown-v1',sourceTriangles=len(scalp),testedSamples=int(active.sum()),
+        maximumSourcePenetration=penetration,maximumLift=amplitude,minimumClearance=margin,fieldStart=start,fieldTop=top,
+        addedVertices=0,lowerHairlineUnchanged=True,outerSurfaceOnly=True,deepRootSamplesPreserved=int(buried.sum()))
+
+
+def measure_source_crown(packet,renderer_to_prefab,scalp,samplers):
+    """Measure the alpha-visible native core, excluding generated fine sheets."""
+    matrix=np.asarray(renderer_to_prefab,float).reshape(4,4).T
+    local=np.asarray(packet['vertices'],float).reshape(-1,3)
+    positions=local@matrix[:3,:3].T+matrix[:3,3]
+    triangles=np.asarray([v for sub in packet['subMeshes']for v in sub],int).reshape(-1,3)
+    slots=np.concatenate([np.full(len(sub)//3,i,int)for i,sub in enumerate(packet['subMeshes'])])
+    source_field=next((v['values']for v in packet['uv']if v['channel']==2),None)
+    role=np.zeros(len(local))if source_field is None else np.asarray(source_field).reshape(len(local),-1)[:,2]
+    core=np.all(role[triangles]==0,axis=1);triangles=triangles[core];slots=slots[core]
+    uv=np.asarray(next(v['values']for v in packet['uv']if v['channel']==0)).reshape(len(local),-1)[:,:2]
+    visibility=native_core_visibility(uv,triangles,slots,samplers)
+    result=fit_crown_clearance(positions,triangles,scalp,core_visibility=visibility)[2]
+    if source_field is None:result['nativeCoreRoleImplicit']=True
+    return result
+
+
+def apply_crown_field(packet,renderer_to_prefab,amplitude,start,top):
+    """Move only position frames; retain the source groom's shading and skin."""
+    if not 0<=amplitude<=.008 or not np.isfinite([amplitude,start,top]).all()or top<=start:
+        raise ValueError('A crown field requires bounded source-metre parameters.')
+    matrix=np.asarray(renderer_to_prefab,float).reshape(4,4).T
+    if not np.isfinite(matrix).all()or not np.allclose(matrix[3],[0,0,0,1],atol=1e-12):
+        raise ValueError('A crown field requires its actual affine renderer transform.')
+    inverse=np.linalg.inv(matrix[:3,:3]);result=copy.deepcopy(packet)
+    if amplitude==0:return result
+    def deform(local):
+        local=np.asarray(local,float).reshape(-1,3);common=local@matrix[:3,:3].T+matrix[:3,3]
+        t=np.clip((common[:,1]-start)/(top-start),0,1)
+        delta=np.zeros_like(common);delta[:,1]=amplitude*t*t*(3-2*t)
+        return(local+delta@inverse.T).astype(np.float32)
+    base=np.asarray(packet['vertices']).reshape(-1,3);positions=deform(base);frames=[positions]
+    for before,after in zip(packet['shapes'],result['shapes']):
+        for old,new in zip(before['frames'],after['frames']):
+            posed=deform(base+np.asarray(old['vertices']).reshape(-1,3))
+            new['vertices']=(posed-positions).ravel().tolist();frames.append(posed)
+    result['vertices']=positions.ravel().tolist();bounds=np.asarray(packet['bounds'])
+    low=np.minimum(bounds[:3]-bounds[3:]*.5,np.min([frame.min(axis=0)for frame in frames],axis=0))
+    high=np.maximum(bounds[:3]+bounds[3:]*.5,np.max([frame.max(axis=0)for frame in frames],axis=0))
+    result['bounds']=np.r_[(low+high)*.5,high-low].tolist();result['sourceFingerprint']=fingerprint(result)[0]
+    return result
+
 
 def initialize_core_coordinates(packet,renderer_to_prefab):
     """Initialize only owned UV2 XY from native UV0 and measured card flow.
@@ -329,6 +483,7 @@ def prepare_surface_binding(binding,native):
 
 def encode_binding(binding,path):
     """Keep old 001 bytes; forward explicit triangles to the shared 003 writer."""
+    binding['matrix']=np.asarray(binding['matrix'],dtype='<f4').tolist()
     if binding.get('schemaVersion',1)==1:
         assert all('surface'not in v for v in binding['vertices']),'Refuse to discard explicit provenance into UBSFB001.'
         _legacy_encode_binding(binding,path)
@@ -382,7 +537,8 @@ def prove_row(row, profile: 'GroomProfile'):
     assert fine.sum() + core_count == row['addedVertices'] <= profile['maximumAddedVerticesByLod'][row['lod']]
     assert packet['vertexCount'] < 65536
     assert np.all((uv[fine, :2] >= 0) & (uv[fine, :2] <= 1)) and np.all((abs(uv[fine, 3]) >= 1) & (abs(uv[fine, 3]) < 2))
-    assert np.all(uv[fine, 2] <= 48) and np.all(uv[fine, 2] == np.floor(uv[fine, 2]))
+    maximum_role=64 if profile.get('layeredAtlasCards',False) else 48
+    assert np.all(uv[fine, 2] <= maximum_role) and np.all(uv[fine, 2] == np.floor(uv[fine, 2]))
     triangles = np.concatenate([np.asarray(s, dtype=int).reshape(-1, 3) for s in packet['subMeshes']])
     assert np.all(uv[triangles, 2] == uv[triangles[:, :1], 2]) and np.all(uv[triangles, 3] == uv[triangles[:, :1], 3])
     core_proof = validate_curved_core(row, packet, binding, native) if curved else None
@@ -453,6 +609,7 @@ class GroomProfile(_GroomProfileRequired, total=False):
     exteriorCoverageRefinement: bool
     maximumAddedPhysicalAndVertexBytesByLod: list[int]
     coreSurfaceFineAllocationFraction: float
+    layeredAtlasCards: bool
 
 
 PROFILE=GroomProfile(widthMetres=[.0014,.0034],liftMetres=[.0005,.0011],
@@ -940,6 +1097,189 @@ def transport_curved_core(points, normals, tangents, records, source_p, source_n
     return result_p, result_n, result_t
 
 
+def source_fiber_frames(records, source_p, source_n, source_t, source_b):
+    """Use the surface binding's interpolated frame for every stored pose."""
+    anchors=np.asarray([record['anchor'] for record in records],dtype=int)
+    offset=np.asarray([record['offset'] for record in records]).reshape(-1,3)
+    normal=np.asarray([record['normal'] for record in records]).reshape(-1,3)
+    tangent=np.asarray([record['tangent'] for record in records]).reshape(-1,3)
+    basis=(source_t[0,anchors],source_b[0,anchors],source_n[0,anchors])
+    def transfer(values):
+        return sum(axis*values[:,i,None] for i,axis in enumerate(basis))
+    points=source_p[0,anchors]+transfer(offset)
+    normals=unit(transfer(normal));tangents=unit(transfer(tangent))
+    return transport_curved_core(points,normals,tangents,
+        [record['surface'] for record in records],source_p,source_n,source_t,source_b)
+
+
+def source_ribbon_frames(records, triangles, source_p, source_n, source_t, source_b):
+    """Build ribbon width from the deformed source curve in every stored pose."""
+    if len(records)<4 or len(records)%2:
+        raise ValueError('A source ribbon requires paired width samples.')
+    rest=source_fiber_frames(records,source_p,source_n,source_t,source_b)
+    surfaces=[record['surface']for record in records[::2]]
+    corners=np.asarray([surface['triangle']for surface in surfaces],int)
+    bary=np.asarray([surface['barycentric']for surface in surfaces],dtype='<f4').astype(float)
+    center=np.sum(source_p[:,corners]*bary[None,:,:,None],axis=2)
+    normal=unit(np.sum(source_n[:,corners]*bary[None,:,:,None],axis=2))
+    pairs=rest[0][0].reshape(-1,2,3)
+    original_center=pairs.mean(axis=1)
+    lift=np.sum((original_center-center[0])*normal[0],axis=1)
+    center=center+normal*lift[None,:,None]
+    previous=[];following=[]
+    for index in range(len(surfaces)):
+        first=index-1;last=index+1
+        while first>=0 and np.linalg.norm(original_center[first]-original_center[index])<1e-8:first-=1
+        while last<len(surfaces)and np.linalg.norm(original_center[last]-original_center[index])<1e-8:last+=1
+        previous.append(max(first,0));following.append(min(last,len(surfaces)-1))
+    along=center[:,following]-center[:,previous]
+    along-=normal*np.sum(along*normal,axis=2)[:,:,None]
+    if np.any(np.linalg.norm(along,axis=2)<1e-12):return None
+    across=unit(np.cross(unit(along),normal))
+    original_width=pairs[:,1]-pairs[:,0]
+    width=np.linalg.norm(original_width,axis=1)*.5
+    hand=np.where(np.sum(across[0]*original_width,axis=1)<0,-1.,1.)
+    across*=hand[None,:,None]
+    rest_normals=rest[1][0].reshape(-1,2,3)
+    cosine=np.clip(np.sum(rest_normals.mean(axis=1)*normal[0],axis=1),0,1)
+    sine=np.sqrt(np.maximum(1-cosine*cosine,0))
+    sides=np.asarray([-1.,1.])
+    posed_n=unit(normal[:,:,None,:]*cosine[None,:,None,None]
+        +across[:,:,None,:]*(sine[:,None]*sides)[None,:,:,None]).reshape(len(source_p),-1,3)
+    posed_t=np.repeat(across,2,axis=1)
+    expected=posed_n[:,triangles].mean(axis=2)
+    for scale in (1.,.75,.5,.25):
+        posed_p=(center[:,:,None,:]+across[:,:,None,:]*(width[:,None]*sides*scale)[None,:,:,None]).reshape(len(source_p),-1,3)
+        points=posed_p[:,triangles]
+        signed=np.sum(np.cross(points[:,:,1]-points[:,:,0],points[:,:,2]-points[:,:,0])*expected,axis=2)
+        if np.any(signed<=1e-14):continue
+        anchors=np.asarray([record['anchor']for record in records],int)
+        basis=(source_t[0,anchors],source_b[0,anchors],source_n[0,anchors])
+        for key,values in (('offset',posed_p[0]-source_p[0,anchors]),('normal',posed_n[0]),('tangent',posed_t[0])):
+            local=np.stack([np.sum(values*axis,axis=1)for axis in basis],axis=1)
+            for record,value in zip(records,local):record[key]=value.tolist()
+        return posed_p,posed_n,posed_t,dict(widthScale=scale,minimumSignedArea=float(signed.min()),
+            physicalFrameOwner='deformed-source-centerline',sourceTrianglesAndBarycentricSamplesExact=True)
+    return None
+
+
+def source_ribbon_pieces(records, connections, source_p, source_n, source_t, source_b, *, soft_coverage):
+    """Split source-chart or deformation discontinuities into tapered sheets."""
+    def piece(values,depth):
+        rest=source_fiber_frames(values,source_p,source_n,source_t,source_b)[0][0].reshape(-1,2,3)
+        centers=rest.mean(axis=1)
+        distance=np.r_[0.,np.cumsum(np.linalg.norm(np.diff(centers,axis=0),axis=1))]
+        if distance[-1]<PROFILE['minimumCurveLengthMetres']:return []
+        updated=copy.deepcopy(values)
+        v=distance/distance[-1]
+        old_v=np.asarray([record['groom'][1]for record in values[::2]])
+        rank=abs(values[0]['groom'][3])-1
+        power=.55+.35*rank if soft_coverage else .7
+        floor=.025 if soft_coverage else .04
+        old_taper=floor+(1-floor)*np.maximum(0,np.sin(math.pi*old_v))**power
+        taper=floor+(1-floor)*np.maximum(0,np.sin(math.pi*v))**power
+        surface=[record['surface']for record in values[::2]]
+        corners=np.asarray([row['triangle']for row in surface],int)
+        bary=np.asarray([row['barycentric']for row in surface],dtype='<f4').astype(float)
+        base=np.sum(source_p[0,corners]*bary[:,:,None],axis=1)
+        normal=unit(np.sum(source_n[0,corners]*bary[:,:,None],axis=1))
+        lift=np.sum((centers-base)*normal,axis=1)
+        if soft_coverage:
+            lift=lift/(.12+.88*np.maximum(0,np.sin(math.pi*old_v))**.9)
+            centers=base+normal*(lift*(.12+.88*np.maximum(0,np.sin(math.pi*v))**.9))[:,None]
+        width=(rest[:,1]-rest[:,0])*(taper/old_taper)[:,None]*.5
+        points=np.stack((centers-width,centers+width),axis=1).reshape(-1,3)
+        anchors=np.asarray([row['anchor']for row in values],int)
+        offsets=points-source_p[0,anchors]
+        basis=(source_t[0,anchors],source_b[0,anchors],source_n[0,anchors])
+        local=np.stack([np.sum(offsets*axis,axis=1)for axis in basis],axis=1)
+        for index,row in enumerate(updated):row['offset']=local[index].tolist();row['groom'][1]=float(v[index//2])
+        links=[(index,index+1)for index in range(len(v)-1)]
+        triangles=np.asarray([[a*2,a*2+1,b*2]for a,b in links]+[[a*2+1,b*2+1,b*2]for a,b in links])
+        framed=source_ribbon_frames(updated,triangles,source_p,source_n,source_t,source_b)
+        if framed is not None:return [(updated,links,framed)]
+        if depth==4 or len(v)<3:return []
+        middle=len(v)//2
+        return piece(values[:(middle+1)*2],depth+1)+piece(values[middle*2:],depth+1)
+    runs=[]
+    for first,last in connections:
+        if runs and first==runs[-1][-1]:runs[-1].append(last)
+        else:runs.append([first,last])
+    pieces=[]
+    for run in runs:pieces.extend(piece([record for index in run for record in records[index*2:index*2+2]],0))
+    if not pieces:return None
+    owned=[];links=[];frames=[]
+    for values,connections,framed in pieces:
+        first=len(owned)//2;owned.extend(values);links.extend((first+a,first+b)for a,b in connections);frames.append(framed)
+    return owned,links,tuple(np.concatenate([frame[index]for frame in frames],axis=1)for index in range(3)),len(pieces)
+
+
+def bound_fine_attachment(packet, ids, records, points, normals, tangents,
+                          source_p, source_n, source_t, source_b, linear, target_poses=None):
+    """Clear the curved support with one rigid offset per complete fine sheet."""
+    inverse=np.linalg.inv(linear)
+    base_p=np.asarray(packet['vertices']).reshape(-1,3)
+    base_n=np.asarray(packet['normals']).reshape(-1,3)
+    base_t=np.asarray(packet['tangents']).reshape(-1,4)[:,:3]
+    frames=[None]+[f for s in packet['shapes']for f in s['frames']]
+    original=[np.stack([base if frame is None else base+np.asarray(frame[key]).reshape(-1,3)
+                       for frame in frames])for key,base in (('vertices',base_p),('normals',base_n),('tangents',base_t))]
+    posed_p=original[0][:,ids]@linear.T
+    posed_n=unit(original[1][:,ids]@inverse)
+    posed_t=unit(original[2][:,ids]@linear.T)
+    if target_poses is None:
+        target_poses=transport_curved_core(points,normals,tangents,
+            [record['surface']for record in records],source_p,source_n,source_t,source_b)
+    uv=np.asarray(next(u['values']for u in packet['uv']if u['channel']==2)).reshape(-1,4)
+    lookup={int(index):offset for offset,index in enumerate(ids)}
+    groups=collections.defaultdict(set);triangles=[];triangle_keys=[]
+    for slot,sub in enumerate(packet['subMeshes']):
+        for tri in np.asarray(sub,dtype=int).reshape(-1,3):
+            if np.all(uv[tri,2]>=17):
+                key=(slot,*uv[tri[0],2:]);groups[key].update(lookup[int(i)]for i in tri)
+                triangles.append([lookup[int(i)]for i in tri]);triangle_keys.append(key)
+    owned=np.asarray(triangles,dtype=int).reshape(-1,3)
+    initial=set();maximum=0.;minimum_clearance=float('inf');unresolved=set();unresolved_rest=set()
+    proposed_p=target_poses[0]@inverse.T;proposed_n=unit(target_poses[1]@linear)
+    for pose in range(len(frames)):
+        if len(owned):
+            p=proposed_p[pose,owned];n=proposed_n[pose,owned].mean(axis=1)
+            signed=np.sum(np.cross(p[:,1]-p[:,0],p[:,2]-p[:,0])*n,axis=1)
+            initial.update(triangle_keys[int(i)]for i in np.flatnonzero(signed<=0))
+        for key,members in groups.items():
+            selected=np.asarray(sorted(members),dtype=int);normal=posed_n[pose,selected]
+            delta=target_poses[0][pose,selected]-posed_p[pose,selected]
+            required=np.sum(delta*normal,axis=1)+.0002
+            offset=np.zeros(3);limit=2*float(np.linalg.norm(delta,axis=1).max())+.002
+            for step in range(64):
+                violation=required-normal@offset;worst=int(violation.argmax())
+                if float(violation[worst])<=1e-5:break
+                offset+=normal[worst]*violation[worst]
+                if float(np.linalg.norm(offset))>limit:break
+            if float(np.max(required-normal@offset))>1e-5 or float(np.linalg.norm(offset))>limit:
+                unresolved.add((pose,key))
+                if pose==0:unresolved_rest.add(key)
+                continue
+            posed_p[pose,selected]+=offset;maximum=max(maximum,float(np.linalg.norm(offset)))
+            remaining=np.sum((posed_p[pose,selected]-target_poses[0][pose,selected])*normal,axis=1)
+            minimum_clearance=min(minimum_clearance,float(remaining.min()))
+    pp=posed_p@inverse.T;nn=original[1][:,ids].copy();tt=original[2][:,ids].copy()
+    minimum=float('inf')
+    for pose in range(len(frames)):
+        p=(pp[0].astype('<f4').astype(float)+(pp[pose]-pp[0]).astype('<f4').astype(float))[owned]
+        n=(nn[0].astype('<f4').astype(float)+(nn[pose]-nn[0]).astype('<f4').astype(float))[owned].mean(axis=1)
+        signed=np.sum(np.cross(p[:,1]-p[:,0],p[:,2]-p[:,0])*n,axis=1)
+        if len(signed):minimum=min(minimum,float(signed.min()))
+        assert np.all(signed>0),'Rigid clearance changed a stored fine sheet winding.'
+    proof=dict(attempts=1,maximumAttempts=1,initialInvalidSheets=len(initial),finalInvalidSheets=0,
+        reducedSheets=len(initial),sourceAttachmentSheets=0,minimumSignedArea=minimum if np.isfinite(minimum)else None,
+        allFineGeometryRetained=True,mode='whole-sheet-rigid-clearance',unresolvedSheets=len(unresolved),unresolvedRestSheets=len(unresolved_rest),
+        maximumTranslationMetres=maximum,minimumClearanceMetres=minimum_clearance if np.isfinite(minimum_clearance)else None,
+        normalsTangentsAndWithinSheetGeometryUnchanged=True)
+    return posed_p[0],posed_n[0],posed_t[0],(pp,nn,tt),proof
+
+
+
 def bound_curved_core(plan, points, normals, tangents, source_p, source_n, source_t, source_b, inverse):
     """Bound each connected chart using all serialized physical source poses.
 
@@ -1011,15 +1351,8 @@ def bound_curved_core(plan, points, normals, tangents, source_p, source_n, sourc
     raise AssertionError('Unreachable curved core bound.')
 
 
-def couple_fine_to_core(plan, core_p, core_n, core_t, fine_p, fine_n, fine_t, records,
-                        source_p, source_n, source_t, source_b):
-    """Keep attached fibers above the actual rendered child surface.
-
-    Source triangle provenance selects the child in barycentric coordinates;
-    ornaments and fibers on unmodified source faces retain their own ownership.
-    The caller transports the resulting rest attachment through every native
-    physical frame using the same triangle basis as the runtime surface plan.
-    """
+def fine_core_owners(plan):
+    """Cache the source-to-child partition independently of physical poses."""
     owners = {}
     for slot, (children, parents) in enumerate(zip(plan['triangles'], plan['parents'])):
         source = np.asarray(plan['sourceTrianglesBySlot'][slot], dtype=int)
@@ -1041,6 +1374,19 @@ def couple_fine_to_core(plan, core_p, core_n, core_t, fine_p, fine_n, fine_t, re
             matrix = np.stack((corners[:, 1, 1:] - corners[:, 0, 1:],
                                corners[:, 2, 1:] - corners[:, 0, 1:]), axis=2)
             owners[slot, tuple(sorted(map(int, triangle)))] = (triangle, children, corners[:, 0, 1:], np.linalg.inv(matrix))
+    return owners
+
+
+def couple_fine_to_core(plan, core_p, core_n, core_t, fine_p, fine_n, fine_t, records,
+                        source_p, source_n, source_t, source_b, owners=None):
+    """Keep attached fibers above the actual rendered child surface.
+
+    Source triangle provenance selects the child in barycentric coordinates;
+    ornaments and fibers on unmodified source faces retain their own ownership.
+    The caller transports the resulting rest attachment through every native
+    physical frame using the same triangle basis as the runtime surface plan.
+    """
+    if owners is None:owners=fine_core_owners(plan)
     groups = collections.defaultdict(list)
     for index, record in enumerate(records):
         if not record['native'] and record.get('surface'):
@@ -1154,7 +1500,7 @@ def share_core_normals(plan,normals):
     return result
 
 
-def standalone_cloth_attachment(packet,native,binding):
+def standalone_cloth_attachment(packet,native,binding,attachment_source=None):
     """Compile geometric samples to the native prefab's anchor attachment format.
 
     Both skin and serialized cloth use the same canonical physical anchor at a
@@ -1162,7 +1508,8 @@ def standalone_cloth_attachment(packet,native,binding):
     The returned single-anchor binding is an authoring input for prefab baking.
     """
     result=copy.deepcopy(packet);attachment=copy.deepcopy(binding)
-    p,n,t,b=native_frames(native,binding['matrix'])
+    rebase=attachment_source is not None
+    p,n,t,b=native_frames(attachment_source if rebase else native,binding['matrix'])
     matrix=np.asarray(binding['matrix']).reshape(4,4).T;linear=matrix[:3,:3]
     points=np.asarray(packet['vertices']).reshape(-1,3)@linear.T+matrix[:3,3]
     normals=unit(np.asarray(packet['normals']).reshape(-1,3)@np.linalg.inv(linear))
@@ -1172,15 +1519,19 @@ def standalone_cloth_attachment(packet,native,binding):
     source_indices=np.asarray(native['boneIndices']).reshape(-1,4)
     weights=np.asarray(packet['weights']).reshape(-1,4).copy()
     indices=np.asarray(packet['boneIndices']).reshape(-1,4).copy()
-    changed=0;compiled=0
+    changed=0;compiled=0;rebased_prefix=0
     for index,vertex in enumerate(attachment['vertices']):
         geometry=vertex.pop('geometrySurface',None)
         vertex.pop('surface',None)
-        if geometry is None:continue
-        assert not vertex['native'] and index>=native['vertexCount']
-        anchor=int(geometry['triangle'][int(np.argmax(np.asarray(geometry['barycentric'],dtype='<f4')))])
-        changed+=int(not np.array_equal(weights[index],source_weights[anchor])or not np.array_equal(indices[index],source_indices[anchor]))
-        weights[index]=source_weights[anchor];indices[index]=source_indices[anchor]
+        if geometry is None and not rebase:continue
+        anchor=vertex['anchor']
+        if geometry is not None:
+            assert not vertex['native'] and index>=native['vertexCount']
+            anchor=int(geometry['triangle'][int(np.argmax(np.asarray(geometry['barycentric'],dtype='<f4')))])
+            changed+=int(not np.array_equal(weights[index],source_weights[anchor])or not np.array_equal(indices[index],source_indices[anchor]))
+            weights[index]=source_weights[anchor];indices[index]=source_indices[anchor]
+        if rebase and vertex['native']:
+            vertex['native']=False;rebased_prefix+=1
         basis=np.asarray((t[0,anchor],b[0,anchor],n[0,anchor]))
         vertex.update(anchor=anchor,offset=(basis@(points[index]-p[0,anchor])).tolist(),
                       normal=(basis@normals[index]).tolist(),tangent=(basis@tangents[index]).tolist())
@@ -1189,6 +1540,7 @@ def standalone_cloth_attachment(packet,native,binding):
     attachment.pop('schemaVersion',None);attachment.pop('sourceVertexCount',None)
     result['sourceFingerprint']=fingerprint(result)[0]
     return result,attachment,dict(compiledVertices=compiled,changedSkinVertices=changed,
+        nativeClothFrameRowsRebased=rebased_prefix,
         canonicalSkinAndClothAnchorShared=True,nativePrefixUnchanged=True,
         positionsNormalsTangentsUvColorsAndAllStoredFramesUnchanged=True,runtimeSourceGraphRequired=False)
 
@@ -1227,6 +1579,20 @@ def serializable_core_faces(source_p,inverse,triangles):
         orientation=np.einsum('vij,vj->vi',np.cross(p[:,:,1]-p[:,:,0],p[:,:,2]-p[:,:,0]),cross)
         accepted&=np.all(orientation>0,axis=1)
     return accepted
+
+
+def curved_core_budget(headroom, fine_group_sizes, fraction):
+    """Reserve whole fine sheets before allocating curved support samples."""
+    assert headroom >= 0 and 0. < fraction < 1.
+    assert all(size > 0 for size in fine_group_sizes)
+    limit = int(sum(fine_group_sizes) * fraction)
+    donated = 0
+    groups = []
+    for index, size in enumerate(fine_group_sizes):
+        if donated + size <= limit:
+            groups.append(index)
+            donated += size
+    return headroom + donated, groups
 
 
 def curved_core_row(entry, output):
@@ -1283,7 +1649,8 @@ def curved_core_row(entry, output):
     assert any(np.any(s) for s in selected_faces), 'No complete native hair-only core domain.'
     coordinates, metric_report = physical_core_coordinates(frame_p[0], coordinates, slot_triangles, selected_faces)
     groups = collections.defaultdict(list)
-    for index in np.flatnonzero((groom[:, 2] >= 17) & (groom[:, 2] < 33)):
+    interior_fine=((groom[:,2]>=17)&(groom[:,2]<33))|((groom[:,2]>=49)&(groom[:,2]<=64))
+    for index in np.flatnonzero(interior_fine):
         vertex = binding['vertices'][int(index)]
         groups[(vertex['slot'], int(groom[index, 2]), struct.pack('<f', float(groom[index, 3])))].append(int(index))
     removable = []
@@ -1292,28 +1659,28 @@ def curved_core_row(entry, output):
             removable.append((float(abs(groom[indices[0], 3]) - 1.), key, indices))
     # Small hierarchy ranks remain visible at reduced fine density.
     removable.sort(key=lambda item: (-item[0], item[1]))
-    available = sum(len(indices) for _, _, indices in removable)
-    fraction = float(PROFILE.get('coreSurfaceFineAllocationFraction', .18))
+    fraction = float(PROFILE.get('coreSurfaceFineAllocationFraction', .4))
     assert 0. < fraction < 1.
     retained_support,maximum_count,headroom=curved_vertex_capacity(
         count,current['vertexCount'],int(entry['addedVertices']),int(entry['addedVertexLimit']))
+    budget, donation_groups = curved_core_budget(headroom, [len(indices) for _, _, indices in removable], fraction)
+    removable = [removable[index] for index in donation_groups]
     # A zero-edge-split partition still owns every selected source corner and
     # one centroid per face. Count both before distributing the fine budget.
     minimum_core=sum(int(np.sum(selected))+len(np.unique(triangles[selected]))
                      for triangles,selected in zip(slot_triangles,selected_faces))
-    adaptive_resolution=minimum_core>headroom+available
+    adaptive_resolution=minimum_core>budget
     shared_native_corners=False
     if adaptive_resolution:
         # Existing small source faces need no extra centroid. Refine only
         # above the solved physical width while retaining every source face.
         minimum_core=sum(len(np.unique(triangles[selected]))for triangles,selected in zip(slot_triangles,selected_faces))
-        if minimum_core>headroom+available:
+        if minimum_core>budget:
             # Dense source LODs already own their corner channels. Keep their
             # exact native groom field when sharing that prefix, then allocate
             # only the samples required above its existing spatial resolution.
             shared_native_corners=True;coordinates=source_coordinates.copy();minimum_core=0
             metric_report=[dict(mode='native-source-field-and-corners-shared-without-channel-mutation',sourceVertices=count)]
-    budget=min(headroom+available,max(headroom+int(available*fraction),minimum_core))
     assert budget > 0, 'No source-owned interior fine allocation can be reassigned.'
     lod = int(entry['lod'])
     preferred = float(PROFILE['widthMetres'][1]) * 2 ** lod
@@ -1379,30 +1746,38 @@ def curved_core_row(entry, output):
     new_binding['schemaVersion']=4
     new_binding['vertices'] = [new_binding['vertices'][int(i)] for i in keep]
     first = len(keep)
-    surface_p, surface_n, surface_t = [], [], []
     allocated_lookup = {index: offset for offset, index in enumerate(allocated_indices)}
-    for index, record in enumerate(plan['vertices']):
-        if 'nativeVertex' in record:
-            native_index = record['nativeVertex']
-            surface_p.append(frame_p[0, native_index]); surface_n.append(frame_n[0, native_index]); surface_t.append(frame_t[0, native_index])
+    # Trace geometry keeps its source curve. Sample the actual child surface
+    # in every stored pose, then translate complete sheets above that surface.
+    fine_ids=np.flatnonzero(np.asarray(next(u['values']for u in packet['uv']if u['channel']==2)).reshape(-1,4)[:,2]>=17)
+    fine_records=[new_binding['vertices'][int(i)]for i in fine_ids]
+    for record in fine_records:record['geometrySurface']=None
+    local_matrix=matrix.copy();local_matrix[:3,3]=0
+    original_p,original_n,original_t,_=native_frames(packet,local_matrix.T.ravel().tolist())
+    target_p=original_p[:,fine_ids].copy();target_n=original_n[:,fine_ids].copy();target_t=original_t[:,fine_ids].copy()
+    lookup=np.full(packet['vertexCount'],-1,dtype=int);lookup[fine_ids]=np.arange(len(fine_ids))
+    core_p=np.empty((len(frame_p),len(plan['vertices']),3));core_n=np.empty_like(core_p);core_t=np.empty_like(core_p)
+    for index,record in enumerate(plan['vertices']):
+        if 'nativeVertex'in record:
+            source_index=record['nativeVertex'];core_p[:,index]=frame_p[:,source_index];core_n[:,index]=frame_n[:,source_index];core_t[:,index]=frame_t[:,source_index]
         else:
-            offset = allocated_lookup[index]
-            surface_p.append(pp[0, offset]); surface_n.append(nn[0, offset]); surface_t.append(tt[0, offset])
-    retained_p = np.asarray(packet['vertices']).reshape(-1, 3) @ linear.T
-    retained_n = unit(np.asarray(packet['normals']).reshape(-1, 3) @ inverse)
-    retained_t = np.asarray(packet['tangents']).reshape(-1, 4)[:, :3] @ linear.T
-    retained_t = unit(retained_t - retained_n * np.sum(retained_t * retained_n, axis=1)[:, None])
-    fine_ids, fine_p, fine_n, fine_t = couple_fine_to_core(
-        plan, np.asarray(surface_p), np.asarray(surface_n), np.asarray(surface_t), retained_p, retained_n, retained_t,
-        new_binding['vertices'], frame_p[0], frame_n[0], frame_t[0], frame_b[0])
-    fine_records = [new_binding['vertices'][int(i)] for i in fine_ids]
-    prepare_geometry_frames(dict(plan,vertices=fine_records),frame_p)
-    fine_frames = transport_curved_core(fine_p, fine_n, fine_t,
-        [dict(r['surface'],geometrySurface=r['geometrySurface']) for r in fine_records], frame_p, frame_n, frame_t, frame_b)
-    fine_pp = fine_frames[0] @ inverse.T
-    fine_nn = unit(fine_frames[1] @ linear)
-    fine_tt = unit(fine_frames[2] @ inverse.T)
-    fine_tt = unit(fine_tt - fine_nn * np.sum(fine_nn * fine_tt, axis=2)[:, :, None])
+            offset=allocated_lookup[index];core_p[:,index]=pp[:,offset];core_n[:,index]=nn[:,offset];core_t[:,index]=tt[:,offset]
+    owners=fine_core_owners(plan)
+    for pose in range(len(frame_p)):
+        moved,points_,normals_,tangents_=couple_fine_to_core(plan,core_p[pose],core_n[pose],core_t[pose],
+            original_p[pose],original_n[pose],original_t[pose],new_binding['vertices'],
+            frame_p[pose],frame_n[pose],frame_t[pose],frame_b[pose],owners)
+        selected=lookup[moved]
+        assert np.all(selected>=0),'A curved attachment selected non-fine geometry.'
+        target_p[pose,selected]=points_;target_n[pose,selected]=normals_;target_t[pose,selected]=tangents_
+    attachment_packet=dict(packet,subMeshes=[[
+        int(mapping[index])for triangle in np.asarray(sub,dtype=int).reshape(-1,3)
+        if np.all(groom[triangle,2]>=17)and not any(int(i)in remove for i in triangle)
+        for index in triangle]for sub in current['subMeshes']])
+    fine_p,fine_n,fine_t,fine_frames,fine_bound=bound_fine_attachment(
+        attachment_packet,fine_ids,fine_records,target_p[0],target_n[0],target_t[0],
+        frame_p,frame_n,frame_t,frame_b,linear,(target_p,target_n,target_t))
+    fine_pp,fine_nn,fine_tt=fine_frames
     for index, record, point, normal, tangent in zip(fine_ids, fine_records, fine_p, fine_n, fine_t):
         anchor = record['anchor']
         basis = np.asarray((frame_t[0, anchor], frame_b[0, anchor], frame_n[0, anchor]))
@@ -1421,9 +1796,9 @@ def curved_core_row(entry, output):
                 frame[key] = channel.ravel().tolist()
             frame_index += 1
     fine_attachment = dict(vertices=len(fine_ids), allPhysicalFrames=len(frame_p),
-        maximumRestDisplacementMetres=float(np.linalg.norm(fine_p-retained_p[fine_ids], axis=1).max()) if len(fine_ids) else 0.,
+        maximumRestDisplacementMetres=float(np.linalg.norm(fine_p-original_p[0,fine_ids], axis=1).max()) if len(fine_ids) else 0.,
         sourceTriangleProvenanceUnchanged=True, sourceUvAndGroomPhaseUnchanged=True,
-        runtimeTriangleFrameTransport=True)
+        runtimeTriangleFrameTransport=False,storedPoseTransport="whole-sheet-rigid-clearance",windingBound=fine_bound)
     core_rows = []
     for record, point, normal, tangent in zip(allocated_records, positions, normals, tangents):
         triangle = np.asarray(record['triangle'], dtype=int)
@@ -1491,8 +1866,7 @@ def curved_core_row(entry, output):
     winding = discard_invalid_serialized_curves(packet, new_binding, count)
     first = packet['vertexCount'] - len(anchors)
     packet['sourceFingerprint'] = fingerprint(packet)[0]
-    packet_path = output / (entry['asset'] + '_LOD' + str(lod) + '.json')
-    packet_path.write_text(json.dumps(packet, separators=(',', ':')), encoding='utf-8')
+    packet_path = save_groom_packet(output, entry, packet)
     binding_path = output / Path(entry['bindingPath']).name
     prepare_surface_binding(new_binding, native)
     encode_binding(new_binding, binding_path)
@@ -1829,6 +2203,7 @@ def discard_invalid_serialized_curves(packet,binding,native_count,reports=None):
 def generate(entry,output) -> 'dict[str, Any]':
     soft_coverage=bool(PROFILE.get('softCoveragePilot',False))
     exterior_coverage=bool(PROFILE.get('exteriorCoverageRefinement',False))
+    atlas_cards=bool(PROFILE.get('layeredAtlasCards',False))
     assert sha(entry['packetPath'])==entry['packetSha256']and sha(entry['nativePacketPath'])==entry['nativePacketSha256']
     original,native=read(entry['packetPath']),read(entry['nativePacketPath'])
     assert fingerprint(native)[0]==entry['manifestEntry']['sourceFingerprint']
@@ -1857,8 +2232,13 @@ def generate(entry,output) -> 'dict[str, Any]':
     native_uv=np.asarray(next(u for u in native['uv']if u['channel']==0)['values']).reshape(-1,4)[:,:2]
     random=np.random.default_rng(int(native['sourceFingerprint'][:16],16))
     packet=copy.deepcopy(original)
+    native_surface=native_flow_surface(original,native,binding,groom)
+    if atlas_cards:assert native_surface, 'Layered cards require their declared native flow surface.'
+    if native_surface:
+        assert not any(channel['channel']==2 for channel in native['uv']), 'Native UV2 is already occupied.'
     retained_indices=[]
     added=[]
+    posed_curves=[]
     new_indices=[[]for _ in original['subMeshes']]
     reports=[]
     physical=sum(len(s['frames'])for s in native['shapes'])
@@ -1879,6 +2259,8 @@ def generate(entry,output) -> 'dict[str, Any]':
         def eligible(uv0):return domain.hair([uv0])if domain is not None else(color is None or color(uv0)[3]>=.51)and(metal is None or metal(uv0)[0]<=.01)
         core=np.asarray([tri for tri in triangles if all(binding['vertices'][int(i)]['role']in ('volume-support','thin-root')for i in tri)],int).reshape(-1,3)
         outer=triangles[np.all((groom[triangles,2]>.5)&(groom[triangles,2]<16.5),axis=1)]
+        if native_surface:
+            outer=core
         if not len(core)or not len(outer):
             retained_indices.append(flat[:]);reports.append(dict(slot=slot,status='PRESERVED_NO_SOURCE_FLOW_SURFACE',oldBroadExteriorTriangles=len(outer),removedBroadExteriorTriangles=0))
             continue
@@ -2118,6 +2500,9 @@ def generate(entry,output) -> 'dict[str, Any]':
             length=float(random.uniform(length_limits[0],length_limits[1]))
             width=float(random.uniform(PROFILE['widthMetres'][0],PROFILE['widthMetres'][1]))
             lift=float(random.uniform(PROFILE['liftMetres'][0],PROFILE['liftMetres'][1]))
+            if atlas_cards and not is_fringe:
+                layer=(seed%3)/2
+                lift=float((1-layer)*PROFILE['liftMetres'][0]+layer*PROFILE['liftMetres'][1])
             if is_fringe:
                 length=float(random.uniform(.007,.017));width=float(random.uniform(.00045,.0009));lift=float(random.uniform(.003,.007))
             center_node=dict(point=center,normal=normal,uv=u,triangle=int(start_tri),bary=bary,chart=chart_ids[int(start_tri)])
@@ -2203,24 +2588,19 @@ def generate(entry,output) -> 'dict[str, Any]':
                     if np.linalg.norm(offset)>.04:projected=[];break
                     # The new sheet is curved along the source envelope, and its
                     # normal follows that curvature instead of the broad polygon.
-                    transverse_angle=math.radians(PROFILE['transverseNormalDegrees'])
+                    transverse_angle=math.radians(18 if atlas_cards and not is_fringe else PROFILE['transverseNormalDegrees'])
                     strand_normal=unit(n*math.cos(transverse_angle)+across*(side*math.sin(transverse_angle)))
                     ln=basis.T@strand_normal;lt=basis.T@across
                     projected.append(dict(surface=dict(triangle=parents.tolist(),barycentric=node['bary'].tolist()),anchor=anchor,native=False,role='airy-edge-fringe'if is_fringe else'source-continuous-flow-ribbon',slot=slot,
                         uv0=node['uv'].tolist(),offset=offset.tolist(),normal=ln.tolist(),tangent=lt.tolist(),
-                        tangentW=-float(np.sign(np.linalg.det(linear))),groom=[(side+1)*.5,v,(33 if is_fringe else 17)+(seed%16),hand*(1+rank)]))
+                        tangentW=-float(np.sign(np.linalg.det(linear))),groom=[(side+1)*.5,v,(33 if is_fringe else 49 if atlas_cards else 17)+(seed%16),hand*(1+rank)]))
                 if not projected:break
             if len(projected)!=2*len(nodes):failed['source-span']+=1;continue
-            candidate_anchors=np.array([a['anchor']for a in projected])
-            candidate_offsets=np.array([a['offset']for a in projected])
-            candidate_normals=np.array([a['normal']for a in projected])
-            frame_points=np_frames[:,candidate_anchors]+nt_frames[:,candidate_anchors]*candidate_offsets[None,:,0,None]+nb_frames[:,candidate_anchors]*candidate_offsets[None,:,1,None]+nn_frames[:,candidate_anchors]*candidate_offsets[None,:,2,None]
-            frame_normals=unit(nt_frames[:,candidate_anchors]*candidate_normals[None,:,0,None]+nb_frames[:,candidate_anchors]*candidate_normals[None,:,1,None]+nn_frames[:,candidate_anchors]*candidate_normals[None,:,2,None])
-            local_tri=np.array([[a*2,a*2+1,b*2]for a,b in connections]+[[a*2+1,b*2+1,b*2]for a,b in connections])
-            fp=frame_points[:,local_tri]
-            face=np.cross(fp[:,:,1]-fp[:,:,0],fp[:,:,2]-fp[:,:,0])
-            expected_normals=frame_normals[:,local_tri].mean(axis=2)
-            if np.any(np.sum(face*expected_normals,axis=2)<=1e-14):failed['full-physical-frame-winding']+=1;continue
+            pieces=source_ribbon_pieces(projected,connections,np_frames,nn_frames,nt_frames,nb_frames,soft_coverage=soft_coverage)
+            if pieces is None:failed['full-physical-frame-winding']+=1;continue
+            projected,connections,frames,_=pieces
+            if len(added)+len(projected)>maximum_vertices:failed['bounded-physical-and-vertex-budget']+=1;continue
+            posed_curves.append(frames)
             added.extend(projected)
             start=original['vertexCount']+first
             for a,b in connections:
@@ -2234,15 +2614,16 @@ def generate(entry,output) -> 'dict[str, Any]':
             maximumAcceptedCurveLengthMetres=max(accepted_lengths,default=0),
             meanAcceptedNodes=float(np.mean(accepted_nodes))if accepted_nodes else 0,
             adaptiveChordErrorMetres=PROFILE['maximumChordErrorMetres'],traceStops=dict(trace_stops),
-            allPhysicalFrameGeometricSeamConnections=seam_connections))
+            allPhysicalFrameGeometricSeamConnections=seam_connections,
+            physicalCurveFrameOwner='deformed-source-centerline'))
         if soft_coverage:reports[-1].update(seedPlacement='native area stratified without replacement; physical boundary tranche',physicalBoundaryEdges=len(boundary),boundarySeedCurves=fringe_count,sourceFlow='local native-neighborhood sign-independent line tensor; curve geometry owns final direction')
         if exterior_coverage:reports[-1].update(seedPlacement='BVH exterior-stratum area weighted; actual barycentric seed must retain at least one unoccluded exterior ray; physical boundaries restricted to the same stratum',sourceShell=shell_report)
     removed_broad=sum(r.get('removedBroadExteriorTriangles',0)for r in reports)
     assert added or removed_broad==0,'No valid fine curve may replace removed coarse coverage.'
-    anchors=np.asarray([a['anchor']for a in added],dtype=int);offset=np.asarray([a['offset']for a in added]).reshape(-1,3);ln=np.asarray([a['normal']for a in added]).reshape(-1,3);lt=np.asarray([a['tangent']for a in added]).reshape(-1,3)
-    pp=np_frames[:,anchors]+nt_frames[:,anchors]*offset[None,:,0,None]+nb_frames[:,anchors]*offset[None,:,1,None]+nn_frames[:,anchors]*offset[None,:,2,None]
-    nn=unit(nt_frames[:,anchors]*ln[None,:,0,None]+nb_frames[:,anchors]*ln[None,:,1,None]+nn_frames[:,anchors]*ln[None,:,2,None])
-    tt=unit(nt_frames[:,anchors]*lt[None,:,0,None]+nb_frames[:,anchors]*lt[None,:,1,None]+nn_frames[:,anchors]*lt[None,:,2,None])
+    anchors=np.asarray([a['anchor']for a in added],dtype=int)
+    if posed_curves:
+        pp,nn,tt=(np.concatenate([curve[index]for curve in posed_curves],axis=1)for index in range(3))
+    else:pp,nn,tt=source_fiber_frames(added,np_frames,nn_frames,nt_frames,nb_frames)
     pp=(pp-m[:3,3])@inverse.T;nn=unit(nn@linear);tt=unit(tt@inverse.T);tt=unit(tt-nn*np.sum(tt*nn,axis=2)[:,:,None])
     for key,value in (('vertices',pp[0]),('normals',nn[0]),('tangents',np.c_[tt[0],np.full(len(added),-1)])):packet[key]+=value.ravel().tolist()
     for key in ('weights','boneIndices','colors'):
@@ -2297,8 +2678,7 @@ def generate(entry,output) -> 'dict[str, Any]':
         assert not bad,(key,len(bad),bad[:4])
     core_coordinate_statistics=initialize_core_coordinates(packet,entry['rendererToPrefab'])
     packet['sourceFingerprint']=fingerprint(packet)[0]
-    path=output/(native['sourceFingerprint']+'.json')
-    path.write_text(json.dumps(packet,separators=(',',':')),encoding='utf-8')
+    path=save_groom_packet(output,entry,packet)
     binding_out=output/entry['manifestEntry']['bindingFile']
     surface_provenance=prepare_surface_binding(binding,native)
     encode_binding(binding,binding_out)
@@ -2312,14 +2692,78 @@ def generate(entry,output) -> 'dict[str, Any]':
         finalTriangles=sum(len(s)//3 for s in packet['subMeshes']),lod=lod,slots=reports,
         nativeRootCoreAndOrnamentsRetained=True,broadNativeOuterSheetReplaced=bool(removed_broad),nativeFrameNamesWeightsOrderPreserved=True,
         coreCoordinateStatistics=core_coordinate_statistics,nativeCoreRepair=native_core_repair,nativeUvSeamsSplitAtSharedSourceEdges=True,
+        sheetLayout='layered-atlas-cards' if atlas_cards else 'individual-fibers',
         sourceUvChordErrorTexels=PROFILE['maximumSourceUvChordErrorTexels'],
         surfaceProvenance=surface_provenance,bindingRuntimeValidationPending=True,renderedArtAccepted=False)
 
 
 
+def generate_strand_atlas(output):
+    """Build the shared four-by-four atlas from separate continuous strands."""
+    width,height=512,1024
+    tile_width,tile_height=width//4,height//4
+    color=np.full((height,width,4),255,dtype=np.uint8)
+    normals=np.empty((height,width,3),dtype=np.uint8)
+    rows=[]
+    for tile in range(16):
+        random=np.random.default_rng(98117+tile)
+        pigment_random=np.random.default_rng(44173+tile)
+        y,x=np.mgrid[:tile_height,:tile_width]
+        v=(y+.5)/tile_height
+        alpha=np.zeros((tile_height,tile_width))
+        pigment=np.ones((tile_height,tile_width))
+        nearest=np.full((tile_height,tile_width),np.inf)
+        normal=np.zeros((tile_height,tile_width,3));normal[:,:,2]=1
+        for strand in range(20):
+            phase=float(random.uniform(0,2*math.pi))
+            amplitude=float(random.uniform(.3,1.2))
+            center=12+(strand+.5)*(tile_width-24)/20+float(random.uniform(-.6,.6))
+            center=center+amplitude*np.sin(2*math.pi*v+phase)
+            start=float(random.uniform(.025,.18));end=float(random.uniform(.82,.975))
+            taper=np.minimum(np.clip((v-start)/.07,0,1),np.clip((end-v)/.12,0,1))
+            half_width=float(random.uniform(.9,1.6))*taper
+            distance=x+.5-center
+            # Separate achromatic pigment per strand. Its independent seed
+            # preserves the authored alpha, normal and strand placement.
+            intensity=float(pigment_random.uniform(.65,1.))
+            pigment_phase=float(pigment_random.uniform(0,2*math.pi))
+            strand_pigment=np.clip(intensity+.025*np.sin(2*math.pi*v+pigment_phase),.6,1.)
+            closer=np.abs(distance)<nearest
+            pigment[closer]=strand_pigment[closer]
+            nearest=np.minimum(nearest,np.abs(distance))
+            coverage=np.clip(half_width-np.abs(distance)+.5,0,1)
+            coverage*=np.clip((v-start)*tile_height+.5,0,1)*np.clip((end-v)*tile_height+.5,0,1)
+            selected=coverage>alpha
+            slope=np.clip(distance/np.maximum(half_width,.01),-.95,.95)*.4
+            along=-slope*(amplitude*2*math.pi/tile_height)*np.cos(2*math.pi*v+phase)
+            vector=unit(np.stack((slope,along,np.ones_like(slope)),axis=2))
+            normal[selected]=vector[selected]
+            alpha=np.maximum(alpha,coverage)
+        left,top=(tile%4)*tile_width,(tile//4)*tile_height
+        color[top:top+tile_height,left:left+tile_width,:3]=np.rint(pigment[:,:,None]*255).astype(np.uint8)
+        color[top:top+tile_height,left:left+tile_width,3]=np.rint(alpha*255).astype(np.uint8)
+        normals[top:top+tile_height,left:left+tile_width]=np.rint((normal*.5+.5)*255).astype(np.uint8)
+        rows.append(dict(tile=tile,strands=20,coverageAtCutoff=float(np.mean(alpha>=.35)),
+            centralCoverageAtCutoff=float(np.mean(alpha[tile_height//3:2*tile_height//3]>=.35)),
+            pigmentMinimum=float(pigment.min()),pigmentMaximum=float(pigment.max())))
+    textures=[]
+    for name,pixels,is_normal in (('FineGroomMask',color,False),('FineGroomNormalRGB',normals,True)):
+        path=output/(name+'.png');Image.fromarray(pixels).save(path)
+        textures.append(dict(name=name,path=path.name,sha256=sha(path),normalMap=is_normal,sRGB=False,mipmaps=True,
+                             compressionQuality=100))
+    recipe=dict(schemaVersion=1,bundleName='source_groom_fine.bundle',meshes=[],textures=textures)
+    (output/'MeshRecipe.json').write_text(json.dumps(recipe,indent=2)+'\n',encoding='utf-8')
+    receipt=dict(status='STRAND_ATLAS_PREPARED_RENDER_REVIEW_PENDING',width=width,height=height,rows=rows,
+        layout='4x4 tiles; separate continuous strand alpha and matching tangent normal; achromatic per-strand pigment',
+        generatorSha256=sha(Path(__file__)),recipeSha256=sha(output/'MeshRecipe.json'))
+    (output/'Atlas.json').write_text(json.dumps(receipt,indent=2)+'\n',encoding='utf-8')
+    return receipt
+
+
 def main():
     global HERE
-    parser=argparse.ArgumentParser();parser.add_argument('--workspace',type=Path,required=True);parser.add_argument('--asset',action='append');parser.add_argument('--lod',type=int);parser.add_argument('--input',required=True);parser.add_argument('--output',required=True)
+    parser=argparse.ArgumentParser();parser.add_argument('--workspace',type=Path,required=True);parser.add_argument('--asset',action='append');parser.add_argument('--lod',type=int);parser.add_argument('--input');parser.add_argument('--output',required=True)
+    parser.add_argument('--strand-atlas',action='store_true')
     parser.add_argument('--core-repair-from');parser.add_argument('--restore-core-geometry',action='store_true')
     parser.add_argument('--core-multiplicity-from');parser.add_argument('--multiplicity-proof')
     parser.add_argument('--soft-coverage-pilot',action='store_true')
@@ -2327,7 +2771,18 @@ def main():
     parser.add_argument('--native-hair-domain',action='store_true')
     parser.add_argument('--domain-contract')
     parser.add_argument('--curved-core',action='store_true')
+    parser.add_argument('--layered-atlas-cards',action='store_true')
     args=parser.parse_args();HERE=args.workspace.resolve();assert any(HERE.is_relative_to(ROOT/p)for p in('tools/game-test/artifacts','tools/asset-authoring/workspace')),'Use an ignored authoring workspace.';output=Path(args.output).resolve()
+    if args.strand_atlas:
+        if any((args.input,args.asset,args.lod is not None,args.core_repair_from,args.restore_core_geometry,
+                args.core_multiplicity_from,args.multiplicity_proof,args.soft_coverage_pilot,args.visible_shell_refinement,
+                args.native_hair_domain,args.domain_contract,args.curved_core,args.layered_atlas_cards)):
+            parser.error('--strand-atlas accepts only --workspace and --output.')
+        assert output.is_relative_to(HERE)and output!=HERE
+        output.mkdir(exist_ok=True)
+        assert not any(output.iterdir()),'Use a fresh strand atlas directory.'
+        print(json.dumps(generate_strand_atlas(output)));return
+    if not args.input:parser.error('Geometry generation requires --input.')
     if args.native_hair_domain:
         assert args.domain_contract,'Native material/default/GPU classifier authority is required.'
         contract_path=Path(args.domain_contract).resolve();contract=read(contract_path)
@@ -2340,6 +2795,13 @@ def main():
     if args.visible_shell_refinement:
         assert args.soft_coverage_pilot,'Exterior refinement belongs to the existing soft-coverage owner.'
         PROFILE.update(exteriorCoverageRefinement=True,maximumRibbonsByLod=[6200,1400,500],maximumAddedVerticesByLod=[50000,12000,4000],maximumAddedPhysicalAndVertexBytesByLod=[8*1024*1024,4*1024*1024,1024*1024],targetLengthLimitsMetres=[.02,.04],minimumCurveLengthMetres=.008)
+    if args.layered_atlas_cards:
+        assert args.native_hair_domain and args.soft_coverage_pilot and not args.curved_core
+        assert not args.core_repair_from and not args.core_multiplicity_from
+        PROFILE.update(layeredAtlasCards=True,widthMetres=[.0035,.007],liftMetres=[.0007,.002],
+            maximumRibbonsByLod=[600,200,60],maximumAddedVerticesByLod=[16000,5000,2000],
+            maximumAddedPhysicalAndVertexBytesByLod=[8*1024*1024,4*1024*1024,1024*1024],
+            targetLengthLimitsMetres=[.025,.05],targetLengthExtentFraction=.18)
     assert output.is_relative_to(HERE.resolve())and output!=HERE.resolve()
     output.mkdir(exist_ok=True)
     assert not any(output.iterdir()),'Use a fresh numeric candidate directory.'

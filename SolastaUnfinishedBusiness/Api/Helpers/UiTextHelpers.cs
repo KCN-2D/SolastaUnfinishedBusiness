@@ -16,6 +16,76 @@ namespace SolastaUnfinishedBusiness.Api.Helpers;
 
 internal static class UiTextHelpers
 {
+    private static Image _characterModelProgress;
+    private static Image _characterModelInputBlocker;
+    private static TMP_Text _characterModelLabel;
+    private static TextAlignmentOptions _characterModelLabelAlignment;
+
+    internal static void RefreshCharacterModelStatus(MessageModal modal, string content, int progress)
+    {
+        var refreshInput = !_characterModelInputBlocker || _characterModelInputBlocker.transform.parent != modal.transform ||
+                           !_characterModelInputBlocker.gameObject.activeInHierarchy;
+        if (!_characterModelInputBlocker || _characterModelInputBlocker.transform.parent != modal.transform)
+        {
+            var blocker = new GameObject("UB_CharacterModelInputBlocker", typeof(RectTransform), typeof(Image));
+            blocker.transform.SetParent(modal.transform, false);
+            blocker.transform.SetAsFirstSibling();
+            var area = (RectTransform)blocker.transform;
+            area.anchorMin = Vector2.zero;
+            area.anchorMax = Vector2.one;
+            area.offsetMin = area.offsetMax = Vector2.zero;
+            _characterModelInputBlocker = blocker.GetComponent<Image>();
+            _characterModelInputBlocker.color = new Color(0, 0, 0, 0.45f);
+            _characterModelInputBlocker.raycastTarget = true;
+        }
+        _characterModelInputBlocker.gameObject.SetActive(true);
+        modal.contentLabel.Text = content;
+        var label = modal.contentLabel.TMP_Text;
+        if (!_characterModelLabel)
+        {
+            _characterModelLabel = label;
+            _characterModelLabelAlignment = label.alignment;
+        }
+        label.alignment = TextAlignmentOptions.Center;
+        var rect = label.rectTransform;
+        var height = label.GetPreferredValues().y + rect.offsetMin.y - rect.offsetMax.y + (progress >= 0 ? 14 : 0);
+        var background = modal.contentBackground;
+        background.sizeDelta = new Vector2(background.sizeDelta.x, height);
+        modal.panel.RectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical,
+            1 + height - background.offsetMax.y);
+        if (!_characterModelProgress || _characterModelProgress.transform.parent != background)
+        {
+            var bar = new GameObject("UB_CharacterModelProgress", typeof(RectTransform), typeof(Image));
+            bar.transform.SetParent(background, false);
+            var barRect = (RectTransform)bar.transform;
+            barRect.anchorMin = Vector2.zero;
+            barRect.anchorMax = Vector2.right;
+            barRect.pivot = Vector2.zero;
+            barRect.offsetMin = new Vector2(20, 8);
+            barRect.offsetMax = new Vector2(-20, 13);
+            _characterModelProgress = bar.GetComponent<Image>();
+            _characterModelProgress.color = new Color(0.95f, 0.65f, 0.4f, 1);
+            _characterModelProgress.raycastTarget = false;
+        }
+        _characterModelProgress.gameObject.SetActive(progress >= 0);
+        _characterModelProgress.rectTransform.localScale = new Vector3(Mathf.Max(0, progress) / 100f, 1, 1);
+        if (refreshInput) Canvas.ForceUpdateCanvases();
+    }
+
+    internal static void HideCharacterModelProgress()
+    {
+        if (_characterModelProgress) _characterModelProgress.gameObject.SetActive(false);
+        if (_characterModelInputBlocker) _characterModelInputBlocker.gameObject.SetActive(false);
+    }
+
+    internal static void ReleaseCharacterModelStatus(MessageModal modal)
+    {
+        if (_characterModelLabel && _characterModelLabel == modal.contentLabel.TMP_Text)
+            _characterModelLabel.alignment = _characterModelLabelAlignment;
+        _characterModelLabel = null;
+        HideCharacterModelProgress();
+    }
+
     private const int CardFitSearchIterations = 8;
     private const string SideLabelProxyName = "UB_VerticalSideLabelProxy";
     private const float CjkTwoLineSpacing = -6f;
@@ -3323,7 +3393,6 @@ internal static class UiTextHelpers
 
     private sealed class SettingCaptionLayoutState : MonoBehaviour
     {
-        private int _characterModelDownloadProgress = -1;
         private GuiBehaviour _row;
         private TMP_Text _text;
         private TextFitState _textState;
@@ -3345,7 +3414,6 @@ internal static class UiTextHelpers
         {
             _row = row;
             _text = text;
-            _characterModelDownloadProgress = -1;
             _dirty = true;
             // Native derived Bind methods and the parent layout finish after ApplyText.
             _deferredFrames = DeferredSingleLineFitFrames;
@@ -3353,25 +3421,6 @@ internal static class UiTextHelpers
 
         private void Invalidate()
         {
-            _dirty = true;
-        }
-
-        private void RefreshCharacterModelDownloadCaption()
-        {
-            if (_row is not SettingItem item ||
-                !ReferenceEquals(item.Setting?.Provider, SettingsContext.GuiModManagerInstance) ||
-                item.Setting.PropertyName != nameof(SettingsContext.GuiModManager.EnableCustomFaces))
-            {
-                _characterModelDownloadProgress = -1;
-                return;
-            }
-
-            var progress = UpdateContext.CharacterModelsDownloading ? UpdateContext.CharacterModelsDownloadProgress : -1;
-            if (progress == _characterModelDownloadProgress) return;
-            _characterModelDownloadProgress = progress;
-            if (progress < 0) item.TitleLabel.ApplyText(true);
-            else _text.text = Gui.Format("ModUi/&CharacterModelsDownloadProgress",
-                progress.ToString(CultureInfo.CurrentCulture));
             _dirty = true;
         }
 
@@ -3388,8 +3437,6 @@ internal static class UiTextHelpers
                 _deferredFrames--;
                 return;
             }
-
-            RefreshCharacterModelDownloadCaption();
 
             var caption = _text.rectTransform;
             var width = caption.rect.width;

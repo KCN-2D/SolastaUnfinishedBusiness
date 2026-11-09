@@ -2,8 +2,48 @@
 #define UB_SOURCE_GROOM_COORDINATES_INCLUDED
 // Source N/T are the render frame. UV2=(groomU,groomV,roleAndTile,handednessRatio).
 // roleAndTile=0 for source/core; integers1..16 select one of the shared tiles.
-// There is no rest-pose rotation coefficient; native UV0/UV1 stay untouched.
+// UV0.xy retains the native atlas. Format 2 packs support recovery and fiber
+// flow into UV0.zw; format 1 reads the authored flow from UV4.xy. UV3 belongs
+// to the runtime GPU surface projection and stays free in authored meshes.
 float3 SourceGroomSafeNormal(float3 v) { return v*rsqrt(max(dot(v,v),1e-20)); }
+float2 SourceGroomUnpackSignedPair(float packed)
+{
+    float high=floor(packed/4096);
+    return float2(packed-high*4096,high)*(2.0/4095)-1;
+}
+// Projected-area-normalized cylindrical fiber distribution. The fiber axis
+// owns the longitudinal lobe; surface GGX alone gives a solid plastic lock.
+float SourceGroomFiberDistribution(float tangentHalf, float roughness)
+{
+    float exponent=max(2/max(roughness*roughness,1e-6)-2,0);
+    float z=0.5*(exponent+3);
+    float inverseZ=rcp(z);
+    // Gamma(z+1/2)/Gamma(z), bounded to <0.02% relative error for z>=1.5.
+    float normalization=sqrt(z)*(1+inverseZ*(-0.125+inverseZ*(0.0078125
+        +inverseZ*(0.0048828125-inverseZ*0.000640869140625))))/(2*sqrt(UNITY_PI));
+    return normalization*pow(max(1-tangentHalf*tangentHalf,0),0.5*exponent);
+}
+// A direction and its negative describe the same fiber axis. Interpolate
+// their symmetric outer product; ordinary vector interpolation cancels them.
+float3 SourceGroomInterpolatedAxis(float3 first,float3 second,float3 n,float3 tangent,
+                                  float3 bitangent,float3 fallback,out float coherence)
+{
+    float3 t=SourceGroomSafeNormal(tangent-n*dot(n,tangent));
+    float3 b=cross(n,t)*(dot(cross(n,t),bitangent)<0?-1:1);
+    float3x3 tensor=float3x3(first.x,first.y,first.z,first.y,second.x,second.y,first.z,second.y,second.z);
+    float a=dot(t,mul(tensor,t)),d=dot(b,mul(tensor,b)),c=dot(t,mul(tensor,b));
+    float trace=a+d;
+    if(trace<=1e-12){coherence=0;return fallback;}
+    float split=sqrt(max((a-d)*(a-d)+4*c*c,0));
+    float eigenvalue=0.5*(trace+split);
+    float2 axis=a>=d ? float2(eigenvalue-d,c) : float2(c,eigenvalue-a);
+    float square=dot(axis,axis);
+    coherence=saturate(split/trace);
+    if(square<=1e-20)return fallback;
+    axis*=rsqrt(square);
+    return SourceGroomSafeNormal(t*axis.x+b*axis.y);
+}
+
 float3 SourceGroomUnpack(float4 p)
 {
     float2 xy=float2(p.r*p.a,p.g)*2-1;

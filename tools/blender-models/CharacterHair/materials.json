@@ -8,15 +8,15 @@
     },
     {
       "path": "NativeHairSourceGroom.shader",
-      "sha256": "fda7fa3b933d70d827e76590542683d9a0efb7d597107aaa726239d37ba02784"
+      "sha256": "595b8ece30c3ad8d9b6a595ed901143ae12bd52b9cdb147fd1e75d2ff5f57ebd"
     },
     {
       "path": "SourceGroom.cginc",
-      "sha256": "7f22fc7d6edee53bc36af965956bd8db3cd7253c45104f32c81e613d4c911875"
+      "sha256": "bd4ae92fd99960775e2c8bb20507f1b830c5699089a6cd12b10aae9011e11fb1"
     },
     {
       "path": "SourceGroomProgram.cginc",
-      "sha256": "4a7de109226fa9480879ad59d77e1df6ea45c4643a7dbe160bb656456bae109c"
+      "sha256": "9e2e4b1c50cb1bba879be8dda420e32aecba9a880a3a694ec6e5ae845ae6c2b1"
     }
   ],
   "materials": [
@@ -57,12 +57,12 @@
         {
           "name": "_FiberSmoothness",
           "kind": "float",
-          "value": 0.42
+          "value": 0.55
         },
         {
           "name": "_FiberAnisotropy",
           "kind": "float",
-          "value": 0.65
+          "value": 0.8
         },
         {
           "name": "_MacroNormalStrength",
@@ -138,6 +138,26 @@
           "name": "_UBSurfaceProjection",
           "kind": "float",
           "value": 0.0
+        },
+        {
+          "name": "_SupportInVertexFrame",
+          "kind": "float",
+          "value": 0
+        },
+        {
+          "name": "_FlowInVertexFrame",
+          "kind": "float",
+          "value": 0
+        },
+        {
+          "name": "_CoreAnisotropyScale",
+          "kind": "float",
+          "value": 0.75
+        },
+        {
+          "name": "_CoreSmoothnessScale",
+          "kind": "float",
+          "value": 0.9
         }
       ]
     }

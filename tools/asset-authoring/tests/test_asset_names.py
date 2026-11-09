@@ -113,6 +113,34 @@ setattr(publisher,'asset_names',names)
 
 
 class CharacterPublicNameContracts(unittest.TestCase):
+    def test_resource_retirement_plan_keeps_referenced_and_current_catalog_data(self):
+        with tempfile.TemporaryDirectory()as temporary:
+            root=Path(temporary).resolve();artifacts=root/'tools/game-test/artifacts';old=artifacts/'Old';catalog=old/'Catalog'
+            catalog.mkdir(parents=True)
+            files=[]
+            for name in ('retired.bundle','retained.bundle'):
+                path=catalog/name;path.write_bytes(name.encode())
+                files.append(dict(file=name,sha256=publisher.sha(path)))
+            manifest=catalog/'CharacterModels.manifest.json'
+            manifest.write_text(json.dumps(dict(bundles=files,meshes=[])),encoding='utf8')
+            (old/'ResourceAssembly.json').write_text(json.dumps(dict(status='PASS_STANDALONE_CHARACTER_RESOURCES',catalogSha256=publisher.sha(manifest))),encoding='utf8')
+            reference=artifacts/'References.json';reference.write_text(json.dumps(dict(schemaVersion=1,paths=[str(catalog/'retained.bundle')])),encoding='utf8')
+            output=artifacts/'PayloadRetirementPlan.json'
+            with mock.patch.object(publisher,'ROOT',root):
+                plan=publisher.create_resource_retirement_plan([old,old],reference,output)
+                self.assertEqual([Path(row['path']).name for row in plan['files']],['retired.bundle'])
+                self.assertEqual(len(plan['roots']),1)
+                self.assertEqual(plan['files'][0]['sha256'],publisher.sha(catalog/'retired.bundle'))
+                self.assertTrue((catalog/'retired.bundle').is_file())
+                reference.write_text(json.dumps(dict(schemaVersion=1,paths=[str(catalog)])),encoding='utf8')
+                plan=publisher.create_resource_retirement_plan([old],reference,output)
+                self.assertEqual(plan['files'],[])
+                with self.assertRaisesRegex(ValueError,'below artifacts'):
+                    publisher.create_resource_retirement_plan([root],reference,output)
+                (old/'ResourceAssembly.json').write_text(json.dumps(dict(status='INCOMPLETE',catalogSha256=publisher.sha(manifest))),encoding='utf8')
+                with self.assertRaisesRegex(ValueError,'completed resource owner'):
+                    publisher.create_resource_retirement_plan([old],reference,output)
+
     def document(self,second=False) -> dict[str, Any]:
         files=['pn_'+'b'*20+'.bundle']+(['pn_'+'c'*20+'.bundle'] if second else [])
         meshes=[dict(sourceFingerprint=chr(97+i)*64,mode='authored',authoredFingerprint=chr(99+i)*64,
@@ -450,6 +478,40 @@ class CharacterResourceContracts(unittest.TestCase):
         import character_resources
         return character_resources
 
+    def test_groom_lod_coverage_includes_untextured_lower_lod_consumers(self):
+        api=self.resource_module()
+        pointer=lambda key:dict(m_FileID=0,m_PathID=key)
+        def item(kind,key,tree):
+            return SimpleNamespace(type=SimpleNamespace(name=kind),path_id=key,read_typetree=lambda:tree)
+        def material(groom,texture):
+            return dict(m_SavedProperties=dict(m_Floats=[('_CoreResponse',1.),('_SupportInVertexFrame',1.),('_FlowInVertexFrame',2.)]if groom else[('_Metallic',0.)],m_TexEnvs=[('_MainTex',dict(m_Texture=pointer(texture)))]))
+        objects={1:item('Material',1,material(True,90)),2:item('Material',2,material(False,0))}
+        for key,mesh,mat in((10,100,1),(11,101,2),(12,102,2)):
+            objects[key]=item('SkinnedMeshRenderer',key,dict(m_Mesh=pointer(mesh),m_Materials=[pointer(mat)]))
+        objects[20]=item('LODGroup',20,dict(m_LODs=[dict(renderers=[dict(renderer=pointer(key))])for key in(10,11,12)]))
+        plan=api.groom_lod_plan(SimpleNamespace(objects=objects))
+        self.assertEqual(plan['meshes'],{100,101,102})
+        self.assertEqual(plan['donors'],{101:100,102:100})
+        self.assertEqual(plan['materials'],{2:1})
+        with self.assertRaisesRegex(ValueError,'untextured native placeholder'):
+            api.validate_groom_frame_coverage(SimpleNamespace(objects=objects))
+        # A real textured accessory remains owned by its original material.
+        objects[2]=item('Material',2,material(False,91))
+        self.assertEqual(api.groom_lod_plan(SimpleNamespace(objects=objects))['meshes'],{100})
+        self.assertEqual(api.groom_lod_plan(SimpleNamespace(objects=objects))['materials'],{})
+
+    def test_groom_lod_placeholder_shared_outside_its_group_is_rejected(self):
+        api=self.resource_module()
+        pointer=lambda key:dict(m_FileID=0,m_PathID=key)
+        def item(kind,key,tree):
+            return SimpleNamespace(type=SimpleNamespace(name=kind),path_id=key,read_typetree=lambda:tree)
+        materials={1:item('Material',1,dict(m_SavedProperties=dict(m_Floats=[('_CoreResponse',1.),('_SupportInVertexFrame',1.),('_FlowInVertexFrame',2.)],m_TexEnvs=[]))),2:item('Material',2,dict(m_SavedProperties=dict(m_Floats=[],m_TexEnvs=[])))}
+        for key,mesh,mat in((10,100,1),(11,101,2),(12,999,2)):
+            materials[key]=item('SkinnedMeshRenderer',key,dict(m_Mesh=pointer(mesh),m_Materials=[pointer(mat)]))
+        materials[20]=item('LODGroup',20,dict(m_LODs=[dict(renderers=[dict(renderer=pointer(key))])for key in(10,11)]))
+        with self.assertRaisesRegex(ValueError,'shared with another material responsibility'):
+            api.groom_lod_plan(SimpleNamespace(objects=materials))
+
     def test_prefab_address_selects_the_game_object_among_script_subassets(self):
         api=self.resource_module();asset='Assets/Hero.prefab'
         prefab=SimpleNamespace(type=SimpleNamespace(name='GameObject'),path_id=17)
@@ -519,6 +581,208 @@ class CharacterResourceContracts(unittest.TestCase):
         for key in texture.keys()-{'m_TextureFormat','m_CompleteImageSize','m_StreamData'}:self.assertEqual(result[key],texture[key])
         with self.assertRaises(ValueError):api.texture_rgba32_storage(texture,payload[:-1],128)
         with self.assertRaises(ValueError):api.texture_rgba32_storage(texture,payload,129)
+        compressed=api.texture_main_storage(result,bytes(112),480,25)
+        self.assertEqual(compressed['m_TextureFormat'],25)
+        self.assertEqual(compressed['m_CompleteImageSize'],112)
+        for key in texture.keys()-{'m_TextureFormat','m_CompleteImageSize','m_StreamData'}:self.assertEqual(compressed[key],texture[key])
+        with self.assertRaises(ValueError):api.texture_main_storage(result,bytes(111),480,25)
+        with self.assertRaises(ValueError):api.texture_main_storage(dict(result,m_CompleteImageSize=339),bytes(112),480,25)
+
+    def test_complete_skin_mips_support_inline_and_legacy_normal_storage(self):
+        api=self.resource_module()
+        texture=dict(m_TextureFormat=12,m_ImageCount=1,m_TextureDimension=2,m_Width=4,m_Height=4,m_MipCount=3,
+            m_CompleteImageSize=48,m_ColorSpace=0,m_IsReadable=False,
+            m_TextureSettings=dict(m_FilterMode=2,m_Aniso=4,m_WrapU=0),
+            m_StreamData=dict(path='',offset=0,size=0),**{'image data':bytes(48)})
+        original=copy.deepcopy(texture);raw=bytes(84)
+        actual=api.texture_rgba32_storage(texture,raw,0)
+        self.assertEqual(texture,original)
+        self.assertEqual(actual['image data'],raw)
+        self.assertEqual(actual['m_StreamData'],texture['m_StreamData'])
+        self.assertEqual(actual['m_TextureFormat'],4)
+        for key in texture.keys()-{'m_TextureFormat','m_CompleteImageSize','image data'}:
+            self.assertEqual(actual[key],texture[key])
+        with self.assertRaises(ValueError):api.texture_rgba32_storage(texture,raw[:-1],0)
+
+    def test_shared_normal_quantization_is_order_independent_and_rejects_real_conflicts(self):
+        api=self.resource_module();a=bytes([0,20,31,255]);b=bytes([1,21,30,254])
+        first,proof=api.reconcile_shared_normal_mips([a,b]);second,_=api.reconcile_shared_normal_mips([b,a])
+        self.assertEqual(first,second);self.assertEqual(first,bytes([0,20,30,254]))
+        self.assertEqual(proof['reconciledComponents'],4)
+        with self.assertRaisesRegex(ValueError,'beyond a one-step'):
+            api.reconcile_shared_normal_mips([a,bytes([0,22,31,255])])
+
+    def test_fiber_storage_preserves_native_uv1_and_runtime_projection_uv3(self):
+        import numpy as np
+        api=self.resource_module();count=3;stride=88
+        channels=[dict(stream=0,offset=0,format=0,dimension=0)for _ in range(14)]
+        for index,offset,width in ((0,0,3),(1,12,3),(2,24,4),(4,40,4),(5,56,2),(6,64,4),(7,80,2)):
+            channels[index].update(offset=offset,dimension=width)
+        source=np.zeros((count,stride//4),dtype='<f4');source[:,:3]=[[0,0,0],[1,0,0],[0,1,0]]
+        source[:,3:6]=[0,0,1];source[:,6:10]=[1,0,0,1]
+        source[:,14:16]=[[.125,.25],[.375,.5],[.625,.75]]
+        source[:,20:22]=[[1,0],[2,0],[3,0]]
+        roles=np.array([[0,0,0,1],[1,0,0,1],[0,1,0,1]],dtype='<f4');source[:,16:20]=roles
+        tree: dict[str,Any]=dict(m_VertexData=dict(m_VertexCount=count,m_Channels=channels,m_DataSize=source.tobytes()),m_BindPose=[])
+        mesh=SimpleNamespace(m_Vertices=source[:,:3],m_UV2=roles,m_Normals=source[:,3:6],m_Tangents=source[:,6:10],
+            src=SimpleNamespace(m_VertexData=SimpleNamespace(m_Channels=channels)),
+            get_triangles=lambda:[[0,1,2]],get_streams=lambda *args:{0:SimpleNamespace(offset=0,stride=stride)})
+        proof=api.bake_groom_vertex_flow(tree,mesh)
+        self.assertEqual(proof['coordinateChannel'],'UV4.xy')
+        result=tree['m_VertexData']['m_DataSize'];new_stride=stride+8
+        original_uv1=np.ndarray((count,2),'<f4',buffer=result,offset=channels[5]['offset'],strides=(new_stride,4))
+        projection=np.ndarray((count,2),'<f4',buffer=result,offset=channels[7]['offset'],strides=(new_stride,4))
+        fiber=np.ndarray((count,2),'<f4',buffer=result,offset=channels[8]['offset'],strides=(new_stride,4))
+        np.testing.assert_array_equal(original_uv1,source[:,14:16])
+        np.testing.assert_array_equal(projection,source[:,20:22])
+        np.testing.assert_array_equal(fiber,np.tile([0,1],(count,1)))
+        with self.assertRaisesRegex(ValueError,'unowned UV4'):api.bake_groom_vertex_flow(tree,mesh)
+
+    def test_unoriented_fiber_axis_does_not_depend_on_first_incident_triangle(self):
+        import numpy as np
+        api=self.resource_module();count=7;stride=88
+        source=np.zeros((count,stride//4),dtype='<f4');source[:,3:6]=[0,0,1];source[:,6:10]=[1,0,0,1]
+        roles=np.tile([0,0,0,1],(count,1)).astype('<f4');triangles=[]
+        for index,degrees in enumerate((0,80,100)):
+            angle=np.deg2rad(degrees);direction=np.array([np.cos(angle),np.sin(angle),0])
+            a,b=2*index+1,2*index+2
+            source[a,:3]=direction;source[b,:3]=[-direction[1],direction[0],0]
+            roles[a,:2]=[0,1];roles[b,:2]=[1,0];triangles.append([0,a,b])
+        source[:,16:20]=roles
+        results=[]
+        for order,hand in (([0,1,2],1),([2,1,0],1),([1,0,2],-1)):
+            channels=[dict(stream=0,offset=0,format=0,dimension=0)for _ in range(14)]
+            for index,offset,width in ((0,0,3),(1,12,3),(2,24,4),(4,40,4),(5,56,2),(6,64,4),(7,80,2)):
+                channels[index].update(offset=offset,dimension=width)
+            values=source.copy();values[:,9]=hand
+            tree: dict[str,Any]=dict(m_VertexData=dict(m_VertexCount=count,m_Channels=channels,m_DataSize=values.tobytes()),m_BindPose=[])
+            mesh=SimpleNamespace(m_Vertices=values[:,:3],m_UV2=roles,m_Normals=values[:,3:6],m_Tangents=values[:,6:10],
+                src=SimpleNamespace(m_VertexData=SimpleNamespace(m_Channels=channels)),
+                get_triangles=lambda:[[v for index in order for v in triangles[index]]],get_streams=lambda *args:{0:SimpleNamespace(offset=0,stride=stride)})
+            api.bake_groom_vertex_flow(tree,mesh)
+            axis=np.ndarray((count,2),'<f4',buffer=tree['m_VertexData']['m_DataSize'],offset=channels[8]['offset'],strides=(stride+8,4))[0]
+            results.append(np.array([axis[0],axis[1]*hand]))
+        for axis in results:
+            self.assertAlmostEqual(abs(float(axis@np.array([0,1]))),1.,places=6)
+
+    def test_gpu_frame_bridge_preserves_all_other_vertex_bytes_and_bounds_quantization(self):
+        import numpy as np
+        api=self.resource_module();count=4;stride=64
+        channels=[dict(stream=0,offset=0,format=0,dimension=0)for _ in range(14)]
+        channels[4].update(offset=32,dimension=4);channels[8].update(offset=48,dimension=2)
+        raw=bytearray(bytes(range(64))*count)
+        source=np.ndarray((count,4),'<f4',buffer=raw,offset=32,strides=(stride,4));source[:]=[[.1,.2,0,0],[.2,.3,.5,-.5],[.3,.4,-1,0],[.4,.5,.25,.75]]
+        flow=np.ndarray((count,2),'<f4',buffer=raw,offset=48,strides=(stride,4));flow[:]=[[0,1],[1,0],[-.6,.8],[.6,-.8]]
+        native=bytes(raw);carry=source[:,2:4].copy();axes=flow.copy()
+        tree: dict[str,Any]=dict(m_VertexData=dict(m_VertexCount=count,m_Channels=channels,m_DataSize=native))
+        mesh=SimpleNamespace(src=SimpleNamespace(m_VertexData=SimpleNamespace(m_Channels=channels)),get_streams=lambda *args:{0:SimpleNamespace(offset=0,stride=stride)})
+        proof=api.pack_groom_gpu_frame(tree,mesh)
+        saved=tree['m_VertexData']['m_DataSize'];allowed=np.zeros(len(saved),bool)
+        for row in range(count):allowed[row*stride+40:row*stride+48]=True
+        np.testing.assert_array_equal(np.frombuffer(saved,np.uint8)[~allowed],np.frombuffer(native,np.uint8)[~allowed])
+        words=np.ndarray((count,4),'<f4',buffer=saved,offset=32,strides=(stride,4))[:,2:4]
+        def decode(word):
+            high=np.floor(word.astype(float)/4096)
+            return np.c_[word-high*4096,high]*(2/4095)-1
+        np.testing.assert_allclose(decode(words[:,0]),carry,rtol=0,atol=1/4095+1e-7)
+        np.testing.assert_allclose(decode(words[:,1]),axes,rtol=0,atol=1/4095+1e-7)
+        self.assertEqual(proof['format'],2)
+        api.pack_groom_gpu_frame(tree,mesh,source_format=2);self.assertEqual(tree['m_VertexData']['m_DataSize'],saved)
+        with self.assertRaisesRegex(ValueError,'Unknown source'):api.pack_groom_gpu_frame(tree,mesh,source_format=3)
+
+    def test_authored_curves_guide_support_flow_independently_of_support_uv_rotation(self):
+        import numpy as np
+        api=self.resource_module();count=6;stride=88
+        channels=[dict(stream=0,offset=0,format=0,dimension=0)for _ in range(14)]
+        for index,offset,width in ((0,0,3),(1,12,3),(2,24,4),(4,40,4),(5,56,2),(6,64,4),(7,80,2)):
+            channels[index].update(offset=offset,dimension=width)
+        source=np.zeros((count,stride//4),dtype='<f4')
+        source[:3,:3]=[[0,0,0],[1,0,0],[0,1,0]];source[3:,:3]=source[:3,:3]+[0,0,.01]
+        source[:,3:6]=[0,0,1];source[:,6:10]=[1,0,0,1]
+        roles=np.array([[0,0,0,1],[0,1,0,1],[1,0,0,1],
+                        [0,0,1,1],[1,0,1,1],[0,1,1,1]],dtype='<f4')
+        source[:,16:20]=roles
+        tree: dict[str,Any]=dict(m_VertexData=dict(m_VertexCount=count,m_Channels=channels,m_DataSize=source.tobytes()),m_BindPose=[])
+        mesh=SimpleNamespace(m_Vertices=source[:,:3],m_UV2=roles,m_Normals=source[:,3:6],m_Tangents=source[:,6:10],
+            src=SimpleNamespace(m_VertexData=SimpleNamespace(m_Channels=channels)),
+            get_triangles=lambda:[[0,1,2,3,4,5]],get_streams=lambda *args:{0:SimpleNamespace(offset=0,stride=stride)})
+        proof=api.bake_groom_vertex_flow(tree,mesh)
+        axes=np.ndarray((count,2),'<f4',buffer=tree['m_VertexData']['m_DataSize'],offset=channels[8]['offset'],strides=(stride+8,4))
+        np.testing.assert_allclose(np.abs(axes),np.tile([0,1],(count,1)),rtol=0,atol=1e-7)
+        self.assertEqual(proof['curveGuidedSupportGroups'],3)
+
+    def test_owned_skin_reload_rejects_sampler_and_unselected_texture_changes(self):
+        api=self.resource_module()
+        with tempfile.TemporaryDirectory()as folder:
+            source=Path(folder)/'source.bundle';target=Path(folder)/'target.bundle';raw=Path(folder)/'normal.bc7'
+            source.write_bytes(b'source');target.write_bytes(b'target');raw.write_bytes(bytes(16))
+            tree=dict(m_Name='Normal',m_Width=4,m_Height=4,m_MipCount=1,m_TextureFormat=4,
+                m_CompleteImageSize=64,m_ColorSpace=0,m_TextureSettings=dict(filter=2),
+                m_StreamData=dict(path='skin.resS',offset=0,size=64))
+            new=dict(tree,m_TextureFormat=25,m_CompleteImageSize=16,m_StreamData=dict(path='skin.resS',offset=0,size=16))
+            class Texture:
+                type=SimpleNamespace(name='Texture2D')
+                def __init__(self,metadata,payload):self.metadata=metadata;self.payload=payload
+                def read_typetree(self):return self.metadata
+                def read(self):return SimpleNamespace(get_image_data=lambda:self.payload)
+            first=SimpleNamespace(name='CAB',externals=[],objects={1:Texture(tree,bytes(64)),2:Texture(tree,b'unchanged')})
+            second=SimpleNamespace(name='CAB',externals=[],objects={1:Texture(new,raw.read_bytes()),2:Texture(tree,b'unchanged')})
+            pin=lambda path:dict(path=str(path),sha256=api.digest(path))
+            receipt=dict(source=pin(source),target=pin(target),beforeSha256=api.digest(source),sha256=api.digest(target),textures=[
+                dict(object=1,name='Normal',width=4,height=4,mipCount=1,beforeFormat=4,format=25,bytes=16,raw=pin(raw),
+                    sourcePayloadSha256=hashlib.sha256(bytes(64)).hexdigest(),payloadSha256=api.digest(raw))])
+            with mock.patch.object(api,'load_serialized_bundle',side_effect=lambda path,**kwargs:(None,first if Path(path)==source else second)):
+                api.validate_owned_texture_mips(receipt)
+                new['m_ColorSpace']=1
+                with self.assertRaisesRegex(ValueError,'colour space'):api.validate_owned_texture_mips(receipt)
+                new['m_ColorSpace']=0
+                second.objects[2].payload=b'changed'
+                with self.assertRaisesRegex(ValueError,'unselected texels'):api.validate_owned_texture_mips(receipt)
+
+    def test_equal_material_names_do_not_confer_a_groom_role(self):
+        api=self.resource_module()
+        def material(values):return SimpleNamespace(type=SimpleNamespace(name='Material'),peek_name=lambda:'M_HairShape_S',
+            read_typetree=lambda:dict(m_SavedProperties=dict(m_Floats=values)))
+        file=SimpleNamespace(objects={11:material([('_CoreResponse',1.)]),12:material([('_Glossiness',.5)])})
+        self.assertEqual(api.groom_material_identifiers(file),{11})
+
+    def test_skin_palette_extension_uses_the_renderers_own_rig(self):
+        api=self.resource_module();pointer=lambda value:dict(m_FileID=0,m_PathID=value)
+        objects={}
+        def game(identifier,name):
+            objects[identifier]=SimpleNamespace(path_id=identifier,type=SimpleNamespace(name='GameObject'),peek_name=lambda:name)
+        def transform(identifier,game_id,parent,children):
+            tree=dict(m_GameObject=pointer(game_id),m_Father=pointer(parent),m_Children=[pointer(i)for i in children])
+            objects[identifier]=SimpleNamespace(path_id=identifier,type=SimpleNamespace(name='Transform'),read_typetree=lambda:tree)
+        for offset in (0,10):
+            game(offset+1,'Bip001');game(offset+3,'Pelvis');game(offset+5,'Head')
+            transform(offset+2,offset+1,0,[offset+4]);transform(offset+4,offset+3,offset+2,[offset+6]);transform(offset+6,offset+5,offset+4,[])
+        file=SimpleNamespace(name='CAB-own-rig',objects=objects)
+        renderer=dict(m_Bones=[pointer(6)],m_Mesh=pointer(22),m_Name='Face')
+        source=['Root/Bip001/Pelvis/Head'];target=[*source,'Root/Bip001/Pelvis']
+        result,proof=api.extend_skin_bone_palette(file,renderer,source,target)
+        self.assertEqual(result['m_Bones'],[pointer(6),pointer(4)])
+        self.assertEqual(renderer['m_Bones'],[pointer(6)])
+        self.assertTrue(proof['nativeBonePrefixExact'])
+        repeated=dict(renderer,m_Bones=[pointer(6),pointer(6)])
+        slots=[source[0],source[0]]
+        extended,alias_proof=api.extend_skin_bone_palette(file,repeated,slots,[*slots,target[-1],source[0]])
+        self.assertEqual(extended['m_Bones'],[pointer(6),pointer(6),pointer(4),pointer(6)])
+        self.assertTrue(alias_proof['nativeBonePrefixExact'])
+        with self.assertRaisesRegex(ValueError,'native bone prefix'):
+            api.extend_skin_bone_palette(file,renderer,source,list(reversed(target)))
+
+    def test_crunch_mips_decode_their_own_declared_level(self):
+        from PIL import Image
+        api=self.resource_module()
+        texture=SimpleNamespace(m_TextureFormat=29,m_Width=4,m_Height=4,m_MipCount=3,get_image_data=lambda:b'crunched')
+        obj=SimpleNamespace(read=lambda:texture,version=(2019,4,37,1),platform=19)
+        with mock.patch('texture2ddecoder.unpack_unity_crunch',side_effect=lambda data,level:bytes([level])*16)as unpack, \
+             mock.patch('UnityPy.export.Texture2DConverter.parse_image_data',side_effect=lambda data,w,h,*args,**kwargs:Image.new('RGBA',(w,h),(data[0],2,3,255))):
+            images=api.texture_mip_images(obj)
+        self.assertEqual(unpack.call_args_list,[mock.call(b'crunched',level)for level in range(3)])
+        self.assertEqual([image.shape[:2]for image in images],[(4,4),(2,2),(1,1)])
+        self.assertEqual([int(image[0,0,0])for image in images],[0,1,2])
 
     def test_groom_precision_preserves_native_fitting_records(self):
         api=self.resource_module()
@@ -576,7 +840,7 @@ class CharacterResourceContracts(unittest.TestCase):
         for key in ('m_Shapes','m_BindPose','m_LocalAABB'):self.assertEqual(tree[key],before[key])
         self.assertEqual(tree['m_VertexData']['m_Channels'][8]['dimension'],0)
         shader=(_PATH.parent.parent/'blender-models/CharacterHair/SourceGroomProgram.cginc').read_text('utf-8-sig')
-        self.assertIn('o.groomRoleAndSign.zw = v.texcoord.zw;',shader)
+        self.assertIn('SourceGroomUnpackSignedPair(v.texcoord.z) : v.texcoord.zw;',shader)
 
     def test_groom_without_core_smoothing_still_declares_zero_carry(self):
         import numpy as np
@@ -630,6 +894,53 @@ class CharacterResourcePackContracts(unittest.TestCase):
 
 
 class CharacterGroomContracts(unittest.TestCase):
+    def test_fiber_reflection_is_normalized_and_reciprocal_across_roughness(self):
+        owner=Path(__file__).resolve().parents[2]/'blender-models/CharacterHair/validate_material.py'
+        spec=importlib.util.spec_from_file_location('groom_material_validation',owner)
+        assert spec is not None and spec.loader is not None
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        for smoothness in (0.,.1,.25,.42,.55,.7,.85,.95):
+            with self.subTest(smoothness=smoothness):
+                proof=module.check_fiber_distribution(smoothness)
+                self.assertLess(abs(proof['fiberProjectedArea']-1),.0002)
+                self.assertLess(proof['maximumReciprocityError'],1e-8)
+
+    def test_shared_groom_atlas_has_separate_interior_strands_and_neutral_dye(self):
+        import numpy as np
+        from PIL import Image
+        owner=Path(__file__).resolve().parents[2]/'blender-models/CharacterHair/GenerateFlowCoverageSweptProfile.py'
+        spec=importlib.util.spec_from_file_location('groom_atlas_owner',owner)
+        assert spec is not None and spec.loader is not None
+        groom=importlib.util.module_from_spec(spec);spec.loader.exec_module(groom)
+        with tempfile.TemporaryDirectory() as temporary:
+            output=Path(temporary)
+            groom.generate_strand_atlas(output)
+            pixels=np.asarray(Image.open(output/'FineGroomMask.png'))
+            np.testing.assert_array_equal(pixels[:,:,0],pixels[:,:,1])
+            np.testing.assert_array_equal(pixels[:,:,1],pixels[:,:,2])
+            self.assertGreaterEqual(int(pixels[:,:,:3].min()),int(.6*255))
+            for y in range(4):
+                for x in range(4):
+                    tile=pixels[y*256:(y+1)*256,x*128:(x+1)*128,3]>=.35*255
+                    centre=tile[128].astype(int)
+                    separate_runs=int(np.count_nonzero(np.diff(np.r_[0,centre,0])==1))
+                    self.assertGreaterEqual(separate_runs,12)
+                    self.assertGreater(float(tile[85:170].mean()),.25)
+                    self.assertLess(float(tile[85:170].mean()),.65)
+                    self.assertFalse(np.any(tile[:,0]) or np.any(tile[:,-1]))
+                    pigment=pixels[y*256:(y+1)*256,x*128:(x+1)*128,0][tile]/255.
+                    self.assertGreater(float(np.std(pigment)),.05)
+                    # Achromatic modulation preserves the native palette hue.
+                    for dye in ([.03,.01,.02],[.8,.65,.4],[.9,.9,.9]):
+                        dyed=pigment[:,None]*np.asarray(dye)
+                        np.testing.assert_allclose(dyed/np.sum(dyed,axis=1)[:,None],
+                            np.broadcast_to(np.asarray(dye)/sum(dye),dyed.shape),rtol=1e-6)
+            recipe=json.loads((output/'MeshRecipe.json').read_text('utf-8'))
+            for texture in recipe['textures']:
+                self.assertTrue(texture['mipmaps'])
+                self.assertFalse(texture['sRGB'])
+                self.assertEqual(texture['sha256'],hashlib.sha256((output/texture['path']).read_bytes()).hexdigest())
+
     def test_face_contact_strength_preserves_uv_aliases_and_source_proportions(self):
         import numpy as np
         owner,_=publisher.source_owner()
@@ -704,6 +1015,41 @@ class CharacterGroomContracts(unittest.TestCase):
             capacity(100,120,30,50)
         with self.assertRaises(AssertionError):
             capacity(100,200,100,99)
+
+    def test_curved_support_reserves_whole_fine_sheets(self):
+        import ast
+        path=_BUILD_PATH.parent.parent/'CharacterHair/GenerateFlowCoverageSweptProfile.py'
+        nodes: list[ast.stmt]=[node for node in ast.parse(path.read_text('utf-8-sig')).body
+            if isinstance(node,ast.FunctionDef)and node.name=='curved_core_budget']
+        scope: dict[str, Any]={}
+        exec(compile(ast.Module(body=nodes,type_ignores=[]),str(path),'exec'),scope)
+        allocate=scope['curved_core_budget']
+        self.assertEqual(allocate(4,[80,10,10],.18),(14,[1]))
+        self.assertEqual(allocate(0,[100],.18),(0,[]))
+        self.assertEqual(allocate(6,[],.18),(6,[]))
+        budget, donated=allocate(0,[8]*100,.18)
+        self.assertEqual(budget,144)
+        self.assertEqual(len(donated),18)
+        with self.assertRaises(AssertionError):
+            allocate(0,[0],.18)
+
+    def test_fiber_morphs_follow_the_declared_triangle_frame(self):
+        import numpy as np
+        path=_BUILD_PATH.parent.parent/'CharacterHair/GenerateFlowCoverageSweptProfile.py'
+        spec=importlib.util.spec_from_file_location('fiber_surface_frames',path)
+        assert spec and spec.loader
+        groom=importlib.util.module_from_spec(spec);spec.loader.exec_module(groom)
+        source=np.tile([[0.,0.,0.],[1.,0.,0.],[0.,1.,0.]],(2,1,1))
+        normal=np.tile([0.,0.,1.],(2,3,1));normal[1,1:]=[0.,-.8,.6]
+        tangent=np.tile([1.,0.,0.],(2,3,1));bitangent=np.cross(normal,tangent)
+        record=dict(anchor=0,offset=[1/3,1/3,.1],normal=[0.,0.,1.],tangent=[1.,0.,0.],
+                    surface=dict(triangle=[0,1,2],barycentric=[1/3]*3))
+        points,normals,_=groom.source_fiber_frames([record],source,normal,tangent,bitangent)
+        expected=groom.unit(normal[1].sum(axis=0))
+        np.testing.assert_allclose(points[0,0],[1/3,1/3,.1],atol=1e-8)
+        np.testing.assert_allclose(points[1,0],np.array([1/3,1/3,0.])+.1*expected,atol=1e-8)
+        np.testing.assert_allclose(normals[1,0],expected,atol=1e-8)
+        self.assertGreater(np.linalg.norm(points[1,0]-points[0,0]),.01)
 
     def test_curvature_bound_uses_each_physical_parent_inside_a_uv_component(self):
         import numpy as np
@@ -917,8 +1263,8 @@ class CharacterBoundaryContracts(unittest.TestCase):
         import numpy as np
         path=_BUILD_PATH.with_name('generate.py')
         nodes: list[ast.stmt]=[node for node in ast.parse(path.read_text(encoding='utf-8')).body
-               if isinstance(node,ast.FunctionDef)and node.name in ('points','conform_skin_boundary')]
-        scope: dict[str, Any]={'np':np,'copy':copy}
+               if isinstance(node,ast.FunctionDef)and node.name in ('points','skin_palette_frame','conform_skin_boundary')]
+        scope: dict[str, Any]={'np':np,'copy':copy,'skin_palette_frame':publisher.skin_palette_frame}
         exec(compile(ast.Module(body=nodes,type_ignores=[]),str(path),'exec'),scope)
         return scope['conform_skin_boundary']
 
@@ -951,7 +1297,7 @@ class CharacterBoundaryContracts(unittest.TestCase):
 
     def test_incompatible_shared_bind_frames_are_rejected(self):
         receiver=self.packet();donor=self.packet();donor['bindPoses'][28]=1.
-        with self.assertRaisesRegex(ValueError,'incompatible renderer frames'):
+        with self.assertRaisesRegex(ValueError,'incompatible.*bind frames'):
             self.boundary_owner()(receiver,donor,['Neck','Chest'],['Neck','Chest'],[(0,0)])
 
     def test_receiver_only_morph_keeps_the_cut_on_the_unmorphed_donor(self):
