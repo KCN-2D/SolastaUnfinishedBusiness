@@ -14,6 +14,25 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterStageIdentityDefinitionPanelPatcher
 {
+    [HarmonyPatch(typeof(CharacterStageIdentityDefinitionPanel), nameof(CharacterStageIdentityDefinitionPanel.InitStage))]
+    [UsedImplicitly]
+    public static class InitStage_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(CharacterStageIdentityDefinitionPanel __instance)
+        {
+            // Native initialization resets active modifiers, but retained rows are
+            // inactive between characters and are omitted from its child search.
+            foreach (var modifier in __instance.modifiers)
+            {
+                if (modifier && modifier.transform.parent == __instance.modifiersTable)
+                {
+                    modifier.Folded = false;
+                }
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(CharacterStageIdentityDefinitionPanel), "AfterMorphotypeChanged")]
     [UsedImplicitly]
     public static class AfterMorphotypeChanged_Patch

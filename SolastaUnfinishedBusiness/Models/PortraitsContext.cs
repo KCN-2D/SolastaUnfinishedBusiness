@@ -45,6 +45,13 @@ public static class PortraitsContext
         }
 
         var source = camera.Follow;
+        if (source.TryGetComponent<FollowIKTarget>(out var follow) && follow.FollowTransform)
+        {
+            // A slow-follow proxy may still be converging when a close-up starts.
+            // Sample its actual bone before detaching the framing from animation.
+            source = follow.FollowTransform;
+        }
+
         if (!ViewportFramingTargets.TryGetValue(viewport, out var target) || !target)
         {
             ViewportFramingTargets.Remove(viewport);
@@ -55,8 +62,21 @@ public static class PortraitsContext
         // Preserve each native close-up/body target when switching cameras, then keep
         // the framing attached to the actor root rather than its breathing/head bones.
         target.SetParent(character.transform, false);
-        target.position = source.position;
-        target.localRotation = Quaternion.identity;
+        // Cinemachine's authored face offset uses the target's axes as well as its
+        // position. Replacing those axes with the actor root shifts the close-up.
+        target.SetPositionAndRotation(source.position, source.rotation);
+
+        if (viewport.mode == CharacterViewport.Mode.CharacterCustomization &&
+            viewport.target == CharacterViewport.Target.HeadSlowLerp &&
+            camera.GetCinemachineComponent<Cinemachine.CinemachineTransposer>() is { } transposer)
+        {
+            // The bone is below the visible center of the face. Offset by a fraction
+            // of the camera's view height so the adjustment scales with its lens.
+            var halfViewHeight = Mathf.Abs(transposer.m_FollowOffset.z) *
+                                 Mathf.Tan(camera.m_Lens.FieldOfView * 0.5f * Mathf.Deg2Rad);
+            target.position += character.transform.up * (0.2f * halfViewHeight);
+        }
+
         camera.Follow = target;
         camera.LookAt = target;
     }

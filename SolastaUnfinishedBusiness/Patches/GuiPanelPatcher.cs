@@ -116,13 +116,28 @@ public static class GuiPanelPatcher
     public static class OnDestroy_Patch
     {
         [UsedImplicitly]
-        private static Exception Finalizer(GuiPanel __instance, Exception __exception) =>
-            __instance switch
+        private static Exception Finalizer(GuiPanel __instance, Exception __exception)
+        {
+            if (__instance is not CharacterStageIdentityDefinitionPanel && __instance is not ContainerPanel)
+            {
+                return __exception;
+            }
+
+            // During application shutdown the GUI service can already be gone.
+            // Unity will destroy the panel's children with the panel itself.
+            var gui = Gui.GuiService;
+            if (gui == null || !gui.PrefabPoolManager)
+            {
+                return __exception;
+            }
+
+            return __instance switch
             {
                 CharacterStageIdentityDefinitionPanel identity =>
                     CharacterStageIdentityDefinitionPanelPatcher.ReleaseCustomizationChoices(identity, __exception),
                 ContainerPanel container => ContainerPanelPatcher.ReleaseInventorySlots(container, __exception),
                 _ => __exception
             };
+        }
     }
 }
