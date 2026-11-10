@@ -216,6 +216,8 @@ $evidence = '.\tools\game-test\artifacts'
 
 `-MaxAgeDays`で保持期限、`-MaxRetainedBytes`で容量上限を指定できます。0は制限なしです。期限・容量を指定すると、最新件数で保持した実行も整理対象になります。容量は復元済みの実行・検証ビルド・所有する検証用データを集計し、参照先などを保持した結果、上限を満たせない場合は`policy.budgetSatisfied=false`を記録します。
 
+完了した契約テストと、復元確認済みの`ToolsAudit.json`だけが残る旧監査フォルダも対象です。空のフォルダは、1日または`-MaxAgeDays`の長い方を経過したものを整理します。参照先と`-PreserveDirectory`の指定は、これらにも適用されます。
+
 制作処理などが参照する入力は、`-ReferencePath '<参照JSON>'`で保持します。JSONは`{"schemaVersion":1,"paths":["<保持する証跡のパス>"]}`の形式で、`paths`に`tools/game-test/artifacts/`内のファイル・フォルダを指定します。相対パスは参照JSONの場所を基準にします。
 
 作業をまたいで保持する入力は `artifacts/StorageReferences.json` へ同じ形式で登録します。各整理処理はこのファイルを自動で読み込みます。採用候補の変更時に参照先を更新し、現在必要な原本・制作入力・比較結果を登録します。

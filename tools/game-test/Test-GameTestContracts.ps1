@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [string]$EvidenceRoot,
     [switch]$SkipProcessLifecycle
@@ -7,7 +7,8 @@ param(
 if (-not $EvidenceRoot) { $EvidenceRoot=$script:GameTestArtifactRoot }
 $run=New-GtDirectory $EvidenceRoot 'Contracts'
 $result=[ordered]@{
-    schemaVersion=1; status='ERROR'; reason='Contract checks have not completed.'
+    schemaVersion=1; kind='tool-contracts'; evidenceDirectory=$run; fixtureScope='isolated'
+    status='ERROR'; reason='Contract checks have not completed.'
     startedUtc=[datetime]::UtcNow.ToString('O'); sources=@(); processGuards=@()
     processGuardsScope='Actual guard function AST with mocked process lookup and settings boundaries.'
     processLifecycle=[ordered]@{status='NOT_RUN';reason='Process lifecycle checks have not run.'}
@@ -1403,6 +1404,19 @@ function Get-VerificationProcessState {
             return Read-GtObject $report.FullName
         }
 
+        function Set-StorageQueryMutation([string]$Path,$Value,[int]$At=1,[switch]$Raw,[switch]$Remove) {
+            $counter=Join-Path (Split-Path -Parent $processFixture) 'QueryCounter.txt'
+            if(Test-Path -LiteralPath $counter){Remove-Item -LiteralPath $counter}
+            $content=if($Raw){[string]$Value}else{$Value|ConvertTo-Json -Depth 30}
+            Write-GtJson (Join-Path (Split-Path -Parent $processFixture) 'QueryMutation.json') @{atQuery=$At;path=$Path;content=$content;remove=[bool]$Remove}
+        }
+        function Clear-StorageQueryMutation {
+            foreach($name in @('QueryCounter.txt','QueryMutation.json')){
+                $path=Join-Path (Split-Path -Parent $processFixture) $name
+                if(Test-Path -LiteralPath $path){Remove-Item -LiteralPath $path}
+            }
+        }
+
         function New-GeneratedPayloadFixture([string]$Name) {
             $area=Join-Path $script:GameTestArtifactRoot ('generated-'+$Name)
             $payloadRoot=Join-Path $area 'Retired'
@@ -1552,6 +1566,45 @@ function Get-VerificationProcessState {
         [void][IO.Directory]::CreateDirectory($emptyRoot)
         $emptyPlan=Invoke-StorageCleanup $emptyRoot -Prune
         Add-StorageCheck 'empty artifact root produces a zero action preview' ($emptyPlan.actions.Count -eq 0 -and $emptyPlan.bytes -eq 0)
+
+        $toolRoot=Join-Path $script:GameTestArtifactRoot 'ToolRuns'
+        [void][IO.Directory]::CreateDirectory($toolRoot)
+        $auditRecord=@{hashRestored=$true;status='PASS';recoveryIdempotent=$true;newFileRemoved=$true;utcTicksRestored=$true}
+        foreach($name in @('complete','referenced','unowned','incomplete','late-file')) {
+            $audit=Join-Path $toolRoot $name;[void][IO.Directory]::CreateDirectory($audit)
+            Write-GtJson (Join-Path $audit 'ToolsAudit.json') $auditRecord
+            [IO.File]::SetLastWriteTimeUtc((Join-Path $audit 'ToolsAudit.json'),[datetime]::UtcNow.AddDays(-3))
+        }
+        $protectedAudit=Join-Path $toolRoot 'referenced'
+        $toolReference=Join-Path $toolRoot 'References.json'
+        Write-GtJson $toolReference @{schemaVersion=1;paths=@($protectedAudit)}
+        [IO.File]::WriteAllText((Join-Path $toolRoot 'unowned/payload.bin'),'unowned')
+        $incompletePath=Join-Path $toolRoot 'incomplete/ToolsAudit.json'
+        $incompleteAudit=Read-GtObject $incompletePath;$incompleteAudit.hashRestored=$false;Write-GtJson $incompletePath $incompleteAudit
+        $contract=Join-Path $toolRoot 'Contracts';[void][IO.Directory]::CreateDirectory($contract)
+        Write-GtJson (Join-Path $contract 'Directory.json') @{schemaVersion=1;layout='GameTest';requestedName='Contracts';directory=$contract}
+        Write-GtJson (Join-Path $contract 'Result.json') @{schemaVersion=1;kind='tool-contracts';fixtureScope='isolated';evidenceDirectory=$contract;status='PASS';
+            startedUtc=[datetime]::UtcNow.AddDays(-4).ToString('O');completedUtc=[datetime]::UtcNow.AddDays(-3).ToString('O')}
+        $staleEmpty=Join-Path $toolRoot 'stale-empty';$protectedEmpty=Join-Path $toolRoot 'protected-empty'
+        foreach($path in @($staleEmpty,$protectedEmpty)){[void][IO.Directory]::CreateDirectory($path);[IO.Directory]::SetLastWriteTimeUtc($path,[datetime]::UtcNow.AddDays(-3))}
+        $toolPlan=Invoke-StorageCleanup $toolRoot -Prune -Preserve @($protectedEmpty,(Join-Path $toolRoot 'late-file')) -Options @{MaxAgeDays=1;ReferencePath=@($toolReference)}
+        Add-StorageCheck 'legacy tool audit and owned contract preview without deletion' (@($toolPlan.actions|Where-Object kind -eq 'superseded-run').Count -eq 2 -and [IO.Directory]::Exists($contract))
+        $toolApplied=Invoke-StorageCleanup $toolRoot -Prune -Apply -Preserve @($protectedEmpty,(Join-Path $toolRoot 'late-file')) -Options @{MaxAgeDays=1;ReferencePath=@($toolReference)}
+        Add-StorageCheck 'completed tool receipts and stale empty directories are retired' (-not [IO.Directory]::Exists((Join-Path $toolRoot 'complete')) -and -not [IO.Directory]::Exists($contract) -and -not [IO.Directory]::Exists($staleEmpty))
+        Add-StorageCheck 'tool cleanup retains references incomplete ownership and unknown payloads' ([IO.Directory]::Exists($protectedAudit) -and [IO.Directory]::Exists($protectedEmpty) -and [IO.File]::Exists($incompletePath) -and [IO.File]::Exists((Join-Path $toolRoot 'unowned/payload.bin')))
+        Add-StorageCheck 'tool diagnostics survive deletion with original identity hashes' (@($toolApplied.retiredRuns|Where-Object {$_.kind -eq 'tool' -and $_.identitySha256 -match '^[a-f0-9]{64}$'}).Count -eq 2)
+        $lateAudit=Join-Path $toolRoot 'late-file'
+        Set-StorageQueryMutation (Join-Path $lateAudit 'new.txt') @{new='consumer'} 1
+        try {
+            try { Invoke-StorageCleanup $toolRoot -Prune -Apply -Options @{MaxAgeDays=1;ReferencePath=@($toolReference)} | Out-Null } catch { }
+            Add-StorageCheck 'late legacy audit payload refuses recursive deletion' ([IO.File]::Exists((Join-Path $lateAudit 'ToolsAudit.json')) -and [IO.File]::Exists((Join-Path $lateAudit 'new.txt')))
+        } finally {Clear-StorageQueryMutation}
+        $lateEmpty=Join-Path $toolRoot 'late-empty';[void][IO.Directory]::CreateDirectory($lateEmpty);[IO.Directory]::SetLastWriteTimeUtc($lateEmpty,[datetime]::UtcNow.AddDays(-3))
+        Set-StorageQueryMutation (Join-Path $lateEmpty 'new.txt') @{new='consumer'} 1
+        try {
+            try { Invoke-StorageCleanup $toolRoot -Prune -Apply -Preserve @($protectedEmpty) -Options @{MaxAgeDays=1;ReferencePath=@($toolReference)} | Out-Null } catch { }
+            Add-StorageCheck 'late file prevents empty directory deletion' ([IO.File]::Exists((Join-Path $lateEmpty 'new.txt')))
+        } finally {Clear-StorageQueryMutation}
 
         # A separate subtree makes the exact preview footprint independent of helper refusal fixtures.
         $pruneRoot=Join-Path $script:GameTestArtifactRoot 'Prune'
@@ -1786,18 +1839,6 @@ function Get-VerificationProcessState {
             return $path
         }
         function Set-StorageRuntimeResult([string]$Run,[scriptblock]$Action){$r=Get-Content -LiteralPath (Join-Path $Run 'Result.json') -Raw|ConvertFrom-Json;&$Action $r;Write-GtJson (Join-Path $Run 'Result.json') $r}
-        function Set-StorageQueryMutation([string]$Path,$Value,[int]$At=1,[switch]$Raw,[switch]$Remove) {
-            $counter=Join-Path (Split-Path -Parent $processFixture) 'QueryCounter.txt'
-            if(Test-Path -LiteralPath $counter){Remove-Item -LiteralPath $counter}
-            $content=if($Raw){[string]$Value}else{$Value|ConvertTo-Json -Depth 30}
-            Write-GtJson (Join-Path (Split-Path -Parent $processFixture) 'QueryMutation.json') @{atQuery=$At;path=$Path;content=$content;remove=[bool]$Remove}
-        }
-        function Clear-StorageQueryMutation {
-            foreach($name in @('QueryCounter.txt','QueryMutation.json')){
-                $path=Join-Path (Split-Path -Parent $processFixture) $name
-                if(Test-Path -LiteralPath $path){Remove-Item -LiteralPath $path}
-            }
-        }
 
         $inputProducer=Join-Path $Directory 'InputValidationProducer.ps1'
         [IO.File]::WriteAllText($inputProducer,@'

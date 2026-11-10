@@ -20,63 +20,18 @@ def reference(path):
 def material(path):
     environment = UnityPy.load(str(path))
     values = [obj.read() for obj in environment.objects if obj.type.name == "Material"]
-    assert len(values) == 1
-    value = values[0]
-    shader = value.m_Shader.deref().read()
+    assert len(values) <= 1
+    value = values[0] if values else None
+    shaders = [obj.read() for obj in environment.objects if obj.type.name == "Shader"]
+    assert value is not None or len(shaders) == 1
+    shader = value.m_Shader.deref().read() if value is not None else shaders[0]
     properties = {prop.m_Name: int(prop.m_Type) for prop in shader.m_ParsedForm.m_PropInfo.m_Props}
     return value, shader, properties
 
 
-def check_distribution(smoothness, anisotropy):
-    roughness = max((1 - smoothness) ** 2, .002)
-    aspect = math.sqrt(max(1 - anisotropy, .05))
-    at, ab = max(roughness * aspect, .002), max(roughness / aspect, .002)
-
-    def distribution(x, y, z):
-        denominator = (x / at) ** 2 + (y / ab) ** 2 + z * z
-        return 1 / (math.pi * at * ab * denominator ** 2)
-
-    # Integrate the normalized NDF over solid angle; expected projected area is 1.
-    polar_steps, azimuth_steps = 512, 256
-    total = 0
-    for ti in range(polar_steps):
-        theta = (ti + .5) * math.pi / (2 * polar_steps)
-        st, ct = math.sin(theta), math.cos(theta)
-        for pi in range(azimuth_steps):
-            phi = (pi + .5) * 2 * math.pi / azimuth_steps
-            total += distribution(st * math.cos(phi), st * math.sin(phi), ct) * ct * st
-    integral = total * math.pi / (2 * polar_steps) * 2 * math.pi / azimuth_steps
-    assert abs(integral - 1) < .005, integral
-    # Isotropic GGX is rotation invariant. Anisotropic axes remain reciprocal.
-    rng = random.Random(20261101)
-    maximum_reciprocity_error = 0
-    maximum_isotropic_error = 0
-    for _ in range(4096):
-        phi = rng.uniform(0, 2 * math.pi)
-        z = rng.uniform(1e-5, 1)
-        r = math.sqrt(1 - z * z)
-        x, y = r * math.cos(phi), r * math.sin(phi)
-        if anisotropy == 0:
-            maximum_isotropic_error = max(maximum_isotropic_error, abs(distribution(x, y, z) - distribution(y, x, z)))
-        light_z, view_z = rng.uniform(1e-5, 1), rng.uniform(1e-5, 1)
-        light_phi, view_phi = rng.uniform(0, 2 * math.pi), rng.uniform(0, 2 * math.pi)
-        light_r, view_r = math.sqrt(1-light_z*light_z), math.sqrt(1-view_z*view_z)
-        lx, ly = light_r*math.cos(light_phi), light_r*math.sin(light_phi)
-        vx, vy = view_r*math.cos(view_phi), view_r*math.sin(view_phi)
-        lambda_l = math.sqrt((at*lx)**2+(ab*ly)**2+light_z**2)
-        lambda_v = math.sqrt((at*vx)**2+(ab*vy)**2+view_z**2)
-        visibility = .5 / (light_z*lambda_v+view_z*lambda_l)
-        reverse = .5 / (view_z*lambda_l+light_z*lambda_v)
-        assert math.isfinite(visibility) and visibility > 0
-        maximum_reciprocity_error = max(maximum_reciprocity_error, abs(visibility-reverse))
-    assert maximum_isotropic_error < 1e-10 and maximum_reciprocity_error == 0
-    return {"smoothness": smoothness, "anisotropy": anisotropy, "ndfProjectedArea": integral,
-            "directionPairs": 4096, "maximumReciprocityError": maximum_reciprocity_error,
-            "maximumIsotropicRotationError": maximum_isotropic_error}
-
-
-def check_fiber_distribution(smoothness):
-    roughness = max((1 - smoothness) ** 2, .002)
+def check_fiber_distribution(smoothness, anisotropy=1):
+    perceptual = 1 - smoothness
+    roughness = perceptual + (max(perceptual ** 2, .002) - perceptual) * anisotropy
     exponent = max(2 / max(roughness * roughness, 1e-6) - 2, 0)
     z = .5 * (exponent + 3)
     inverse = 1 / z
@@ -110,7 +65,7 @@ def check_fiber_distribution(smoothness):
         assert math.isfinite(first) and first >= 0
         maximum_reciprocity_error = max(maximum_reciprocity_error, abs(first-reverse))
     assert maximum_reciprocity_error < 1e-8
-    return dict(smoothness=smoothness, fiberProjectedArea=projected_area,
+    return dict(smoothness=smoothness, anisotropy=anisotropy, fiberProjectedArea=projected_area,
         normalizationRelativeError=error, directionPairs=4096,
         maximumReciprocityError=maximum_reciprocity_error)
 
@@ -152,15 +107,18 @@ def main():
     assert report["bundleSha256"] == reference(bundle)["sha256"]
     original, original_shader, original_properties = material(args.baseline)
     current, shader, properties = material(bundle)
-    assert current.m_Name == original.m_Name == "SourceGroomNativeHair"
+    assert current is not None and current.m_Name == "SourceGroomNativeHair"
+    assert original is None or original.m_Name == current.m_Name
     assert shader.m_ParsedForm.m_Name == original_shader.m_ParsedForm.m_Name == "KCN/SourceGroom/NativeHair"
     colors=lambda m:{k:(v.r,v.g,v.b,v.a) for k,v in m.m_SavedProperties.m_Colors}
-    assert colors(current)==colors(original), "Material color defaults changed."
     textures=lambda m:{k:(v.m_Texture.m_FileID,v.m_Texture.m_PathID,v.m_Scale.x,v.m_Scale.y,v.m_Offset.x,v.m_Offset.y) for k,v in m.m_SavedProperties.m_TexEnvs}
-    assert textures(current)==textures(original), "Material texture defaults or sampler ST changed."
     authored_floats = {item['name']: item['value'] for item in recipe['materials'][0]['properties'] if item['kind'] == 'float'}
     floats = dict(current.m_SavedProperties.m_Floats)
-    validate_float_ownership(original_properties, properties, dict(original.m_SavedProperties.m_Floats), floats, authored_floats)
+    if original is not None:
+        assert colors(current)==colors(original), "Material color defaults changed."
+        assert textures(current)==textures(original), "Material texture defaults or sampler ST changed."
+    validate_float_ownership(original_properties, properties,
+        dict(original.m_SavedProperties.m_Floats) if original is not None else floats, floats, authored_floats)
     assert report["materials"][0]["passes"] == ["FORWARD", "FORWARD", "ShadowCaster"]
     # The native shader renders both sides independently of its saved _CullMode.
     # Checking only property preservation admitted a scalp-coverage regression.
@@ -188,12 +146,10 @@ def main():
               "candidateFloats": {name: floats[name] for name in authored_floats},
               "passes": report["materials"][0]["passes"],
               "culling": culling, "compiledPasses": actual_passes, "baselineCompiledPasses": baseline_passes,
-              "numericalContracts": [check_distribution(authored_floats['_FiberSmoothness'], authored_floats['_FiberAnisotropy']),
-                  check_distribution(authored_floats['_FiberSmoothness']*authored_floats.get('_CoreSmoothnessScale',1),
-                                     authored_floats['_FiberAnisotropy']*authored_floats.get('_CoreAnisotropyScale',0)),
-                  check_distribution(authored_floats['_FiberSmoothness'], 0)],
-              "fiberNumericalContracts": [check_fiber_distribution(value) for value in
-                  (0, authored_floats['_FiberSmoothness'], .95)],
+              "fiberNumericalContracts": [check_fiber_distribution(value, anisotropy) for value in
+                  (0, authored_floats['_FiberSmoothness']*authored_floats.get('_CoreSmoothnessScale',1),
+                   authored_floats['_FiberSmoothness'], .95) for anisotropy in
+                  (0, authored_floats['_FiberAnisotropy']*authored_floats.get('_CoreAnisotropyScale',1), 1)],
               "nativeRenderedAcceptance": "pending"}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     assert not args.output.exists()

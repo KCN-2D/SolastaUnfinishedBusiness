@@ -30,10 +30,7 @@
             half Occlusion;
             fixed Alpha;
             float3 FiberDirection;
-            half FineHair, FineWidthProfile, FiberAnisotropy;
-            float2 FineWidthVariance;
-
-
+            half FiberAnisotropy;
         };
 
 
@@ -73,40 +70,20 @@
             if(dot(tangent,tangent)<1e-8)
                 tangent=cross(n,abs(n.z)<0.99?float3(0,0,1):float3(0,1,0));
             float3 t=SourceGroomSafeNormal(tangent);
-            float3 b=cross(n,t);
             float3 l=gi.light.dir;
             float3 h=Unity_SafeNormalize(l+viewDir);
             float nl=saturate(dot(n,l)),nv=max(abs(dot(n,viewDir)),1e-4);
             float nh=saturate(dot(n,h)),lh=saturate(dot(l,h));
             float perceptualRoughness=1-s.Smoothness;
             float roughness=max(perceptualRoughness*perceptualRoughness,0.002);
-            // The authoring V direction follows each lock. Its tangent is smooth;
-            // the across-fiber direction spreads the highlight across that lock.
-            float aspect=sqrt(max(1-s.FiberAnisotropy,0.05));
-            float at=max(roughness*aspect,0.002),ab=max(roughness/aspect,0.002);
-
-            if(s.FineWidthProfile>0.5)
-            {
-                // Integrate unresolved width-normal variation in slope space.
-                // Distribution normalization and independent dielectric F0 stay
-                // unchanged; no pigment darkening or specular gain reduction.
-                float2 filtered=sqrt(saturate(float2(at*at,ab*ab)+s.FineWidthVariance));
-                at=filtered.x;ab=filtered.y;
-            }
-            float th=dot(t,h),bh=dot(b,h);
-            float distributionDenominator=th*th/(at*at)+bh*bh/(ab*ab)+nh*nh;
-            float distribution=1/max(UNITY_PI*at*ab*distributionDenominator*distributionDenominator,1e-6);
-            float tv=dot(t,viewDir),bv=dot(b,viewDir),tl=dot(t,l),bl=dot(b,l);
-            float visibility=0.5/max(nl*sqrt(at*at*tv*tv+ab*ab*bv*bv+nv*nv)
-                +nv*sqrt(at*at*tl*tl+ab*ab*bl*bl+nl*nl),1e-5);
-            // Fiber normals span the cross-section of each strand. Their
-            // normalized longitudinal distribution removes the solid-surface
-            // highlight while retaining the authored flow, roughness and dye.
-            float fiberDistribution=SourceGroomFiberDistribution(th,roughness);
+            // Every nonmetal hair surface represents fibers. Flow coherence
+            // broadens their longitudinal distribution; it must not mix a
+            // solid-surface GGX lobe back into the opaque lock underneath them.
+            float fiberRoughness=lerp(perceptualRoughness,roughness,saturate(s.FiberAnisotropy));
+            float fiberDistribution=SourceGroomFiberDistribution(dot(t,h),fiberRoughness);
             float fiberMask=min(1,min(2*nh*nv/max(lh,1e-5),2*nh*nl/max(lh,1e-5)));
             float fiberVisibility=fiberMask/(4*max(nv*nl,1e-5));
-            float specularTerm=max(lerp(distribution*visibility,fiberDistribution*fiberVisibility,
-                s.FiberAnisotropy)*UNITY_PI*nl,0);
+            float specularTerm=max(fiberDistribution*fiberVisibility*UNITY_PI*nl,0);
             #if defined(_SPECULARHIGHLIGHTS_OFF)
                 specularTerm=0;
             #endif
@@ -218,6 +195,8 @@
             float2 dUVdx=ddx(i.sourceAndGroom.zw), dUVdy=ddy(i.sourceAndGroom.zw);
             float2 sourceSampleUV=i.sourceAndGroom.xy*_MainTex_ST.xy+_MainTex_ST.zw;
             float2 sourceDx=ddx(sourceSampleUV),sourceDy=ddy(sourceSampleUV);
+            float2 nativeDx=ddx(i.sourceAndGroom.xy)*_BumpMap_ST.xy;
+            float2 nativeDy=ddy(i.sourceAndGroom.xy)*_BumpMap_ST.xy;
             // Optical classification only. Source role IDs, alpha/clip,
             // geometry, native core culling and fine17..48 stay unchanged.
 
@@ -257,7 +236,7 @@
                 // The opaque support represents strand bundles. Its normal
                 // bands stay resolvable at portrait size; separate transparent
                 // fibers retain the atlas's individual-strand coordinates.
-                float2 normalScale=i.groomRoleAndSign.x<0.5 ? float2(0.4,1) : float2(1,1);
+                float2 normalScale=i.groomRoleAndSign.x<0.5 ? float2(0.2,0.2) : float2(1,1);
                 float2 normalCoordinates=atlasCard?groomCoordinates:frac(i.sourceAndGroom.zw*normalScale);
                 float2 normalUV=origin+float2(0.04,0.025)*0.25+normalCoordinates*groomSampleScale;
                 float2 normalDx=dUVdx*normalScale,normalDy=dUVdy*normalScale;
@@ -306,6 +285,17 @@
             // Native locks describe broad volume; their deep grooves must not
             // amplify the independent fine-fiber relief. Ornaments keep native N.
             float3 shadingMacro = (airy || atlasCard) && mask<=0.5 ? float3(0,0,1) : (mask <= 0.5 ? SourceGroomNativeIntensity(macro, lerp(_MacroNormalStrength,_MacroNormalStrength*0.5,_CoreResponse)) : macro);
+            if(!airy && !atlasCard && mask<=0.5 && _CoreResponse>0)
+            {
+                // Retain the source's strand grooves separately from its broad
+                // sculpted volumes. Scaling the complete native normal down
+                // erased those grooves as well, especially on sparse grooms.
+                float2 nativeUV=i.sourceAndGroom.xy*_BumpMap_ST.xy+_BumpMap_ST.zw;
+                float3 broad=SourceGroomUnpack(tex2Dgrad(_BumpMap,nativeUV,nativeDx*4,nativeDy*4));
+                float3 grooves=SourceGroomSafeNormal(float3((macro.xy-broad.xy)*_CoreResponse,1));
+                shadingMacro=SourceGroomWhiteout(SourceGroomNativeIntensity(broad,
+                    lerp(_MacroNormalStrength,_MacroNormalStrength*0.5,_CoreResponse)),grooves);
+            }
             float3 combined = fineCoordinates && mask <= 0.5 ? SourceGroomWhiteout(shadingMacro,fine) : shadingMacro;
             float3 normal = SourceGroomNativeIntensity(combined, _HP_Normal_Intensity);
             // Support normals use the standard vertex interpolator. The inverse
@@ -357,12 +347,12 @@
                 pigment*=gain*_Color.rgb;
                 if(fineCoordinates)
                 {
-                    // Physical groom U spans one centimetre. These narrow,
-                    // unequal bands follow the same continuous V as the fibers.
-                    // Fade each band before its projected Nyquist limit, so map
-                    // minification averages to the original local pigment.
+                    // The core carries resolvable bundles, while individual
+                    // fibers retain their narrower bands. Both follow the same
+                    // authored flow and fade at their projected Nyquist limit.
                     float wave=sin(i.sourceAndGroom.zw.y*(2*UNITY_PI*0.37))*0.075;
-                    float3 cycles=float3(7,19,43);
+                    float3 cycles=i.groomRoleAndSign.x<0.5
+                        ? float3(0.7,1.9,4.3) : float3(7,19,43);
                     float waveDerivative=cos(i.sourceAndGroom.zw.y*(2*UNITY_PI*0.37))*(0.075*2*UNITY_PI*0.37);
                     float3 footprint=max(abs(dUVdx.x*cycles+waveDerivative*dUVdx.y),
                         abs(dUVdy.x*cycles+waveDerivative*dUVdy.y));
@@ -387,7 +377,7 @@
 
             o.Metallic = mask;
             // The same source-flow field changes the microscopic luster in both
-            // Forward and Deferred. It is filtered before minification and never
+            // forward passes. It is filtered before minification and never
             // changes native pigment alpha, geometry, native dye or metal masks.
             float lusterScale=i.groomRoleAndSign.x<0.5 ? _CoreSmoothnessScale : 1;
             float strandLuster=saturate(_FiberSmoothness*lusterScale+0.08*strandVariation
@@ -407,17 +397,6 @@
             // The measured groom coordinates supply the fiber direction on both
             // the opaque support and the individual sheets.
             o.FiberAnisotropy=axisCoherence*_FiberAnisotropy*(i.groomRoleAndSign.x<0.5 ? (fineCoordinates ? _CoreAnisotropyScale : 0) : 1);
-
-            o.FineHair=airy && mask<=0.5 ? 1 : 0;
-            o.FineWidthProfile=o.FineHair;
-            o.FineWidthVariance=0;
-            if(o.FineWidthProfile>0.5)
-            {
-                float transverse=clamp(2*i.sourceAndGroom.zw.x-1,-1,1)*_FineReliefStrength;
-                float2 derivative=2*float2(dUVdx.x,dUVdy.x)*_FineReliefStrength;
-                float widthVariance=min(0.5*dot(derivative,derivative)/max(1-transverse*transverse,0.05),1);
-                o.FineWidthVariance=float2(0,widthVariance);
-            }
 
             o.Emission = SGNativeEmission(mul(unity_WorldToObject,float4(i.worldPos,1)).xyz, i.worldPos.y, _DisolveValue,
                 _CharacterHeight, _CharacterPosY, _DisolveNoiseScale, _EmissionColor.rgb,

@@ -31,8 +31,9 @@ shader/includeを変更したら、`materials.json`の`assets[].sha256`を更新
 
 描画passはForwardBase、ForwardAdd、ShadowCasterです。実ゲームで髪とヒゲの見た目、金具、色選択、表示負荷を比較します。
 
-`adopt_material.py --catalog-directory <比較catalog> --apply`で、比較用catalogの対象bundleと参照profileを更新します。元のbundleとmanifestは保存されます。
-同条件の旧版と画像・性能を比較してから採用版へ反映します。bundleの差し替えには`os.replace`を使います。
+schema 3の資源では、`CharacterFaces/build_models.py`の`refine-groom-frames --shader-only`で、共有shaderだけを更新します。`--source`に採用元の資源ディレクトリ、`--output`に比較用の出力先、`--shader-report`と`--shader-validation`に生成・検査結果を指定します。CAB名とobject IDを保ち、既存の髪型、材質、画像の参照を引き継ぎます。
+
+同条件の旧版と画像・性能を比較してから採用版へ反映します。旧形式の材質profileには`adopt_material.py`を使います。
 
 ## geometry生成の原本コード
 

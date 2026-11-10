@@ -76,7 +76,7 @@ function Test-Preserved([string]$Path) {
     }
     return $false
 }
-function Get-ArtifactBoundaries([string]$Path) {
+function Get-ArtifactBoundaries([string]$Path,[switch]$IncludeEmpty) {
     $pending=[Collections.Generic.Stack[IO.DirectoryInfo]]::new()
     $pending.Push([IO.DirectoryInfo]::new($Path))
     while ($pending.Count) {
@@ -86,10 +86,11 @@ function Get-ArtifactBoundaries([string]$Path) {
         # a late Build.json in an existing boundary must remain observable.
         if (Test-ArtifactEnvironment $directory.FullName) { continue }
         $boundary=$false
-        foreach ($name in @('Directory.json','Transaction.json','Build.json','Result.json')) {
+        foreach ($name in @('Directory.json','Transaction.json','Build.json','Result.json','ToolsAudit.json')) {
             if ([IO.File]::Exists([IO.Path]::Combine($directory.FullName,$name))) { $boundary=$true; break }
         }
         if ($boundary) { $directory; continue }
+        if($IncludeEmpty -and -not @($directory.EnumerateFileSystemInfos()).Count) { $directory;continue }
         foreach ($child in $directory.EnumerateDirectories()) {
             if ($child.Name -eq '.native') { continue }
             $pending.Push($child)
@@ -229,7 +230,7 @@ try {
         Write-Host "Report: $report"
         return
     }
-    $directories=@(Get-ArtifactBoundaries $root)
+    $directories=@(Get-ArtifactBoundaries $root -IncludeEmpty)
     if($AuditInputValidation) {
         foreach($directory in $directories) {
             $run=$directory.FullName
@@ -309,12 +310,14 @@ try {
             try {
                 $resultPath=Join-Path $directory.FullName 'Result.json'
                 $transactionPath=Join-Path $directory.FullName 'Transaction.json'
+                $result=if([IO.File]::Exists($resultPath)){Read-GtObject $resultPath}else{$null}
+                $toolRun=Get-GtToolRun $directory.FullName $result
+                if($null -ne $toolRun){$toolRun;continue}
                 if ((Test-Path -LiteralPath $resultPath -PathType Leaf) -and -not (Test-Path -LiteralPath $transactionPath -PathType Leaf)) {
-                    $runtime=Read-GtObject $resultPath
-                    $inputValidation=Get-GtInputValidationRun $directory.FullName $runtime
+                    $inputValidation=Get-GtInputValidationRun $directory.FullName $result
                     if($null -ne $inputValidation){$inputValidation;continue}
-                    if ('status' -in $runtime.PSObject.Properties.Name -and $runtime.status -cin @('success','failed','incomplete')) {
-                        Get-GtRuntimeRun $directory.FullName $runtime
+                    if ('status' -in $result.PSObject.Properties.Name -and $result.status -cin @('success','failed','incomplete')) {
+                        Get-GtRuntimeRun $directory.FullName $result
                         continue
                     }
                 }
@@ -335,7 +338,6 @@ try {
                     [pscustomobject]@{ path=$directory.FullName; name=$directory.Name; caseId='@Build'; completed=[datetime]$build.completedUtc; gameDirectory=(Split-Path -Parent $build.environment.gameExe); buildHash=Get-GtHash $buildPath;kind='build';result=$build }
                     continue
                 }
-                $result=Read-GtObject $resultPath
                 $transaction=Read-GtObject $transactionPath
                 if ('schemaVersion' -notin $transaction.PSObject.Properties.Name -or $transaction.schemaVersion -ne 1 -or
                     'schemaVersion' -notin $result.PSObject.Properties.Name -or $result.schemaVersion -ne 1 -or
@@ -351,9 +353,9 @@ try {
             }
         })
         foreach ($run in $runs) {
-            $identityPath=Join-Path $run.path $(if ($run.kind -eq 'build') { 'Build.json' } else { 'Result.json' })
+            $identityPath=if($run.kind -eq 'tool'){$run.identityPath}else{Join-Path $run.path $(if ($run.kind -eq 'build') { 'Build.json' } else { 'Result.json' })}
             $run | Add-Member -NotePropertyName identityHash -NotePropertyValue (Get-GtHash $identityPath)
-            $run | Add-Member -NotePropertyName identityPath -NotePropertyValue $identityPath
+            if($run.kind -ne 'tool'){$run | Add-Member -NotePropertyName identityPath -NotePropertyValue $identityPath}
         }
         foreach ($group in $runs | Group-Object kind,caseId) {
             foreach ($run in @($group.Group | Sort-Object completed -Descending | Select-Object -First $KeepLatestPerCase)) {
@@ -366,7 +368,7 @@ try {
             elseif (Test-Referenced $run.path) { $retentionReasons[$run.path]='declared-input-reference' }
             elseif ($retained.Contains($run.path)) { $retentionReasons[$run.path]='unrecognized-backup' }
             elseif ($referenceText.IndexOf($run.name,[StringComparison]::OrdinalIgnoreCase) -ge 0) { $retentionReasons[$run.path]='case-or-scenario-reference' }
-            elseif (Test-Path -LiteralPath (Join-Path $run.gameDirectory 'Mods\.UBGameTestTransaction.json')) { $retentionReasons[$run.path]='unresolved-game-transaction' }
+            elseif ($run.gameDirectory -and (Test-Path -LiteralPath (Join-Path $run.gameDirectory 'Mods\.UBGameTestTransaction.json'))) { $retentionReasons[$run.path]='unresolved-game-transaction' }
         }
         if ($MaxAgeDays -gt 0) {
             $cutoff=[datetime]::UtcNow.AddDays(-$MaxAgeDays)
@@ -378,7 +380,7 @@ try {
         }
         $companionsByRun=@{}
         foreach ($run in $runs) {
-            if ($run.caseId -eq '@Build' -or ($MaxRetainedBytes -eq 0 -and $retentionReasons.ContainsKey($run.path))) { continue }
+            if ($run.kind -in @('build','tool') -or ($MaxRetainedBytes -eq 0 -and $retentionReasons.ContainsKey($run.path))) { continue }
             try {
                 $companions=@(Get-GtNativeUserDataCompanions $run.path)
                 $companionsByRun[$run.path]=$companions
@@ -431,7 +433,8 @@ try {
             Assert-ArtifactGameStopped
             Assert-ReferencesCurrent
             if ($Run.path -eq $root -or -not (Test-GtWithin $Run.path $root)) { throw 'The cleanup report root cannot be deleted.' }
-            if (Test-Path -LiteralPath (Join-Path $Run.gameDirectory 'Mods\.UBGameTestTransaction.json')) { throw 'A recovery transaction appeared during cleanup.' }
+            if ($Run.gameDirectory -and (Test-Path -LiteralPath (Join-Path $Run.gameDirectory 'Mods\.UBGameTestTransaction.json'))) { throw 'A recovery transaction appeared during cleanup.' }
+            if ($Run.kind -eq 'tool') { if($null -eq (Get-GtToolRun $Run.path (Read-GtObject $Run.identityPath))){throw 'Tool ownership disappeared before deletion.'} }
             if ($Run.kind -eq 'runtime') { [void](Get-GtRuntimeRun $Run.path (Read-GtObject $Run.identityPath)) }
             elseif ($Run.kind -eq 'input-validation') { $current=Get-GtInputValidationRun $Run.path (Read-GtObject $Run.identityPath);if($null -eq $current -or $current.kind -cne 'input-validation'){throw 'Input-validation ownership disappeared before cleanup.'} }
             elseif ($Run.kind -eq 'game-test') {
@@ -485,10 +488,11 @@ try {
             foreach ($run in @($runs | Where-Object { ($_.kind -eq 'build') -eq ($phase -eq 'builds') })) {
                 if ($retentionReasons.ContainsKey($run.path)) { continue }
                 # Any unresolved deployment for this game can still refer to older evidence.
-                if (Test-Path -LiteralPath (Join-Path $run.gameDirectory 'Mods\.UBGameTestTransaction.json')) { $retentionReasons[$run.path]='unresolved-game-transaction'; continue }
+                if ($run.gameDirectory -and (Test-Path -LiteralPath (Join-Path $run.gameDirectory 'Mods\.UBGameTestTransaction.json'))) { $retentionReasons[$run.path]='unresolved-game-transaction'; continue }
                 Assert-GtTree $run.path
                 $companions=@(if ($companionsByRun.ContainsKey($run.path)) { $companionsByRun[$run.path] })
                 if ((Get-GtHash $run.identityPath) -ne $run.identityHash) { throw 'A cleanup result changed during planning.' }
+                if ($run.kind -eq 'tool') { if($null -eq (Get-GtToolRun $run.path (Read-GtObject $run.identityPath))){throw 'Tool ownership disappeared during cleanup planning.'} }
                 if ($run.kind -eq 'runtime') { [void](Get-GtRuntimeRun $run.path (Read-GtObject $run.identityPath)) }
                 elseif ($run.kind -eq 'input-validation') { $current=Get-GtInputValidationRun $run.path (Read-GtObject $run.identityPath);if($null -eq $current -or $current.kind -cne 'input-validation'){throw 'Input-validation ownership disappeared during cleanup planning.'} }
                 elseif ($run.kind -eq 'game-test') {
@@ -498,7 +502,7 @@ try {
                 }
                 if ($Apply) {
                     Assert-ArtifactGameStopped
-                    if ($run.kind -ne 'build') {
+                    if ($run.kind -notin @('build','tool')) {
                         $verified=@(Get-GtNativeUserDataCompanions $run.path)
                         if ($companions.Count -ne $verified.Count -or ($companions.Count -gt 0 -and
                             @(Compare-Object @($companions | ForEach-Object path) @($verified | ForEach-Object path)).Count)) { throw 'Native user-data ownership changed during planning.' }
@@ -506,7 +510,7 @@ try {
                 }
                 $diagnostic=[ordered]@{path=$run.path;kind=$run.kind;caseId=$run.caseId;completedUtc=$run.completed.ToUniversalTime().ToString('O');
                     identitySha256=$run.identityHash;result=(Get-CleanupResultSummary $run.result);runtimeResult=$null;receiptHashes=@()}
-                foreach ($name in @('Directory.json','Transaction.json','BackupRelease.json','Build.json','InputValidationAudit.json','InputValidationProducer.ps1')) {
+                foreach ($name in @('Directory.json','Transaction.json','BackupRelease.json','Build.json','InputValidationAudit.json','InputValidationProducer.ps1','ToolsAudit.json')) {
                     $path=Join-Path $run.path $name
                     if (Test-Path -LiteralPath $path -PathType Leaf) { $diagnostic.receiptHashes+= [ordered]@{name=$name;sha256=Get-GtHash $path} }
                 }
@@ -548,6 +552,22 @@ try {
                     Remove-Item -LiteralPath $run.path -Recurse -Force;$action.applied=$true;Save-CleanupReport $action
                 }
                 if ($run.kind -ne 'build') { [void]$plannedConsumers.Add($run.path) }
+            }
+        }
+        $emptyCutoff=[datetime]::UtcNow.AddDays(-[Math]::Max(1,$MaxAgeDays))
+        $emptyGameChecked=$false
+        foreach($directory in $directories) {
+            $path=$directory.FullName
+            if($path -eq $root -or -not [IO.Directory]::Exists($path) -or $directory.LastWriteTimeUtc -ge $emptyCutoff -or
+                (Test-Preserved $path) -or (Test-Referenced $path) -or @([IO.Directory]::EnumerateFileSystemEntries($path)).Count) {continue}
+            $action=[pscustomobject]@{kind='empty-directory';path=$path;bytes=0;applied=$false}
+            $actions.Add($action);Save-CleanupReport $action
+            if($Apply) {
+                if(-not $emptyGameChecked){Assert-ArtifactGameStopped;$emptyGameChecked=$true}
+                Assert-ReferencesCurrent;Assert-GtTree $path
+                if((Test-Preserved $path) -or (Test-Referenced $path)){throw 'An empty directory acquired a consumer.'}
+                # Nonrecursive deletion refuses a file created after enumeration.
+                [IO.Directory]::Delete($path,$false);$action.applied=$true;Save-CleanupReport $action
             }
         }
     }

@@ -861,6 +861,40 @@ function Get-GtInputValidationRun([string]$Path,$Result) {
         gameDirectory=$evidence.gameDirectory;buildHash=$null;kind='input-validation';result=$Result}
 }
 
+function Get-GtToolRun([string]$Path,$Result) {
+    $auditPath=Join-Path $Path 'ToolsAudit.json'
+    $legacy=[IO.File]::Exists($auditPath)
+    if($legacy) {
+        $Result=Read-GtObject $auditPath
+        $fields=@('hashRestored','status','recoveryIdempotent','newFileRemoved','utcTicksRestored')
+        Assert-GtProperties $Result $fields $fields
+        if($Result.status -cne 'PASS'){throw 'Tool audit has not completed.'}
+        foreach($field in $fields | Where-Object {$_ -ne 'status'}) {
+            if($Result.$field -isnot [bool] -or -not $Result.$field){throw 'Tool audit restoration is incomplete.'}
+        }
+        $entries=@(Get-ChildItem -LiteralPath $Path -Force)
+        if($entries.Count -ne 1 -or $entries[0].PSIsContainer -or $entries[0].Name -cne 'ToolsAudit.json') {
+            throw 'Legacy tool audit contains unowned files.'
+        }
+        $completed=$entries[0].LastWriteTimeUtc
+        $identityPath=$auditPath
+        $caseId='@ToolAudit'
+    } else {
+        if($null -eq $Result -or 'kind' -notin $Result.PSObject.Properties.Name -or $Result.kind -cne 'tool-contracts'){return $null}
+        $owner=Read-GtObject (Join-Path $Path 'Directory.json')
+        if($Result.schemaVersion -ne 1 -or $Result.status -cne 'PASS' -or
+            $Result.fixtureScope -cne 'isolated' -or (Get-GtPath $Result.evidenceDirectory) -ne (Get-GtPath $Path) -or
+            $owner.schemaVersion -ne 1 -or $owner.layout -cne 'GameTest' -or $owner.requestedName -cne 'Contracts' -or
+            (Get-GtPath $owner.directory) -ne (Get-GtPath $Path)) {throw 'Tool contract ownership is incomplete.'}
+        $completed=([datetime]$Result.completedUtc).ToUniversalTime()
+        if($completed -lt ([datetime]$Result.startedUtc).ToUniversalTime()){throw 'Tool completion precedes its start.'}
+        $identityPath=Join-Path $Path 'Result.json'
+        $caseId='@ToolContracts'
+    }
+    [pscustomobject]@{path=$Path;name=(Split-Path -Leaf $Path);caseId=$caseId;completed=$completed;
+        gameDirectory=$null;buildHash=$null;kind='tool';result=$Result;identityPath=$identityPath}
+}
+
 function Get-GtRuntimeRun([string]$Path,$Result) {
     $ownership=Read-GtObject (Join-Path $Path 'Directory.json')
     if ($ownership.schemaVersion -ne 1 -or $ownership.layout -cne 'Runtime' -or

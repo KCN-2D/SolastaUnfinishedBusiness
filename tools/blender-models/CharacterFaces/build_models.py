@@ -5400,13 +5400,18 @@ def save_compiled_groom_shader(source,catalog,proofs,shader_name,shader_path,sha
     if sha(catalog/shader_name)!=shader_before:raise ValueError('The shared shader target differs from its declared immutable source.')
     env,file=resources.load_serialized_bundle(catalog/shader_name,in_memory=True)
     _,compiled=resources.load_serialized_bundle(shader_path,in_memory=True)
+    shared_cab=file.name;shared_externals=[item.path for item in file.externals]
     old=[o for o in file.objects.values()if o.type.name=='Shader'and o.read_typetree()['m_ParsedForm']['m_Name']=='KCN/SourceGroom/NativeHair']
     new=[o for o in compiled.objects.values()if o.type.name=='Shader'and o.read_typetree()['m_ParsedForm']['m_Name']=='KCN/SourceGroom/NativeHair']
     if len(old)!=1 or len(new)!=1:raise ValueError('The groom shader has no unique compiled program owner.')
+    tree=new[0].read_typetree()
+    if tree['m_Dependencies']or tree['m_NonModifiableTextures']:raise ValueError('The shared groom shader introduced external dependencies.')
     untouched={key:hashlib.sha256(resources.serialized_object_bytes(obj)).hexdigest()for key,obj in file.objects.items()if key!=old[0].path_id}
     old[0].save_typetree(new[0].read_typetree());expected=old[0].data
     temporary=catalog/(shader_name+'.writing');temporary.write_bytes(env.file.save(packer='original'))
     _,saved=resources.load_serialized_bundle(temporary,in_memory=True)
+    if saved.name!=shared_cab or [item.path for item in saved.externals]!=shared_externals:
+        raise ValueError('The shared groom shader reference identity changed.')
     for key,obj in saved.objects.items():
         actual=resources.serialized_object_bytes(obj)
         if key==old[0].path_id:
@@ -5436,16 +5441,20 @@ def prepare_groom_frame_resources():
     parser.add_argument('--shader-validation',type=Path,required=True)
     parser.add_argument('--texture-report',type=Path)
     parser.add_argument('--files',nargs='*',default=[])
+    parser.add_argument('--shader-only',action='store_true')
     parser.add_argument('--workers',type=int,choices=range(1,5),default=2)
     args=parser.parse_args()
     source=checked_catalog_path(args.source);output=checked_catalog_path(args.output)
     if not output.is_relative_to(ROOT/'tools')or output==source:raise ValueError('Groom output requires an independent tools workspace.')
     assembly=read(source/'ResourceAssembly.json');manifest=read(source/'Catalog/CharacterModels.manifest.json')
-    if assembly.get('groomVertexFrames'):raise ValueError('Use the declared original frame catalog to regenerate groom support.')
+    if assembly.get('groomVertexFrames')and not args.shader_only:raise ValueError('Use the declared original frame catalog to regenerate groom support.')
     selected={r['bundles'][0]['file']for r in manifest['resources']if any(p.get('set')=='Groom'for p in r.get('parameters',[]))}
     if args.files:
         if not set(args.files)<=selected:raise ValueError('An unknown groom resource was selected.')
         selected=set(args.files)
+    if args.shader_only:
+        if args.files or args.texture_report is not None:raise ValueError('A shader-only update cannot also change groom meshes or textures.')
+        selected=set()
     shader=read(args.shader_report)
     if not shader.get('success')or shader.get('validationScope')!='materials':raise ValueError('A completed material build is required.')
     shader_path=Path(shader['bundlePath'])
@@ -5525,11 +5534,13 @@ def prepare_groom_frame_resources():
     assembly['catalogSha256']=sha(catalog/'CharacterModels.manifest.json');assembly['bytes']=sum(r['bytes']for r in assembly['proofs'])
     assembly['preparedSource']=dict(assembly=dict(path=str((source/'ResourceAssembly.json').resolve()),sha256=sha(source/'ResourceAssembly.json')),
         catalog=dict(path=str((source/'Catalog/CharacterModels.manifest.json').resolve()),sha256=sha(source/'Catalog/CharacterModels.manifest.json')))
-    assembly['groomVertexFrames']=dict(owner=marker,files=sorted(selected),meshes=sum(len(r['meshes'])for r in completed),
+    finishing=dict(owner=marker,files=sorted(selected),meshes=sum(len(r['meshes'])for r in completed),
         shader=dict(file=shader_name,sha256=proofs[shader_name]['sha256'],changedObject=shader_proof['changedObject']),review='pending')
-    if texture_receipt is not None:assembly['groomVertexFrames']['textures']=texture_receipt
+    if texture_receipt is not None:finishing['textures']=texture_receipt
+    assembly['groomShaderFinishing'if args.shader_only else'groomVertexFrames']=finishing
+    assembly['artAccepted']=False
     write(output/'ResourceAssembly.json',assembly)
-    write(output/'Preparation.json',dict(status='PREPARED_GROOM_VERTEX_FRAMES_REVIEW_PENDING',**assembly['groomVertexFrames']))
+    write(output/'Preparation.json',dict(status='PREPARED_GROOM_VERTEX_FRAMES_REVIEW_PENDING',**finishing))
     print(json.dumps(dict(status='PREPARED_GROOM_VERTEX_FRAMES_REVIEW_PENDING',groomFiles=len(selected),catalog=assembly['catalogSha256'])))
 
 
