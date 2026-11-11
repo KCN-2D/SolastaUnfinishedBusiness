@@ -13,6 +13,23 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class RulesetEffectPatcher
 {
+    [HarmonyPatch(typeof(RulesetEffect), nameof(RulesetEffect.Terminate))]
+    [UsedImplicitly]
+    public static class Terminate_Patch
+    {
+        private static void UnregisterIfRegistered(RulesetEntity entity)
+        {
+            // UI previews are created with delayed registration and have no entity ID.
+            if (entity.Guid != 0) entity.Unregister();
+        }
+
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            instructions.ReplaceCalls(AccessTools.Method(typeof(RulesetEntity), nameof(RulesetEntity.Unregister)),
+                "RulesetEffect.Terminate", new CodeInstruction(OpCodes.Call,
+                    AccessTools.Method(typeof(Terminate_Patch), nameof(UnregisterIfRegistered))));
+    }
+
     [HarmonyPatch(typeof(RulesetEffect), nameof(RulesetEffect.TrackCondition))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

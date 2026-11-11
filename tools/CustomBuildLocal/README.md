@@ -27,6 +27,6 @@
 
 ## Gitの追跡範囲
 
-`tools/CustomBuildLocal/`内のビルド入口、`internal/BuildCustomLocalPackage.ps1`、`internal/CustomBuildRuntime.patch`、このREADMEとGit設定を追跡します。ビルド成果物、ZIP、リリース文面、キャンペーン翻訳、ログ、レポート、個人用補助ファイルは除外します。
+`tools/CustomBuildLocal/`内のビルド入口、必須検証とそのテスト、`internal/BuildCustomLocalPackage.ps1`、`internal/CustomBuildRuntime.patch`、このREADMEとGit設定を追跡します。ビルド成果物、ZIP、リリース文面、キャンペーン翻訳、ログ、レポート、個人用補助ファイルは除外します。
 
 ゲームへ配置して確認する場合は[実ゲーム回帰テスト](../game-test/README.md)、個別プローブや同期・起動確認には[Runtime verification](../runtime-verification/README.md)を使います。

@@ -1,8 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Interfaces;
 using UnityEngine;
 using UnityEngine.UI;
@@ -12,6 +16,20 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 internal static class RitualBoxPatcher
 {
+    [HarmonyPatch(typeof(RitualSelectionPanel), nameof(RitualSelectionPanel.Bind))]
+    [UsedImplicitly]
+    internal static class RitualSelectionPanel_Bind_Patch
+    {
+        private static void EnumerateRituals(RulesetCharacter character, RuleDefinitions.RitualCasting _,
+            List<SpellDefinition> spells) => character.EnumerateAvailableRitualSpells(spells);
+
+        [UsedImplicitly]
+        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            instructions.ReplaceCalls(AccessTools.Method(typeof(RulesetCharacter), nameof(RulesetCharacter.EnumerateUsableRitualSpells)),
+                "RitualSelectionPanel.Bind", new CodeInstruction(OpCodes.Call,
+                    AccessTools.Method(typeof(RitualSelectionPanel_Bind_Patch), nameof(EnumerateRituals))));
+    }
+
     [HarmonyPatch(typeof(RitualBox), nameof(RitualBox.Bind))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

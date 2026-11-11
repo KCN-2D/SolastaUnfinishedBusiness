@@ -5,6 +5,7 @@ using System.Reflection;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Models;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 using Hashtable = ExitGames.Client.Photon.Hashtable;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.SpellDefinitions;
 
@@ -13,12 +14,39 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class NetworkingManagerPatcher
 {
+    [HarmonyPatch(typeof(NetworkingManager), nameof(NetworkingManager.MoveCharacter))]
+    [UsedImplicitly]
+    public static class MoveCharacter_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(GameLocationCharacter __0)
+        {
+            if (CooperativeExplorationContext.Busy) return false;
+            CooperativeExplorationContext.OnLocalMove(__0);
+            return true;
+        }
+    }
+
+    [HarmonyPatch(typeof(NetworkingManager), nameof(NetworkingManager.MoveCharacterRPC))]
+    [UsedImplicitly]
+    public static class MoveCharacterRPC_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(long __1, int __2, int __3, int __4) =>
+            CooperativeExplorationContext.OnMoveDestination((ulong)__1, new TA.int3(__2, __3, __4));
+    }
+
     [HarmonyPatch(typeof(NetworkingManager), nameof(NetworkingManager.Update))]
     [UsedImplicitly]
     public static class Update_Patch
     {
         [UsedImplicitly]
-        public static void Postfix() => MultiplayerSettingsContext.Refresh();
+        public static void Postfix(NetworkingManager __instance)
+        {
+            MultiplayerSettingsContext.Refresh();
+            CooperativeExplorationContext.Refresh(__instance);
+            CooperativeExplorationContext.UpdateFollow();
+        }
     }
 
     [HarmonyPatch(typeof(NetworkingManager), nameof(NetworkingManager.OnJoinedRoom))]
@@ -28,6 +56,7 @@ public static class NetworkingManagerPatcher
         [UsedImplicitly]
         public static void Postfix()
         {
+            CooperativeExplorationContext.Reset();
             MultiplayerSettingsContext.Invalidate();
             MultiplayerSettingsContext.Refresh(true);
         }
@@ -38,7 +67,11 @@ public static class NetworkingManagerPatcher
     public static class OnPlayerEnteredRoom_Patch
     {
         [UsedImplicitly]
-        public static void Postfix() => MultiplayerSettingsContext.Refresh(true);
+        public static void Postfix()
+        {
+            CooperativeExplorationContext.OnPartyChanged();
+            MultiplayerSettingsContext.Refresh(true);
+        }
     }
 
     [HarmonyPatch(typeof(NetworkingManager), nameof(NetworkingManager.OnPlayerLeftRoom))]
@@ -46,7 +79,11 @@ public static class NetworkingManagerPatcher
     public static class OnPlayerLeftRoom_Patch
     {
         [UsedImplicitly]
-        public static void Postfix() => MultiplayerSettingsContext.Refresh(true);
+        public static void Postfix()
+        {
+            CooperativeExplorationContext.OnPartyChanged();
+            MultiplayerSettingsContext.Refresh(true);
+        }
     }
 
     [HarmonyPatch(typeof(NetworkingManager), nameof(NetworkingManager.OnMasterClientSwitched))]
@@ -56,6 +93,7 @@ public static class NetworkingManagerPatcher
         [UsedImplicitly]
         public static void Postfix()
         {
+            CooperativeExplorationContext.OnPartyChanged();
             MultiplayerSettingsContext.Invalidate();
             MultiplayerSettingsContext.Refresh(true);
         }
@@ -90,7 +128,11 @@ public static class NetworkingManagerPatcher
         }
 
         [UsedImplicitly]
-        public static void Postfix() => MultiplayerSettingsContext.Invalidate();
+        public static void Postfix()
+        {
+            CooperativeExplorationContext.Reset();
+            MultiplayerSettingsContext.Invalidate();
+        }
     }
 
     [HarmonyPatch(typeof(NetworkingManager), nameof(NetworkingManager.ExecuteAction))]
@@ -98,8 +140,11 @@ public static class NetworkingManagerPatcher
     public static class ExecuteAction_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(CharacterActionParams __0) =>
+        public static bool Prefix(CharacterActionParams __0, CharacterAction.ActionExecutedHandler __1)
+        {
             SpellCastingResourceContext.PrepareNetworkAction(__0);
+            return !CooperativeExplorationContext.Intercept(__0, __1);
+        }
     }
 
     [HarmonyPatch(typeof(NetworkingManager), nameof(NetworkingManager.ExecuteActionChain))]
@@ -107,12 +152,13 @@ public static class NetworkingManagerPatcher
     public static class ExecuteActionChain_Patch
     {
         [UsedImplicitly]
-        public static void Prefix(CharacterActionChainParams __0)
+        public static bool Prefix(CharacterActionChainParams __0, CharacterAction.ActionChainExecutedHandler __1)
         {
             foreach (var parameters in __0.actionsParams)
             {
                 SpellCastingResourceContext.PrepareNetworkAction(parameters);
             }
+            return !CooperativeExplorationContext.InterceptChain(__0, __1);
         }
     }
 
@@ -141,6 +187,12 @@ public static class NetworkingManagerPatcher
             RulesetItem __1,
             LocalCommandManager ___localCommandManager)
         {
+            if (CooperativeExplorationContext.Enabled && __0 != null && __1 != null &&
+                ___localCommandManager != null && Gui.GameLocation != null && Gui.Battle == null)
+            {
+                ___localCommandManager.CastIdentifySpell(__0, __1);
+                return false;
+            }
             if (!SpellCastingResourceContext.SupportsItemResourceSelection || __0 == null || __1 == null ||
                 ___localCommandManager == null || Gui.GameLocation == null || Gui.Battle != null ||
                 !ReferenceEquals(ServiceRepository.GetService<ICommandService>(), __instance) ||

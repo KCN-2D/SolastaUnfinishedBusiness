@@ -95,6 +95,12 @@ public class Settings : UnityModManager.ModSettings
     [MultiplayerLocal] public List<string> EnabledUnofficialTranslationLanguages { get; } = [];
     [MultiplayerLocal] public bool WideScreenBattleUI { get; set; } = true;
 
+    public bool EnableCoordinatedExplorationActivities { get; set; }
+    [MultiplayerLocal] public bool AutoConfirmMultiplayerLoading { get; set; }
+    [MultiplayerLocal] public bool AutoAcceptMultiplayerFastTravel { get; set; }
+    [MultiplayerLocal] public bool EnableMultiplayerAutoFollow { get; set; }
+    public bool ExtendExplorationItemTransferRange { get; set; }
+
     //
     // Gameplay - Rules
     //

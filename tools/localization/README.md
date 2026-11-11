@@ -4,6 +4,17 @@
 
 パス表記は[ツール共通の規約](../README.md#パス表記)に従います。コマンドはリポジトリのルートから実行し、作業フォルダの変更が必要なスクリプトは後述の表と実行例に従います。
 
+## 変更した翻訳の検査
+
+変更キーを全10言語と非公式訳に照合し、欠落、重複、プレースホルダー、タグ、改行を検査します。比較元は既定で `HEAD`、コミット範囲を調べる場合は `-BaseCommit` で指定します。`-Staged` はステージ済みの内容だけを検査します。
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\localization\Test-Translations.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\localization\Test-TranslationChecks.ps1
+```
+
+2つ目のコマンドは、一時リポジトリを作って検査処理の正常系・異常系を確認し、終了時に撤去します。
+
 ## LLMによる翻訳
 
 `tools/localization/.env.example` を同じフォルダの `.env` に複製し、API接続先、APIキー、モデルを設定します。入力パスは `SolastaUnfinishedBusiness/Translations/` を基準に指定します。

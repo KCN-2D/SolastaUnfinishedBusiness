@@ -77,6 +77,57 @@ internal static class FloatingPanelBounds
         ApplyCanvasLocalDelta(rectTransform, canvasRect, GetCanvasLocalDelta(bounds, canvasRect, margin));
     }
 
+    internal static void PlaceInAvailableArea(RectTransform panel, IEnumerable<RectTransform> obstacles,
+        Vector2 size, Vector2 preferredCenter, float margin = DefaultMargin)
+    {
+        if (!TryGetCanvasLocalBounds(panel, out var current, out var canvas)) return;
+        var screen = canvas.rect;
+        var available = new List<Rect>
+        {
+            Rect.MinMaxRect(screen.xMin + margin, screen.yMin + margin, screen.xMax - margin, screen.yMax - margin)
+        };
+        foreach (var obstacle in obstacles)
+        {
+            if (!obstacle || !obstacle.gameObject.activeInHierarchy ||
+                !TryGetCanvasLocalBounds(obstacle, canvas, out var bounds) || bounds.width <= 0 || bounds.height <= 0)
+                continue;
+            bounds = Rect.MinMaxRect(bounds.xMin - margin, bounds.yMin - margin,
+                bounds.xMax + margin, bounds.yMax + margin);
+            var next = new List<Rect>();
+            foreach (var space in available)
+            {
+                if (!space.Overlaps(bounds)) { next.Add(space); continue; }
+                Add(Rect.MinMaxRect(space.xMin, space.yMin, Mathf.Min(space.xMax, bounds.xMin), space.yMax));
+                Add(Rect.MinMaxRect(Mathf.Max(space.xMin, bounds.xMax), space.yMin, space.xMax, space.yMax));
+                Add(Rect.MinMaxRect(space.xMin, space.yMin, space.xMax, Mathf.Min(space.yMax, bounds.yMin)));
+                Add(Rect.MinMaxRect(space.xMin, Mathf.Max(space.yMin, bounds.yMax), space.xMax, space.yMax));
+            }
+            available = next;
+            void Add(Rect value) { if (value.width >= 48 && value.height >= 32) next.Add(value); }
+        }
+        if (available.Count == 0) return;
+        var best = available[0];
+        var bestFit = -1f;
+        var bestDistance = float.MaxValue;
+        foreach (var space in available)
+        {
+            var fit = Mathf.Min(1, Mathf.Min(space.width / size.x, space.height / size.y));
+            var center = new Vector2(Mathf.Clamp(preferredCenter.x, space.xMin, space.xMax),
+                Mathf.Clamp(preferredCenter.y, space.yMin, space.yMax));
+            var distance = (center - preferredCenter).sqrMagnitude;
+            if (fit < bestFit || Mathf.Approximately(fit, bestFit) && distance >= bestDistance) continue;
+            best = space; bestFit = fit; bestDistance = distance;
+        }
+        var width = Mathf.Min(size.x, best.width);
+        var height = Mathf.Min(size.y, best.height);
+        panel.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+        panel.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+        if (!TryGetCanvasLocalBounds(panel, canvas, out current)) return;
+        var target = new Vector2(Mathf.Clamp(preferredCenter.x, best.xMin + width / 2, best.xMax - width / 2),
+            Mathf.Clamp(preferredCenter.y, best.yMin + height / 2, best.yMax - height / 2));
+        ApplyCanvasLocalDelta(panel, canvas, target - current.center);
+    }
+
     internal static void ClampToScreenForNextFrames(
         MonoBehaviour owner,
         RectTransform rectTransform,

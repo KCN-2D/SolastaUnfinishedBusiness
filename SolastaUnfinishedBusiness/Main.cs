@@ -165,6 +165,7 @@ internal static class Main
         // Stop managed work before UMM starts tearing down Unity objects. These
         // cleanup paths are intentionally safe to invoke again from OnUnload.
         TryCleanup(LoadingContext.Unload);
+        TryCleanup(CooperativeExplorationContext.Reset);
         TryCleanup(BootContext.Unload);
         TryCleanup(() => SpeechContext.Unload(false));
         TryCleanup(UpdateContext.Unload);
@@ -194,6 +195,7 @@ internal static class Main
         TryCleanup(RacesContext.UnloadBodyShapes);
         TryCleanup(CombatAnimationContext.Unload);
         TryCleanup(MultiplayerSettingsContext.Invalidate);
+        TryCleanup(CooperativeExplorationContext.Reset);
         TryCleanup(GuiWrapperContext.Unload);
         TryCleanup(() => Tooltips.Unload(!applicationQuitting));
         TryCleanup(() => CampaignTranslationExecutor.Unload(!applicationQuitting));

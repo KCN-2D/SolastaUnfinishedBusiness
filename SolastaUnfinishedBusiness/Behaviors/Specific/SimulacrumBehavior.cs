@@ -1128,13 +1128,7 @@ internal sealed partial class SimulacrumBehavior :
             return null;
         }
 
-        var ritualCastings = duplicate.ActiveFeatures
-            .OfType<FeatureDefinitionMagicAffinity>()
-            .Select(x => x.RitualCasting)
-            .Where(x => x != RitualCasting.None)
-            .Distinct();
-
-        return ritualCastings
+        return duplicate.GetRitualCastingModes()
             .SelectMany(ritualCasting =>
                 EnumerateRitualSpellCandidates(duplicate, ritualCasting))
             .Where(candidate => candidate.Key == spellDefinition)

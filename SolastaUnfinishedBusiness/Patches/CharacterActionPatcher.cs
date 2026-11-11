@@ -45,8 +45,10 @@ public static class CharacterActionPatcher
 
             var name = CharacterAction.GetTypeName(actionParams);
 
-            //Actions defined in mod will be non-null, actions from base game will be null
-            var type = Type.GetType(name);
+            // Harmony can move the native factory into a generated assembly.
+            // Resolve game actions in their owning assembly instead of depending
+            // on Type.GetType's calling-assembly lookup.
+            var type = Type.GetType(name) ?? typeof(CharacterAction).Assembly.GetType(name);
 
             if (type == null)
             {
@@ -126,6 +128,12 @@ public static class CharacterActionPatcher
             CharacterAction __instance,
             ref IEnumerator __result)
         {
+            if (CooperativeExplorationContext.BlockUnplanned(__instance))
+            {
+                __instance.ActionParams.RulesetEffect?.Terminate(false);
+                __result = AbortInvalidAiAction(__instance);
+                return false;
+            }
             var actingCharacter = __instance.ActingCharacter;
 
             //BUGFIX: vanilla always consume a main action on battle surprise phase even if a bonus power or spell

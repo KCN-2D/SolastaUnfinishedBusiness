@@ -338,6 +338,35 @@ internal static class ToolsDisplay
 
         MultiplayerSettingsContext.Refresh();
         var descriptionStyle = new GUIStyle(GUI.skin.label) { wordWrap = true };
+        toggle = Main.Settings.EnableCoordinatedExplorationActivities;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableCoordinatedExplorationActivities"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableCoordinatedExplorationActivities = toggle;
+            MultiplayerSettingsContext.InvalidateSettings();
+            if (!toggle)
+            {
+                if (CooperativeExplorationContext.Busy) CooperativeExplorationContext.RequestCancel();
+                else CooperativeExplorationContext.Reset();
+            }
+        }
+        UI.Label(Gui.Localize("ModUi/&CooperativeHelp"), descriptionStyle, UI.ExpandWidth(true));
+        toggle = Main.Settings.AutoConfirmMultiplayerLoading;
+        if (UI.Toggle(Gui.Localize("ModUi/&AutoConfirmMultiplayerLoading"), ref toggle, UI.AutoWidth()))
+            Main.Settings.AutoConfirmMultiplayerLoading = toggle;
+        toggle = Main.Settings.AutoAcceptMultiplayerFastTravel;
+        if (UI.Toggle(Gui.Localize("ModUi/&AutoAcceptMultiplayerFastTravel"), ref toggle, UI.AutoWidth()))
+            Main.Settings.AutoAcceptMultiplayerFastTravel = toggle;
+        toggle = Main.Settings.EnableMultiplayerAutoFollow;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableMultiplayerAutoFollow"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableMultiplayerAutoFollow = toggle;
+            if (!toggle) CooperativeExplorationContext.StopFollowing();
+        }
+        if (toggle) UI.Label(Gui.Localize("ModUi/&CooperativeFollowHelp"), descriptionStyle, UI.ExpandWidth(true));
+        toggle = Main.Settings.ExtendExplorationItemTransferRange;
+        if (UI.Toggle(Gui.Localize("ModUi/&ExtendExplorationItemTransferRange"), ref toggle, UI.AutoWidth()))
+            Main.Settings.ExtendExplorationItemTransferRange = toggle;
+        UI.Label();
         UI.Label(Gui.Localize("ModUi/&MultiplayerSettingsHelp"), descriptionStyle, UI.ExpandWidth(true));
         UI.Label(MultiplayerSettingsContext.GetStatus(), descriptionStyle, UI.ExpandWidth(true));
         var guiEnabled = GUI.enabled;

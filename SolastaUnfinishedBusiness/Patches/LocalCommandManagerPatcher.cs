@@ -13,6 +13,51 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class LocalCommandManagerPatcher
 {
+    [HarmonyPatch(typeof(LocalCommandManager), nameof(LocalCommandManager.RequestVote))]
+    [UsedImplicitly]
+    public static class RequestVote_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(LocalCommandManager __instance, NetworkingDefinitions.MultiplayerVoteType __0)
+        {
+            if (!Main.Enabled || !Main.Settings.AutoAcceptMultiplayerFastTravel || !Global.IsMultiplayer ||
+                CooperativeExplorationContext.Busy || __0 != NetworkingDefinitions.MultiplayerVoteType.MapWaypointNavigate)
+                return true;
+            __instance.VoteAccepted();
+            return false;
+        }
+    }
+
+    [HarmonyPatch(typeof(LocalCommandManager), nameof(LocalCommandManager.MoveCharacter))]
+    [UsedImplicitly]
+    public static class MoveCharacter_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix() => !CooperativeExplorationContext.Busy;
+    }
+
+    [HarmonyPatch(typeof(LocalCommandManager), nameof(LocalCommandManager.ExecuteAction))]
+    [UsedImplicitly]
+    public static class ExecuteAction_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(LocalCommandManager __instance, CharacterActionParams __0,
+            CharacterAction.ActionExecutedHandler __1) =>
+            !ReferenceEquals(ServiceRepository.GetService<ICommandService>(), __instance) ||
+            !CooperativeExplorationContext.Intercept(__0, __1);
+    }
+
+    [HarmonyPatch(typeof(LocalCommandManager), nameof(LocalCommandManager.ExecuteActionChain))]
+    [UsedImplicitly]
+    public static class ExecuteActionChain_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(LocalCommandManager __instance, CharacterActionChainParams __0,
+            CharacterAction.ActionChainExecutedHandler __1) =>
+            !ReferenceEquals(ServiceRepository.GetService<ICommandService>(), __instance) ||
+            !CooperativeExplorationContext.InterceptChain(__0, __1);
+    }
+
     [HarmonyPatch(
         typeof(LocalCommandManager),
         nameof(LocalCommandManager.GrantItem),

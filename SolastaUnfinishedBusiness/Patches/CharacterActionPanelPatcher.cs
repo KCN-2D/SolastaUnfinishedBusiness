@@ -266,6 +266,7 @@ public static class CharacterActionPanelPatcher
         private static void OnActivateAction(CharacterActionPanel panel, Id actionId,
             GuiCharacterAction guiCharacterAction)
         {
+            CooperativeExplorationPanel.Hide();
             panel.ClearActionParams();
             panel.actionId = actionId;
             var actingCharacter = panel.GuiCharacter.GameLocationCharacter;

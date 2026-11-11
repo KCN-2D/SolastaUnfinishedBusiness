@@ -4,6 +4,8 @@
 !/.gitattributes
 !/README.md
 !/BuildCustomLocalPackage.cmd
+!/Invoke-RequiredChecks.ps1
+!/Test-RequiredChecks.ps1
 !/internal/
 /internal/*
 !/internal/BuildCustomLocalPackage.ps1

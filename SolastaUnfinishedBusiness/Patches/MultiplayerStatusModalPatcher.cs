@@ -3,12 +3,26 @@ using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
 using UnityEngine;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
 [UsedImplicitly]
 public static class MultiplayerStatusModalPatcher
 {
+    [HarmonyPatch(typeof(LoadingModal), nameof(LoadingModal.OnUpdateHook))]
+    [UsedImplicitly]
+    public static class LoadingModal_OnUpdateHook_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix(LoadingModal __instance)
+        {
+            if (Main.Enabled && Main.Settings.AutoConfirmMultiplayerLoading && Global.IsMultiplayer && __instance.Visible &&
+                __instance.ReadyToProceed && __instance.startGroup.gameObject.activeSelf)
+                __instance.OnProceedToLocationCb();
+        }
+    }
+
     private static void EnsurePlayerInfoGroups(List<PlayerInfoGroup> groups)
     {
         if (groups == null || groups.Count == 0)

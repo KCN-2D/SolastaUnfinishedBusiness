@@ -13,6 +13,19 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class CharacterActionUsePowerPatcher
 {
+    [HarmonyPatch(typeof(CharacterActionUsePower), nameof(CharacterActionUsePower.HandleSpecialCastingTime))]
+    [UsedImplicitly]
+    public static class HandleSpecialCastingTime_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix(CharacterActionUsePower __instance, ref IEnumerator __result)
+        {
+            if (!CooperativeExplorationContext.IsApproved(__instance.ActionParams)) return true;
+            __result = CooperativeExplorationContext.WaitForCasting(__instance);
+            return false;
+        }
+    }
+
     private static bool IgnoreInterruptionProcessForPowerFunction(CharacterActionUsePower __instance)
     {
         var isPowerFunction = __instance.ActionParams.RulesetEffect.Name.Contains("PowerFunction");

@@ -222,42 +222,12 @@ public static class RulesetCharacterPatcher
     public static class CanCastAnyRitualSpell_Patch
     {
         [UsedImplicitly]
-        public static bool Prefix(RulesetCharacter __instance, ref bool __result)
+        public static bool Prefix(RulesetCharacter __instance, List<SpellDefinition> ___usableSpells, ref bool __result)
         {
-            if (__instance is not RulesetCharacterSimulacrum duplicate)
-            {
-                return true;
-            }
-
-            // Native monster feature enumeration does not surface the copied magic affinity,
-            // even though it is present in the Simulacrum's active feature graph. Evaluate every
-            // copied ritual mode directly so 2024 Wizard spellbook rituals remain available
-            // without being prepared.
-            var ritualCastings = duplicate.ActiveFeatures
-                .OfType<FeatureDefinitionMagicAffinity>()
-                .Select(x => x.RitualCasting)
-                .Where(x => x != RitualCasting.None)
-                .Distinct()
-                .ToArray();
-
-            foreach (var ritualCasting in ritualCastings)
-            {
-                var spells = new List<SpellDefinition>();
-
-                duplicate.EnumerateUsableRitualSpells(ritualCasting, spells);
-
-                if (spells.Count == 0)
-                {
-                    continue;
-                }
-
-                __result = true;
-
-                return false;
-            }
-
-            __result = false;
-
+            // Availability and the picker must consider every current ritual mode,
+            // including active features carried by controllable creatures.
+            __instance.EnumerateAvailableRitualSpells(___usableSpells);
+            __result = ___usableSpells.Count > 0;
             return false;
         }
     }

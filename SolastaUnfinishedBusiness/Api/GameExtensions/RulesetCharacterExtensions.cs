@@ -18,6 +18,28 @@ namespace SolastaUnfinishedBusiness.Api.GameExtensions;
 
 internal static class RulesetCharacterExtensions
 {
+    internal static IEnumerable<RitualCasting> GetRitualCastingModes(this RulesetCharacter character)
+    {
+        var affinities = character.FeaturesByType<FeatureDefinitionMagicAffinity>();
+        if (character is RulesetCharacterMonster monster)
+            affinities.AddRange(monster.ActiveFeatures.OfType<FeatureDefinitionMagicAffinity>());
+        return affinities.Select(affinity => affinity.RitualCasting)
+            .Where(mode => mode != RitualCasting.None).Distinct();
+    }
+
+    internal static void EnumerateAvailableRitualSpells(this RulesetCharacter character, List<SpellDefinition> spells)
+    {
+        spells.Clear();
+        var candidates = new List<SpellDefinition>();
+        var available = new HashSet<SpellDefinition>();
+        foreach (var mode in character.GetRitualCastingModes())
+        {
+            character.EnumerateUsableRitualSpells(mode, candidates);
+            available.UnionWith(candidates);
+        }
+        spells.AddRange(available.OrderBy(spell => spell.SpellLevel).ThenBy(spell => spell.Name, StringComparer.Ordinal));
+    }
+
     private static readonly ConditionalWeakTable<ActionModifier, List<TrendInfo>> MagicEffectAttackAdvantageTrends = new();
 
     private static readonly Action<RulesetCharacter> RefreshUsableSpells =

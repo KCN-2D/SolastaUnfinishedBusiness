@@ -285,6 +285,25 @@ public static class CharacterInspectionScreenPatcher
     public static class RefreshCharactersTable_Patch
     {
         [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var code = instructions.ToList();
+            var range = AccessTools.Method(typeof(IGameLocationBattleService), nameof(IGameLocationBattleService.IsWithinXCells),
+                [typeof(GameLocationCharacter), typeof(GameLocationCharacter), typeof(int)]);
+            var sites = Enumerable.Range(0, code.Count - 1)
+                .Where(index => code[index].LoadsConstant(6) && code[index + 1].Calls(range)).ToArray();
+            if (sites.Length != 2)
+            {
+                Main.Error("CharacterInspectionScreen item transfer distance sites differ.");
+                return code;
+            }
+            foreach (var index in sites.Reverse())
+                code.Insert(index + 1, new CodeInstruction(OpCodes.Call,
+                    AccessTools.Method(typeof(CooperativeExplorationContext), nameof(CooperativeExplorationContext.ItemTransferRange))));
+            return code;
+        }
+
+        [UsedImplicitly]
         public static bool Prefix(CharacterInspectionScreen __instance)
         {
             if (!SimulacrumEquipmentPanel.TryGetActiveCharacter(__instance, out _))

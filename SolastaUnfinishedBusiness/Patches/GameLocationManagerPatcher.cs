@@ -73,6 +73,7 @@ public static class GameLocationManagerPatcher
         [UsedImplicitly]
         public static void Prefix()
         {
+            CooperativeExplorationContext.Reset();
             PlayerControllerContext.Stop();
             CivilianAnimationContext.SuspendCivilianReactions();
             CombatAiContext.StopEnemyBattleTactics();

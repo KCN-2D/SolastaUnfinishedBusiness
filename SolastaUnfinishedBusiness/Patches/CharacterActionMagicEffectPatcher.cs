@@ -977,6 +977,9 @@ public static class CharacterActionMagicEffectPatcher
                 yield break;
             }
 
+            yield return CooperativeExplorationContext.WaitBeforeSpend(__instance);
+            if (__instance.ExecutionFailed || rulesetEffect.Terminated) yield break;
+
             // Spend inventory action as needed
             if (actingCharacter is { RulesetActor: RulesetCharacterHero } &&
                 actionParams.RulesetEffect.OriginItem != null)
@@ -1030,6 +1033,12 @@ public static class CharacterActionMagicEffectPatcher
             __instance.RemoveConcentrationAsNeeded();
 
             yield return __instance.HandleSpecialCastingTime();
+
+            if (__instance.Aborted || __instance.ExecutionFailed || rulesetEffect.Terminated)
+            {
+                rulesetEffect.Terminate(false);
+                yield break;
+            }
 
             // Unique effects have to remove their previous version now, before forms are applied and conditions could clash
             __instance.HandleEffectUniqueness();

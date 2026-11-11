@@ -154,6 +154,14 @@ public static class CustomActionIdContext
         BuildFreeJumpAction();
         BuildFarStepAction();
         BuildPrioritizeAction();
+        ActionDefinitionBuilder.Create(UseBardicInspiration, "CoordinateExploration")
+            .SetGuiPresentationNoContent()
+            .RequiresAuthorization()
+            .SetActionId(ExtraActionId.CoordinateExploration)
+            .SetActionType(ActionType.NoCost)
+            .SetActionScope(ActionScope.Exploration)
+            .OverrideClassName("CoordinateExploration")
+            .AddToDB();
         BuildProxyActions();
         BuildNickAction();
     }

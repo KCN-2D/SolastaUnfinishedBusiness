@@ -112,7 +112,8 @@ internal enum ExtraActionId
     BoonOfFortitude2024Toggle,
     BoonOfIrresistibleOffense2024Toggle,
     PartyHarmfulInterruptsToggle,
-    PrioritizeAction = 10000
+    PrioritizeAction = 10000,
+    CoordinateExploration = 10001
 }
 
 internal enum ExtraAdditionalDamageAdvancement

@@ -52,6 +52,11 @@ public static class CharacterActionCastSpellPatcher
         [UsedImplicitly]
         public static bool Prefix(ref IEnumerator __result, CharacterActionCastSpell __instance)
         {
+            if (CooperativeExplorationContext.IsApproved(__instance.ActionParams))
+            {
+                __result = CooperativeExplorationContext.WaitForCasting(__instance);
+                return false;
+            }
             if (__instance.ActiveSpell is RulesetEffectSpellWithOrigin
                 {
                     BypassCastingTime: true

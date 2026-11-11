@@ -3,12 +3,21 @@ using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
 using UnityEngine;
+using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
 [UsedImplicitly]
 public static class GameTimePatcher
 {
+    [HarmonyPatch(typeof(GameTime), nameof(GameTime.UpdateTime))]
+    [UsedImplicitly]
+    public static class UpdateTime_Patch
+    {
+        [UsedImplicitly]
+        public static bool Prefix() => !CooperativeExplorationContext.FreezeClock;
+    }
+
     [HarmonyPatch(typeof(GameTime), nameof(GameTime.SetTimeScale))]
     [SuppressMessage("Minor Code Smell", "S101:Types should be named in PascalCase", Justification = "Patch")]
     [UsedImplicitly]

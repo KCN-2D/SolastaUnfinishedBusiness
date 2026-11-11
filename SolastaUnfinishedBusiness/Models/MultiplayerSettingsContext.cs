@@ -34,6 +34,8 @@ internal static class MultiplayerSettingsContext
         .Where(property => property.CanRead && property.GetIndexParameters().Length == 0 &&
                            !property.IsDefined(typeof(XmlIgnoreAttribute), true))
         .ToDictionary(GetElementName, StringComparer.Ordinal);
+    private static readonly PropertyInfo[] SharedProperties = PropertiesByElement.Values
+        .Where(property => !property.IsDefined(typeof(MultiplayerLocalAttribute), true)).ToArray();
 
     private static double nextRefresh;
     private static double roomEnteredAt;
@@ -52,6 +54,28 @@ internal static class MultiplayerSettingsContext
     private static bool refreshing;
     private static bool comparisonError;
     private static string lastError;
+    private static Settings profileSettings;
+    private static bool profileDirty = true;
+    private static object[] profileSnapshot;
+
+    internal static void InvalidateSettings()
+    {
+        profileDirty = true;
+        nextRefresh = 0;
+    }
+
+    internal static bool AllPlayersMatch
+    {
+        get
+        {
+            Refresh();
+            return !IsOnlineRoom || !comparisonError && hostState == HostState.Valid &&
+                hostBuildDigest == buildDigest && hostProfileDigest == localProfileDigest &&
+                PhotonNetwork.CurrentRoom.Players.Values.Where(player => !player.IsInactive).All(player =>
+                    TryReadReport(player.CustomProperties, out var peerBuild, out var peerProfile) &&
+                    peerBuild == buildDigest && peerProfile == localProfileDigest);
+        }
+    }
 
     internal static bool IsOnlineRoom => Main.Enabled && !Main.IsApplicationQuitting &&
                                          PhotonNetwork.InRoom && !PhotonNetwork.OfflineMode &&
@@ -111,8 +135,17 @@ internal static class MultiplayerSettingsContext
             }
 
             buildDigest ??= ComputeBuildDigest();
-            localProfile = CreateSharedSettingsXml(Main.Settings);
-            localProfileDigest = ComputeDigest(Utf8.GetBytes(localProfile));
+            var snapshot = SharedProperties
+                .Select(property => CaptureSettingValue(property.GetValue(Main.Settings))).ToArray();
+            if (profileDirty || !ReferenceEquals(profileSettings, Main.Settings) || localProfile == null ||
+                !SettingValuesEqual(profileSnapshot, snapshot))
+            {
+                localProfile = CreateSharedSettingsXml(Main.Settings);
+                localProfileDigest = ComputeDigest(Utf8.GetBytes(localProfile));
+                profileSettings = Main.Settings;
+                profileDirty = false;
+                profileSnapshot = snapshot;
+            }
 
             var report = string.Join("|", "1", masterActor.ToString(CultureInfo.InvariantCulture),
                 buildDigest, localProfileDigest);
@@ -163,6 +196,32 @@ internal static class MultiplayerSettingsContext
         {
             refreshing = false;
         }
+    }
+
+    private static object CaptureSettingValue(object value)
+    {
+        if (value is null or string || value.GetType().IsValueType) return value;
+        if (value is IDictionary dictionary)
+        {
+            var entries = new List<object>();
+            // IDictionary's enumerator returns DictionaryEntry. Casting its
+            // IEnumerable view would return KeyValuePair for generic dictionaries.
+            foreach (DictionaryEntry entry in dictionary)
+                entries.Add(new[] { CaptureSettingValue(entry.Key), CaptureSettingValue(entry.Value) });
+            return entries.ToArray();
+        }
+        if (value is IEnumerable sequence)
+            return sequence.Cast<object>().Select(CaptureSettingValue).ToArray();
+        // Unknown future setting types retain the serializer's own value semantics.
+        using var writer = new StringWriter(CultureInfo.InvariantCulture);
+        new XmlSerializer(value.GetType()).Serialize(writer, value);
+        return writer.ToString();
+    }
+
+    private static bool SettingValuesEqual(object first, object second)
+    {
+        if (first is not object[] left || second is not object[] right) return Equals(first, second);
+        return left.Length == right.Length && left.Zip(right, SettingValuesEqual).All(equal => equal);
     }
 
     internal static void OnRoomPropertiesChanged(Hashtable properties)
