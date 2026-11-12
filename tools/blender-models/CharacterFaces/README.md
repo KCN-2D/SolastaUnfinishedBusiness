@@ -4,7 +4,7 @@
 
 ## 顔の生成
 
-人間、エルフ、ドワーフ、ハーフリング、ノーム、ティーフリングの顔と、同じ顔の骨格を持つNPCを対象にします。NPCの全身メッシュでは顔の領域へ適用します。ドラゴンボーンとモンスターは各形態の制作データを使います。
+対象の原本、描画部品、骨格の範囲を制作データで指定します。輪郭の調整量と肌の細部は原本ごとに持ち、NPCの年齢や各形態の特徴に合わせます。
 
 最初に頭蓋・頬・顎・首の基礎形状を整え、眼球とまぶた、唇と口内の接続を確認します。正面・斜め・側面を同じカメラ条件で比較してから、表情、LOD、材質へ進みます。造形には各キャラクターのゲーム内の中立姿勢を使います。`captured_neutral_pose`で頭部の参照先、全描画部品の頂点数と骨の順序、変形ウェイトを照合し、`reference_pose_surface_to_rest`で頂点ごとの骨ウェイトを使って保存時の座標へ戻します。造形ガイドは元メッシュの頂点・骨・座標系と対応させ、`production.py`が接触面、共有部品、表情フレームへの適用を管理します。年齢、肌色、化粧、傷などの選択値はゲームが管理します。
 
@@ -19,6 +19,16 @@
 ```text
 --workspace <作業先> refine-native-faces --source <元の組み立て済み資源> --native-index <元資源の対応表JSON> --census <原本Mesh>/Census.json --profiles <造形ガイドJSON> --output <候補資源>
 ```
+
+採用済みの造形を改めるときは、`--previous-profiles <採用元のProfiles.json>`を加えます。原本に対する新旧ガイドの差分を適用し、制作済みの首の接続、低LOD、付属パーツ、表情の補正を引き継ぎます。
+
+肌の細部は`face-designs.json`の`surfaces`で指定します。各原本の`sourceContentKey`、renderer、材質slot、shaderのチャンネル形式と骨格の範囲を照合し、色素と法線の残す強さ、処理する細部の物理寸法を宣言します。共有テクスチャには同じチャンネルの指定を揃えます。
+
+```text
+--workspace <作業先> refine-skin-surfaces --source <制作済み資源> --census <原本Mesh>/Census.json --plans <face-designs.json> --output <新しい候補>
+```
+
+制作時に元の画像形式と全mipを扱い、範囲外のブロック、材質アルファ、法線の保持チャンネル、samplerを照合します。`bind-skin-surfaces --source <同じ制作元> --fields <作成した資源> --output <最終候補>`で、画像を対象のrendererが持つ材質へ収めます。共有元の画像は保持します。
 
 作業先には`tools/asset-authoring/workspace/`または`tools/game-test/artifacts/`内の実行フォルダーを指定します。以下の`<作業先>`はすべて同じ場所です。最初に`capture --destination <原本フォルダー>`で元のcatalogを保持し、共通引数`--source-directory <原本フォルダー>`でその原本を指定します。
 
@@ -148,6 +158,8 @@ HeadはLOD0を先に生成し、その`Coefficient.json`のpath/SHAをLOD1/2の�
 採用前に同じカメラ・姿勢の比較、共有部品、まばたき、口の表情、髪・ヒゲ・首との接続、外観の選択と復元を実ゲームで確認します。bundleの置換は同じフォルダーに新しいファイルを作り、directory entryを置き換えます。
 
 確認後に`publish --catalog <候補catalog> --expected-current-sha256 <現在のmanifestのSHA256>`で反映します。原本catalogは共通引数`--source-directory`で指定します。採用前の原本と候補を照合し、bundleを置換してからmanifestを更新します。途中で失敗した場合は原本へ戻します。
+
+同じ作業先では、入力・制作コード・保存出力が一致する肌の再計算結果を再利用します。採用済み原本もbundleのSHA256を照合し、変更された資源を検証します。
 
 公開名は原本モデル・部位・各モデルのLOD・用途で決めます（例：`human_male_af-as-ca-ho_hands_lod0-1_pn.bundle`）。原本の対応表を`capture`または`publish`の`--name-source-metadata <原本inventory.json>`で指定すると、既存の共有名を保ち、ハッシュ・連番を付けずに名前とmanifest参照を同時更新します。同名衝突は原本との対応を示して停止します。ハッシュは検証用メタデータへ残します。
 

@@ -2469,6 +2469,16 @@ def rgb_gaussian(values, sigma):
     for axis in (0, 1):
         moved = np.moveaxis(out, axis, 0)
         n = moved.shape[0]
+        if len(kernel)<=33:
+            # Small physical radii are cheaper as the same finite convolution.
+            # Avoid hundreds of padded FFTs for a short kernel on each skin mip.
+            result=np.zeros_like(moved)
+            for delta,weight in zip(offsets,kernel):
+                if abs(delta)>=n:continue
+                target=slice(max(0,delta),min(n,n+delta));source=slice(max(0,-delta),min(n,n-delta))
+                result[target]+=moved[source]*weight
+            out=np.moveaxis(result,0,axis)
+            continue
         matrix = moved.reshape(n, -1)
         length = 1 << (n + len(kernel) - 2).bit_length()
         frequency = np.fft.rfft(kernel, n=length)[:, None]
@@ -2590,6 +2600,72 @@ def refine_rgb_structure(current, ownership, continuous_skin, protected_features
                         gamutLimitedPixels=gamut_pixels,alphaExact=True, protectedFeaturesExact=True,
                         localChromaticity='single multiplicative luminance gain; no palette/color target',
                         physicalMetric='source triangle area-equivalent metres per texel; anisotropy reported, no geodesic claim')
+
+
+def source_material_ownership(packet, bones, declaration):
+    """Evaluate the declared anatomical domain, independently of species and shader."""
+    require(set(declaration)=={'includeBranches','protectPrefixes'},'Unknown source material domain.')
+    require(all(isinstance(value,list)and value and all(isinstance(v,str)and v for v in value)
+                for value in declaration.values()),'A source material domain requires explicit bone ownership.')
+    branches={name.casefold()for name in declaration['includeBranches']}
+    prefixes=tuple(name.casefold()for name in declaration['protectPrefixes'])
+    included=np.array([bool(branches.intersection(name.casefold().split('/')))for name in bones])
+    protected=np.array([name.rsplit('/',1)[-1].casefold().startswith(prefixes)for name in bones])
+    require(included.any(),'The declared material domain is absent from its source skeleton.')
+    weights=np.asarray(packet['weights'],float).reshape(-1,4)
+    indices=np.asarray(packet['boneIndices'],int).reshape(-1,4)
+    influence=(weights*included[indices]).sum(axis=1)
+    exclusion=(weights*protected[indices]).sum(axis=1)
+    smooth=lambda value:(lambda t:t*t*(3-2*t))(np.clip(value,0.,1.))
+    result=smooth((influence-.5)*2)*(1-smooth(exclusion/.35))
+    require(np.any(result),'The declared source material domain has no owned surface.')
+    return result
+
+
+def refine_source_skin_material(pixels, ownership, metres_per_texel, profile, channel, *, normal_encoding=None):
+    """Refine an explicitly owned source surface in physical units before packing."""
+    import material_fields as fields
+    pixels=np.asarray(pixels,np.uint8);ownership=np.asarray(ownership,float);metric=np.asarray(metres_per_texel,float)
+    required={'pigmentRetain','normalRetain','normalRadiusMetres','fineSigmaMetres','grainSigmaMetres','coherenceSigmaMetres','featherMetres'}
+    require(set(profile)==required and all(type(value)in(int,float)and np.isfinite(value)for value in profile.values()),
+            'A source skin finish requires finite declared physical scales and detail retention.')
+    require(0<=profile['pigmentRetain']<=1 and 0<=profile['normalRetain']<=1 and profile['normalRadiusMetres']>0,
+            'A source skin finish has invalid detail retention or normal radius.')
+    require(pixels.ndim==3 and pixels.shape[2]==4 and pixels.shape[:2]==ownership.shape==metric.shape and
+            np.isfinite(ownership).all() and np.isfinite(metric).all() and np.all((ownership>=0)&(ownership<=1)) and
+            np.all(metric[ownership>0]>0),'A source skin finish has inconsistent surface ownership or metric.')
+    require(channel in('color','normal'),'Unknown source skin channel.')
+    if not np.any(ownership)or min(pixels.shape[:2])<4 or profile['pigmentRetain'if channel=='color'else'normalRetain']==1:
+        return pixels.copy(),dict(affectedPixels=0,sourceRetained=True)
+    result=pixels.copy();selected=ownership>0
+    if channel=='color':
+        current=pixels.astype(float)/255;current[:,:,:3]=fields.lookup[pixels[:,:,:3]]
+        settings={name:profile[name]for name in('fineSigmaMetres','grainSigmaMetres','coherenceSigmaMetres','featherMetres')}
+        refined,proof=refine_rgb_structure(current,ownership,selected.astype(float),(~selected).astype(float),metric,settings)
+        linear=current[:,:,:3]+(refined[:,:,:3]-current[:,:,:3])*(1-profile['pigmentRetain'])
+        srgb=np.where(linear<=.0031308,12.92*linear,1.055*np.maximum(linear,0)**(1/2.4)-.055)
+        result[:,:,:3]=np.rint(np.clip(srgb,0,1)*255).astype(np.uint8)
+        result[~selected]=pixels[~selected]
+        require(np.array_equal(result[:,:,3],pixels[:,:,3]),'Skin pigment refinement changed material alpha.')
+        proof.update(alphaExact=True)
+    else:
+        require(normal_encoding=='packed-rgorag','A source normal finish requires its declared shader decoding contract.')
+        raw=pixels.astype(float)/255
+        x=raw[:,:,0]*raw[:,:,3]*2-1;y=raw[:,:,1]*2-1
+        normal=np.dstack((x,y,np.sqrt(np.maximum(0,1-x*x-y*y))))
+        averaged=np.stack([rgb_physical_average(normal[:,:,axis],selected.astype(float),metric,profile['normalRadiusMetres'])for axis in range(3)],axis=2)
+        averaged=normalise(averaged)
+        amount=ownership*(1-profile['normalRetain'])
+        desired=normalise(normal+(averaged-normal)*amount[:,:,None])
+        alpha=np.divide(desired[:,:,0]*.5+.5,raw[:,:,0],out=raw[:,:,3].copy(),where=raw[:,:,0]>0)
+        representable=selected&(alpha>=0)&(alpha<=1)&(raw[:,:,0]>0)
+        result[:,:,1][representable]=np.rint(np.clip(desired[:,:,1][representable]*.5+.5,0,1)*255).astype(np.uint8)
+        result[:,:,3][representable]=np.rint(alpha[representable]*255).astype(np.uint8)
+        require(np.array_equal(result[:,:,[0,2]],pixels[:,:,[0,2]]),'Skin normal refinement changed source carrier channels.')
+        proof=dict(normalEncoding=normal_encoding,sourceCarriersExact=True,unrepresentablePixels=int(np.count_nonzero(selected&~representable)))
+    require(np.array_equal(result[~selected],pixels[~selected]),'Skin refinement changed an unowned pixel.')
+    proof.update(affectedPixels=int(np.count_nonzero(np.any(result!=pixels,axis=2))),unownedPixelsExact=True)
+    return result,proof
 
 
 def material_surface(packet: 'dict[str, Any]', skin: 'dict[str, Any]', baked, region: 'np.ndarray', root, textures, slots=None):
@@ -3008,14 +3084,15 @@ def humanoid_face_contact_guard(packet: 'dict[str, Any]', skin: 'dict[str, Any]'
 
 
 
-def refine_native_face_contours(native: 'dict[str, Any]', authored: 'dict[str, Any]', skin: 'dict[str, Any]', marks: 'dict[str, Any] | None'=None, collar_vertices=(), *, refined=None, guide_report=None):
+def refine_native_face_contours(native: 'dict[str, Any]', authored: 'dict[str, Any]', skin: 'dict[str, Any]', marks: 'dict[str, Any] | None'=None, collar_vertices=(), *, refined=None, guide_report=None, previous_refined=None, surface_weight=None):
     """Compose an owned face target with the assembled collar and its poses."""
     transform = art.CONVERT @ art.matrix(skin['rendererToPrefab'])
-    if marks is None:
+    if marks is None and surface_weight is None:
         _, _, marks = art.landmarks(native, skin, transform)
         marks['eyeContactRegions'] = humanoid_face_contact_regions(native, skin)
-    require(all(marks[k] is not None for k in ('left', 'right', 'mouth', 'nose', 'head')),
-            'Native facial contours require their own anatomical landmarks.')
+    if surface_weight is None:
+        require(marks is not None and all(marks[k] is not None for k in ('left','right','mouth','nose','head')),
+                'Native facial contours require their own anatomical landmarks.')
     if refined is None:
         refined = copy.deepcopy(native)
         details: dict[str, Any] = dict(operation="native-neutral-recovery", artisticAcceptance="not-reviewed")
@@ -3025,9 +3102,21 @@ def refine_native_face_contours(native: 'dict[str, Any]', authored: 'dict[str, A
         details = dict(guide_report or {}, operation="source-guide-collar-composition", artisticAcceptance="not-reviewed")
     count = native['vertexCount']
     require(count <= authored['vertexCount'], 'The assembled face lost its native vertex prefix.')
+    if previous_refined is not None:
+        require(refined is not None, 'A source guide revision requires its next absolute target.')
+        for key in ('vertexCount','uv','weights','boneIndices','bindPoses','subMeshes','indexFormat'):
+            require(previous_refined[key] == native[key], 'The previous guide changes native correspondence: ' + key)
+        if fingerprint(previous_refined)[0] == fingerprint(refined)[0]:
+            return copy.deepcopy(authored), dict(details, operation='unchanged-source-guide', previousGuideExact=True)
     points = art.points(native['vertices'], transform)
-    height = abs(((marks['left'] + marks['right']) * .5)[2] - marks['mouth'][2])
-    weight = art.smooth((points[:, 2] - marks['mouth'][2] + height * 1.35) / (height * .65))
+    if surface_weight is None:
+        assert marks is not None
+        height = abs(((marks['left'] + marks['right']) * .5)[2] - marks['mouth'][2])
+        weight = art.smooth((points[:, 2] - marks['mouth'][2] + height * 1.35) / (height * .65))
+    else:
+        weight=np.asarray(surface_weight,float)
+        require(weight.shape==(count,) and np.isfinite(weight).all() and np.all((weight>=0)&(weight<=1)),
+                'A declared contact component has invalid surface ownership.')
     collar = np.asarray(sorted(set(collar_vertices)), dtype=np.int64)
     require(np.all((collar >= 0) & (collar < authored['vertexCount'])), 'A collar constraint is outside its assembled face.')
     if len(collar):
@@ -3042,30 +3131,47 @@ def refine_native_face_contours(native: 'dict[str, Any]', authored: 'dict[str, A
     result = copy.deepcopy(authored)
     triangles = np.concatenate([np.asarray(t).reshape(-1, 3) for t in authored['subMeshes']])
 
-    def compose(current_p, current_n, current_t, source_p, source_n, source_t, reference_p):
+    def compose(current_p, current_n, current_t, source_p, source_n, source_t, reference_p, previous_pose=None):
         positions, normals, tangents = current_p.copy(), current_n.copy(), current_t.copy()
-        positions[:count] += (source_p - positions[:count]) * weight[:, None]
-        normals[:count] = normalise(normals[:count] * (1 - weight[:, None]) + source_n * weight[:, None])
-        tangent = tangents[:count, :3] * (1 - weight[:, None]) + source_t[:, :3] * weight[:, None]
-        tangents[:count, :3] = normalise(tangent - normals[:count] * np.sum(tangent * normals[:count], axis=1, keepdims=True))
-        reference = current_p.copy()
-        reference[:count] += (reference_p - reference[:count]) * weight[:, None]
+        if previous_pose is None:
+            positions[:count] += (source_p - positions[:count]) * weight[:, None]
+            normals[:count] = normalise(normals[:count] * (1 - weight[:, None]) + source_n * weight[:, None])
+            tangent = tangents[:count, :3] * (1 - weight[:, None]) + source_t[:, :3] * weight[:, None]
+            tangents[:count, :3] = normalise(tangent - normals[:count] * np.sum(tangent * normals[:count], axis=1, keepdims=True))
+            reference = current_p.copy()
+            reference[:count] += (reference_p - reference[:count]) * weight[:, None]
+        else:
+            # The saved collar already contains its source/target composition.
+            # Apply the change between absolute guides, rather than blending
+            # that collar a second time on each authoring iteration.
+            # Later source-owned LOD repairs and skin-frame finishing can add
+            # a residual to the previous guide. Its authenticated target owns
+            # the revision delta; the current saved surface owns that residual.
+            positions[:count] += (source_p - previous_pose[0]) * weight[:, None]
+            changed = np.any(source_n != previous_pose[1], axis=1) & (weight > 0)
+            normals[:count][changed] = normalise(normals[:count][changed] + (source_n-previous_pose[1])[changed]*weight[changed,None])
+            tangent = tangents[:count, :3] + (source_t[:, :3]-previous_pose[2][:, :3])*weight[:, None]
+            changed |= np.any(source_t != previous_pose[2], axis=1) & (weight > 0)
+            tangents[:count, :3][changed] = normalise(tangent[changed] - normals[:count][changed] * np.sum(tangent[changed] * normals[:count][changed], axis=1, keepdims=True))
+            reference = current_p
         positions, orientation = preserve_surface_orientation(reference, positions, triangles, transform)
         require(orientation['surfaceScaleFactor'] == 1, 'Native contour replacement reverses an assembled surface.')
         # Exact source contacts and exact assembled collars also retain their frames.
         for output, current, source in ((positions, current_p, source_p), (normals, current_n, source_n), (tangents, current_t, source_t)):
-            output[:count][weight == 1] = source[weight == 1]
+            if previous_pose is None:output[:count][weight == 1] = source[weight == 1]
             output[:count][weight == 0] = current[:count][weight == 0]
         return positions, normals, tangents
 
     old = [np.asarray(authored[k]).reshape(-1, d) for k, d in (('vertices', 3), ('normals', 3), ('tangents', 4))]
     new = [np.asarray(refined[k]).reshape(-1, d) for k, d in (('vertices', 3), ('normals', 3), ('tangents', 4))]
     original = [np.asarray(native[k]).reshape(-1, d) for k, d in (('vertices', 3), ('normals', 3), ('tangents', 4))]
-    base = compose(old[0],old[1],old[2],new[0],new[1],new[2],original[0])
+    previous = [np.asarray(previous_refined[k]).reshape(-1, d) for k, d in (('vertices', 3), ('normals', 3), ('tangents', 4))] if previous_refined is not None else None
+    base = compose(old[0],old[1],old[2],new[0],new[1],new[2],original[0],previous)
     for key, value in zip(('vertices', 'normals', 'tangents'), base):
         result[key] = value.astype(np.float32).ravel().tolist()
     channels = {shape['name']: shape for shape in refined['shapes']}
     native_channels = {shape['name']: shape for shape in refined.get('_sourceFrameReference', native['shapes'])}
+    previous_channels = {shape['name']: shape for shape in previous_refined['shapes']} if previous_refined is not None else {}
     inherited_channels = []; collar_frame_error = 0.
     for current_shape, target_shape in zip(authored['shapes'], result['shapes']):
         source_shape = channels.get(current_shape['name'])
@@ -3086,7 +3192,13 @@ def refine_native_face_contours(native: 'dict[str, Any]', authored: 'dict[str, A
             original_shape = native_channels.get(current_shape['name'])
             original_frame = next((f for f in original_shape['frames'] if f['weight']==current['weight']), None) if original_shape else None
             reference_p = original[0] + np.asarray(original_frame['vertices']).reshape(-1,3) if original_frame else original[0]
-            value = compose(*posed(current, old), *posed(source, new), reference_p)
+            prior_shape = previous_channels.get(current_shape['name'])
+            prior_frame = next((frame for frame in prior_shape['frames'] if frame['weight']==current['weight']), None) if prior_shape else None
+            if previous is not None and prior_frame is None:
+                require(source_shape is None, 'A guide revision omitted the previous physical frame.')
+                prior_frame = {key: [0.] * (count * 3) for key in ('vertices','normals','tangents')}
+            prior_pose = posed(prior_frame, previous) if previous is not None else None
+            value = compose(*posed(current, old), *posed(source, new), reference_p,prior_pose)
             for key, field, rest in zip(('vertices', 'normals', 'tangents'), value, base):
                 target[key] = (field[:, :3] - rest[:, :3]).astype(np.float32).ravel().tolist()
                 if len(collar):
@@ -3099,6 +3211,9 @@ def refine_native_face_contours(native: 'dict[str, Any]', authored: 'dict[str, A
                    assembledCollarVertices=len(collar), collarFrameMaximumError=collar_frame_error,
                    nativeFaceVertices=int(np.count_nonzero(weight == 1)),
                    collarOnlyInheritedChannels=inherited_channels)
+    if previous_refined is not None:
+        details.update(previousGuideFingerprint=fingerprint(previous_refined)[0], sourceCorrespondenceExact=True,
+                       subsequentSourceRefinementsRetained=True)
     return result, details
 
 

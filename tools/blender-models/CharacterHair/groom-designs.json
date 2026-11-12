@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "units": "metres in the original prefab frame",
+  "assets": {
+    "Dwarf_Female_HairShape_H": {"widthMetres":[0.0008,0.0015],"liftMetres":[0.0007,0.0020],"targetLengthLimitsMetres":[0.010,0.024]},
+    "Elf_Female_HairShape_H": {"widthMetres":[0.0006,0.0012],"liftMetres":[0.0006,0.0017],"targetLengthLimitsMetres":[0.012,0.028]},
+    "Gnome_Female_HairShape_H": {"widthMetres":[0.0006,0.0012],"liftMetres":[0.0006,0.0016],"targetLengthLimitsMetres":[0.009,0.021]},
+    "Halfling_Female_HairShape_H": {"widthMetres":[0.0007,0.0013],"liftMetres":[0.0006,0.0018],"targetLengthLimitsMetres":[0.010,0.024]},
+    "Human_Female_HairShape_H": {"widthMetres":[0.0007,0.0014],"liftMetres":[0.0007,0.0020],"targetLengthLimitsMetres":[0.012,0.028]},
+    "Elf_Male_HairShape_H": {"widthMetres":[0.0007,0.0013],"liftMetres":[0.0006,0.0018],"targetLengthLimitsMetres":[0.010,0.024]},
+    "Halfling_Male_HairShape_H": {"widthMetres":[0.0007,0.0013],"liftMetres":[0.0006,0.0017],"targetLengthLimitsMetres":[0.009,0.022]},
+    "Human_Male_HairShape_H": {"widthMetres":[0.0008,0.0015],"liftMetres":[0.0007,0.0020],"targetLengthLimitsMetres":[0.010,0.025]},
+    "Human_Male_BeardShape_C": {"widthMetres":[0.0006,0.0011],"liftMetres":[0.0004,0.0014],"targetLengthLimitsMetres":[0.006,0.014]},
+    "Human_Male_BeardShape_D": {"widthMetres":[0.0006,0.0012],"liftMetres":[0.0004,0.0015],"targetLengthLimitsMetres":[0.006,0.016]},
+    "Human_Male_BeardShape_P": {"widthMetres":[0.0006,0.0012],"liftMetres":[0.0004,0.0015],"targetLengthLimitsMetres":[0.008,0.018]},
+    "Dwarf_Male_BeardShape_A": {"widthMetres":[0.0008,0.0016],"liftMetres":[0.0005,0.0018],"targetLengthLimitsMetres":[0.010,0.024]},
+    "Dwarf_Male_BeardShape_B": {"widthMetres":[0.0008,0.0015],"liftMetres":[0.0005,0.0017],"targetLengthLimitsMetres":[0.009,0.022]},
+    "Dwarf_Male_BeardShape_D": {"widthMetres":[0.0007,0.0014],"liftMetres":[0.0005,0.0016],"targetLengthLimitsMetres":[0.009,0.020]}
+  }
+}

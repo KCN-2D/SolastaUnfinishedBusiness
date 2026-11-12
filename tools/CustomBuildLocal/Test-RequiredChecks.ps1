@@ -8,6 +8,7 @@ $temporary = Join-Path ([IO.Path]::GetTempPath()) ('ub-codex-hook-' + [guid]::Ne
 $missing = Join-Path $temporary 'missing.json'
 $cases = @(
     @{name='read-only command';event='PreToolUse';command='git status --short';expected='allow'},
+    @{name='Japanese read-only command';event='PreToolUse';command=('Write-Output "'+[char]0x65e5+[char]0x672c+[char]0x8a9e+'"');expected='allow'},
     @{name='quoted prose';event='PreToolUse';command='Write-Output "git commit --amend"';expected='allow'},
     @{name='commit';event='PreToolUse';command='git commit -m "test"';expected='deny'},
     @{name='push with global options';event='PreToolUse';command='git -C "E:\sample project" -c core.quotepath=false push';expected='deny'},
@@ -26,12 +27,14 @@ try {
         $start.RedirectStandardInput=$true;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
         $start.StandardOutputEncoding=[Text.UTF8Encoding]::new($false)
         $process=[Diagnostics.Process]::Start($start)
-        $process.StandardInput.WriteLine(($inputObject|ConvertTo-Json -Depth 5 -Compress));$process.StandardInput.Close()
+        $inputBytes=[Text.UTF8Encoding]::new($false).GetBytes(($inputObject|ConvertTo-Json -Depth 5 -Compress)+[Environment]::NewLine)
+        # Keep the JSON bytes independent of the parent console's code page.
+        $process.StandardInput.BaseStream.Write($inputBytes,0,$inputBytes.Length);$process.StandardInput.BaseStream.Close()
         $output=$process.StandardOutput.ReadToEnd();$errorText=$process.StandardError.ReadToEnd();$process.WaitForExit()
         if($process.ExitCode-ne0){throw "Hook protocol failed: $($case.name) : $errorText"}
         $response=$output|ConvertFrom-Json
         $actual=if($response.PSObject.Properties['decision']){$response.decision}elseif($response.PSObject.Properties['hookSpecificOutput']){$response.hookSpecificOutput.permissionDecision}else{'allow'}
-        if($actual-cne$case.expected){throw "Hook decision failed: $($case.name) : $actual"}
+        if($actual-cne$case.expected){throw "Hook decision failed: $($case.name) : $actual; $output"}
         $results.Add([pscustomobject]@{name=$case.name;passed=$true})
         $process.Dispose()
     }

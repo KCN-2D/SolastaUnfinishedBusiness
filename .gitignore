@@ -345,6 +345,7 @@ __pycache__/
 !/tools/blender-models/CharacterHair/SourceGroomProgram.cginc
 !/tools/blender-models/CharacterHair/NativeFamilyFx.cginc
 !/tools/blender-models/CharacterHair/materials.json
+!/tools/blender-models/CharacterHair/groom-designs.json
 !/tools/blender-models/CharacterHair/validate_material.py
 !/tools/blender-models/CharacterHair/compare_compiled_material.py
 !/tools/blender-models/CharacterHair/adopt_material.py

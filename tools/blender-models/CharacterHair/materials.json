@@ -8,7 +8,7 @@
     },
     {
       "path": "NativeHairSourceGroom.shader",
-      "sha256": "595b8ece30c3ad8d9b6a595ed901143ae12bd52b9cdb147fd1e75d2ff5f57ebd"
+      "sha256": "a467c6a8c089a4deced98e74a14ebd95e5d0c5497e1b2268f910737cfede2e04"
     },
     {
       "path": "SourceGroom.cginc",
@@ -57,7 +57,7 @@
         {
           "name": "_FiberSmoothness",
           "kind": "float",
-          "value": 0.55
+          "value": 0.56
         },
         {
           "name": "_FiberAnisotropy",
@@ -67,12 +67,12 @@
         {
           "name": "_MacroNormalStrength",
           "kind": "float",
-          "value": 0.12
+          "value": 0.08
         },
         {
           "name": "_BakedColorDetail",
           "kind": "float",
-          "value": 0.55
+          "value": 0.35
         },
         {
           "name": "_BakedColorMipBias",
@@ -82,7 +82,7 @@
         {
           "name": "_FiberColorStrength",
           "kind": "float",
-          "value": 0.18
+          "value": 0.12
         },
         {
           "name": "_FiberAlphaCutoff",
@@ -92,7 +92,7 @@
         {
           "name": "_CoreFineStrength",
           "kind": "float",
-          "value": 1
+          "value": 0.65
         },
         {
           "name": "_AiryVisibility",
@@ -117,17 +117,17 @@
         {
           "name": "_CoreReliefStrength",
           "kind": "float",
-          "value": 0.12
+          "value": 0.07
         },
         {
           "name": "_FineReliefStrength",
           "kind": "float",
-          "value": 0.35
+          "value": 0.5
         },
         {
           "name": "_CoreGroomPigmentStrength",
           "kind": "float",
-          "value": 0.1
+          "value": 0.04
         },
         {
           "name": "_NativeCoreCull",
@@ -152,12 +152,12 @@
         {
           "name": "_CoreAnisotropyScale",
           "kind": "float",
-          "value": 0.75
+          "value": 0.9
         },
         {
           "name": "_CoreSmoothnessScale",
           "kind": "float",
-          "value": 0.9
+          "value": 0.95
         }
       ]
     }

@@ -28,6 +28,7 @@
     "tools/asset-authoring",
     "tools/asset-authoring/UnityAssetBuild",
     "tools/blender-models/CharacterFaces",
+    "tools/blender-models/CharacterHair",
     "tools/asset-authoring/workspace/Python/Lib/site-packages",
     "tools/asset-authoring/workspace/Tools/blender-4.5.9-windows-x64/4.5/scripts/modules",
     "tools/asset-authoring/workspace/Tools/blender-4.5.9-windows-x64/4.5/python/lib/site-packages"

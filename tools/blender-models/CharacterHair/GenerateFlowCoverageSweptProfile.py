@@ -1500,6 +1500,52 @@ def share_core_normals(plan,normals):
     return result
 
 
+def retain_source_fitting(packet,native,binding,current):
+    """Carry later source fitting through the same native triangle correspondence."""
+    count=native['vertexCount'];result=copy.deepcopy(packet)
+    for key,width in(('weights',4),('boneIndices',4)):
+        assert np.array_equal(np.asarray(current[key]).reshape(-1,width)[:count],np.asarray(native[key]).reshape(-1,width)),key
+    assert np.array_equal(np.asarray(current['bindPoses'][:len(native['bindPoses'])],dtype='<f4'),np.asarray(native['bindPoses'],dtype='<f4')),'A groom fitting changed its native bind palette.'
+    def source_uv(value):
+        channel=next((u for u in value['uv']if u['channel']==0),None)
+        return np.asarray(channel['values']).reshape(-1,4)[:count,:2].astype('<f4')if channel else None
+    current_uv,native_uv=source_uv(current),source_uv(native)
+    assert (current_uv is None and native_uv is None)or(current_uv is not None and native_uv is not None and np.array_equal(current_uv,native_uv)), 'A later groom fitting has another source UV domain.'
+    identities=lambda value:[(s['name'],[f['weight']for f in s['frames']])for s in value['shapes']]
+    assert identities(native)==identities(current)==identities(packet)
+    triangles=[];bary=[]
+    for row in binding['vertices']:
+        surface=row.get('geometrySurface')or row.get('surface')
+        triangles.append(surface['triangle']if surface else[row['anchor']]*3)
+        bary.append(surface['barycentric']if surface else[1.,0.,0.])
+    triangles=np.asarray(triangles,int);bary=np.asarray(bary,float)
+    def frames(value):return[None]+[f for s in value['shapes']for f in s['frames']]
+    old_frames,new_frames,authored_frames=frames(native),frames(current),frames(packet)
+    output_frames=frames(result);base=None;low=None;high=None
+    for index,(old,new,authored,output)in enumerate(zip(old_frames,new_frames,authored_frames,output_frames)):
+        absolute=[]
+        for source,frame in((native,old),(current,new),(packet,authored)):
+            points=np.asarray(source['vertices']).reshape(-1,3).copy()
+            if frame is not None:points+=np.asarray(frame['vertices']).reshape(-1,3)
+            absolute.append(points)
+        original,retained,target=absolute
+        sample=lambda value:np.einsum('vi,vij->vj',bary,value[:count][triangles])
+        target+=sample(retained[:count]-original[:count]);target[:count]=retained[:count]
+        low=target.min(axis=0)if low is None else np.minimum(low,target.min(axis=0))
+        high=target.max(axis=0)if high is None else np.maximum(high,target.max(axis=0))
+        if index==0:base=target.copy();result['vertices']=target.ravel().tolist()
+        else:
+            assert base is not None and output is not None
+            output['vertices']=(target-base).ravel().tolist()
+    if 'bounds'in result:
+        assert low is not None and high is not None
+        bounds=np.asarray(result['bounds']);low=np.minimum(low,bounds[:3]-bounds[3:]*.5);high=np.maximum(high,bounds[:3]+bounds[3:]*.5)
+        low=np.nextafter(low.astype('<f4'),np.float32(-np.inf)).astype(float);high=np.nextafter(high.astype('<f4'),np.float32(np.inf)).astype(float)
+        result['bounds']=np.r_[(low+high)*.5,high-low].tolist()
+    result['sourceFingerprint']=fingerprint(result)[0]
+    return result
+
+
 def standalone_cloth_attachment(packet,native,binding,attachment_source=None):
     """Compile geometric samples to the native prefab's anchor attachment format.
 
@@ -1507,7 +1553,15 @@ def standalone_cloth_attachment(packet,native,binding,attachment_source=None):
     UV alias. Geometry, texture coordinates and stored morphs remain unchanged.
     The returned single-anchor binding is an authoring input for prefab baking.
     """
+    if attachment_source is not None:packet=retain_source_fitting(packet,native,binding,attachment_source)
     result=copy.deepcopy(packet);attachment=copy.deepcopy(binding)
+    domain=next((u for u in result['uv']if u['channel']==2),None)
+    fitting_proof=None
+    if domain is not None and np.any(np.asarray(domain['values']).reshape(-1,4)[:,2]>=17):
+        fitting_proof=discard_invalid_serialized_curves(result,attachment,native['vertexCount'])
+        tested,rejected=fitting_proof['testedCurves'],fitting_proof['rejectedCurves']
+        assert isinstance(tested,int)and isinstance(rejected,int)and tested>rejected,'The fitted groom has no valid fine source curves.'
+        packet=result
     rebase=attachment_source is not None
     p,n,t,b=native_frames(attachment_source if rebase else native,binding['matrix'])
     matrix=np.asarray(binding['matrix']).reshape(4,4).T;linear=matrix[:3,:3]
@@ -1542,7 +1596,76 @@ def standalone_cloth_attachment(packet,native,binding,attachment_source=None):
     return result,attachment,dict(compiledVertices=compiled,changedSkinVertices=changed,
         nativeClothFrameRowsRebased=rebased_prefix,
         canonicalSkinAndClothAnchorShared=True,nativePrefixUnchanged=True,
-        positionsNormalsTangentsUvColorsAndAllStoredFramesUnchanged=True,runtimeSourceGraphRequired=False)
+        positionsNormalsTangentsUvColorsAndAllStoredFramesUnchanged=not rebase,
+        subsequentSourceFittingRetained=rebase,fittedCurveProof=fitting_proof,runtimeSourceGraphRequired=False)
+
+
+def compose_finished_source_groom(source,finished,attachment):
+    """Replace owned fine fibres while retaining the complete authored source support."""
+    def roles(packet):
+        channel=next(u for u in packet['uv']if u['channel']==2)
+        assert channel['dimension']==4
+        return np.asarray(channel['values']).reshape(-1,4)[:,2]
+    owned_fine=lambda value:(value>=17)&(value<48.5)
+    old_fine=owned_fine(roles(source));new_fine=owned_fine(roles(finished))
+    keep=np.flatnonzero(~old_fine);added=np.flatnonzero(new_fine)
+    assert len(added)and len(keep)and len(attachment['vertices'])==finished['vertexCount']
+    assert source['bindPoses']==finished['bindPoses']
+    identities=lambda value:[(s['name'],[f['weight']for f in s['frames']])for s in value['shapes']]
+    assert identities(source)==identities(finished)
+    result=copy.deepcopy(source);count=len(keep)+len(added)
+    assert count<65536
+    def combine(a,b,width):
+        assert bool(a)==bool(b)
+        return np.concatenate((np.asarray(a).reshape(-1,width)[keep],np.asarray(b).reshape(-1,width)[added])).ravel().tolist()if a else[]
+    for key,width in(('vertices',3),('normals',3),('tangents',4),('weights',4),('boneIndices',4),('colors',4)):
+        result[key]=combine(source[key],finished[key],width)
+    assert[(u['channel'],u['dimension'])for u in source['uv']]==[(u['channel'],u['dimension'])for u in finished['uv']]
+    for output,a,b in zip(result['uv'],source['uv'],finished['uv']):output['values']=combine(a['values'],b['values'],4)
+    for output,a,b in zip(result['shapes'],source['shapes'],finished['shapes']):
+        for out,x,y in zip(output['frames'],a['frames'],b['frames']):
+            for key in('vertices','normals','tangents'):out[key]=combine(x[key],y[key],3)
+    assert len(source['subMeshes'])==len(finished['subMeshes'])
+    old_map=np.full(source['vertexCount'],-1,int);old_map[keep]=np.arange(len(keep))
+    new_map=np.full(finished['vertexCount'],-1,int);new_map[added]=np.arange(len(added))+len(keep)
+    slots=[];retained_triangles=0;fine_triangles=0
+    for a,b in zip(source['subMeshes'],finished['subMeshes']):
+        old_tri=np.asarray(a,int).reshape(-1,3);new_tri=np.asarray(b,int).reshape(-1,3)
+        for tri,mask in((old_tri,old_fine),(new_tri,new_fine)):
+            assert np.all(np.all(mask[tri],axis=1)|np.all(~mask[tri],axis=1)),'A source triangle mixes owned fine and retained support.'
+        core=old_tri[np.all(~old_fine[old_tri],axis=1)];fine=new_tri[np.all(new_fine[new_tri],axis=1)]
+        slots.append(np.concatenate((old_map[core],new_map[fine])).ravel().tolist())
+        retained_triangles+=len(core);fine_triangles+=len(fine)
+    result.update(vertexCount=count,subMeshes=slots,indexFormat=0)
+    low=np.minimum(np.asarray(source['bounds'][:3])-np.asarray(source['bounds'][3:])*.5,
+                   np.asarray(finished['bounds'][:3])-np.asarray(finished['bounds'][3:])*.5)
+    high=np.maximum(np.asarray(source['bounds'][:3])+np.asarray(source['bounds'][3:])*.5,
+                    np.asarray(finished['bounds'][:3])+np.asarray(finished['bounds'][3:])*.5)
+    result['bounds']=np.r_[(low+high)*.5,high-low].tolist()
+    binding=copy.deepcopy(attachment);rows=[]
+    uv0=np.asarray(next(u['values']for u in source['uv']if u['channel']==0)).reshape(-1,4)
+    for index in keep:rows.append(dict(anchor=int(index),native=True,role='retained-source',slot=-1,uv0=uv0[index,:2].tolist(),
+        offset=[0.,0.,0.],normal=[0.,0.,1.],tangent=[1.,0.,0.],tangentW=float(source['tangents'][int(index)*4+3])))
+    p,n,t,b=native_frames(source,binding['matrix'])
+    matrix=np.asarray(binding['matrix']).reshape(4,4).T;linear=matrix[:3,:3]
+    points=np.asarray(finished['vertices']).reshape(-1,3)@linear.T+matrix[:3,3]
+    normals=unit(np.asarray(finished['normals']).reshape(-1,3)@np.linalg.inv(linear))
+    tangents=np.asarray(finished['tangents']).reshape(-1,4)[:,:3]@linear.T
+    tangents=unit(tangents-normals*np.sum(normals*tangents,axis=1)[:,None])
+    old_weights=np.asarray(source['weights']).reshape(-1,4);old_indices=np.asarray(source['boneIndices']).reshape(-1,4)
+    new_weights=np.asarray(finished['weights']).reshape(-1,4);new_indices=np.asarray(finished['boneIndices']).reshape(-1,4)
+    for index in added:
+        row=copy.deepcopy(attachment['vertices'][int(index)]);anchor=row['anchor']
+        assert 0<=anchor<source['vertexCount']and not old_fine[anchor]
+        assert np.array_equal(old_weights[anchor],new_weights[index])and np.array_equal(old_indices[anchor],new_indices[index])
+        basis=np.asarray((t[0,anchor],b[0,anchor],n[0,anchor]))
+        row.update(native=False,offset=(basis@(points[index]-p[0,anchor])).tolist(),normal=(basis@normals[index]).tolist(),tangent=(basis@tangents[index]).tolist())
+        row.pop('surface',None);row.pop('geometrySurface',None);rows.append(row)
+    binding['vertices']=rows;binding['sourceFingerprint']=source['sourceFingerprint'];binding.pop('schemaVersion',None);binding.pop('sourceVertexCount',None)
+    result['sourceFingerprint']=fingerprint(result)[0]
+    return result,binding,dict(retainedSourceVertices=len(keep),retainedSourceTriangles=retained_triangles,
+        addedFineVertices=len(added),addedFineTriangles=fine_triangles,sourceSupportAndAllStoredFramesExact=True,
+        finishedFineChannelsAndAllStoredFramesExact=True,sourceCoreTopologyExact=True,sourceClothRowsRetained=True)
 
 
 def curved_vertex_capacity(native_count,current_count,added_count,added_limit):
@@ -2772,11 +2895,12 @@ def main():
     parser.add_argument('--domain-contract')
     parser.add_argument('--curved-core',action='store_true')
     parser.add_argument('--layered-atlas-cards',action='store_true')
+    parser.add_argument('--designs',type=Path)
     args=parser.parse_args();HERE=args.workspace.resolve();assert any(HERE.is_relative_to(ROOT/p)for p in('tools/game-test/artifacts','tools/asset-authoring/workspace')),'Use an ignored authoring workspace.';output=Path(args.output).resolve()
     if args.strand_atlas:
         if any((args.input,args.asset,args.lod is not None,args.core_repair_from,args.restore_core_geometry,
                 args.core_multiplicity_from,args.multiplicity_proof,args.soft_coverage_pilot,args.visible_shell_refinement,
-                args.native_hair_domain,args.domain_contract,args.curved_core,args.layered_atlas_cards)):
+                args.native_hair_domain,args.domain_contract,args.curved_core,args.layered_atlas_cards,args.designs)):
             parser.error('--strand-atlas accepts only --workspace and --output.')
         assert output.is_relative_to(HERE)and output!=HERE
         output.mkdir(exist_ok=True)
@@ -2802,6 +2926,20 @@ def main():
             maximumRibbonsByLod=[600,200,60],maximumAddedVerticesByLod=[16000,5000,2000],
             maximumAddedPhysicalAndVertexBytesByLod=[8*1024*1024,4*1024*1024,1024*1024],
             targetLengthLimitsMetres=[.025,.05],targetLengthExtentFraction=.18)
+    design_pin=None
+    if args.designs:
+        if not args.soft_coverage_pilot or not args.native_hair_domain or args.layered_atlas_cards or len(args.asset or [])!=1:
+            parser.error('Source designs require one declared asset with native-domain fine coverage.')
+        design=read(args.designs);values=design['assets'][args.asset[0]]
+        if design.get('schemaVersion')!=1 or set(values)!={'widthMetres','liftMetres','targetLengthLimitsMetres'}:
+            raise ValueError('Unknown source groom design.')
+        for key,pair in values.items():
+            if not isinstance(pair,list)or len(pair)!=2 or not all(type(v)in(int,float)and np.isfinite(v)and 0<v<=.15 for v in pair)or pair[0]>pair[1]:
+                raise ValueError('Invalid physical groom range: '+key)
+        PROFILE.update(values)
+        PROFILE.update(maximumRibbonsByLod=[900,300,90],maximumAddedVerticesByLod=[12000,4500,1500],
+            maximumAddedPhysicalAndVertexBytesByLod=[4*1024*1024,2*1024*1024,512*1024],targetPoissonCoverage=.85)
+        design_pin=dict(path=str(args.designs.resolve()),sha256=sha(args.designs),asset=args.asset[0])
     assert output.is_relative_to(HERE.resolve())and output!=HERE.resolve()
     output.mkdir(exist_ok=True)
     assert not any(output.iterdir()),'Use a fresh numeric candidate directory.'
@@ -2829,22 +2967,25 @@ def main():
     for entry in selected:
         row=curved_core_row(entry,output)if args.curved_core else generate(entry,output);rows.append(row)
         print(entry['asset'],entry['nativeRenderer'],row['originalVertices'],row['compactedVertices'],row['addedPhysicalDeltaBytes'],flush=True)
-    result=dict(status='PRIVATE_SOURCE_FLOW_COVERAGE_NUMERIC_CANDIDATE_NOT_RENDERED',profile=PROFILE,rows=rows,
+    result: dict[str,Any]=dict(status='PRIVATE_SOURCE_FLOW_COVERAGE_NUMERIC_CANDIDATE_NOT_RENDERED',profile=PROFILE,rows=rows,
         generatorPath=str(Path(__file__).resolve()),generatorSha256=sha(Path(__file__)),
         sourceInput=str(input_path),sourceInputSha256=sha(input_path),
         removedOldBroadOuterGeometry=any(row['broadNativeOuterSheetReplaced']for row in rows),allNativeSourceFramesKept=True,productChanged=False,artAccepted=False)
-    if args.curved_core:
-        result['geometryMode']='curved-core-native-domain-v1'
-        result['allNativeRenderFacesKept']=False
-        result['status']='PENDING_CURVED_CORE_NUMERIC_PROOFS'
+    if design_pin is not None:result['sourceDesign']=design_pin
+    if args.curved_core or design_pin is not None:
+        source_design=design_pin is not None
+        if args.curved_core:
+            result['geometryMode']='curved-core-native-domain-v1'
+            result['allNativeRenderFacesKept']=False
+        result['status']='PENDING_SOURCE_GROOM_NUMERIC_PROOFS'if source_design else'PENDING_CURVED_CORE_NUMERIC_PROOFS'
         (output/'Generation.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
         try:
             result['numericProofs']=[prove_row(row, PROFILE)for row in rows]
         except Exception as error:
-            result.update(status='FAILED_CURVED_CORE_NUMERIC_PROOFS',numericError=str(error))
+            result.update(status='FAILED_SOURCE_GROOM_NUMERIC_PROOFS'if source_design else'FAILED_CURVED_CORE_NUMERIC_PROOFS',numericError=str(error))
             (output/'Generation.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
             raise
-        result['status']='PASS_CURVED_CORE_NUMERIC_PROOFS_RENDER_PENDING'
+        result['status']='PASS_SOURCE_GROOM_NUMERIC_PROOFS_RENDER_PENDING'if source_design else'PASS_CURVED_CORE_NUMERIC_PROOFS_RENDER_PENDING'
     (output/'Generation.json').write_text(json.dumps(result,indent=2),encoding='utf-8')
 
 if __name__=='__main__':main()

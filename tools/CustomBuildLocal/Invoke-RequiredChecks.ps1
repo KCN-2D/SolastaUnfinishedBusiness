@@ -52,7 +52,8 @@ function Test-PackageMatch($First, $Second) {
 
 try {
     if ($CodexHook) {
-        $eventInput = [Console]::In.ReadToEnd() | ConvertFrom-Json
+        $inputReader = [IO.StreamReader]::new([Console]::OpenStandardInput(),[Text.UTF8Encoding]::new($false),$true)
+        try { $eventInput = $inputReader.ReadToEnd() | ConvertFrom-Json } finally { $inputReader.Dispose() }
         $eventName = [string]$eventInput.hook_event_name
         if ($eventName -eq 'PreToolUse') {
             $command = [string]$eventInput.tool_input.command
@@ -168,14 +169,12 @@ try {
         }
         $zipPath = Join-Path $repositoryRoot 'tools/CustomBuildLocal/SolastaUnfinishedBusiness.zip'
         if ((Get-GtHash $zipPath) -ine $build.zipSha256) { throw '配布ZIPと正式ビルドの内容が一致していません。' }
-        if ($verificationChanged) {
-            $cleanupPath = Join-Path $evidenceRoot 'RunRequiredCleanup.ps1'
-            $cleanup = '$p=Get-Content -LiteralPath $args[0] -Raw|ConvertFrom-Json; & $p.runner -ArtifactRoot $p.root -PruneSuperseded -KeepLatestPerCase 1 -PreserveDirectory @($p.preserve) -Apply'
-            [IO.File]::WriteAllText($cleanupPath,$cleanup,[Text.UTF8Encoding]::new($true))
-            $cleanupPlan = Join-Path $evidenceRoot 'RequiredCleanup.json'
-            Write-GtJson $cleanupPlan ([ordered]@{runner=(Join-Path $repositoryRoot 'tools/game-test/Clear-GameTestArtifacts.ps1');root=$evidenceRoot;preserve=@($buildDirectory,(Split-Path -Parent $nativePath))})
-            [void](Invoke-CheckProcess 'powershell.exe' @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$cleanupPath,$cleanupPlan))
-        }
+        $cleanupPath = Join-Path $evidenceRoot 'RunRequiredCleanup.ps1'
+        $cleanup = '$p=Get-Content -LiteralPath $args[0] -Raw|ConvertFrom-Json; if($p.pruneRuns){& $p.runner -ArtifactRoot $p.root -PruneSuperseded -KeepLatestPerCase 1 -PreserveDirectory @($p.preserve) -Apply}; & $p.runner -ArtifactRoot $p.reportRoot -PruneReports -PruneLooseFiles -PreserveDirectory @($p.preserve) -Apply'
+        [IO.File]::WriteAllText($cleanupPath,$cleanup,[Text.UTF8Encoding]::new($true))
+        $cleanupPlan = Join-Path $evidenceRoot 'RequiredCleanup.json'
+        Write-GtJson $cleanupPlan ([ordered]@{runner=(Join-Path $repositoryRoot 'tools/game-test/Clear-GameTestArtifacts.ps1');root=$evidenceRoot;reportRoot=$script:GameTestArtifactRoot;pruneRuns=$verificationChanged;preserve=@($buildDirectory,(Split-Path -Parent $nativePath))})
+        [void](Invoke-CheckProcess 'powershell.exe' @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$cleanupPath,$cleanupPlan))
         Write-GtJson $cachePath ([ordered]@{schemaVersion=1;status='PASS';utc=[datetime]::UtcNow.ToString('O');buildDirectory=$buildDirectory;nativeResult=$nativePath;nativeInputs=$nativeInputs;source=$environment.source;packageSha256=$build.zipSha256;event=$eventName})
         if ($CodexHook) { Write-Output '{}' } else { Write-Output "必須検証成功: $cachePath" }
     } finally { Pop-Location }

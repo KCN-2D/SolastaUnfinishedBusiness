@@ -20,6 +20,25 @@ fields=importlib.util.module_from_spec(spec);spec.loader.exec_module(fields)
 
 
 class SkinCutCoverageContracts(unittest.TestCase):
+    def test_normal_codec_preserves_unowned_blocks_and_non_normal_carriers(self):
+        from PIL import Image
+        original=np.full((16,16,4),[255,126,255,130],np.uint8)
+        original[:,:,1]+=np.arange(16,dtype=np.uint8)[None,:]
+        blocks=original.reshape(4,4,4,4,4).transpose(0,2,1,3,4).reshape(-1,16,4)
+        encoded=fields.bc7_rgba_separate_blocks(blocks,5)
+        baseline=np.asarray(Image.frombytes('RGBA',(16,16),encoded,'bcn',7))
+        desired=baseline.copy();desired[:8,:,1]=128;desired[:8,:,3]=128
+        editable=np.zeros((16,16),bool);editable[:8]=True
+        result,proof=fields.fit_bc7_normal_field(encoded,16,16,desired,editable)
+        actual=np.asarray(Image.frombytes('RGBA',(16,16),result,'bcn',7))
+        np.testing.assert_array_equal(actual[8:],baseline[8:])
+        np.testing.assert_array_equal(actual[:,:,[0,2]],baseline[:,:,[0,2]])
+        self.assertTrue(proof['unownedBlocksExact']);self.assertFalse(np.array_equal(actual[:8],baseline[:8]))
+        # A target requiring a carrier change must retain the original block.
+        desired=baseline.copy();desired[:,:,0]=0
+        result,_=fields.fit_bc7_normal_field(encoded,16,16,desired,np.ones((16,16),bool))
+        np.testing.assert_array_equal(np.asarray(Image.frombytes('RGBA',(16,16),result,'bcn',7)),baseline)
+
     def test_saved_lod_bake_uses_its_actual_uv_and_retains_face_rows_and_alpha(self):
         vertices=np.array([[0,0,0],[.2,0,0],[.2,.2,0],[0,.2,0.]])
         source=dict(vertices=vertices,normal=np.tile([0.,0.,1.],(4,1)),uv=np.array([[0.,0.],[1,0],[1,1],[0,1]]),triangles=np.array([[0,1,2],[0,2,3]]))

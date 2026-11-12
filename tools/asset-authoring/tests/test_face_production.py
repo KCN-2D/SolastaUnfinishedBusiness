@@ -5,6 +5,7 @@ import gzip
 import importlib.util
 import io
 import json
+import sys
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -24,6 +25,227 @@ spec.loader.exec_module(build)
 
 
 class FaceProductionContracts(unittest.TestCase):
+    def test_first_publication_link_failure_preserves_the_original_error_and_catalog(self):
+        with tempfile.TemporaryDirectory()as folder:
+            root=Path(folder);original=root/'original';candidate=root/'candidate';current=root/'public'
+            for path in(original,candidate,current):path.mkdir()
+            for path in(original,current):(path/'CharacterModels.manifest.json').write_bytes(b'original manifest')
+            (original/'actor.bundle').write_bytes(b'original resource')
+            (current/'actor.bundle').write_bytes(b'original resource')
+            (candidate/'actor.bundle').write_bytes(b'revised resource')
+            receipt=dict(changed=['actor.bundle'])
+            denied=PermissionError('publication link denied')
+            with mock.patch.object(build,'HERE',root/'Validation'),\
+                    mock.patch.object(build,'checked_catalog_path',side_effect=lambda path,name=None:Path(path)/name if name else Path(path)),\
+                    mock.patch.object(build.os,'link',side_effect=denied)as link:
+                with self.assertRaises(PermissionError)as failure:
+                    build.atomic_publish_catalog(candidate,current,original,b'revised manifest',
+                        {'actor.bundle':build.sha(candidate/'actor.bundle')},{'actor.bundle':'actor.bundle'},
+                        {'actor.bundle':build.sha(original/'actor.bundle')},receipt)
+            self.assertIs(failure.exception,denied)
+            self.assertEqual(link.call_count,1)
+            self.assertEqual(receipt['status'],'FAIL_NO_PUBLICATION')
+            self.assertEqual((current/'CharacterModels.manifest.json').read_bytes(),b'original manifest')
+            self.assertEqual((current/'actor.bundle').read_bytes(),b'original resource')
+            self.assertFalse(list(current.glob('*.new-*')))
+
+    def test_skin_replay_cache_checks_source_and_output_bytes_and_restores_module_owners(self):
+        import character_resources as resources
+        with tempfile.TemporaryDirectory()as folder:
+            root=Path(folder);counter=root/'count';raw=root/'field.mips';raw.write_bytes(b'owned field')
+            producer=root/'build_models.py';producer.write_text(
+                'from pathlib import Path\n'
+                'def source_skin_payloads(job):\n'
+                ' p=Path(job["counter"]);p.write_text(p.read_text()+"x" if p.exists()else "x")\n'
+                ' return [dict(object=1,payload=b"owned field")]\n',encoding='utf-8')
+            files=[producer]
+            for name in('production.py','generate.py','material_fields.py','character_resources.py'):
+                path=root/name;path.write_text('',encoding='utf-8');files.append(path)
+            inputs=[dict(path=str(p),sha256=build.sha(p))for p in files]
+            job=root/'Job.json';build.write(job,dict(sha256='a'*64,inputs=inputs,counter=str(counter)))
+            operation=dict(beforeSha256='a'*64,inputPlan=dict(path=str(job),sha256=build.sha(job)),
+                textures=[dict(object=1,raw=dict(path=str(raw),sha256=build.sha(raw)))])
+            def check_saved_payload(value):
+                for row in value['textures']:
+                    if build.sha(row['raw']['path'])!=row['raw']['sha256']:raise ValueError('Saved raw bytes changed.')
+            previous={name:sys.modules.get(name)for name in('material_fields','character_resources')}
+            with mock.patch.object(build,'HERE',root/'Validation'),\
+                    mock.patch.object(build,'checked_catalog_path',side_effect=lambda path,name=None:Path(path)/name if name else Path(path)),\
+                    mock.patch.object(resources,'validate_owned_texture_mips',side_effect=check_saved_payload)as check:
+                build.validate_source_skin_finish(operation);build.validate_source_skin_finish(operation)
+                build.validate_source_skin_finish(dict(kind='source-skin-detail',**operation))
+                self.assertEqual(counter.read_text(),'x')
+                self.assertEqual(check.call_count,3)
+                for name,module in previous.items():self.assertIs(sys.modules.get(name),module)
+                raw.write_bytes(b'changed field')
+                with self.assertRaisesRegex(ValueError,'Saved raw bytes changed'):build.validate_source_skin_finish(operation)
+                raw.write_bytes(b'owned field');files[1].write_text('# changed source',encoding='utf-8')
+                with self.assertRaisesRegex(ValueError,'retained skin computation input changed'):build.validate_source_skin_finish(operation)
+                self.assertEqual(counter.read_text(),'x')
+
+    def test_approved_resource_reuse_still_requires_exact_source_payloads(self):
+        with tempfile.TemporaryDirectory()as folder:
+            root=Path(folder);original=root/'approved/Catalog';candidate=root/'candidate';current=root/'public'
+            for path in(original,candidate,current):path.mkdir(parents=True)
+            for path in(original,candidate,current):(path/'actor.bundle').write_bytes(b'accepted source')
+            digest=build.sha(original/'actor.bundle')
+            manifest=dict(schemaVersion=3,meshes=[],materials=[],textureRemaps=[],bundles=[dict(file='actor.bundle',sha256=digest)],
+                resources=[dict(source='Actor.prefab',type='GameObject',bundles=[dict(file='actor.bundle')])])
+            for path in(original,candidate):build.write(path/'CharacterModels.manifest.json',manifest)
+            row=dict(file='actor.bundle',bytes=len(b'accepted source'),sha256=digest,source=str(original/'actor.bundle'),sourceSha256=digest,
+                allRetainedObjectFieldsExactAfterReferenceRebasing=False)
+            row['source']=str(root/'retired/actor.bundle')
+            approved=original.parent/'ResourceAssembly.json'
+            build.write(approved,dict(status='PASS_STANDALONE_CHARACTER_RESOURCES',originalModelDependenciesInherited=False,artAccepted=True,catalogSha256=build.sha(original/'CharacterModels.manifest.json'),proofs=[row]))
+            proof=dict(status='PASS_STANDALONE_CHARACTER_RESOURCES',originalModelDependenciesInherited=False,resources=1,bundles=1,
+                bytes=row['bytes'],inputs=[],proofs=[row],preparedSource=dict(assembly=dict(path=str(approved),sha256=build.sha(approved)),
+                    catalog=dict(path=str(original/'CharacterModels.manifest.json'),sha256=build.sha(original/'CharacterModels.manifest.json'))))
+            build.write(candidate/'ResourceAssembly.json',proof)
+            quality=dict(resourceAssembly=dict(path=str(candidate/'ResourceAssembly.json'),sha256=build.sha(candidate/'ResourceAssembly.json')),
+                sourceManifestSha256=build.sha(original/'CharacterModels.manifest.json'),candidateManifestSha256=build.sha(candidate/'CharacterModels.manifest.json'))
+            with mock.patch.object(build,'checked_catalog_path',side_effect=lambda path,name=None:Path(path)/name if name else Path(path)),\
+                    mock.patch.object(build,'checked_source_path',side_effect=Path),mock.patch.object(build,'atomic_publish_catalog'),contextlib.redirect_stdout(io.StringIO()):
+                build.publish_resource_catalog(candidate,current,original,manifest,quality)
+                (candidate/'actor.bundle').write_bytes(b'unverified different bytes')
+                row.update(sha256=build.sha(candidate/'actor.bundle'),bytes=(candidate/'actor.bundle').stat().st_size,
+                    allRetainedObjectFieldsExactAfterReferenceRebasing=True)
+                proof['bytes']=row['bytes'];manifest['bundles'][0]['sha256']=row['sha256']
+                build.write(candidate/'CharacterModels.manifest.json',manifest);build.write(candidate/'ResourceAssembly.json',proof)
+                quality['candidateManifestSha256']=build.sha(candidate/'CharacterModels.manifest.json')
+                quality['resourceAssembly']['sha256']=build.sha(candidate/'ResourceAssembly.json')
+                with self.assertRaisesRegex(ValueError,'unverified final bytes'):
+                    build.publish_resource_catalog(candidate,current,original,manifest,quality)
+                (original/'actor.bundle').write_bytes(b'changed source')
+                with self.assertRaisesRegex(ValueError,'accepted source payload changed'):
+                    build.publish_resource_catalog(candidate,current,original,manifest,quality)
+
+    def test_source_fibre_intermediates_cannot_be_packaged_as_complete_grooms(self):
+        with tempfile.TemporaryDirectory()as folder:
+            root=Path(folder);catalog=root/'Catalog';catalog.mkdir();plan=root/'Plan.json'
+            build.write(plan,dict(mode='source-fibers-only'))
+            build.write(root/'ResourceAssembly.json',dict(groomSourceDesigns=dict(plan=dict(path=str(plan),sha256=build.sha(plan)))))
+            build.write(catalog/'CharacterModels.manifest.json',dict(schemaVersion=3,meshes=[],materials=[],textureRemaps=[],bundles=[]))
+            output=root/'Packs'
+            with mock.patch.object(build,'checked_catalog_path',side_effect=lambda path,name=None:Path(path)/name if name else Path(path)):
+                with self.assertRaisesRegex(ValueError,'retained source support'):
+                    build.create_resource_packs(catalog/'CharacterModels.manifest.json',output,'2026.11.12.1')
+            self.assertFalse(output.exists())
+
+    def test_resource_publication_preserves_the_verified_catalog_digest(self):
+        with tempfile.TemporaryDirectory()as folder:
+            root=Path(folder);original=root/'original';candidate=root/'candidate';current=root/'public'
+            for path in(original,candidate,current):path.mkdir()
+            payload=b'unchanged-owned-resource'
+            for path in(original,candidate,current):(path/'actor.bundle').write_bytes(payload)
+            manifest=dict(schemaVersion=3,recipeVersion='revision',meshes=[],materials=[],textureRemaps=[],
+                bundles=[dict(file='actor.bundle',sha256=build.sha(candidate/'actor.bundle'))],
+                resources=[dict(source='Actor/Prefab.prefab',type='GameObject',bundles=[dict(file='actor.bundle')])])
+            build.write(original/'CharacterModels.manifest.json',manifest)
+            proof=dict(status='PASS_STANDALONE_CHARACTER_RESOURCES',originalModelDependenciesInherited=False,
+                resources=1,bundles=1,bytes=len(payload),inputs=[],proofs=[dict(file='actor.bundle',bytes=len(payload),
+                    source=str(original/'actor.bundle'),sourceSha256=build.sha(original/'actor.bundle'),
+                    sha256=build.sha(candidate/'actor.bundle'),allRetainedObjectFieldsExactAfterReferenceRebasing=True)])
+            build.write(candidate/'ResourceAssembly.json',proof)
+            quality: dict[str,Any]=dict(resourceAssembly=dict(path=str(candidate/'ResourceAssembly.json'),sha256=build.sha(candidate/'ResourceAssembly.json')))
+            for raw in(json.dumps(manifest).encode(),(json.dumps(manifest,indent=2)+'\r\n').encode()):
+                (candidate/'CharacterModels.manifest.json').write_bytes(raw)
+                quality['candidateManifestSha256']=build.sha(candidate/'CharacterModels.manifest.json')
+                with mock.patch.object(build,'checked_catalog_path',side_effect=lambda path,name=None:Path(path)/name if name else Path(path)),\
+                        mock.patch.object(build,'atomic_publish_catalog')as publish,contextlib.redirect_stdout(io.StringIO()):
+                    build.publish_resource_catalog(candidate,current,original,manifest,quality)
+                    self.assertEqual(publish.call_args.args[3],raw)
+                    self.assertEqual(publish.call_args.args[-1]['publishedManifestSha256'],quality['candidateManifestSha256'])
+
+    def test_short_physical_gaussian_matches_its_finite_zero_padded_kernel(self):
+        production,_=build.source_owner()
+        values=np.random.default_rng(412).random((17,19))
+        for sigma in(.2,.75,1.5,4.,8.):
+            offsets=np.arange(-int(np.ceil(sigma*3)),int(np.ceil(sigma*3))+1)
+            kernel=np.exp(-.5*(offsets/sigma)**2);kernel/=kernel.sum();expected=values.copy()
+            for axis in(0,1):
+                expected=np.apply_along_axis(lambda row:np.convolve(np.pad(row,(len(kernel)//2,)*2),kernel,mode='valid'),axis,expected)
+            np.testing.assert_allclose(production.rgb_gaussian(values,sigma),expected,rtol=0,atol=1e-15)
+
+    def test_source_material_domains_follow_declared_anatomy_without_species_or_shader_fallbacks(self):
+        production,_=build.source_owner()
+        packet=dict(weights=[1.,0.,0.,0.]*4,boneIndices=[0]*4+[1,0,0,0]+[2,0,0,0]+[3,0,0,0])
+        bones=['Rig/Carapace','Rig/Carapace/Plate','Rig/Carapace/MouthContact','Rig/Leg']
+        declaration=dict(includeBranches=['Carapace'],protectPrefixes=['Mouth'])
+        np.testing.assert_array_equal(production.source_material_ownership(packet,bones,declaration),[1.,1.,0.,0.])
+        with self.assertRaisesRegex(ValueError,'absent'):
+            production.source_material_ownership(packet,bones,dict(declaration,includeBranches=['Bip001 Head']))
+
+    def test_source_skin_material_refinement_keeps_features_alpha_and_physical_normal_contract(self):
+        production,_=build.source_owner()
+        y,x=np.mgrid[:16,:16]
+        pixels=np.full((16,16,4),255,np.uint8);pixels[:,:,:3]=np.where((x%2)[:,:,None]==0,80,150)
+        pixels[:,:,3]=np.arange(16,dtype=np.uint8)[None,:]+100
+        mask=np.ones((16,16));mask[:3]=0;metric=np.full((16,16),.00025)
+        profile=dict(pigmentRetain=.5,normalRetain=.5,normalRadiusMetres=.001,
+            fineSigmaMetres=.0001,grainSigmaMetres=.00075,coherenceSigmaMetres=.001,featherMetres=.003)
+        color,proof=production.refine_source_skin_material(pixels,mask,metric,profile,'color')
+        np.testing.assert_array_equal(color[:,:,3],pixels[:,:,3]);np.testing.assert_array_equal(color[:3],pixels[:3])
+        self.assertTrue(proof['unownedPixelsExact'])
+        normal=np.full((16,16,4),255,np.uint8);normal[:,:,1]=np.where(x%2,100,156);normal[:,:,3]=np.where(y%2,105,151)
+        softened,proof=production.refine_source_skin_material(normal,mask,metric,profile,'normal',normal_encoding='packed-rgorag')
+        np.testing.assert_array_equal(softened[:,:,[0,2]],normal[:,:,[0,2]])
+        np.testing.assert_array_equal(softened[:3],normal[:3])
+        self.assertLess(np.std(softened[3:,:,1]),np.std(normal[3:,:,1]))
+        self.assertTrue(proof['sourceCarriersExact'])
+        unchanged,_=production.refine_source_skin_material(normal,mask,metric,dict(profile,normalRetain=1.),'normal',normal_encoding='packed-rgorag')
+        np.testing.assert_array_equal(unchanged,normal)
+        with self.assertRaisesRegex(ValueError,'decoding contract'):
+            production.refine_source_skin_material(normal,mask,metric,profile,'normal',normal_encoding='guessed')
+
+    def test_source_selection_uses_resource_ownership_without_species_names(self):
+        editable=dict(name='PreviouslyUnknownFace',internalId='Assets/Characters/EditableCharacters/NewForm/Head.prefab')
+        npc=dict(name='AnotherFace',internalId='Assets/Characters/Monsters/NPC/Person.prefab')
+        creature=dict(name='HumanLookingMonster',internalId='Assets/Characters/Monsters/Creature/Head.prefab')
+        census=dict(assets=[editable,npc,creature])
+        self.assertEqual(build.humanoid_sources(census),[editable,npc])
+        self.assertEqual(build.humanoid_sources(census,'editable'),[editable])
+        self.assertEqual(build.humanoid_sources(census,'npc'),[npc])
+
+    def test_guide_revision_preserves_collar_and_matches_absolute_target_for_all_frames(self):
+        production,_=build.source_owner()
+        vertices=np.array([[x,y,0.]for y in(-.10,-.04,0.,.03,.06,.09,.12)for x in(-.05,0.,.05)])
+        triangles=[]
+        for row in range(6):
+            for column in range(2):
+                a=row*3+column;triangles.extend([a,a+1,a+3,a+1,a+4,a+3])
+        count=len(vertices)
+        native: dict[str,Any]=dict(name='NativeFace',nativeReadable=True,vertexCount=count,indexFormat=0,
+            vertices=vertices.ravel().tolist(),normals=[0.,0.,-1.]*count,tangents=[1.,0.,0.,1.]*count,
+            colors=[],bindPoses=np.eye(4).ravel().tolist(),weights=[1.,0.,0.,0.]*count,boneIndices=[0]*count*4,
+            subMeshes=[triangles],uv=[],shapes=[dict(index=0,name='Speak',frames=[dict(weight=100.,vertices=[0.,.001,0.]*count,normals=[0.]*count*3,tangents=[0.]*count*3)])])
+        native['sourceFingerprint']=build.fingerprint(native)[0]
+        skin=dict(rendererToPrefab=np.eye(4).ravel().tolist())
+        marks=dict(left=np.array([-.03,0.,.08]),right=np.array([.03,0.,.08]),mouth=np.array([0.,-.03,.02]),
+                   nose=np.array([0.,-.03,.05]),head=np.array([0.,0.,.04]))
+        baseline=copy.deepcopy(native);points=vertices.copy();points[:,0]+=.0004;baseline['vertices']=points.ravel().tolist()
+        baseline['sourceFingerprint']=build.fingerprint(baseline)[0]
+        previous=copy.deepcopy(native);points=vertices.copy();points[:,0]+=.0008;previous['vertices']=points.ravel().tolist()
+        previous['sourceFingerprint']=build.fingerprint(previous)[0]
+        next_target=copy.deepcopy(native);points=vertices.copy();points[:,0]+=.0013;next_target['vertices']=points.ravel().tolist()
+        next_target['sourceFingerprint']=build.fingerprint(next_target)[0]
+        current,_=production.refine_native_face_contours(native,baseline,skin,marks,refined=previous)
+        revised,proof=production.refine_native_face_contours(native,current,skin,marks,refined=next_target,previous_refined=previous)
+        expected,_=production.refine_native_face_contours(native,baseline,skin,marks,refined=next_target)
+        np.testing.assert_allclose(revised['vertices'],expected['vertices'],rtol=0,atol=5e-9)
+        np.testing.assert_array_equal(np.asarray(revised['vertices']).reshape(-1,3)[:3],np.asarray(current['vertices']).reshape(-1,3)[:3])
+        self.assertEqual(revised['shapes'],expected['shapes'])
+        for key in('uv','weights','boneIndices','bindPoses','subMeshes','vertexCount','indexFormat'):
+            self.assertEqual(revised[key],current[key])
+        unchanged,_=production.refine_native_face_contours(native,revised,skin,marks,refined=next_target,previous_refined=next_target)
+        self.assertEqual(unchanged,revised)
+        self.assertTrue(proof['subsequentSourceRefinementsRetained'])
+        residual=copy.deepcopy(current);residual['vertices'][-1]+=.0001
+        retained,_=production.refine_native_face_contours(native,residual,skin,marks,refined=next_target,previous_refined=previous)
+        self.assertAlmostEqual(retained['vertices'][-1]-revised['vertices'][-1],.0001,places=7)
+        wrong=copy.deepcopy(previous);wrong['uv']=[dict(channel=0,values=[0.]*count*4)]
+        with self.assertRaisesRegex(ValueError,'native correspondence'):
+            production.refine_native_face_contours(native,current,skin,marks,refined=next_target,previous_refined=wrong)
+
     def test_current_material_ownership_uses_each_saved_lod_and_sampler(self):
         import character_resources as resources
         pointer=lambda identifier:dict(m_FileID=0,m_PathID=identifier)

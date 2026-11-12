@@ -1803,7 +1803,9 @@ def replace_owned_material_textures(source_path,source_sha256,target_path,update
             if len(type_indices)>1:raise ValueError('A material texture has ambiguous serialized type ownership.')
             if type_indices:type_index=type_indices[0]
             else:
-                type_index=len(file.types);file.types.append(copy.deepcopy(obj.serialized_type))
+                # Type-tree nodes describe the saved schema and remain read-only.
+                # UnityPy's native node objects cannot be deep-copied.
+                type_index=len(file.types);file.types.append(copy.copy(obj.serialized_type))
             cloned=copy.copy(obj);cloned.assets_file=file;cloned.path_id=next_id;cloned.type_id=type_index;cloned.serialized_type=file.types[type_index]
             texture['m_StreamData']=dict(texture['m_StreamData'],offset=0,size=0,path='');texture['image data']=payload
             cloned.save_typetree(texture);file.objects[next_id]=cloned

@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$ArtifactRoot,
     [string[]]$PreserveDirectory=@(),
@@ -11,9 +11,15 @@ param(
     [switch]$AuditInputValidation,
     [string]$InputProducerPath,
     [string]$GeneratedPayloadPlanPath,
+    [switch]$PruneReports,
+    [switch]$PruneLooseFiles,
+    [ValidateRange(1,100)][int]$KeepCleanupReports=3,
     [switch]$Apply
 )
 . (Join-Path $PSScriptRoot 'GameTest.Common.ps1')
+if(($PruneReports -or $PruneLooseFiles) -and ($PruneSuperseded -or $ReleaseNativeUserData -or $AuditInputValidation -or $GeneratedPayloadPlanPath -or $MaxAgeDays -gt 0 -or $MaxRetainedBytes -gt 0)) {
+    throw 'Workspace metadata retention runs separately from payload cleanup.'
+}
 if ($ReleaseNativeUserData -and ($PruneSuperseded -or $MaxAgeDays -gt 0 -or $MaxRetainedBytes -gt 0)) {
     throw 'Native user-data release is separate from run/build pruning.'
 }
@@ -38,7 +44,8 @@ while ($ancestor -ne $script:GameTestArtifactRoot) {
 if (Test-GtWithin $root (Join-Path $script:GameTestArtifactRoot '.native')) {
     throw 'Native user-data folders must be cleaned with their owning evidence run.'
 }
-Assert-GtTree $root
+if($PruneLooseFiles -and $root -ne $script:GameTestArtifactRoot){throw 'Loose files are only retired at the workspace artifact root.'}
+if($PruneReports -or $PruneLooseFiles -or $GeneratedPayloadPlanPath){Assert-GtPlainPath $root}else{Assert-GtTree $root}
 $preserved=@($PreserveDirectory | ForEach-Object { Get-GtPath $_ })
 foreach ($path in $preserved) {
     if (-not (Test-GtWithin $path $script:GameTestArtifactRoot)) { throw 'Preserved paths must be artifact directories.' }
@@ -76,7 +83,7 @@ function Test-Preserved([string]$Path) {
     }
     return $false
 }
-function Get-ArtifactBoundaries([string]$Path,[switch]$IncludeEmpty) {
+function Get-ArtifactBoundary([string]$Path,[switch]$IncludeEmpty) {
     $pending=[Collections.Generic.Stack[IO.DirectoryInfo]]::new()
     $pending.Push([IO.DirectoryInfo]::new($Path))
     while ($pending.Count) {
@@ -105,7 +112,11 @@ $retentionReasons=[Collections.Generic.Dictionary[string,string]]::new([StringCo
 $retired=[Collections.Generic.List[object]]::new()
 $policy=[ordered]@{keepLatestPerCase=$KeepLatestPerCase;maxAgeDays=$MaxAgeDays;maxRetainedBytes=$MaxRetainedBytes;
     budgetScope='Recognized restored run/build payloads and their owned native user-data companions. Explicit references, unknown/incomplete ownership and required builds remain protected.';
-    retainedBytes=$null;budgetSatisfied=$null}
+    retainedBytes=$null;budgetSatisfied=$null;keepCleanupReports=$KeepCleanupReports}
+$retainedReports=[Collections.Generic.List[object]]::new()
+$retainedLooseFiles=[Collections.Generic.List[object]]::new()
+$cleanupCompleted=$false
+$cleanupError=$null
 $report=Join-Path $root ('Storage-Cleanup-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff') + '-' + [guid]::NewGuid().ToString('N').Substring(0,8) + '.json')
 $journalPath=[IO.Path]::ChangeExtension($report,'.jsonl')
 $journal=$null
@@ -142,19 +153,169 @@ function Save-CleanupReport($Action,[switch]$Final) {
         $index=$actions.IndexOf($Action)
         if($index -ge 0 -and $Action.applied -and $journalState.completed.Add($index)){Write-CleanupEvent ([ordered]@{event='action-complete';index=$index})}
     }
+    if($Final){Write-CleanupEvent ([ordered]@{event=$(if($cleanupCompleted){'cleanup-complete'}else{'cleanup-error'});utc=[datetime]::UtcNow.ToString('O');error=$cleanupError})}
     if($journalState.events -gt $before){$journal.Flush($true);$journalState.flushes++}
     if(-not $Final){return}
-    $summary=[ordered]@{schemaVersion=1;utc=[datetime]::UtcNow.ToString('O');applied=[bool]$Apply;
+    $summary=[ordered]@{schemaVersion=1;utc=[datetime]::UtcNow.ToString('O');applied=[bool]$Apply;completed=$cleanupCompleted;error=$cleanupError;
         bytes=[long]($actions | Measure-Object bytes -Sum | ForEach-Object { $_.Sum });policy=$policy;referenceInputs=$referenceInputs;
         actions=@($actions.ToArray());retiredRuns=@($retired.ToArray());retainedDirectories=@(foreach ($path in $retentionReasons.Keys | Sort-Object) { [ordered]@{path=$path;reason=$retentionReasons[$path]} });
-        journal=[ordered]@{path=[IO.Path]::GetFileName($journalPath);events=$journalState.events;bytes=$journalState.bytes;flushes=$journalState.flushes};summaryWrites=1}
+        retainedCleanupReports=@($retainedReports.ToArray());retainedLooseFiles=@($retainedLooseFiles.ToArray());journal=[ordered]@{path=[IO.Path]::GetFileName($journalPath);events=$journalState.events;bytes=$journalState.bytes;flushes=$journalState.flushes};summaryWrites=1}
     Write-GtJson $report $summary
     $journalState.summaryWrites++
+}
+function Invoke-CleanupReportRetention {
+    $closed=[Collections.Generic.List[object]]::new()
+    foreach($file in [IO.Directory]::EnumerateFiles($root,'Storage-Cleanup-*.json',[IO.SearchOption]::TopDirectoryOnly)) {
+        if($file -eq $report -or [IO.Path]::GetFileName($file) -notmatch '^Storage-Cleanup-\d{8}-\d{6}-\d{3}(?:-[a-f0-9]{8})?\.json$'){continue}
+        $leases=[Collections.Generic.List[IO.FileStream]]::new()
+        try {
+            if((Test-Preserved $file) -or (Test-Referenced $file)){$retainedReports.Add(@{path=$file;reason='referenced'});continue}
+            Assert-GtFile $file
+            $leases.Add([IO.File]::Open($file,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read))
+            $value=Read-GtObject $file
+            $names=$value.PSObject.Properties.Name
+            if('schemaVersion' -notin $names -or $value.schemaVersion -ne 1 -or 'actions' -notin $names -or $value.actions -isnot [array] -or
+                'utc' -notin $names -or 'applied' -notin $names -or $value.applied -isnot [bool]){throw 'Unrecognized cleanup report.'}
+            $completed=[datetime]::Parse($value.utc,[Globalization.CultureInfo]::InvariantCulture,[Globalization.DateTimeStyles]::RoundtripKind)
+            $absentTargets=@()
+            if('completed' -in $names -and ($value.completed -isnot [bool] -or -not $value.completed)){throw 'Cleanup report has unfinished actions.'}
+            if($value.applied){
+                foreach($pending in @($value.actions|Where-Object { $_.kind -ne 'retained' -and -not $_.applied })){
+                    # Old summaries did not record overall completion. A later
+                    # run can have retired every target left pending there.
+                    if('completed' -in $names -or $pending.kind -cnotin @('native-user-data','superseded-run','restored-backup','empty-directory','generated-payload') -or
+                        $pending.path -isnot [string] -or -not [IO.Path]::IsPathRooted($pending.path)){throw 'Cleanup report has unfinished actions.'}
+                    $target=Get-GtPath $pending.path
+                    if($target -eq $script:GameTestArtifactRoot -or -not(Test-GtWithin $target $script:GameTestArtifactRoot) -or
+                        (Test-Path -LiteralPath $target) -or (Test-Preserved $target) -or (Test-Referenced $target)){throw 'Cleanup report has unfinished actions.'}
+                    $absentTargets+= $target
+                }
+            }
+            $files=@($file);$paired=[IO.Path]::ChangeExtension($file,'.jsonl')
+            if([IO.File]::Exists($paired)){
+                if('journal' -notin $names -or $value.journal.path -cne [IO.Path]::GetFileName($paired)){throw 'Cleanup journal has no matching summary.'}
+                Assert-GtFile $paired
+                if((Test-Preserved $paired) -or (Test-Referenced $paired)){throw 'Cleanup journal is referenced.'}
+                $leases.Add([IO.File]::Open($paired,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read))
+                if([IO.FileInfo]::new($paired).Length -ne $value.journal.bytes){throw 'Cleanup journal differs from its final summary.'}
+                $files+= $paired
+            }elseif('journal' -in $names){throw 'Cleanup report is missing its journal.'}
+            $snapshot=@(foreach($path in $files){$info=[IO.FileInfo]::new($path);[pscustomobject]@{path=$path;sha256=Get-GtHash $path;bytes=$info.Length;lastWriteTicks=$info.LastWriteTimeUtc.Ticks}})
+            $closed.Add([pscustomobject]@{path=$file;completed=$completed.ToUniversalTime();files=$snapshot;absentTargets=$absentTargets})
+        }catch{$retainedReports.Add(@{path=$file;reason=$_.Exception.Message})}
+        finally{foreach($handle in $leases){$handle.Dispose()}}
+    }
+    foreach($file in [IO.Directory]::EnumerateFiles($root,'Storage-Cleanup-*.jsonl',[IO.SearchOption]::TopDirectoryOnly)){
+        if($file -eq $journalPath -or [IO.File]::Exists([IO.Path]::ChangeExtension($file,'.json')) -or
+            [IO.Path]::GetFileName($file) -notmatch '^Storage-Cleanup-\d{8}-\d{6}-\d{3}(?:-[a-f0-9]{8})?\.jsonl$'){continue}
+        $handle=$null
+        try{
+            Assert-GtFile $file
+            if((Test-Preserved $file) -or (Test-Referenced $file)){throw 'Cleanup journal is referenced.'}
+            $handle=[IO.File]::Open($file,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+            $events=@([IO.File]::ReadLines($file)|Where-Object {-not [string]::IsNullOrWhiteSpace($_)}|ForEach-Object {$_|ConvertFrom-Json})
+            if(-not $events.Count -or $events[0].event -cne 'cleanup-start' -or $events[0].schemaVersion -ne 1 -or $events[0].applied -isnot [bool]){throw 'Unrecognized cleanup journal.'}
+            $planned=@{};$finished=[Collections.Generic.HashSet[int]]::new()
+            foreach($journalEvent in $events){
+                switch -CaseSensitive ($journalEvent.event){
+                    'cleanup-start' {if($journalEvent -ne $events[0]){throw 'Repeated cleanup journal header.'}}
+                    'retire-diagnostic' {}
+                    'action-planned' {if($planned.ContainsKey([int]$journalEvent.index)){throw 'Repeated cleanup action.'};$planned[[int]$journalEvent.index]=$journalEvent.action}
+                    'action-complete' {[void]$finished.Add([int]$journalEvent.index)}
+                    'cleanup-complete' {}
+                    'cleanup-error' {throw 'Cleanup journal records an interrupted operation.'}
+                    default {throw 'Unrecognized cleanup journal event.'}
+                }
+            }
+            if(@($finished|Where-Object {-not $planned.ContainsKey($_)}).Count -or ($events[0].applied -and @($planned.Keys|Where-Object {$planned[$_].kind -cne 'retained' -and -not $finished.Contains($_)}).Count)){
+                throw 'Cleanup journal has unfinished actions.'
+            }
+            $info=[IO.FileInfo]::new($file)
+            $closed.Add([pscustomobject]@{path=$file;completed=([datetime]$events[0].utc).ToUniversalTime();files=@([pscustomobject]@{path=$file;sha256=Get-GtHash $file;bytes=$info.Length;lastWriteTicks=$info.LastWriteTimeUtc.Ticks})})
+        }catch{$retainedReports.Add(@{path=$file;reason=$_.Exception.Message})}
+        finally{if($handle){$handle.Dispose()}}
+    }
+    $ordered=@($closed|Sort-Object completed -Descending)
+    for($index=0;$index -lt $ordered.Count;$index++){
+        $entry=$ordered[$index]
+        if($index -lt $KeepCleanupReports-1){$retainedReports.Add(@{path=$entry.path;reason='latest-cleanup-report'});continue}
+        $absentTargets=@(if('absentTargets' -in $entry.PSObject.Properties.Name){$entry.absentTargets})
+        $action=[pscustomobject]@{kind='cleanup-report';path=$entry.path;files=$entry.files;absentTargets=@($absentTargets);bytes=[long]($entry.files|Measure-Object bytes -Sum|ForEach-Object Sum);applied=$false}
+        Invoke-ClosedArtifactRetirement $action
+    }
+}
+function Invoke-ClosedArtifactRetirement($Action) {
+    $actions.Add($Action);Save-CleanupReport $Action
+    if(-not $Apply){return}
+    Assert-ArtifactGameStopped;Assert-ReferencesCurrent
+    $script:GtValidatedDirectories.Clear();Assert-GtPlainPath $root
+    foreach($property in @('migrationDestinations','absentTargets')){
+        if($property -notin $Action.PSObject.Properties.Name){continue}
+        foreach($destination in $Action.$property){
+            if((Test-Path -LiteralPath $destination) -or (Test-Referenced $destination) -or (Test-Preserved $destination)){throw 'A retired metadata target acquired a consumer.'}
+        }
+    }
+    $leases=[Collections.Generic.List[IO.FileStream]]::new()
+    try {
+        foreach($file in $Action.files){
+            if([IO.Path]::GetDirectoryName($file.path) -ne $root){throw 'Metadata retirement escaped its artifact root.'}
+            Assert-GtFile $file.path
+            $leases.Add([IO.File]::Open($file.path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read))
+            $info=[IO.FileInfo]::new($file.path)
+            if((Test-Preserved $file.path) -or (Test-Referenced $file.path) -or $info.Length -ne $file.bytes -or
+                $info.LastWriteTimeUtc.Ticks -ne $file.lastWriteTicks -or (Get-GtHash $file.path) -cne $file.sha256){throw 'Artifact metadata changed before retirement.'}
+        }
+    } finally {foreach($handle in $leases){$handle.Dispose()}}
+    foreach($file in $Action.files){Remove-Item -LiteralPath $file.path -Force}
+    $Action.applied=$true;Save-CleanupReport $Action
+}
+function Invoke-LooseFileRetention {
+    # Output logs belong inside their run/build. Only the legacy loose output
+    # at the workspace root is eligible, after a full day without writes.
+    if($root -ne $script:GameTestArtifactRoot){return}
+    $cutoff=[datetime]::UtcNow.AddDays(-1)
+    $sourceReferences=Get-GtStorageReferenceText
+    foreach($file in [IO.DirectoryInfo]::new($root).EnumerateFiles()){
+        if($file.Extension -ine '.log' -and $file.Extension -ine '.txt' -and $file.Name -cne 'Migration.json'){continue}
+        $handle=$null;$snapshot=$null;$migrationDestinations=@()
+        try {
+            Assert-GtFile $file.FullName
+            if($file.LastWriteTimeUtc -ge $cutoff){throw 'recent-output'}
+            if((Test-Preserved $file.FullName) -or (Test-Referenced $file.FullName) -or
+                $sourceReferences.IndexOf($file.Name,[StringComparison]::OrdinalIgnoreCase) -ge 0){throw 'referenced'}
+            $handle=[IO.File]::Open($file.FullName,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+            if($file.Extension -ieq '.txt'){
+                # A legacy current-run pointer contains one absolute artifact
+                # path. Notes and other text inputs have no output ownership.
+                if($file.Length -gt 4096){throw 'unrecognized-text-input'}
+                $pointer=[IO.File]::ReadAllText($file.FullName).Trim()
+                if($pointer.Contains("`n") -or $pointer.Contains("`r") -or -not [IO.Path]::IsPathRooted($pointer) -or
+                    -not (Test-GtWithin $pointer $root) -or (Get-GtPath $pointer) -eq $root){throw 'unrecognized-text-input'}
+            } elseif($file.Name -ceq 'Migration.json') {
+                $migration=Read-GtObject $file.FullName
+                Assert-GtProperties $migration @('schemaVersion','mappings') @('schemaVersion','mappings')
+                if($migration.schemaVersion -ne 1 -or $migration.mappings -isnot [array] -or -not $migration.mappings.Count){throw 'unrecognized-migration'}
+                foreach($mapping in $migration.mappings){
+                    Assert-GtProperties $mapping @('originalRoot','currentRoot') @('originalRoot','currentRoot')
+                    if($mapping.originalRoot -isnot [string] -or -not [IO.Path]::IsPathRooted($mapping.originalRoot) -or
+                        $mapping.currentRoot -isnot [string] -or -not [IO.Path]::IsPathRooted($mapping.currentRoot)){throw 'unrecognized-migration'}
+                    $destination=Get-GtPath $mapping.currentRoot
+                    if($destination -eq $root -or -not(Test-GtWithin $destination $root)){throw 'unrecognized-migration'}
+                    if((Test-Path -LiteralPath $destination) -or (Test-Referenced $destination) -or (Test-Preserved $destination)){throw 'live-migration'}
+                    $migrationDestinations+= $destination
+                }
+            }
+            $snapshot=[pscustomobject]@{path=$file.FullName;sha256=Get-GtHash $file.FullName;bytes=$file.Length;lastWriteTicks=$file.LastWriteTimeUtc.Ticks}
+        } catch {$retainedLooseFiles.Add(@{path=$file.FullName;reason=$_.Exception.Message})}
+        finally {if($handle){$handle.Dispose()}}
+        if($snapshot){Invoke-ClosedArtifactRetirement ([pscustomobject]@{kind='loose-artifact';path=$file.FullName;files=@($snapshot);bytes=$snapshot.bytes;migrationDestinations=$migrationDestinations;applied=$false})}
+    }
 }
 try {
     $journal=[IO.File]::Open($journalPath,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::Read)
     Write-CleanupEvent ([ordered]@{event='cleanup-start';schemaVersion=1;utc=[DateTime]::UtcNow.ToString('O');applied=[bool]$Apply;policy=$policy;referenceInputs=$referenceInputs})
     $journal.Flush($true);$journalState.flushes++
+    if($PruneReports -or $PruneLooseFiles){$cleanupCompleted=$true;return}
     if ($GeneratedPayloadPlanPath) {
         $planPath=Get-GtPath $GeneratedPayloadPlanPath
         Assert-GtFile $planPath
@@ -184,7 +345,7 @@ try {
         })
         $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
         $checkedPayloadParents=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-        $extensions=@('.bundle','.bin','.bytes','.gz','.rgba8','.cpu-rgba8','.bc3','.bc7','.u8','.encoded','.png','.zip')
+        $extensions=@('.bundle','.bin','.bytes','.gz','.rgba8','.cpu-rgba8','.bc3','.bc7','.mips','.u8','.encoded','.png','.zip')
         foreach ($row in $plan.files) {
             Assert-GtProperties $row @('path','bytes','sha256','lastWriteUtcTicks') @('path','bytes','sha256','lastWriteUtcTicks')
             $path=Get-GtPath $row.path
@@ -226,11 +387,10 @@ try {
                 $removedPayloads++
             }
         }
-        Write-Host ('{0} declared generated payloads; applied={1}' -f $actions.Count,[bool]$Apply)
-        Write-Host "Report: $report"
+        $cleanupCompleted=$true
         return
     }
-    $directories=@(Get-ArtifactBoundaries $root -IncludeEmpty)
+    $directories=@(Get-ArtifactBoundary $root -IncludeEmpty)
     if($AuditInputValidation) {
         foreach($directory in $directories) {
             $run=$directory.FullName
@@ -257,8 +417,7 @@ try {
                 $actions.Add([pscustomobject]@{kind='retained';path=$run;bytes=0;applied=$false;reason=$_.Exception.Message})
             }
         }
-        Write-Host ('{0} input audit entries; applied={1}' -f $actions.Count,[bool]$Apply)
-        Write-Host "Report: $report"
+        $cleanupCompleted=$true
         return
     }
     $backupDirectories=if ($ReleaseNativeUserData) { @() } else { $directories }
@@ -402,7 +561,7 @@ try {
         # A consumer outside the selected cleanup subtree still owns its build.
         $dependencyDirectories=if ($buildDirectories.Count -eq 0) { @() }
             elseif ($root -eq $script:GameTestArtifactRoot) { $directories }
-            else { @(Get-ArtifactBoundaries $script:GameTestArtifactRoot) }
+            else { @(Get-ArtifactBoundary $script:GameTestArtifactRoot) }
         foreach ($directory in $dependencyDirectories) {
             if ($buildDirectories.Contains($directory.FullName)) { continue }
             if (-not (Test-Path -LiteralPath (Join-Path $directory.FullName 'Transaction.json') -PathType Leaf) -and
@@ -410,16 +569,16 @@ try {
             $buildPath=Join-Path $directory.FullName 'Build.json'
             if (Test-Path -LiteralPath $buildPath -PathType Leaf) { $buildHashes[$directory.FullName]=Get-GtHash $buildPath }
         }
-        function Get-RequiredBuilds {
+        function Get-RequiredBuild {
             $hashes=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
             foreach ($path in $buildHashes.Keys) {
                 if (-not $runByPath.ContainsKey($path) -or $retentionReasons.ContainsKey($path)) { [void]$hashes.Add($buildHashes[$path]) }
             }
             return ,$hashes
         }
-        function Get-RemainingRequiredBuilds {
+        function Get-RemainingRequiredBuild {
             $hashes=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-            foreach ($directory in @(Get-ArtifactBoundaries $script:GameTestArtifactRoot)) {
+            foreach ($directory in @(Get-ArtifactBoundary $script:GameTestArtifactRoot)) {
                 if ($buildDirectories.Contains($directory.FullName)) { continue }
                 if (-not $Apply -and $plannedConsumers.Contains($directory.FullName)) { continue }
                 if (-not (Test-Path -LiteralPath (Join-Path $directory.FullName 'Result.json') -PathType Leaf) -and
@@ -459,7 +618,7 @@ try {
                 $runBytes[$run.path]=$bytes
             }
             while ($true) {
-                $requiredBuilds=Get-RequiredBuilds
+                $requiredBuilds=Get-RequiredBuild
                 $kept=@($runs | Where-Object { $retentionReasons.ContainsKey($_.path) -or ($_.caseId -eq '@Build' -and $requiredBuilds.Contains($_.buildHash)) })
                 $total=[long]($kept | ForEach-Object { $runBytes[$_.path] } | Measure-Object -Sum | ForEach-Object { $_.Sum })
                 $policy.retainedBytes=$total
@@ -471,7 +630,7 @@ try {
                 [void]$retentionReasons.Remove($next[0].path)
             }
         }
-        $requiredBuilds=Get-RequiredBuilds
+        $requiredBuilds=Get-RequiredBuild
         foreach ($run in $runs) {
             if ($run.caseId -eq '@Build' -and $requiredBuilds.Contains($run.buildHash)) { $retentionReasons[$run.path]='retained-run-build' }
         }
@@ -480,7 +639,7 @@ try {
             if ($phase -eq 'builds' -and $buildDirectories.Count -gt 0) {
                 # Only successful consumer removals can release a build. A
                 # skipped, failed or newly present consumer still owns it.
-                $remainingBuilds=Get-RemainingRequiredBuilds
+                $remainingBuilds=Get-RemainingRequiredBuild
                 foreach ($build in @($runs | Where-Object kind -eq 'build')) {
                     if ($remainingBuilds.Contains($build.buildHash)) { $retentionReasons[$build.path]='retained-run-build' }
                 }
@@ -545,7 +704,7 @@ try {
                 Save-CleanupReport $action
                 if ($Apply) {
                     Assert-RunDeletionReady $run
-                    if ($run.kind -eq 'build' -and (Get-RemainingRequiredBuilds).Contains($run.buildHash)) {
+                    if ($run.kind -eq 'build' -and (Get-RemainingRequiredBuild).Contains($run.buildHash)) {
                         $retentionReasons[$run.path]='retained-run-build';$action.kind='retained';$action.bytes=0
                         Write-CleanupEvent ([ordered]@{event='action-cancelled';index=$actions.IndexOf($action);reason='retained-run-build'});$journal.Flush($true);$journalState.flushes++;continue
                     }
@@ -571,13 +730,24 @@ try {
             }
         }
     }
-    Save-CleanupReport
-    $totalBytes=[long]($actions | Measure-Object bytes -Sum | ForEach-Object { $_.Sum })
-    Write-Host ('{0} entries; {1:N0} bytes; applied={2}' -f $actions.Count,$totalBytes,[bool]$Apply)
-    Write-Host "Report: $report"
-} finally {
-    try { if($journal){Save-CleanupReport -Final} } finally {
-        foreach($lease in $payloadInputLeases){$lease.Dispose()}
-        if($journal){$journal.Dispose()};$lock.ReleaseMutex();$lock.Dispose()
+    $cleanupCompleted=$true
+} catch {$cleanupError=$_.Exception.Message;throw} finally {
+    try {
+        if($cleanupCompleted){
+            try{
+                if(-not $PruneReports -or $PruneLooseFiles){Invoke-LooseFileRetention}
+                Invoke-CleanupReportRetention
+            }catch{$cleanupCompleted=$false;$cleanupError=$_.Exception.Message;throw}
+        }
+    } finally {
+        try { if($journal){Save-CleanupReport -Final} } finally {
+            foreach($lease in $payloadInputLeases){$lease.Dispose()}
+            if($journal){$journal.Dispose()};$lock.ReleaseMutex();$lock.Dispose()
+        }
+    }
+    if($cleanupCompleted){
+        $totalBytes=[long]($actions | Measure-Object bytes -Sum | ForEach-Object { $_.Sum })
+        Write-Information ('{0} entries; {1:N0} bytes; applied={2}' -f $actions.Count,$totalBytes,[bool]$Apply) -InformationAction Continue
+        Write-Information "Report: $report" -InformationAction Continue
     }
 }

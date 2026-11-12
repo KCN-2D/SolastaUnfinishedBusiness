@@ -2378,6 +2378,7 @@ internal static class RacesContext
         }
         private readonly Dictionary<(string Source, Type Type), RetainedResource> _retainedResources = [];
         private readonly LinkedList<RetainedResource> _retainedResourceOrder = new();
+        private readonly Dictionary<UnityEngine.Object, (int Owners, long Bytes)> _retainedResourceAssets = [];
         private long _retainedResourceBytes;
         private const int MaximumUnusedClothMeshes = 24;
         private const long MaximumUnusedClothMeshBytes = 256L * 1024 * 1024;
@@ -2397,7 +2398,7 @@ internal static class RacesContext
         {
             mesh = null;
             if (_disposed || IsRetiring || !UsesCompleteParts || !source || !source.isReadable ||
-                !_retainedResources.Values.Any(entry => entry.Assets?.ContainsKey(source) == true)) return false;
+                !_retainedResourceAssets.ContainsKey(source)) return false;
             TrimClothMeshes();
             var entry = _unusedClothMeshes.FirstOrDefault(candidate => ReferenceEquals(candidate.Source, source));
             if (entry != null)
@@ -2552,6 +2553,20 @@ internal static class RacesContext
                 }
                 retained.Assets = NativeSourceAssets(source).ToDictionary(asset => asset,
                     asset => Math.Max(0L, UnityEngine.Profiling.Profiler.GetRuntimeMemorySizeLong(asset)));
+                foreach (var asset in retained.Assets)
+                {
+                    if (_retainedResourceAssets.TryGetValue(asset.Key, out var shared))
+                    {
+                        var bytes = Math.Max(shared.Bytes, asset.Value);
+                        _retainedResourceBytes += bytes - shared.Bytes;
+                        _retainedResourceAssets[asset.Key] = (shared.Owners + 1, bytes);
+                    }
+                    else
+                    {
+                        _retainedResourceAssets.Add(asset.Key, (1, asset.Value));
+                        _retainedResourceBytes += asset.Value;
+                    }
+                }
                 TrimRetainedResources();
             };
             retained.Handle.Completed += retained.Completed;
@@ -2560,20 +2575,30 @@ internal static class RacesContext
         }
         private void TrimRetainedResources()
         {
-            long Size() => _retainedResources.Values.Where(entry => entry.Assets != null)
-                .SelectMany(entry => entry.Assets).GroupBy(asset => asset.Key).Sum(group => group.First().Value);
-            _retainedResourceBytes = Size();
+            // Count shared meshes/textures once as their cache owners enter and leave.
+            // Rebuilding the entire asset union for every load made chooser work grow
+            // with all previously visited styles, even when nothing was evicted.
             while (_retainedResourceOrder.First is { } first &&
                    (_retainedResources.Count > MaximumRetainedResources || _retainedResourceBytes > MaximumRetainedResourceBytes))
             {
                 ReleaseRetainedResource(first.Value);
-                _retainedResourceBytes = Size();
             }
         }
         private void ReleaseRetainedResource(RetainedResource retained)
         {
             _retainedResources.Remove(retained.Key);
             _retainedResourceOrder.Remove(retained.Node);
+            if (retained.Assets != null)
+                foreach (var asset in retained.Assets.Keys)
+                {
+                    var shared = _retainedResourceAssets[asset];
+                    if (shared.Owners > 1) _retainedResourceAssets[asset] = (shared.Owners - 1, shared.Bytes);
+                    else
+                    {
+                        _retainedResourceAssets.Remove(asset);
+                        _retainedResourceBytes -= shared.Bytes;
+                    }
+                }
             if (retained.Handle.IsValid())
             {
                 if (retained.Completed != null) retained.Handle.Completed -= retained.Completed;
@@ -4188,6 +4213,7 @@ internal static class RacesContext
             while (_unusedClothMeshes.First is { } unused) DestroyClothMesh(unused.Value);
             if (UsesCompleteParts) Addressables.RemoveResourceLocator(this);
             while (_retainedResourceOrder.First is { } retained) ReleaseRetainedResource(retained.Value);
+            _retainedResourceAssets.Clear();
             _retainedResourceBytes = 0;
             _resourceLocations.Clear();
             _verifiedResourceFiles.Clear();

@@ -4,11 +4,61 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from typing import Any
 
 import numpy as np
 
 
 class GroomAttachmentTests(unittest.TestCase):
+    def test_finished_fibres_keep_authored_curved_support_instead_of_restoring_native_planes(self):
+        path=Path(__file__).resolve().parents[2]/'blender-models/CharacterHair/GenerateFlowCoverageSweptProfile.py'
+        spec=importlib.util.spec_from_file_location('composed_groom_support',path)
+        assert spec is not None and spec.loader is not None
+        owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner)
+        source: dict[str,Any]=dict(name='Curved',vertexCount=6,vertices=[0.,0.,0.,1.,0.,0.,0.,1.,0.,.1,.1,.01,.2,.1,.02,.1,.2,.01],
+            normals=[0.,0.,1.]*6,tangents=[1.,0.,0.,1.]*6,weights=[1.,0.,0.,0.]*6,boneIndices=[0]*24,colors=[],
+            uv=[dict(channel=0,dimension=2,values=[0.,0.,0.,0.]*6),dict(channel=2,dimension=4,values=[0.,0.,0.,1.]*6)],bindPoses=np.eye(4).ravel().tolist(),sourceFingerprint='0'*64,
+            subMeshes=[[3,4,5]],indexFormat=0,bounds=[.5,.5,.02,1.,1.,.1],
+            shapes=[dict(name='Wind',index=0,frames=[dict(weight=100.,vertices=[0.,0.,.001]*6,normals=[0.]*18,tangents=[0.]*18)])])
+        fine=copy.deepcopy(source);fine['subMeshes']=[[0,1,2,3,4,5]]
+        fine['uv'][1]['values']=[0.,0.,0.,1.]*3+[0.,0.,17.,1.]*3
+        binding=dict(matrix=np.eye(4).ravel().tolist(),vertices=[dict(anchor=0,native=False,tangentW=1.)for _ in range(6)])
+        saved=copy.deepcopy(source);packet,attachment,proof=owner.compose_finished_source_groom(source,fine,binding)
+        self.assertEqual(source,saved);self.assertEqual(packet['subMeshes'],[[3,4,5,6,7,8]])
+        self.assertEqual(packet['vertices'][:18],source['vertices'])
+        self.assertEqual(packet['shapes'][0]['frames'][0]['vertices'][:18],source['shapes'][0]['frames'][0]['vertices'])
+        self.assertEqual([r['anchor']for r in attachment['vertices'][:6]],list(range(6)))
+        self.assertTrue(all(r['native']for r in attachment['vertices'][:6]))
+        self.assertTrue(proof['sourceCoreTopologyExact']);self.assertEqual(proof['addedFineVertices'],3)
+
+    def test_new_fibers_keep_later_source_fitting_in_every_physical_frame(self):
+        path=Path(__file__).resolve().parents[2]/'blender-models/CharacterHair/GenerateFlowCoverageSweptProfile.py'
+        spec=importlib.util.spec_from_file_location('retained_groom_fitting',path)
+        assert spec is not None and spec.loader is not None
+        owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner)
+        native: dict[str,Any]=dict(name='Native',vertexCount=3,vertices=[0.,0.,0.,1.,0.,0.,0.,1.,0.],normals=[0.,0.,1.]*3,
+            tangents=[1.,0.,0.,1.]*3,weights=[1.,0.,0.,0.]*3,boneIndices=[0]*12,colors=[],uv=[],
+            bindPoses=np.eye(4).ravel().tolist(),subMeshes=[[0,1,2]],indexFormat=0,bounds=[.5,.5,0.,1.,1.,.002],
+            shapes=[dict(name='Wind',index=0,frames=[dict(weight=100.,vertices=[0.,0.,.001]*3,normals=[0.]*9,tangents=[0.]*9)])])
+        packet=copy.deepcopy(native);packet.update(vertexCount=6,vertices=native['vertices']+[.1,.1,.01,.2,.1,.01,.1,.2,.01],
+            normals=[0.,0.,1.]*6,tangents=[1.,0.,0.,1.]*6,weights=[1.,0.,0.,0.]*6,boneIndices=[0]*24,
+            subMeshes=[[0,1,2,3,4,5]],uv=[dict(channel=2,dimension=4,values=[0.,0.,0.,1.]*3+[0.,0.,17.,1.1]*3)])
+        for frame in packet['shapes'][0]['frames']:
+            for key in('vertices','normals','tangents'):frame[key]*=2
+        current=copy.deepcopy(packet);current['vertices']=(np.asarray(current['vertices']).reshape(-1,3)+[0.,0.,.003]).ravel().tolist()
+        current['normals']=[0.,-1.,0.]*6
+        current['shapes'][0]['frames'][0]['vertices']=[0.,0.,.002]*6
+        binding=dict(vertices=[dict(anchor=i,native=True,surface=None)for i in range(3)]+[
+            dict(anchor=0,native=False,surface=dict(triangle=[0,1,2],barycentric=[.7,.2,.1]))for _ in range(3)])
+        saved=copy.deepcopy(packet);result=owner.retain_source_fitting(packet,native,binding,current)
+        np.testing.assert_allclose(np.asarray(result['vertices']).reshape(-1,3)-np.asarray(packet['vertices']).reshape(-1,3),[[0.,0.,.003]]*6,rtol=0,atol=1e-15)
+        np.testing.assert_allclose(np.asarray(result['shapes'][0]['frames'][0]['vertices']).reshape(-1,3),[[0.,0.,.002]]*6,rtol=0,atol=1e-15)
+        self.assertEqual(result['normals'],packet['normals']);self.assertEqual(result['tangents'],packet['tangents']);self.assertEqual(packet,saved)
+        bounds=np.asarray(result['bounds']);low=bounds[:3]-bounds[3:]*.5;high=bounds[:3]+bounds[3:]*.5
+        positions=np.asarray(result['vertices']).reshape(-1,3)
+        for points in(positions,positions+np.asarray(result['shapes'][0]['frames'][0]['vertices']).reshape(-1,3)):
+            self.assertTrue(np.all(points>=low));self.assertTrue(np.all(points<=high))
+
     def test_native_groom_without_generated_uvs_is_measured_as_core(self):
         path=Path(__file__).resolve().parents[2]/'blender-models/CharacterHair/GenerateFlowCoverageSweptProfile.py'
         spec=importlib.util.spec_from_file_location('native_core_crown_owner',path)

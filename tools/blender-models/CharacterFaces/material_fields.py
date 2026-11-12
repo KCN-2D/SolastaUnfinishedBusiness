@@ -1834,6 +1834,32 @@ def reencode_bc7_rgb_block(block,target):
     return encoded
 
 
+def fit_bc7_normal_field(payload,width,height,target,editable,maximum_error_degrees=3):
+    """Refine packed RG-or-AG normals while retaining carriers and unowned blocks."""
+    from PIL import Image
+    if target.shape!=(height,width,4)or target.dtype!=np.uint8:raise ValueError('Invalid packed normal target.')
+    if editable.shape!=(height,width)or editable.dtype!=bool:raise ValueError('Invalid normal ownership.')
+    if not 0<maximum_error_degrees<=10:raise ValueError('Invalid normal codec error limit.')
+    active,_=whole_block_pixels(editable)
+    padded=np.pad(target,((0,(-height)%4),(0,(-width)%4),(0,0)),mode='edge')
+    blocks=padded.reshape((height+3)//4,4,(width+3)//4,4,4).transpose(0,2,1,3,4).reshape(-1,16,4)
+    before=np.frombuffer(payload,np.uint8).reshape(-1,16);words=before.copy()
+    for first in range(0,len(blocks),8192):
+        selected=np.flatnonzero(active[first:first+8192])+first
+        if len(selected):words[selected]=np.frombuffer(bc7_rgba_separate_blocks(blocks[selected],5),np.uint8).reshape(-1,16)
+    original=np.asarray(Image.frombytes('RGBA',(width,height),payload,'bcn',7))
+    actual=np.asarray(Image.frombytes('RGBA',(width,height),words.tobytes(),'bcn',7))
+    def normals(value):
+        value=value.astype(float)/255;x=value[:,:,0]*value[:,:,3]*2-1;y=value[:,:,1]*2-1
+        return normalize(np.dstack((x,y,np.sqrt(np.maximum(0,1-x*x-y*y)))))
+    angles=np.degrees(np.arccos(np.clip((normals(actual)*normals(target)).sum(axis=2),-1,1)))
+    reject=(angles>maximum_error_degrees)|np.any(actual[:,:,[0,2]]!=original[:,:,[0,2]],axis=2)
+    reject=np.pad(reject,((0,(-height)%4),(0,(-width)%4)),mode='constant').reshape((height+3)//4,4,(width+3)//4,4).any(axis=(1,3)).ravel()
+    words[reject]=before[reject]
+    return words.tobytes(),dict(unownedBlocksExact=bool(np.array_equal(words[~active],before[~active])),
+        sourceCarriersExact=True,maximumAcceptedNormalErrorDegrees=maximum_error_degrees,retainedCodecBlocks=int(reject.sum()))
+
+
 def fit_bc7_rgb_field(payload,width,height,target,editable=None,maximum_rgb_error=None,allow_reencoding=False):
     """Fit RGB endpoints, optionally replacing failing blocks with exact-alpha mode5."""
     from PIL import Image

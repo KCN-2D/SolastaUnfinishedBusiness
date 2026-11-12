@@ -44,6 +44,16 @@ schema 3の資源では、`CharacterFaces/build_models.py`の`refine-groom-frame
 
 入力にはnative packet・材質・profileを持つ`Input`/`CompletedGroup`を指定し、新しい作業先へ生成します。
 
+`CharacterFaces/build_models.py`の`prepare-groom-inputs --source <毛流れの制作元> --census <原本Census.json> --domain-contract <材質の範囲の照合結果> --output <新しい入力先>`は、`groom-designs.json`の原本を抽出し、骨、全LOD、元のUVと毛流れを照合します。原本MeshはCharacterFacesの`extract --native-index`で取得します。
+
+原本ごとの毛束の幅・浮き上がり・長さは`groom-designs.json`で管理します。生成時は`--asset <原本名> --designs <groom-designs.json> --soft-coverage-pilot --native-hair-domain --domain-contract <照合結果>`を加えます。制作済みの資源へ収める際は、元の三角形との対応を使って既存の頭皮へのフィットを引き継ぎ、全物理フレームの面の向きを確認します。
+
+`prepare-groom-designs --source <制作済み資源> --generations <Generation.json ...> --output <新しいレシピ先>`で取込用Meshを作ります。共通のUnity制作入口へ出力の`recipes`を渡し、`bind-groom-designs --source <同じ制作元> --plan <Plan.json> --report <unity-report.json> --output <毛束の制作先>`で全LODとclothの対応を収めます。
+
+毛束の頂点フレームを仕上げた後、`prepare-groom-composition --source <元の制作済み資源> --fibers <仕上げた毛束の資源> --plan <毛束のPlan.json> --output <組合せ用レシピ先>`で、既存の曲面・装飾・全物理フレームへ新しい毛束を組み合わせます。このレシピもUnity制作入口と`bind-groom-designs`へ渡します。肌の調整済み資源を元にする場合も同じ手順です。
+
+材質の既定値も更新する場合は、`refine-groom-frames`へ`--before-preset <変更前の材質bundle> --after-preset <変更後の材質bundle>`を組で渡します。変更前の既定値と一致する値を更新し、各原本の個別設定を保持します。
+
 ```powershell
 & <NumPyとPillowのあるPython> .\tools\blender-models\CharacterHair\GenerateFlowCoverageSweptProfile.py `
   --workspace <作業先> --input <検証済みInput.json> --output <新しい数値出力> <元profileと同じ引数>

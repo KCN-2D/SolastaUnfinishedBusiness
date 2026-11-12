@@ -1,3 +1,6 @@
+﻿[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns','',Justification='Contract groups use the names of the boundaries they test.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidOverwritingBuiltInCmdlets','',Justification='Mocks replace external operations only inside isolated contract scopes.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions','',Justification='Fixture operations are confined to the isolated contract workspace.')]
 [CmdletBinding()]
 param(
     [string]$EvidenceRoot,
@@ -1417,6 +1420,107 @@ function Get-VerificationProcessState {
             }
         }
 
+        $reportArea=Join-Path $script:GameTestArtifactRoot 'cleanup-reports';[void][IO.Directory]::CreateDirectory($reportArea)
+        $reports=@(for($index=0;$index -lt 7;$index++){
+            $date=[datetime]::UtcNow.AddDays(-$index-1);$name='Storage-Cleanup-'+$date.ToString('yyyyMMdd-HHmmss-fff')+'-12345678.json'
+            $path=Join-Path $reportArea $name;$journal=[IO.Path]::ChangeExtension($path,'.jsonl')
+            [IO.File]::WriteAllText($journal,'{"event":"cleanup-start"}'+[Environment]::NewLine)
+            Write-GtJson $path @{schemaVersion=1;utc=$date.ToString('O');applied=$true;completed=($index -ne 5);actions=@();journal=@{path=[IO.Path]::GetFileName($journal);bytes=([IO.FileInfo]::new($journal).Length)}}
+            [pscustomobject]@{path=$path;journal=$journal}
+        })
+        $unknownReport=Join-Path $reportArea 'Storage-Cleanup-20200101-000000-000-00000000.json'
+        [IO.File]::WriteAllText($unknownReport,'{"unrelated":true}')
+        $closedJournal=Join-Path $reportArea 'Storage-Cleanup-20200102-000000-000-00000000.jsonl'
+        $pendingJournal=Join-Path $reportArea 'Storage-Cleanup-20200103-000000-000-00000000.jsonl'
+        $startEvent=@{event='cleanup-start';schemaVersion=1;applied=$true;utc='2020-01-02T00:00:00Z'}|ConvertTo-Json -Compress
+        [IO.File]::WriteAllText($closedJournal,$startEvent+[Environment]::NewLine)
+        [IO.File]::WriteAllText($pendingJournal,$startEvent+[Environment]::NewLine+(@{event='action-planned';index=0;action=@{kind='superseded-run';applied=$false}}|ConvertTo-Json -Depth 4 -Compress)+[Environment]::NewLine)
+        $reportReference=Join-Path $Directory 'cleanup-report-reference.json';Write-GtJson $reportReference @{schemaVersion=1;paths=@($reports[6].journal)}
+        $activeJournal=[IO.File]::Open($reports[4].journal,[IO.FileMode]::Open,[IO.FileAccess]::Write,[IO.FileShare]::Read)
+        try{
+            $options=@{PruneReports=$true;KeepCleanupReports=3;ReferencePath=@($reportReference)}
+            $preview=Invoke-StorageCleanup $reportArea -Options $options
+            Add-StorageCheck 'cleanup report preview preserves payloads and plans complete report pairs' (@($preview.actions|Where-Object kind -eq 'cleanup-report').Count -gt 0 -and (Test-Path -LiteralPath $reports[3].path) -and (Test-Path -LiteralPath $reports[3].journal))
+            $applied=Invoke-StorageCleanup $reportArea -Options $options -Apply
+            Add-StorageCheck 'cleanup report retention retires old complete pairs and keeps current plus latest reports' (-not(Test-Path -LiteralPath $reports[3].path) -and -not(Test-Path -LiteralPath $reports[3].journal) -and (Test-Path -LiteralPath $reports[0].path) -and $applied.completed)
+            Add-StorageCheck 'cleanup report retention protects references active writers unfinished and unknown records' ((Test-Path -LiteralPath $reports[6].path) -and (Test-Path -LiteralPath $reports[6].journal) -and (Test-Path -LiteralPath $reports[4].path) -and (Test-Path -LiteralPath $reports[4].journal) -and (Test-Path -LiteralPath $reports[5].path) -and (Test-Path -LiteralPath $unknownReport))
+            Add-StorageCheck 'orphan cleanup journals require every planned action to be completed' (-not(Test-Path -LiteralPath $closedJournal) -and (Test-Path -LiteralPath $pendingJournal))
+            Add-StorageCheck 'cleanup report retention rejects mixed payload modes' (Test-StorageRejection {Invoke-StorageCleanup $reportArea -Prune -Options $options -Apply})
+        }finally{$activeJournal.Dispose()}
+        Set-StorageQueryMutation $reports[0].path 'changed-report' -Raw
+        try{
+            $rejected=Test-StorageRejection {Invoke-StorageCleanup $reportArea -Options $options -Apply}
+            Add-StorageCheck 'cleanup report retirement rechecks changed records before deleting a pair' ($rejected -and (Test-Path -LiteralPath $reports[0].path) -and (Test-Path -LiteralPath $reports[0].journal) -and (Test-Path -LiteralPath $reports[4].path))
+        }finally{
+            Clear-StorageQueryMutation
+            # Remove only deliberately synthetic report fixtures; later journal
+            # contracts inspect the reports emitted by the actual cleaner.
+            foreach($path in @($reports|ForEach-Object { $_.path;$_.journal })+@($unknownReport,$closedJournal,$pendingJournal)){
+                if(-not(Test-GtWithin $path $reportArea)){throw 'Synthetic cleanup report escaped its fixture.'}
+                if([IO.File]::Exists($path)){[IO.File]::Delete($path)}
+            }
+        }
+
+        $legacyArea=Join-Path $script:GameTestArtifactRoot 'legacy-cleanup-reports';[void][IO.Directory]::CreateDirectory($legacyArea)
+        $legacyReport=Join-Path $legacyArea 'Storage-Cleanup-20000101-000000-000-00000000.json'
+        $legacyTarget=Join-Path $script:GameTestArtifactRoot '.native/retired-owner'
+        $legacyValue=@{schemaVersion=1;utc='2000-01-01T00:00:00Z';applied=$true;actions=@(@{kind='native-user-data';path=$legacyTarget;applied=$false})}
+        Write-GtJson $legacyReport $legacyValue
+        $legacyOptions=@{PruneReports=$true;KeepCleanupReports=1}
+        [void](Invoke-StorageCleanup $legacyArea -Options $legacyOptions -Apply)
+        Add-StorageCheck 'legacy report retirement recognizes targets already retired by later cleanups' (-not(Test-Path -LiteralPath $legacyReport))
+        [void][IO.Directory]::CreateDirectory((Split-Path -Parent $legacyTarget))
+        [IO.File]::WriteAllText($legacyTarget,'live owner');Write-GtJson $legacyReport $legacyValue
+        [void](Invoke-StorageCleanup $legacyArea -Options $legacyOptions -Apply)
+        Add-StorageCheck 'legacy report retirement retains a pending target that still exists' ((Test-Path -LiteralPath $legacyReport) -and (Test-Path -LiteralPath $legacyTarget))
+        [IO.File]::Delete($legacyTarget)
+        Set-StorageQueryMutation $legacyTarget 'new owner' -Raw
+        try{
+            Add-StorageCheck 'legacy report retirement rechecks a target created after selection' ((Test-StorageRejection {Invoke-StorageCleanup $legacyArea -Options $legacyOptions -Apply}) -and (Test-Path -LiteralPath $legacyReport) -and (Test-Path -LiteralPath $legacyTarget))
+        }finally{Clear-StorageQueryMutation;[IO.File]::Delete($legacyReport);[IO.File]::Delete($legacyTarget)}
+
+        $looseRoot=$script:GameTestArtifactRoot
+        $looseNames=@('old-console.log','recent-console.log','writing-console.log','referenced-console.log','preserved-console.log','notes.txt','current.txt')
+        foreach($name in $looseNames){
+            $path=Join-Path $looseRoot $name
+            [IO.File]::WriteAllText($path,'fixture output')
+            [IO.File]::SetLastWriteTimeUtc($path,[datetime]::UtcNow.AddDays(-3))
+        }
+        $pointer=Join-Path $looseRoot 'current.txt';[IO.File]::WriteAllText($pointer,(Join-Path $looseRoot 'old-run'))
+        [IO.File]::SetLastWriteTimeUtc($pointer,[datetime]::UtcNow.AddDays(-3))
+        [IO.File]::SetLastWriteTimeUtc((Join-Path $looseRoot 'recent-console.log'),[datetime]::UtcNow)
+        $looseReference=Join-Path $Directory 'loose-references.json'
+        Write-GtJson $looseReference @{schemaVersion=1;paths=@((Join-Path $looseRoot 'referenced-console.log'))}
+        $migrationPath=Join-Path $looseRoot 'Migration.json'
+        $migrationDestination=Join-Path $looseRoot 'legacy-migration'
+        [void][IO.Directory]::CreateDirectory($migrationDestination)
+        Write-GtJson $migrationPath @{schemaVersion=1;mappings=@(@{originalRoot=(Join-Path $workspace 'OldEvidence');currentRoot=$migrationDestination})}
+        [IO.File]::SetLastWriteTimeUtc($migrationPath,[datetime]::UtcNow.AddDays(-3))
+        $nestedLog=Join-Path $migrationDestination 'owned.log';[IO.File]::WriteAllText($nestedLog,'owned evidence')
+        [IO.File]::SetLastWriteTimeUtc($nestedLog,[datetime]::UtcNow.AddDays(-3))
+        $looseOptions=@{PruneLooseFiles=$true;ReferencePath=@($looseReference)}
+        $preservedLog=Join-Path $looseRoot 'preserved-console.log'
+        $writer=[IO.File]::Open((Join-Path $looseRoot 'writing-console.log'),[IO.FileMode]::Open,[IO.FileAccess]::Write,[IO.FileShare]::Read)
+        try{
+            $preview=Invoke-StorageCleanup $looseRoot -Options $looseOptions -Preserve @($preservedLog)
+            Add-StorageCheck 'loose artifact preview identifies old output without deleting evidence' (@($preview.actions|Where-Object kind -eq 'loose-artifact').Count -eq 2 -and (Test-Path -LiteralPath $pointer) -and (Test-Path -LiteralPath (Join-Path $looseRoot 'old-console.log')))
+            $applied=Invoke-StorageCleanup $looseRoot -Options $looseOptions -Preserve @($preservedLog) -Apply
+            Add-StorageCheck 'loose artifact retirement removes old root logs and current-run pointers' (-not(Test-Path -LiteralPath $pointer) -and -not(Test-Path -LiteralPath (Join-Path $looseRoot 'old-console.log')) -and $applied.completed)
+            Add-StorageCheck 'loose artifact retirement protects recent output writers references preserved paths and text inputs' (@($looseNames|Where-Object {$_ -notin @('old-console.log','current.txt')}|Where-Object {-not(Test-Path -LiteralPath (Join-Path $looseRoot $_))}).Count -eq 0)
+            Add-StorageCheck 'loose artifact retirement preserves active migration maps and nested evidence' ((Test-Path -LiteralPath $migrationPath) -and (Test-Path -LiteralPath $nestedLog))
+            Add-StorageCheck 'loose artifact mode refuses a nested artifact root' (Test-StorageRejection {Invoke-StorageCleanup $migrationDestination -Options $looseOptions -Apply})
+            Add-StorageCheck 'loose artifact mode refuses mixed payload pruning' (Test-StorageRejection {Invoke-StorageCleanup $looseRoot -Options $looseOptions -Prune -Apply})
+        }finally{$writer.Dispose()}
+        [IO.File]::Delete($nestedLog);[IO.Directory]::Delete($migrationDestination,$false)
+        $applied=Invoke-StorageCleanup $looseRoot -Options $looseOptions -Preserve @($preservedLog) -Apply
+        Add-StorageCheck 'loose artifact retirement removes migration maps only when every destination is absent' (-not(Test-Path -LiteralPath $migrationPath))
+        $changingLog=Join-Path $looseRoot 'changed-console.log';[IO.File]::WriteAllText($changingLog,'old output')
+        [IO.File]::SetLastWriteTimeUtc($changingLog,[datetime]::UtcNow.AddDays(-3))
+        Set-StorageQueryMutation $changingLog 'new output' -Raw
+        try{
+            Add-StorageCheck 'loose artifact retirement refuses output changed after selection' ((Test-StorageRejection {Invoke-StorageCleanup $looseRoot -Options $looseOptions -Preserve @($preservedLog) -Apply}) -and (Test-Path -LiteralPath $changingLog))
+        }finally{Clear-StorageQueryMutation}
+
         function New-GeneratedPayloadFixture([string]$Name) {
             $area=Join-Path $script:GameTestArtifactRoot ('generated-'+$Name)
             $payloadRoot=Join-Path $area 'Retired'
@@ -1441,6 +1545,20 @@ function Get-VerificationProcessState {
         $retainedHash=Get-GtHash $payload.retained
         $applied=Invoke-StorageCleanup $payload.area -Options $options -Apply
         Add-StorageCheck 'generated payload apply retires only selected data and keeps referenced bytes' (-not(Test-Path -LiteralPath $payload.first) -and -not(Test-Path -LiteralPath $payload.second) -and (Get-GtHash $payload.retained) -ceq $retainedHash -and @($applied.actions|Where-Object applied -eq $true).Count -eq 2)
+        $scopedPayload=New-GeneratedPayloadFixture 'unrelated-link'
+        $linkTarget=Join-Path $workspace 'UnrelatedPayloadTarget';[void][IO.Directory]::CreateDirectory($linkTarget)
+        $linkSentinel=Join-Path $linkTarget 'keep.bin';[IO.File]::WriteAllText($linkSentinel,'unrelated input')
+        $unrelatedLink=Join-Path $scopedPayload.area 'unrelated-link'
+        [void](New-Item -ItemType Junction -Path $unrelatedLink -Target $linkTarget)
+        try{
+            [void](Invoke-StorageCleanup $scopedPayload.area -Options @{GeneratedPayloadPlanPath=$scopedPayload.plan;ReferencePath=@($scopedPayload.reference)} -Apply)
+            Add-StorageCheck 'generated payload cleanup scopes tree validation to selected roots and preserves unrelated links' (-not(Test-Path -LiteralPath $scopedPayload.first) -and [IO.File]::ReadAllText($linkSentinel) -ceq 'unrelated input')
+        }finally{[IO.Directory]::Delete($unrelatedLink,$false)}
+        $mipPayload=New-GeneratedPayloadFixture 'raw-mips'
+        $mipPath=[IO.Path]::ChangeExtension($mipPayload.first,'.mips');[IO.File]::Move($mipPayload.first,$mipPath)
+        $mipPayload.document.files[0].path=$mipPath;Write-GtJson $mipPayload.plan $mipPayload.document
+        [void](Invoke-StorageCleanup $mipPayload.area -Options @{GeneratedPayloadPlanPath=$mipPayload.plan;ReferencePath=@($mipPayload.reference)} -Apply)
+        Add-StorageCheck 'generated raw texture mips use the same owned payload retirement contract' (-not(Test-Path -LiteralPath $mipPath) -and (Test-Path -LiteralPath $mipPayload.retained))
         foreach($failure in @('root-escape','file-escape','reference-selected','changed-sha','changed-length','changed-time','changed-content','duplicate','source-file','missing-reference','reference-epoch','unrestored','running-game')) {
             $payload=New-GeneratedPayloadFixture $failure
             $options=@{GeneratedPayloadPlanPath=$payload.plan;ReferencePath=@($payload.reference)}
@@ -1469,7 +1587,7 @@ function Get-VerificationProcessState {
         }
         $payload=New-GeneratedPayloadFixture 'hardlink'
         $alias=Join-Path (Split-Path -Parent $payload.first) 'shared.bin'
-        [void](New-Item -ItemType HardLink -Path $alias -Target $payload.first)
+        [void](New-Item -ItemType HardLink -Path $alias -Target $payload.second)
         Write-GtJson $payload.reference @{schemaVersion=1;paths=@($payload.retained,$alias)}
         $payload.document.reference.sha256=(Get-GtHash $payload.reference).ToLowerInvariant()
         Write-GtJson $payload.plan $payload.document
@@ -1596,13 +1714,13 @@ function Get-VerificationProcessState {
         $lateAudit=Join-Path $toolRoot 'late-file'
         Set-StorageQueryMutation (Join-Path $lateAudit 'new.txt') @{new='consumer'} 1
         try {
-            try { Invoke-StorageCleanup $toolRoot -Prune -Apply -Options @{MaxAgeDays=1;ReferencePath=@($toolReference)} | Out-Null } catch { }
+            try { Invoke-StorageCleanup $toolRoot -Prune -Apply -Options @{MaxAgeDays=1;ReferencePath=@($toolReference)} | Out-Null } catch { Write-Verbose $_.Exception.Message }
             Add-StorageCheck 'late legacy audit payload refuses recursive deletion' ([IO.File]::Exists((Join-Path $lateAudit 'ToolsAudit.json')) -and [IO.File]::Exists((Join-Path $lateAudit 'new.txt')))
         } finally {Clear-StorageQueryMutation}
         $lateEmpty=Join-Path $toolRoot 'late-empty';[void][IO.Directory]::CreateDirectory($lateEmpty);[IO.Directory]::SetLastWriteTimeUtc($lateEmpty,[datetime]::UtcNow.AddDays(-3))
         Set-StorageQueryMutation (Join-Path $lateEmpty 'new.txt') @{new='consumer'} 1
         try {
-            try { Invoke-StorageCleanup $toolRoot -Prune -Apply -Preserve @($protectedEmpty) -Options @{MaxAgeDays=1;ReferencePath=@($toolReference)} | Out-Null } catch { }
+            try { Invoke-StorageCleanup $toolRoot -Prune -Apply -Preserve @($protectedEmpty) -Options @{MaxAgeDays=1;ReferencePath=@($toolReference)} | Out-Null } catch { Write-Verbose $_.Exception.Message }
             Add-StorageCheck 'late file prevents empty directory deletion' ([IO.File]::Exists((Join-Path $lateEmpty 'new.txt')))
         } finally {Clear-StorageQueryMutation}
 

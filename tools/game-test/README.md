@@ -216,6 +216,10 @@ $evidence = '.\tools\game-test\artifacts'
 
 `-MaxAgeDays`で保持期限、`-MaxRetainedBytes`で容量上限を指定できます。0は制限なしです。期限・容量を指定すると、最新件数で保持した実行も整理対象になります。容量は復元済みの実行・検証ビルド・所有する検証用データを集計し、参照先などを保持した結果、上限を満たせない場合は`policy.budgetSatisfied=false`を記録します。
 
+整理レポートと対応するjournalは、今回を含む最新3件を保持します。件数は`-KeepCleanupReports`で変更でき、`-PruneReports`ではレポートだけを整理します。参照されているもの、書込中・未完了・形式不明の記録は保持します。
+
+`artifacts/`直下のログと、実行先の絶対パスだけを記録した一時テキストは、最終更新から1日後に整理します。`Migration.json`は全移行先が存在しなくなった場合に整理します。参照中・書込中のファイルと、実行フォルダ内の証跡は保持します。`-PruneLooseFiles`ではこの直下の整理とレポート整理を実行します。新しいログは、対応する実行・ビルドの保存先へ出力してください。
+
 完了した契約テストと、復元確認済みの`ToolsAudit.json`だけが残る旧監査フォルダも対象です。空のフォルダは、1日または`-MaxAgeDays`の長い方を経過したものを整理します。参照先と`-PreserveDirectory`の指定は、これらにも適用されます。
 
 制作処理などが参照する入力は、`-ReferencePath '<参照JSON>'`で保持します。JSONは`{"schemaVersion":1,"paths":["<保持する証跡のパス>"]}`の形式で、`paths`に`tools/game-test/artifacts/`内のファイル・フォルダを指定します。相対パスは参照JSONの場所を基準にします。
@@ -237,6 +241,8 @@ $evidence = '.\tools\game-test\artifacts'
 `Invoke-GameTest.ps1`は`PASS`で終了し復元できた実行の`artifacts/.native/`を解放し、`NativeUserDataRelease.json`に記録します。保存が必要な実行は`-KeepNativeUserData`、制作入力として再利用するパスは`-StorageReferencePath '<参照JSON>'`で指定します。`Saves/Characters`に出力がある場合や、所有・復元・停止を確認できない場合は保持します。
 
 復元が完了した検証の終了後に、その保存先の古い実行をケースごとに最新2件・合計20GiBを目安に整理します。検証の成否にかかわらず今回の実行と保持対象の入力は残します。容量は `-MaxRetainedEvidenceBytes` で変更でき、0でこの自動整理を行いません。結果は `ArtifactRetention.log` と整理レポートへ記録します。
+
+必須検証の完了フックでも、`artifacts/`直下の古いログ・一時ファイル・整理レポートを自動で整理します。検証結果を再利用した場合も実行し、保持するビルド・実機結果と`StorageReferences.json`を照合します。
 
 `New-GameTestBuild.ps1`は最新2件の検証ビルドにモデル資源を保持し、それ以前の同じ保存先のビルドではモデル資源を解放します。DLL・ビルドの記録・検証結果は保持し、解放内容を`BuildAssetRelease.json`へ記録します。古いビルドの再実行に使う資源は、`-StorageReferencePath '<参照JSON>'`で保持します。今回のビルド時に解放を行わない場合は`-KeepStagedAssets`を指定します。
 
