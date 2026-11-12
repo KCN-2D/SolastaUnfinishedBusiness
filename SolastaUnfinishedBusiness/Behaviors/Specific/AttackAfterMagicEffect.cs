@@ -13,7 +13,7 @@ namespace SolastaUnfinishedBusiness.Behaviors.Specific;
 internal sealed class AttackAfterMagicEffect(AttackAfterMagicEffect.AttackType attackType, bool firstTargetOnly)
     : IFilterTargetingCharacter
 {
-    private static readonly ConditionalWeakTable<RulesetAttackMode, RulesetEffect> OriginatingEffects = new();
+    private static readonly ConditionalWeakTable<CharacterActionParams, RulesetEffect> OriginatingEffects = new();
 
     internal const string AttackAfterMagicEffectTag = "AttackAfterMagicEffectTag";
 
@@ -177,9 +177,10 @@ internal sealed class AttackAfterMagicEffect(AttackAfterMagicEffect.AttackType a
 
         for (var i = 0; i < maxTargets; i++)
         {
-            //get copy to be sure we don't break existing mode
-            var attackMode = RulesetAttackMode.AttackModesPool.Get();
-            attackMode.Copy(originalAttackMode);
+            // The native setter creates the copy owned by these action parameters.
+            var attackActionParams =
+                new CharacterActionParams(caster, ActionDefinitions.Id.AttackFree) { AttackMode = originalAttackMode };
+            var attackMode = attackActionParams.AttackMode;
             CanAttack(caster, targets[i], AllowMelee, AllowRanged, AllowThrown, attackMode, out var rangedAttack);
             attackMode.Ranged = rangedAttack;
 
@@ -195,22 +196,18 @@ internal sealed class AttackAfterMagicEffect(AttackAfterMagicEffect.AttackType a
             //handle interaction with Potent Spell Caster feat and blade cantrips
             ClassFeats.CustomBehaviorFeatPotentSpellcaster.HandleBladeCantrips(caster, actionMagicEffect, attackMode);
 
-            OriginatingEffects.Remove(attackMode);
-
             if (actionParams.RulesetEffect != null)
             {
-                OriginatingEffects.Add(attackMode, actionParams.RulesetEffect);
+                OriginatingEffects.Add(attackActionParams, actionParams.RulesetEffect);
 
                 foreach (var modifier in actionParams.RulesetEffect.SourceDefinition
-                             .GetAllSubFeaturesOfType<IModifyAttackAfterMagicEffect>())
+                             .GetAllSubFeaturesOfType<IModifyAttackAfterMagicEffect>()
+                             .Concat(caster.RulesetCharacter.GetSubFeaturesByType<IModifyAttackAfterMagicEffect>())
+                             .Distinct())
                 {
                     modifier.ModifyAttack(actionParams.RulesetEffect, caster.RulesetCharacter, attackMode);
                 }
             }
-
-            // always use free attack
-            var attackActionParams =
-                new CharacterActionParams(caster, ActionDefinitions.Id.AttackFree) { AttackMode = attackMode };
 
             attackActionParams.TargetCharacters.Add(targets[i]);
             attackActionParams.ActionModifiers.Add(new ActionModifier());
@@ -220,14 +217,14 @@ internal sealed class AttackAfterMagicEffect(AttackAfterMagicEffect.AttackType a
         return attacks;
     }
 
-    internal static RulesetEffect ConsumeOriginatingEffect(RulesetAttackMode attackMode)
+    internal static RulesetEffect ConsumeOriginatingEffect(CharacterActionParams actionParams)
     {
-        if (attackMode == null || !OriginatingEffects.TryGetValue(attackMode, out var rulesetEffect))
+        if (actionParams == null || !OriginatingEffects.TryGetValue(actionParams, out var rulesetEffect))
         {
             return null;
         }
 
-        OriginatingEffects.Remove(attackMode);
+        OriginatingEffects.Remove(actionParams);
 
         return rulesetEffect;
     }

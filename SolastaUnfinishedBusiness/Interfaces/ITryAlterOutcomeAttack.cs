@@ -33,6 +33,47 @@ public interface ITryAlterOutcomeAttack
 
 internal static class TryAlterOutcomeAttack
 {
+    private static readonly ConditionalWeakTable<CharacterAction, OutcomeScope> OutcomeScopes = new();
+
+    internal static OutcomeScope BeginOutcomeFinalization(CharacterAction action) => new(action);
+
+    internal static void WhenOutcomeFinalized(CharacterAction action, Action<RuleDefinitions.RollOutcome> callback)
+    {
+        if (OutcomeScopes.TryGetValue(action, out var scope)) scope.WhenFinalized += callback;
+    }
+
+    internal sealed class OutcomeScope : IDisposable
+    {
+        private readonly CharacterAction _action;
+        private readonly OutcomeScope _previous;
+        internal readonly (ITryAlterOutcomeAttack Handler, GameLocationCharacter Character)[] Handlers;
+        internal Action<RuleDefinitions.RollOutcome> WhenFinalized;
+
+        internal OutcomeScope(CharacterAction action)
+        {
+            _action = action;
+            OutcomeScopes.TryGetValue(action, out _previous);
+            OutcomeScopes.Remove(action);
+            OutcomeScopes.Add(action, this);
+            Handlers = CollectHandlers();
+        }
+
+        internal void Complete()
+        {
+            var callbacks = WhenFinalized;
+            WhenFinalized = null;
+            callbacks?.Invoke(_action.AttackRollOutcome);
+        }
+
+        public void Dispose()
+        {
+            WhenFinalized = null;
+            if (!OutcomeScopes.TryGetValue(_action, out var current) || current != this) return;
+            OutcomeScopes.Remove(_action);
+            if (_previous != null) OutcomeScopes.Add(_action, _previous);
+        }
+    }
+
     private static readonly ConditionalWeakTable<CharacterAction, ForcedHit> ForcedHits = new();
 
     [ThreadStatic]
@@ -151,33 +192,32 @@ internal static class TryAlterOutcomeAttack
         return action.AttackSuccessDelta + newRoll - action.AttackRoll;
     }
 
-    private static readonly List<(ITryAlterOutcomeAttack, GameLocationCharacter)> Handlers = [];
-
-    private static void CollectHandlers()
+    private static (ITryAlterOutcomeAttack Handler, GameLocationCharacter Character)[] CollectHandlers()
     {
         var locationCharacterService = ServiceRepository.GetService<IGameLocationCharacterService>();
         var contenders =
             Gui.Battle?.AllContenders ??
             locationCharacterService.PartyCharacters.Union(locationCharacterService.GuestCharacters);
 
-        Handlers.Clear();
+        var handlers = new List<(ITryAlterOutcomeAttack, GameLocationCharacter)>();
 
         foreach (var unit in contenders
                      .Where(u => u.RulesetCharacter is { IsDeadOrDyingOrUnconscious: false })
                      .ToArray())
         {
-            Handlers.AddRange(unit.RulesetCharacter.GetSubFeaturesByType<ITryAlterOutcomeAttack>()
+            handlers.AddRange(unit.RulesetCharacter.GetSubFeaturesByType<ITryAlterOutcomeAttack>()
                 .Select(handler => (handler, unit)));
 
-            Handlers.AddRange(unit.RulesetCharacter.GetUsableSpellSubFeaturesByType<ITryAlterOutcomeAttack>()
+            handlers.AddRange(unit.RulesetCharacter.GetUsableSpellSubFeaturesByType<ITryAlterOutcomeAttack>()
                 .Select(handler => (handler, unit)));
 
             // supports metamagic use cases, including snapshotted Simulacrum identities
-            Handlers.AddRange(SimulacrumBehavior
+            handlers.AddRange(SimulacrumBehavior
                 .EnumerateTrainedMetamagicOptions(unit.RulesetCharacter)
                 .SelectMany(metamagic => metamagic.GetAllSubFeaturesOfType<ITryAlterOutcomeAttack>())
                 .Select(handler => (handler, unit)));
         }
+        return handlers.ToArray();
     }
 
     internal static IEnumerable HandlerNegativePriority(
@@ -189,9 +229,8 @@ internal static class TryAlterOutcomeAttack
         RulesetAttackMode attackMode,
         RulesetEffect rulesetEffect)
     {
-        CollectHandlers();
-
-        foreach (var (handler, unit) in Handlers
+        var handlers = OutcomeScopes.TryGetValue(action, out var scope) ? scope.Handlers : CollectHandlers();
+        foreach (var (handler, unit) in handlers
                      .Where(x => x.Item1.HandlerPriority < 0)
                      .OrderBy(x => x.Item1.HandlerPriority))
         {
@@ -209,7 +248,8 @@ internal static class TryAlterOutcomeAttack
         RulesetAttackMode attackMode,
         RulesetEffect rulesetEffect)
     {
-        foreach (var (handler, unit) in Handlers
+        var handlers = OutcomeScopes.TryGetValue(action, out var scope) ? scope.Handlers : CollectHandlers();
+        foreach (var (handler, unit) in handlers
                      .Where(x => x.Item1.HandlerPriority >= 0)
                      .OrderBy(x => x.Item1.HandlerPriority))
         {

@@ -584,8 +584,8 @@ internal static class UpdateContext
 
         if (!ShouldUpdate && toLatest)
         {
-            ShowMessage("Mod version is already the latest or higher",
-                "ChangeLog", OpenChangeLog);
+            ShowMessage("Message/&ModUpdateCurrentDescription",
+                "Message/&ModChangelogTitle", OpenChangeLog);
 
             return;
         }
@@ -629,8 +629,8 @@ internal static class UpdateContext
             InProgress = false;
             Main.Error($"Failed to update mod: {ex.Message}: {ex.StackTrace}");
 
-            ShowMessage($"Cannot fetch update payload. Try again or download from:\r\n{url}.",
-                "Open Download Url", () => OpenUrl(url.ToString()),
+            ShowMessage(Gui.Format("Message/&ModUpdateDownloadFailedDescription", url.ToString()),
+                "Message/&ModDownloadTitle", () => OpenUrl(url.ToString()),
                 severity: MessageModal.Severity.Serious3);
         }
 
@@ -657,8 +657,8 @@ internal static class UpdateContext
             DisposeUpdateWebClient(webClient);
             InProgress = false;
             Progress = 0;
-            QueueMainThread(() => ShowMessage("Update was cancelled",
-                "Open Download Url", () => OpenUrl(url.ToString()),
+            QueueMainThread(() => ShowMessage("Message/&ModUpdateCancelledDescription",
+                "Message/&ModDownloadTitle", () => OpenUrl(url.ToString()),
                 severity: MessageModal.Severity.Serious3), generation);
             return;
         }
@@ -668,8 +668,8 @@ internal static class UpdateContext
             DisposeUpdateWebClient(webClient);
             InProgress = false;
             Progress = 0;
-            QueueMainThread(() => ShowMessage($"Cannot fetch update payload. Try again or download from:\r\n{url}.",
-                "Open Download Url", () => OpenUrl(url.ToString()),
+            QueueMainThread(() => ShowMessage(Gui.Format("Message/&ModUpdateDownloadFailedDescription", url.ToString()),
+                "Message/&ModDownloadTitle", () => OpenUrl(url.ToString()),
                 severity: MessageModal.Severity.Serious3), generation);
             return;
         }
@@ -703,7 +703,8 @@ internal static class UpdateContext
                 }
             }
 
-            QueueMainThread(() => ShowMessage("Mod update is successful. Please restart.", "ChangeLog", OpenChangeLog),
+            QueueMainThread(() => ShowMessage("Message/&ModUpdateCompleteDescription",
+                    "Message/&ModChangelogTitle", OpenChangeLog),
                 generation);
         }
         catch (Exception err)
@@ -711,8 +712,8 @@ internal static class UpdateContext
             Main.Error($"Failed to update mod: {err.Message}: {err.StackTrace}");
 
             QueueMainThread(() => ShowMessage(
-                $"Failed to unpack update. Try again or download and update manually from:\r\n{url}.",
-                "Open Download Url", () => OpenUrl(url.ToString()),
+                Gui.Format("Message/&ModUpdateExtractFailedDescription", url.ToString()),
+                "Message/&ModDownloadTitle", () => OpenUrl(url.ToString()),
                 severity: MessageModal.Severity.Serious3), generation);
         }
         finally
@@ -956,33 +957,34 @@ internal static class UpdateContext
     {
         if (InProgress) { return; }
 
-        ShowMessage($"Would you like to rollback to {PreviousVersion}?",
+        ShowMessage(Gui.Format("Message/&ModRollbackDescription", PreviousVersion),
             "Message/&MessageOkTitle", () => UpdateMod(false),
             "Message/&MessageCancelTitle");
     }
 
     private static void DisplayUpdateMessage()
     {
-        ShowMessage($"Version {LatestVersion} is now available. Open Mod UI > Gameplay > General to update.",
-            "Changelog", OpenChangeLog);
+        ShowMessage(Gui.Format("Message/&ModUpdateAvailableDescription", LatestVersion),
+            "Message/&ModChangelogTitle", OpenChangeLog);
     }
 
     private static void DisplayWelcomeMessage()
     {
         ShowMessage("Message/&MessageModWelcomeDescription",
-            "ChangeLog", OpenChangeLog);
+            "Message/&ModChangelogTitle", OpenChangeLog);
     }
 
     private static void ShowMessage(
         string content,
         string validateCaption,
         [CanBeNull] MessageModal.MessageValidatedHandler onValidated = null,
-        string cancelCaption = "Message/&MessageOkTitle",
+        string cancelCaption = null,
         [CanBeNull] MessageModal.MessageCancelledHandler onCancelled = null,
         string title = "Message/&MessageModWelcomeTitle",
         MessageModal.Severity severity = MessageModal.Severity.Attention2
     )
     {
+        cancelCaption ??= onValidated != null || onCancelled != null ? "Message/&ModCloseTitle" : string.Empty;
         onValidated ??= () => { };
         onCancelled ??= () => { };
         Gui.GuiService.ShowMessage(severity, title, content, validateCaption, cancelCaption, onValidated, onCancelled);

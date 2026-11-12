@@ -18,7 +18,79 @@ try {
 & tools\asset-authoring\workspace\Python\Scripts\python.exe -m pip install --no-cache-dir -r tools\asset-authoring\requirements.txt -r tools\localization\requirements.txt
 ```
 
-## 必要条件
+## アイコン制作
+
+リポジトリのルートで実行します。[画像・アイコンの作成ルール](../../.codex/PROJECT_GUIDE.md#画像アイコンの作成と差し替え)に沿って参照画像と表示先を確認し、次の手順で制作します。
+
+1. sprite参照を一覧化します。
+
+```powershell
+& tools\asset-authoring\workspace\Python\Scripts\python.exe tools\asset-authoring\icon_pipeline.py catalog --output tools\game-test\artifacts\IconWork\SpriteSources.json
+```
+
+`SpriteSources.json`から使用する行を選び、`references`配列を持つ`NativeReferences.json`へ保存します。MOD定義を使う場合は`--blueprint-root Diagnostics\UnfinishedBusinessBlueprints`を指定します。
+
+2. 実ゲームから参照画像を抽出します。
+
+```powershell
+& tools\asset-authoring\workspace\Python\Scripts\python.exe tools\asset-authoring\icon_pipeline.py capture-source --spec tools\game-test\artifacts\IconWork\NativeReferences.json --output tools\game-test\artifacts\IconWork\NativeIconReferences.cs
+```
+
+生成されたC#を[個別プローブ](../runtime-verification/README.md)の`-ProbeSource`、`NativeIconReferences`を`-ProbeType`として実行します。出力は`NativeIconReferences.json`と参照画像です。
+
+3. 制作条件を`Contract.json`へ記述します。
+
+```json
+{
+  "subject": "効果や行動",
+  "composition": "本体の向き、配置、尺度、差分記号",
+  "artDirection": "参照画像に合わせる色、輪郭、陰影、余白",
+  "outputSize": [128, 128],
+  "transparentBackground": true,
+  "references": [
+    {
+      "definitionType": "ActionDefinition",
+      "definition": "StunningStrikeToggle",
+      "spritePath": ["guiPresentation", "spriteReference"]
+    }
+  ],
+  "usages": [
+    {
+      "id": "action-toggle",
+      "role": "能力の使用を切り替えるトグル",
+      "screen": "CharacterActionPanel",
+      "binding": "CharacterActionItem.Bind → CharacterActionItemForm",
+      "size": [32, 32],
+      "preserveAspect": true,
+      "evidence": ["NativeIconUsages.json", "NativeToggle.png"],
+      "states": [
+        {"name": "off", "tint": [160, 160, 160, 255], "background": [24, 24, 24, 255]},
+        {"name": "on", "tint": [255, 224, 160, 255], "background": [24, 24, 24, 255]}
+      ]
+    }
+  ]
+}
+```
+
+`outputSize`と`size`は横幅・高さです。`tint`と`background`はRGBAの0～255で、表示先の着色と親の透明度を反映します。`spritePath`はプロパティ名と配列添字、`evidence`は表示経路を確認したファイルのパスです。相対パスは`Contract.json`から解決します。
+
+表示部品の値は、対象画面を開いてスクリーンショットを保存した後、`NativeIconReferences.Observe(image, usage, state, screenshotPath)`で記録できます。出力の`NativeIconUsages.json`には最終sprite、寸法、着色、縦横比保持、Canvas倍率が含まれます。
+
+4. 制作条件を固定し、`Brief.json`の`imageGeneration`と`references`の画像を生成へ渡します。
+
+```powershell
+& tools\asset-authoring\workspace\Python\Scripts\python.exe tools\asset-authoring\icon_pipeline.py prepare --references <抽出結果のNativeIconReferences.json> --contract tools\game-test\artifacts\IconWork\Contract.json --output tools\game-test\artifacts\IconWork\Brief.json
+```
+
+5. 候補と比較画像を作成します。
+
+```powershell
+& tools\asset-authoring\workspace\Python\Scripts\python.exe tools\asset-authoring\icon_pipeline.py finish --brief tools\game-test\artifacts\IconWork\Brief.json --source <生成画像.png> --output <採用候補.png> --review tools\game-test\artifacts\IconWork\Review.png
+```
+
+比較画像は、指定した表示サイズ・背景・着色で候補と参照を並べます。採用画像を定義へ設定し、正式ビルド後に対象画面で確認します。参照画像、制作条件、比較結果は同じ作業フォルダーに保存されます。
+
+## 3D制作の必要条件
 
 - Windows、PowerShell
 - Blender **4.5.9 LTS**。既定の配置先は`tools/asset-authoring/workspace/Tools/blender-4.5.9-windows-x64/blender.exe`

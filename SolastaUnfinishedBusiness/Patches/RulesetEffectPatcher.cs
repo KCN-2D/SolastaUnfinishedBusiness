@@ -84,6 +84,27 @@ public static class RulesetEffectPatcher
     // ReSharper disable once InconsistentNaming
     public static class ConditionSaveRerollRequested_Patch
     {
+        [UsedImplicitly]
+        private static void Prefix(RulesetEffect __instance, RulesetCondition __1,
+            ref bool removeOnSuccess, out bool __state)
+        {
+            __state = __instance.TrackedConditionGuids.Contains(__1.Guid) &&
+                      __1.ConditionDefinition.HasSubFeatureOfType<IConditionSavingThrowResolved>();
+            if (__state) removeOnSuccess = false;
+        }
+
+        [UsedImplicitly]
+        private static void Postfix(RulesetEffect __instance, RulesetActor __0,
+            RulesetCondition __1, bool success, bool __state)
+        {
+            if (!__state) return;
+            foreach (var handler in __1.ConditionDefinition
+                         .GetAllSubFeaturesOfType<IConditionSavingThrowResolved>())
+            {
+                handler.OnConditionSavingThrowResolved(__instance, __0, __1, success);
+            }
+        }
+
         private static bool TryGetCasterAndEffectForms(
             RulesetEffect __instance,
             out RulesetCharacter rulesetCharacter,
@@ -179,6 +200,27 @@ public static class RulesetEffectPatcher
     public static class TryRollSavingThrow_Patch
     {
         [UsedImplicitly]
+        private static bool Prefix(RulesetEffect __instance, RulesetActor target,
+            ref RuleDefinitions.RollOutcome saveOutcome, ref int saveOutcomeDelta,
+            ref bool __result, out bool __state)
+        {
+            __state = false;
+            foreach (var handler in __instance.GetSourceDefinitionSafe()
+                         ?.GetAllSubFeaturesOfType<IAutomaticSavingThrowOutcome>() ?? [])
+            {
+                if (!handler.TryGetAutomaticOutcome(__instance, target, out var outcome)) continue;
+                RulesetActorExtensions.RecordAutomaticSavingThrow(
+                    __instance.EffectDescription.SavingThrowAbility, __instance.SaveDC);
+                saveOutcome = outcome;
+                saveOutcomeDelta = 0;
+                __result = true;
+                __state = true;
+                return false;
+            }
+            return true;
+        }
+
+        [UsedImplicitly]
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             return instructions.ReplaceCalls(
@@ -193,9 +235,9 @@ public static class RulesetEffectPatcher
 
         [UsedImplicitly]
         private static void Postfix(RulesetEffect __instance, RulesetCharacter caster, RulesetActor target,
-            List<EffectForm> actualEffectForms, bool __result)
+            List<EffectForm> actualEffectForms, bool __result, bool __state)
         {
-            MetamagicContext.CompleteNativeHeightenedSavingThrow(__instance, caster, target, actualEffectForms, __result);
+            MetamagicContext.CompleteNativeHeightenedSavingThrow(__instance, caster, target, actualEffectForms, __result && !__state);
             if (__result && caster != null && target != caster &&
                 GameLocationCharacter.GetFromActor(caster) is { } source &&
                 GameLocationCharacter.GetFromActor(target) is { } defender && source.Side != defender.Side)

@@ -60,11 +60,14 @@ public static class GuiInvocationDefinitionPatcher
                     prerequisiteOutput += "\n";
                 }
 
-                var text = Gui.Localize(invocation.RequiredKnownSpell.GuiPresentation.Title);
+                var text = invocation.RequiredKnownSpell.FormatTitle();
+                var requiredClass = invocation
+                    .GetFirstSubFeatureOfType<InvocationDefinitionWithPrerequisites.KnownSpellClass>()?.RequiredClass;
 
                 if (hero != null)
                 {
                     var hasSpell = hero.SpellRepertoires.Any(spellRepertoire =>
+                        (requiredClass == null || spellRepertoire.GetCastingClass() == requiredClass) &&
                         spellRepertoire.HasKnowledgeOfSpell(invocation.RequiredKnownSpell));
 
                     if (!hasSpell)
@@ -74,7 +77,9 @@ public static class GuiInvocationDefinitionPatcher
                     }
                 }
 
-                prerequisiteOutput += Gui.Format("Tooltip/&InvocationPrerequisiteKnownSpellFormat", text);
+                prerequisiteOutput += requiredClass == null
+                    ? Gui.Format("Tooltip/&InvocationPrerequisiteKnownSpellFormat", text)
+                    : Gui.Format("Tooltip/&InvocationPrerequisiteClassSpellFormat", requiredClass.FormatTitle(), text);
             }
 
             // ReSharper disable once InvertIf

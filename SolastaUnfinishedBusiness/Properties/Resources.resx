@@ -5012,4 +5012,16 @@
         PublicKeyToken=b77a5c561934e089
     </value>
   </data>
+  <data name="PowerWordFortify" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\PowerWordFortify.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="ReweaveFate" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\ReweaveFate.png;System.Byte[], mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="FleshToStone" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Spells\FleshToStone.png;System.Byte[], mscorlib</value>
+  </data>
+  <data name="Petrified" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\Conditions\Petrified.png;System.Byte[], mscorlib</value>
+  </data>
 </root>

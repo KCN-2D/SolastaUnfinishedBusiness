@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,6 +23,191 @@ namespace SolastaUnfinishedBusiness.Spells;
 
 internal static partial class SpellBuilders
 {
+    internal static SpellDefinition BuildPowerWordFortify()
+    {
+        const string name = "PowerWordFortify";
+        return SpellDefinitionBuilder.Create(name)
+            .SetGuiPresentation(Category.Spell, Sprites.GetSprite(name, Resources.PowerWordFortify, 128))
+            .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolEnchantment)
+            .SetSpellLevel(7)
+            .SetCastingTime(ActivationTime.Action)
+            .SetMaterialComponent(MaterialComponentType.None)
+            .SetSomaticComponent(false)
+            .SetVerboseComponent(true)
+            .SetVocalSpellSameType(VocalSpellSemeType.Buff)
+            .SetEffectDescription(EffectDescriptionBuilder.Create()
+                .SetTargetingData(Side.All, RangeType.Distance, 12, TargetType.IndividualsUnique, 6)
+                .SetParticleEffectParameters(Aid)
+                .Build())
+            .AddCustomSubFeatures(new CustomBehaviorPowerWordFortify())
+            .AddToDB();
+    }
+
+    private sealed class CustomBehaviorPowerWordFortify : IPowerOrSpellFinishedByMe
+    {
+        public IEnumerator OnPowerOrSpellFinishedByMe(CharacterActionMagicEffect action, BaseDefinition baseDefinition)
+        {
+            if (action.Countered || action.ExecutionFailed) yield break;
+            var targets = action.ActionParams.TargetCharacters.Select(target => target.RulesetCharacter)
+                .Where(target => target != null).Distinct().ToArray();
+            if (targets.Length is < 1 or > 6) yield break;
+            var amount = 120 / targets.Length;
+            foreach (var target in targets)
+            {
+                target.ReceiveTemporaryHitPoints(amount, DurationType.UntilLongRest, 0,
+                    TurnOccurenceType.EndOfTurn, action.ActingCharacter.RulesetCharacter.Guid);
+            }
+        }
+    }
+
+    internal static SpellDefinition BuildReweaveFate()
+    {
+        const string name = "ReweaveFate";
+        var spell = SpellDefinitionBuilder.Create(name)
+            .SetGuiPresentation(Category.Spell, Sprites.GetSprite(name, Resources.ReweaveFate, 128))
+            .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolDivination)
+            .SetSpellLevel(7)
+            .SetCastingTime(ActivationTime.Reaction)
+            .SetMaterialComponent(MaterialComponentType.None)
+            .SetSomaticComponent(true)
+            .SetVerboseComponent(false)
+            .SetVocalSpellSameType(VocalSpellSemeType.Buff)
+            .SetEffectDescription(EffectDescriptionBuilder.Create()
+                .SetTargetingData(Side.All, RangeType.Distance, 12, TargetType.IndividualsUnique)
+                .SetParticleEffectParameters(Guidance)
+                .Build())
+            .AddToDB();
+        spell.AddCustomSubFeatures(new CustomBehaviorReweaveFate(spell));
+        return spell;
+    }
+
+    private sealed class CustomBehaviorReweaveFate(SpellDefinition spell)
+        : ITryAlterOutcomeAttack, ITryAlterOutcomeAttributeCheck, ITryAlterOutcomeSavingThrow, IPowerOrSpellFinishedByMe
+    {
+        private sealed class PendingCast { internal bool Completed; }
+        private readonly Dictionary<ulong, PendingCast> _pending = [];
+        public int HandlerPriority => -10;
+
+        public IEnumerator OnTryAlterOutcomeAttack(GameLocationBattleManager battleManager, CharacterAction action,
+            GameLocationCharacter attacker, GameLocationCharacter defender, GameLocationCharacter helper,
+            ActionModifier actionModifier, RulesetAttackMode attackMode, RulesetEffect rulesetEffect)
+        {
+            if (action.AttackRoll <= 0 || !Failed(action.AttackRollOutcome) || !CanOffer(helper, attacker)) yield break;
+            var original = action.AttackRoll;
+            yield return React(helper, attacker, attacker, battleManager,
+                () => action.AttackRoll == original && Failed(action.AttackRollOutcome), () =>
+                {
+                    var roll = Reroll(attacker.RulesetCharacter, actionModifier.AttackAdvantageTrends);
+                    var delta = TryAlterOutcomeAttack.GetReplacementRollSuccessDelta(action, roll,
+                        defender.RulesetActor, actionModifier, attackMode, rulesetEffect);
+                    var bonus = delta + defender.RulesetActor.GetAttribute(AttributeDefinitions.ArmorClass).CurrentValue - roll;
+                    var result = attacker.RulesetCharacter.ComputeAttackOutcome(defender.RulesetActor,
+                        attackMode?.SourceDefinition ?? rulesetEffect?.SourceDefinition, roll, bonus, 0);
+                    action.AttackRoll = roll;
+                    action.AttackSuccessDelta = result.SuccessDelta;
+                    action.AttackRollOutcome = result.Outcome;
+                    TryAlterOutcomeAttack.WhenOutcomeFinalized(action,
+                        outcome => GrantTemporaryHitPoints(helper, attacker, outcome));
+                });
+        }
+
+        public IEnumerator OnTryAlterAttributeCheck(GameLocationBattleManager battleManager, int rawRoll,
+            AbilityCheckData data, GameLocationCharacter defender, GameLocationCharacter helper)
+        {
+            if (data.CurrentRoll <= 0 || !Failed(data.AbilityCheckRollOutcome) || !CanOffer(helper, defender)) yield break;
+            var original = data.CurrentRoll;
+            yield return React(helper, defender, helper, battleManager,
+                () => data.CurrentRoll == original && Failed(data.AbilityCheckRollOutcome), () =>
+                {
+                    data.ReplaceRoll(Reroll(defender.RulesetCharacter,
+                        data.AbilityCheckActionModifier?.AbilityCheckAdvantageTrends));
+                    data.OutcomeFinalized += outcome => GrantTemporaryHitPoints(helper, defender, outcome);
+                });
+        }
+
+        public IEnumerator OnTryAlterOutcomeSavingThrow(GameLocationBattleManager battleManager,
+            GameLocationCharacter attacker, GameLocationCharacter defender, GameLocationCharacter helper,
+            SavingThrowData data, bool hasHitVisual)
+        {
+            if (data.CurrentRoll <= 0 || !Failed(data.SaveOutcome) || !CanOffer(helper, defender)) yield break;
+            var original = data.CurrentRoll;
+            yield return React(helper, defender, helper, battleManager,
+                () => data.CurrentRoll == original && Failed(data.SaveOutcome), () =>
+                {
+                    data.ReplaceRoll(Reroll(defender.RulesetCharacter,
+                        data.SaveActionModifier?.SavingThrowAdvantageTrends));
+                    data.OutcomeFinalized += outcome => GrantTemporaryHitPoints(helper, defender, outcome);
+                });
+        }
+
+        private static bool Failed(RollOutcome outcome) => outcome is RollOutcome.Failure or RollOutcome.CriticalFailure;
+
+        private bool CanOffer(GameLocationCharacter helper, GameLocationCharacter target)
+        {
+            var caster = helper?.RulesetCharacter;
+            if (caster is not { IsDeadOrDyingOrUnconscious: false } || target?.RulesetCharacter == null ||
+                !helper.CanReact() || !helper.CanSeeTarget(target) ||
+                !MetamagicContext.IsWithinReactionTriggerRange(helper, spell, target) ||
+                !caster.UsableSpells.Contains(spell) || !caster.AreSpellComponentsValid(spell)) return false;
+            var slot = caster.GetLowestSlotLevelAndRepertoireToCastSpell(spell, out var repertoire);
+            return repertoire != null && slot >= spell.SpellLevel;
+        }
+
+        private IEnumerator React(GameLocationCharacter helper, GameLocationCharacter target,
+            GameLocationCharacter waiter, GameLocationBattleManager battleManager, Func<bool> failed, Action reroll)
+        {
+            var pending = new PendingCast();
+            _pending.TryGetValue(helper.Guid, out var previous);
+            _pending[helper.Guid] = pending;
+            try
+            {
+                yield return helper.MyReactToCastSpell(spell, target, waiter, battleManager: battleManager,
+                    reactionDescription: Gui.Format("Reaction/&SpendSpellSlotReweaveFateDescription",
+                        ReactionCharacterNameFormatter.Format(target)),
+                    reactionStillValid: () => failed() && helper.CanSeeTarget(target) &&
+                        MetamagicContext.IsWithinReactionTriggerRange(helper, spell, target));
+                if (pending.Completed && failed()) reroll();
+            }
+            finally
+            {
+                if (_pending.TryGetValue(helper.Guid, out var current) && ReferenceEquals(current, pending))
+                {
+                    _pending.Remove(helper.Guid);
+                    if (previous != null) _pending[helper.Guid] = previous;
+                }
+            }
+        }
+
+        public IEnumerator OnPowerOrSpellFinishedByMe(CharacterActionMagicEffect action, BaseDefinition baseDefinition)
+        {
+            if (!action.Countered && !action.ExecutionFailed && baseDefinition == spell &&
+                _pending.TryGetValue(action.ActingCharacter.Guid, out var pending)) pending.Completed = true;
+            yield break;
+        }
+
+        private int Reroll(RulesetCharacter character, List<TrendInfo> advantageTrends)
+        {
+            // The new advantage cancels any existing disadvantage under the normal D20 rules.
+            var advantage = advantageTrends?.Any(trend => trend.value < 0) == true
+                ? AdvantageType.None : AdvantageType.Advantage;
+            var roll = character.RollDie(DieType.D20, RollContext.None, false, advantage,
+                out var first, out var second);
+            character.ShowDieRoll(DieType.D20, first, second, advantage: advantage,
+                title: spell.GuiPresentation.Title);
+            return roll;
+        }
+
+        private static void GrantTemporaryHitPoints(GameLocationCharacter caster, GameLocationCharacter target,
+            RollOutcome outcome)
+        {
+            if (outcome is not (RollOutcome.Success or RollOutcome.CriticalSuccess)) return;
+            var amount = 0;
+            for (var i = 0; i < 6; i++) amount += RollDie(DieType.D10, AdvantageType.None, out _, out _);
+            target.RulesetCharacter.ReceiveTemporaryHitPoints(amount, DurationType.UntilLongRest, 0,
+                TurnOccurenceType.EndOfTurn, caster.RulesetCharacter.Guid);
+        }
+    }
+
     #region Simulacrum
 
     internal const string SimulacrumName = "Simulacrum";

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -30,6 +30,160 @@ namespace SolastaUnfinishedBusiness.Spells;
 
 internal static partial class SpellBuilders
 {
+    #region Flesh to Stone
+
+    internal static SpellDefinition BuildFleshToStone()
+    {
+        const string name = "FleshToStone";
+        var petrifying = ConditionDefinitionBuilder.Create(ConditionDefinitions.ConditionRestrained, "ConditionFleshToStoneRestrained")
+            .SetParentCondition(ConditionDefinitions.ConditionRestrained)
+            .SetFixedAmount(1)
+            .AddToDB();
+        petrifying.terminateWhenRemoved = true;
+        var nativePetrified = DatabaseRepository.GetDatabase<ConditionDefinition>().GetElement("ConditionPetrified");
+        if (nativePetrified.Features.Count == 0)
+        {
+            // Complete the shared native condition used by restoration effects.
+            nativePetrified.parentCondition = ConditionDefinitions.ConditionIncapacitated;
+            nativePetrified.features.AddRange(ConditionDefinitions.ConditionIncapacitated.Features);
+            nativePetrified.features.AddRange(ConditionDefinitions.ConditionStunned.Features);
+            foreach (var damageType in new[]
+                     {
+                         DamageTypeAcid, DamageTypeCold, DamageTypeFire, DamageTypeForce, DamageTypeLightning,
+                         DamageTypeNecrotic, DamageTypePoison, DamageTypePsychic, DamageTypeRadiant, DamageTypeThunder,
+                         DamageTypeBludgeoning, DamageTypePiercing, DamageTypeSlashing
+                     })
+            {
+                var suffix = damageType is DamageTypeBludgeoning or DamageTypePiercing or DamageTypeSlashing
+                    ? "ResistanceTrue" : "Resistance";
+                if (!DatabaseRepository.GetDatabase<FeatureDefinitionDamageAffinity>()
+                        .TryGetElement($"DamageAffinity{damageType}{suffix}", out var resistance))
+                {
+                    resistance = FeatureDefinitionDamageAffinityBuilder
+                        .Create($"DamageAffinityFleshToStone{damageType}Resistance")
+                        .SetGuiPresentationNoContent(true)
+                        .SetDamageType(damageType)
+                        .SetDamageAffinityType(DamageAffinityType.Resistance)
+                        .AddToDB();
+                }
+                nativePetrified.features.Add(resistance);
+            }
+            nativePetrified.features.Add(FeatureDefinitionConditionAffinitys.ConditionAffinityPoisonImmunity);
+        }
+        nativePetrified.GuiPresentation.description = "Condition/&Petrified2024Description";
+        nativePetrified.GuiPresentation.spriteReference =
+            Sprites.GetSprite("ConditionPetrified2024", Resources.Petrified, 64);
+        var petrified = ConditionDefinitionBuilder.Create(nativePetrified, "ConditionFleshToStonePetrified")
+            .SetParentCondition(nativePetrified)
+            .AddToDB();
+        petrified.terminateWhenRemoved = true;
+        var slowed = ConditionDefinitionBuilder.Create("ConditionFleshToStoneSlowed")
+            .SetGuiPresentation("Condition/&FleshToStoneSlowedTitle", "Condition/&FleshToStoneSlowedDescription",
+                ConditionDefinitions.ConditionSlowed)
+            .SetFeatures(FeatureDefinitionMovementAffinitys.MovementAffinityConditionRestrained)
+            .SetSpecialDuration(DurationType.Round, 0,
+                (TurnOccurenceType)ExtraTurnOccurenceType.StartOfSourceTurn)
+            .AddToDB();
+        var behavior = new CustomBehaviorFleshToStone(petrifying, petrified, slowed);
+        petrifying.AddCustomSubFeatures(behavior);
+        return SpellDefinitionBuilder.Create(name)
+            .SetGuiPresentation(Category.Spell,
+                Sprites.GetSprite(name, Resources.FleshToStone, 128))
+            .SetSchoolOfMagic(SchoolOfMagicDefinitions.SchoolTransmutation)
+            .SetSpellLevel(6)
+            .SetCastingTime(ActivationTime.Action)
+            .SetMaterialComponent(MaterialComponentType.Mundane)
+            .SetSomaticComponent(true)
+            .SetVerboseComponent(true)
+            .SetVocalSpellSameType(VocalSpellSemeType.Debuff)
+            .SetRequiresConcentration(true)
+            .SetEffectDescription(EffectDescriptionBuilder.Create()
+                .SetDurationData(DurationType.Minute, 1)
+                .SetTargetingData(Side.All, RangeType.Distance, 12, TargetType.IndividualsUnique)
+                .SetSavingThrowData(false, AttributeDefinitions.Constitution, true,
+                    EffectDifficultyClassComputation.SpellCastingFeature)
+                .SetEffectForms(EffectFormBuilder.Create()
+                    .HasSavingThrow(EffectSavingThrowType.Negates, TurnOccurenceType.EndOfTurn, true)
+                    .SetConditionForm(petrifying, ConditionForm.ConditionOperation.Add).Build())
+                .SetParticleEffectParameters(Slow)
+                .Build())
+            .AddCustomSubFeatures(behavior)
+            .AddToDB();
+    }
+
+    private sealed class CustomBehaviorFleshToStone(
+        ConditionDefinition petrifying, ConditionDefinition petrified, ConditionDefinition slowed)
+        : IConditionSavingThrowResolved, IOnBeforeEffectTerminated, ISavingThrowOutcomeFinalized,
+            IAutomaticSavingThrowOutcome
+    {
+        public void OnConditionSavingThrowResolved(RulesetEffect effect, RulesetActor target,
+            RulesetCondition condition, bool success)
+        {
+            if (effect.Terminated || condition.ConditionDefinition != petrifying) return;
+            // The initial failed save counts once. Both counters are native serialized condition data.
+            var successes = Math.Min(3, condition.Amount / 4 + (success ? 1 : 0));
+            var failures = Math.Min(3, condition.Amount % 4 + (success ? 0 : 1));
+            condition.amount = successes * 4 + failures;
+            if (successes >= 3)
+            {
+                target.RemoveCondition(condition);
+            }
+            else if (failures >= 3)
+            {
+                var source = EffectHelpers.GetCharacterByGuid(effect.SourceGuid);
+                var stone = target.InflictCondition(petrified.Name, DurationType.Permanent,
+                    0, TurnOccurenceType.EndOfTurn, AttributeDefinitions.TagEffect,
+                    effect.SourceGuid, condition.SourceFactionName, effect.EffectLevel,
+                    effect.GetSourceDefinitionSafe().Name, 0, 0, 0);
+                if (stone == null) return;
+                // Becoming incapacitated can end the caster's own concentration during InflictCondition.
+                if (effect.Terminated)
+                {
+                    target.RemoveCondition(stone);
+                    return;
+                }
+                effect.TrackCondition(source, effect.SourceGuid, target, target.Guid, stone, AttributeDefinitions.TagEffect);
+                condition.doNotTerminateWhenRemoved = true;
+                target.RemoveCondition(condition);
+            }
+        }
+
+        public void OnBeforeEffectTerminated(RulesetEffect activeEffect)
+        {
+            if (!activeEffect.EndOfDurationReached) return;
+            foreach (var guid in activeEffect.TrackedConditionGuids.ToArray())
+            {
+                if (!RulesetEntity.TryGetEntity<RulesetCondition>(guid, out var condition) ||
+                    condition.ConditionDefinition != petrified) continue;
+                // Detach the completed transformation before native concentration cleanup removes its targets.
+                activeEffect.TrackedConditionGuids.Remove(guid);
+                condition.durationType = DurationType.Permanent;
+                condition.durationParameter = 0;
+                condition.remainingRounds = 0;
+                condition.doNotTerminateWhenRemoved = true;
+            }
+        }
+
+        public void OnSavingThrowOutcomeFinalized(RulesetEffect effect, GameLocationCharacter target,
+            SavingThrowData savingThrowData)
+        {
+            if (savingThrowData.IsFailedSavingThrowOutcome()) return;
+            // This applies only to the initial spell save, after reactions have resolved it.
+            target.RulesetCharacter.InflictCondition(slowed.Name, DurationType.Round, 0,
+                (TurnOccurenceType)ExtraTurnOccurenceType.StartOfSourceTurn, AttributeDefinitions.TagEffect,
+                effect.SourceGuid, EffectHelpers.GetCharacterByGuid(effect.SourceGuid)?.CurrentFaction.Name,
+                effect.EffectLevel, effect.GetSourceDefinitionSafe().Name, 0, 0, 0);
+        }
+
+        public bool TryGetAutomaticOutcome(RulesetEffect effect, RulesetActor target, out RollOutcome outcome)
+        {
+            outcome = RollOutcome.Success;
+            return target is RulesetCharacter { CharacterFamily: "Construct" };
+        }
+    }
+
+    #endregion
+
     #region Mystical Cloak
 
     internal static SpellDefinition BuildMysticalCloak()

@@ -3,6 +3,7 @@ using System.Collections;
 using System.Linq;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using static RuleDefinitions;
@@ -27,8 +28,23 @@ internal delegate bool TryRollSavingThrowDelegate(
     out RollOutcome saveOutcome,
     out int saveOutcomeDelta);
 
+internal interface ISavingThrowOutcomeFinalized
+{
+    void OnSavingThrowOutcomeFinalized(RulesetEffect effect, GameLocationCharacter target,
+        SavingThrowData savingThrowData);
+}
+
 public sealed class SavingThrowData
 {
+    internal Action<RollOutcome> OutcomeFinalized;
+
+    internal void CompleteOutcome()
+    {
+        var callbacks = OutcomeFinalized;
+        OutcomeFinalized = null;
+        callbacks?.Invoke(SaveOutcome);
+    }
+
     public RollOutcome SaveOutcome { get; set; }
     public int SaveOutcomeDelta { get; set; }
     public int CurrentRoll { get; set; }
@@ -108,6 +124,13 @@ internal static class TryAlterOutcomeSavingThrow
             }
         }
 
+        savingThrowData.CompleteOutcome();
+        var sourceEffect = savingThrowData.SourceEffect ?? savingThrowData.Action?.ActionParams.RulesetEffect;
+        foreach (var handler in sourceEffect?.GetSourceDefinitionSafe()
+                     ?.GetAllSubFeaturesOfType<ISavingThrowOutcomeFinalized>() ?? [])
+        {
+            handler.OnSavingThrowOutcomeFinalized(sourceEffect, defender, savingThrowData);
+        }
         defender.RulesetActor.GrantConditionOnSavingThrowOutcome(effectDescription, savingThrowData.SaveOutcome, true);
         MetamagicContext.CompleteHeightenedSavingThrow(MetamagicContext.GetSavingThrowSpell(
             attacker?.RulesetCharacter, savingThrowData.SourceDefinition, savingThrowData.SavingThrowForms ?? effectDescription?.EffectForms,

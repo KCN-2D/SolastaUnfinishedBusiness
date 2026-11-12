@@ -134,6 +134,7 @@ public static class GraphicsCharacterPatcher
             {
                 RacesContext.RefreshCharacterModels(__instance);
                 RacesContext.RefreshBodyShape(__instance);
+                CustomModels.ReapplyEquipmentPoses(__instance);
             }
         }
 
@@ -289,6 +290,7 @@ public static class GraphicsCharacterPatcher
         {
             CustomModels.RefreshWieldedItemPresentations(__instance);
             CombatAnimationContext.RefreshEquipmentPresentation(__instance);
+            CustomModels.ReapplyEquipmentPoses(__instance);
         }
     }
 

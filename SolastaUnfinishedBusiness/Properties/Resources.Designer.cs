@@ -7341,5 +7341,33 @@ namespace SolastaUnfinishedBusiness.Properties {
                 return ((byte[])(obj));
             }
         }
+        internal static byte[] FleshToStone {
+            get {
+                object obj = ResourceManager.GetObject("FleshToStone", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        internal static byte[] Petrified {
+            get {
+                object obj = ResourceManager.GetObject("Petrified", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        internal static byte[] PowerWordFortify {
+            get {
+                object obj = ResourceManager.GetObject("PowerWordFortify", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
+        internal static byte[] ReweaveFate {
+            get {
+                object obj = ResourceManager.GetObject("ReweaveFate", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
+
     }
 }

@@ -86,6 +86,15 @@ internal static class RulesetActorExtensions
     internal static int SaveBonusAndRollModifier { get; private set; }
     internal static string SavingThrowAbility { get; private set; }
 
+    internal static void RecordAutomaticSavingThrow(string ability, int dc)
+    {
+        SaveRoll = 0;
+        SaveMinimumResult = int.MinValue;
+        SaveBonusAndRollModifier = 0;
+        SaveDC = dc;
+        SavingThrowAbility = ability;
+    }
+
     internal static void MyRollSavingThrow(
         this RulesetActor rulesetActorTarget,
         RulesetCharacter rulesetActorCaster,

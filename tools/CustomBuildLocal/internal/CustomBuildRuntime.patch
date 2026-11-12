@@ -87,17 +87,17 @@ diff --git a/SolastaUnfinishedBusiness/Models/UpdateContext.cs b/SolastaUnfinish
 +
          if (InProgress) { return; }
  
-         ShowMessage($"Would you like to rollback to {PreviousVersion}?",
+         ShowMessage(Gui.Format("Message/&ModRollbackDescription", PreviousVersion),
 @@ -428,6 +471,12 @@ internal static class UpdateContext
              "Message/&MessageCancelTitle");
      }
  
 +    private static void DisplayCustomBuildUpdateDisabledMessage()
 +    {
-+        ShowMessage("This is a custom build. Official update / rollback is disabled to avoid overwriting local changes.",
++        ShowMessage("Message/&ModCustomBuildUpdateDescription",
 +            "Message/&MessageOkTitle");
 +    }
 +
      private static void DisplayUpdateMessage()
      {
-         ShowMessage($"Version {LatestVersion} is now available. Open Mod UI > Gameplay > General to update.",
+         ShowMessage(Gui.Format("Message/&ModUpdateAvailableDescription", LatestVersion),

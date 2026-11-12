@@ -38,6 +38,14 @@ public static partial class Tabletop2024Context
                 };
                 CantripInvocationFeatures2014.Add(original, original.GrantedFeature);
                 CantripInvocationDescriptions2014.Add(original, original.GuiPresentation.Description);
+                var originalTitle = original.GuiPresentation.Title;
+                var titleKey = $"Invocation/&{kind}2024Title";
+                original.AddCustomSubFeatures(
+                    new InvocationDefinitionWithPrerequisites.KnownSpellClass(() =>
+                        Main.Settings.EnableWarlockInvocationProgression2024 ? Warlock : null),
+                    new FormattedDefinitionText(title: () => Main.Settings.EnableWarlockInvocationProgression2024
+                        ? Gui.Format("Invocation/&CantripChoiceTitle", Gui.Localize(titleKey), EldritchBlast.FormatTitle())
+                        : Gui.Localize(originalTitle)));
 
                 foreach (var spell in DatabaseRepository.GetDatabase<SpellDefinition>()
                              .Where(spell => spell.SpellLevel == 0 && IsCantripEligible(spell, kind)).ToArray())
@@ -55,18 +63,11 @@ public static partial class Tabletop2024Context
 
                     var invocation = InvocationDefinitionWithPrerequisitesBuilder
                         .Create($"Invocation{kind}2024{spell.Name}")
-                        .SetGuiPresentation(original.GuiPresentation.Title, $"Invocation/&{kind}2024Description", original)
-                        .SetRequirements(2, spell: spell)
+                        .SetGuiPresentation(titleKey, $"Invocation/&{kind}2024Description", original)
+                        .SetRequirements(2, spell: spell, spellcastingClass: Warlock)
                         .SetGrantedFeature(feature)
-                        .SetValidators((_, hero) =>
-                        {
-                            var valid = hero == null || hero.SpellRepertoires.Any(repertoire =>
-                                repertoire.SpellCastingClass == Warlock && repertoire.HasKnowledgeOfSpell(spell));
-                            var text = Gui.Format("Failure/&InvocationRequiresWarlockCantrip", spell.FormatTitle());
-                            return (valid, valid ? string.Empty : Gui.Colorize(text, Gui.ColorFailure));
-                        })
                         .AddCustomSubFeatures(new FormattedDefinitionText(title: () => Gui.Format(
-                            "Invocation/&CantripChoiceTitle", original.FormatTitle(), spell.FormatTitle())))
+                            "Invocation/&CantripChoiceTitle", Gui.Localize(titleKey), spell.FormatTitle())))
                         .AddToDB();
                     CantripInvocations2024.Add(invocation);
                 }
@@ -96,16 +97,22 @@ public static partial class Tabletop2024Context
     private static bool IsCantripEligible(SpellDefinition spell, CantripInvocationKind kind)
     {
         var effect = spell.EffectDescription;
+        var dealsDamage = effect.EffectForms.Any(form => form.FormType == EffectForm.EffectFormType.Damage) ||
+                          spell.HasSubFeatureOfType<AttackAfterMagicEffect>();
         return kind switch
         {
-            CantripInvocationKind.Agonizing => effect.EffectForms.Any(form => form.FormType == EffectForm.EffectFormType.Damage),
-            CantripInvocationKind.Spear => effect.RangeType is RangeType.Distance or RangeType.RangeHit && effect.RangeParameter >= 2,
-            _ => effect.RangeType is RangeType.RangeHit or RangeType.MeleeHit
+            CantripInvocationKind.Agonizing => dealsDamage,
+            CantripInvocationKind.Spear => dealsDamage &&
+                !spell.HasSubFeatureOfType<AttackAfterMagicEffect>() &&
+                effect.RangeType is RangeType.Distance or RangeType.RangeHit && effect.RangeParameter >= 2,
+            _ => dealsDamage && (effect.RangeType is RangeType.RangeHit or RangeType.MeleeHit ||
+                                 spell.HasSubFeatureOfType<AttackAfterMagicEffect>())
         };
     }
 
     private sealed class CustomBehaviorCantripInvocation(SpellDefinition spell, CantripInvocationKind kind)
-        : IModifyEffectDescription, IMagicEffectBeforeHitConfirmedOnEnemy
+        : IModifyEffectDescription, IMagicEffectBeforeHitConfirmedOnEnemy, IModifyAttackAfterMagicEffect,
+            IPhysicalAttackBeforeHitConfirmedOnEnemy
     {
         public bool IsValid(BaseDefinition definition, RulesetCharacter character, EffectDescription effectDescription)
         {
@@ -134,12 +141,53 @@ public static partial class Tabletop2024Context
             return effectDescription;
         }
 
+        public void ModifyAttack(RulesetEffect effect, RulesetCharacter caster, RulesetAttackMode attackMode)
+        {
+            if (!Main.Settings.EnableWarlockInvocationProgression2024 || kind != CantripInvocationKind.Agonizing ||
+                effect.SourceDefinition != spell)
+            {
+                return;
+            }
+
+            var damage = attackMode.EffectDescription.EffectForms
+                .FirstOrDefault(form => form.FormType == EffectForm.EffectFormType.Damage)?.DamageForm;
+            if (damage != null)
+            {
+                damage.BonusDamage += AttributeDefinitions.ComputeAbilityScoreModifier(
+                    caster.TryGetAttributeValue(AttributeDefinitions.Charisma));
+            }
+        }
+
         public IEnumerator OnMagicEffectBeforeHitConfirmedOnEnemy(GameLocationBattleManager battleManager,
             GameLocationCharacter attacker, GameLocationCharacter defender, ActionModifier actionModifier,
             RulesetEffect rulesetEffect, List<EffectForm> actualEffectForms, bool firstTarget, bool criticalHit)
         {
+            if (rulesetEffect.SourceDefinition != spell || spell.HasSubFeatureOfType<AttackAfterMagicEffect>())
+            {
+                yield break;
+            }
+
+            yield return ReactToPush(battleManager, attacker, defender, actualEffectForms);
+        }
+
+        public IEnumerator OnPhysicalAttackBeforeHitConfirmedOnEnemy(GameLocationBattleManager battleManager,
+            GameLocationCharacter attacker, GameLocationCharacter defender, ActionModifier actionModifier,
+            RulesetAttackMode attackMode, bool rangedAttack, AdvantageType advantageType,
+            List<EffectForm> actualEffectForms, bool firstTarget, bool criticalHit)
+        {
+            if (OnHitEffectContext.GetOriginatingMagicEffect(attacker, attackMode)?.SourceDefinition != spell)
+            {
+                yield break;
+            }
+
+            yield return ReactToPush(battleManager, attacker, defender, actualEffectForms);
+        }
+
+        private IEnumerator ReactToPush(GameLocationBattleManager battleManager, GameLocationCharacter attacker,
+            GameLocationCharacter defender, List<EffectForm> actualEffectForms)
+        {
             if (!Main.Settings.EnableWarlockInvocationProgression2024 || kind != CantripInvocationKind.Repelling ||
-                rulesetEffect.SourceDefinition != spell || defender.RulesetCharacter.WieldingSize > CreatureSize.Large)
+                defender.RulesetCharacter.WieldingSize > CreatureSize.Large)
             {
                 yield break;
             }

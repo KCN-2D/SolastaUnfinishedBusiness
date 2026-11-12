@@ -1184,7 +1184,7 @@ $before | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $report -Encoding 
 
 function Invoke-StorageJournalContracts([hashtable]$Sources,[string]$OutputDirectory) {
     $savedJournalScope=@{}
-    foreach($name in @('GameTestRepo','GameTestBuildRoot','GameTestArtifactRoot','GtValidatedDirectories')) {
+    foreach($name in @('GameTestRepo','GameTestBuildRoot','GameTestArtifactRoot','AssetAuthoringWorkspace','GtValidatedDirectories')) {
         $savedJournalScope[$name]=Get-Variable -Name $name -Scope Script -ValueOnly
     }
     try {
@@ -1370,7 +1370,7 @@ function Get-VerificationProcessState {
 '@)
     foreach ($child in @('artifacts','Cases','Scenarios')) { [void][IO.Directory]::CreateDirectory((Join-Path $tool $child)) }
     $saved=@{}
-    foreach ($name in @('GameTestRepo','GameTestBuildRoot','GameTestArtifactRoot','GtValidatedDirectories')) {
+    foreach ($name in @('GameTestRepo','GameTestBuildRoot','GameTestArtifactRoot','AssetAuthoringWorkspace','GtValidatedDirectories')) {
         $saved[$name]=Get-Variable -Name $name -Scope Script -ValueOnly
     }
     try {
@@ -1521,8 +1521,8 @@ function Get-VerificationProcessState {
             Add-StorageCheck 'loose artifact retirement refuses output changed after selection' ((Test-StorageRejection {Invoke-StorageCleanup $looseRoot -Options $looseOptions -Preserve @($preservedLog) -Apply}) -and (Test-Path -LiteralPath $changingLog))
         }finally{Clear-StorageQueryMutation}
 
-        function New-GeneratedPayloadFixture([string]$Name) {
-            $area=Join-Path $script:GameTestArtifactRoot ('generated-'+$Name)
+        function New-GeneratedPayloadFixture([string]$Name,[string]$Root=$script:GameTestArtifactRoot) {
+            $area=if($Root -eq $script:AssetAuthoringWorkspace){$Root}else{Join-Path $Root ('generated-'+$Name)}
             $payloadRoot=Join-Path $area 'Retired'
             [void][IO.Directory]::CreateDirectory($payloadRoot)
             $first=Join-Path $payloadRoot 'packet[1].bin'
@@ -1545,6 +1545,16 @@ function Get-VerificationProcessState {
         $retainedHash=Get-GtHash $payload.retained
         $applied=Invoke-StorageCleanup $payload.area -Options $options -Apply
         Add-StorageCheck 'generated payload apply retires only selected data and keeps referenced bytes' (-not(Test-Path -LiteralPath $payload.first) -and -not(Test-Path -LiteralPath $payload.second) -and (Get-GtHash $payload.retained) -ceq $retainedHash -and @($applied.actions|Where-Object applied -eq $true).Count -eq 2)
+        $assetPayload=New-GeneratedPayloadFixture 'asset-workspace' -Root $script:AssetAuthoringWorkspace
+        $assetOptions=@{GeneratedPayloadPlanPath=$assetPayload.plan;ReferencePath=@($assetPayload.reference)}
+        $assetPreview=Invoke-StorageCleanup $assetPayload.area -Options $assetOptions
+        Add-StorageCheck 'asset-authoring workspace payloads support preview with explicit ownership and references' ((Test-Path -LiteralPath $assetPayload.first) -and -not $assetPreview.applied)
+        $assetApplied=Invoke-StorageCleanup $assetPayload.area -Options $assetOptions -Apply
+        Add-StorageCheck 'asset-authoring workspace retires only declared payloads and retains source references' (-not(Test-Path -LiteralPath $assetPayload.first) -and (Test-Path -LiteralPath $assetPayload.retained) -and $assetApplied.applied)
+        Add-StorageCheck 'asset-authoring workspace rejects ordinary run pruning' (Test-StorageRejection {Invoke-StorageCleanup $assetPayload.area -Prune -Apply})
+        Add-StorageCheck 'asset-authoring workspace rejects loose-file cleanup' (Test-StorageRejection {Invoke-StorageCleanup $assetPayload.area -Options @{PruneLooseFiles=$true} -Apply})
+        $outsidePayload=New-GeneratedPayloadFixture 'outside-owned' -Root (Join-Path $workspace 'Other')
+        Add-StorageCheck 'generated payload plans cannot authorize an unrelated directory' ((Test-StorageRejection {Invoke-StorageCleanup $outsidePayload.area -Options @{GeneratedPayloadPlanPath=$outsidePayload.plan;ReferencePath=@($outsidePayload.reference)} -Apply}) -and (Test-Path -LiteralPath $outsidePayload.first))
         $scopedPayload=New-GeneratedPayloadFixture 'unrelated-link'
         $linkTarget=Join-Path $workspace 'UnrelatedPayloadTarget';[void][IO.Directory]::CreateDirectory($linkTarget)
         $linkSentinel=Join-Path $linkTarget 'keep.bin';[IO.File]::WriteAllText($linkSentinel,'unrelated input')

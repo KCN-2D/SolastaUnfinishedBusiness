@@ -1802,6 +1802,7 @@ public static class RulesetCharacterPatcher
             [NotNull] RulesetCharacter __instance,
             [HarmonyArgument(3)] List<TrendInfo> modifierTrends,
             [HarmonyArgument(4)] List<TrendInfo> advantageTrends,
+            [HarmonyArgument(6)] int minRoll,
             [HarmonyArgument(7)] bool passive,
             [HarmonyArgument(9)] int rawRoll,
             [HarmonyArgument(12)] RollOutcome outcome,
@@ -1812,6 +1813,7 @@ public static class RulesetCharacterPatcher
                 return;
             }
 
+            TryAlterOutcomeAttributeCheck.RecordMinimumRoll(modifierTrends, minRoll);
             foreach (var handler in __instance.GetSubFeaturesByType<IAttributeCheckRolledByMe>())
             {
                 handler.OnAttributeCheckRolled(

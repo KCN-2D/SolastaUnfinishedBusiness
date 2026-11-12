@@ -118,6 +118,9 @@ internal static class SpellsContext
     internal static readonly SpellDefinition PetalStorm = BuildPetalStorm();
     internal static readonly SpellDefinition PowerWordHeal = BuildPowerWordHeal();
     internal static readonly SpellDefinition PowerWordKill = BuildPowerWordKill();
+    internal static readonly SpellDefinition PowerWordFortify = BuildPowerWordFortify();
+    internal static readonly SpellDefinition ReweaveFate = BuildReweaveFate();
+    internal static readonly SpellDefinition FleshToStone = BuildFleshToStone();
     internal static readonly SpellDefinition PsychicLance = BuildPsychicLance();
     internal static readonly SpellDefinition PsychicWhip = BuildPsychicWhip();
     internal static readonly SpellDefinition PulseWave = BuildPulseWave();
@@ -533,6 +536,7 @@ internal static class SpellsContext
         RegisterSpell(Telekinesis, 0, SpellListSorcerer, SpellListWizard);
 
         // 6th level
+        RegisterSpell(FleshToStone, 0, SpellListDruid, SpellListSorcerer, SpellListWizard);
         RegisterSpell(BuildFlashFreeze(), 0, SpellListDruid, SpellListSorcerer, SpellListWarlock);
         RegisterSpell(GravityFissure, 0, SpellListWizard);
         RegisterSpell(BuildHeroicInfusion(), 0, SpellListWizard);
@@ -544,6 +548,12 @@ internal static class SpellsContext
         RegisterSpell(BuildShelterFromEnergy(), 0, SpellListCleric, SpellListDruid, SpellListSorcerer, SpellListWizard);
 
         // 7th level
+        foreach (var spell in new[] { PowerWordFortify, ReweaveFate })
+        {
+            SpellsAvailableWithSpellLists2024Only.Add(spell);
+            SpellsRequiredWithSpellLists2024Only.Add(spell);
+            RegisterSpell(spell);
+        }
         RegisterSpell(BuildCrownOfStars(), 0, SpellListSorcerer, SpellListWarlock, SpellListWizard);
         RegisterSpell(BuildDraconicTransformation(), 0, SpellListDruid, SpellListSorcerer, SpellListWizard);
         RegisterSpell(BuildRescueTheDying(), 0, SpellListCleric, SpellListDruid);

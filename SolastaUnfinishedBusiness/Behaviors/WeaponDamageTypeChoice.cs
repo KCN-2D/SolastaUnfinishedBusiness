@@ -6,7 +6,6 @@ using SolastaUnfinishedBusiness.Api.GameExtensions;
 using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Builders.Features;
-using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
 using SolastaUnfinishedBusiness.Validators;
 using static RuleDefinitions;
@@ -98,7 +97,6 @@ internal sealed class WeaponDamageTypeChoice(
                 .ToHashSet();
             var powers = _choices.Where(choice => availableTypes.Contains(choice.Value))
                 .Select(choice => PowerProvider.Get(choice.Key, character))
-                .Where(power => !character.UsablePowers.Contains(power))
                 .ToArray();
 
             if (powers.Length == 0)
@@ -106,34 +104,31 @@ internal sealed class WeaponDamageTypeChoice(
                 yield break;
             }
 
-            character.UsablePowers.AddRange(powers);
+            var added = powers.Where(power => !character.UsablePowers.Contains(power)).ToArray();
+            character.UsablePowers.AddRange(added);
 
             try
             {
-                yield return attacker.MyReactToSpendPowerBundle(
-                    PowerProvider.Get(_pool, character), [attacker], attacker, ChoiceName,
-                    reactionValidated: ReactionValidated, battleManager: battleManager);
+                yield return attacker.MyReactToSelectPowerBundle(
+                    PowerProvider.Get(_pool, character), attacker, ChoiceName, 1, () => 1,
+                    selected =>
+                    {
+                        if (_choices.TryGetValue(selected[0], out var type) && availableTypes.Contains(type))
+                            damage.DamageType = type;
+                    },
+                    () => !character.IsDeadOrDyingOrUnconscious && availableTypes.Count != 0,
+                    executeSelectedPowers: false,
+                    powerFilter: power => _choices.TryGetValue(power, out var type) && availableTypes.Contains(type),
+                    waiter: attacker);
             }
             finally
             {
-                foreach (var power in powers)
+                foreach (var power in added)
                 {
                     character.UsablePowers.Remove(power);
                 }
             }
 
-            yield break;
-
-            void ReactionValidated(ReactionRequestSpendBundlePower request)
-            {
-                if (request.ReactionParams.RulesetEffect is RulesetEffectPower effect &&
-                    _choices.TryGetValue(effect.PowerDefinition, out var damageType) &&
-                    availableTypes.Contains(damageType))
-                {
-                    // These are the per-attack forms, not the reusable attack mode or item definition.
-                    damage.DamageType = damageType;
-                }
-            }
         }
     }
 }

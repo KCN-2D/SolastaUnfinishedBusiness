@@ -1542,6 +1542,7 @@ public static class CharacterActionMagicEffectPatcher
                 __instance.isResultingActionSpendPowerWithMotionForm = false;
 
                 //PATCH: support for `ITryAlterOutcomeAttack`
+                using var outcomeScope = TryAlterOutcomeAttack.BeginOutcomeFinalization(__instance);
                 foreach (var tryAlterOutcomeAttack in TryAlterOutcomeAttack.HandlerNegativePriority(
                              battleManager, __instance, actingCharacter, target, actionModifier, null,
                              rulesetEffect))
@@ -1596,6 +1597,8 @@ public static class CharacterActionMagicEffectPatcher
                         __instance.AttackRollOutcome = outcome;
                         __instance.AttackSuccessDelta = successDelta;
                     }
+
+                    outcomeScope.Complete();
 
                     // Is this still a success?
                     if (__instance.AttackRollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess)

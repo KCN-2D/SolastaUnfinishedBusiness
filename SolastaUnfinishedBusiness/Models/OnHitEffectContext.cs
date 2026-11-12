@@ -82,9 +82,18 @@ internal static class OnHitEffectContext
         _damageFormScope?.Notify(target, damage, damageType, sourceGuid);
     }
 
-    internal static Scope TrackAttack(CharacterActionAttack action)
+    internal static Scope TrackAttack(CharacterActionAttack action, RulesetEffect originatingMagicEffect = null)
     {
-        return new Scope(action);
+        return new Scope(action, originatingMagicEffect);
+    }
+
+    internal static RulesetEffect GetOriginatingMagicEffect(
+        GameLocationCharacter attacker, RulesetAttackMode attackMode)
+    {
+        return ActionScopes.TryGetValue(attacker.GetEffectControllerOrSelf(), out var scope) &&
+               scope.Action is CharacterActionAttack && scope.Action.ActionParams.AttackMode == attackMode
+            ? scope.OriginatingMagicEffect
+            : null;
     }
 
     internal static bool NeedsReactionConfirmation(CharacterAction action)
@@ -383,9 +392,10 @@ internal static class OnHitEffectContext
         private readonly Dictionary<BaseDefinition, GameLocationCharacter> _selectedTargets = [];
         private readonly Dictionary<GameLocationCharacter, HashSet<FeatureDefinitionReduceDamage>> _damageReductions = [];
 
-        internal Scope(CharacterAction action)
+        internal Scope(CharacterAction action, RulesetEffect originatingMagicEffect = null)
         {
             Action = action;
+            OriginatingMagicEffect = originatingMagicEffect;
             _attacker = action.ActingCharacter.GetEffectControllerOrSelf();
             ActionScopes.TryGetValue(_attacker, out _previousAction);
             ActionScopes.Remove(_attacker);
@@ -401,6 +411,8 @@ internal static class OnHitEffectContext
         }
 
         internal CharacterAction Action { get; }
+
+        internal RulesetEffect OriginatingMagicEffect { get; }
 
         internal bool HasMultipleTargets => Action.ActionParams.TargetCharacters
             .Where(target => target?.RulesetCharacter != null)

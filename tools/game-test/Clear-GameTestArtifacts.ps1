@@ -35,9 +35,13 @@ function Test-ArtifactEnvironment([string]$Path) {
 }
 if (-not $ArtifactRoot) { $ArtifactRoot=$script:GameTestArtifactRoot }
 $root=Get-GtPath $ArtifactRoot
-if (-not (Test-GtWithin $root $script:GameTestArtifactRoot)) { throw 'Cleanup is limited to tools/game-test/artifacts.' }
+if (-not (Test-GtWithin $root $script:GameTestArtifactRoot)) {
+    if (-not $GeneratedPayloadPlanPath -or $root -ne (Get-GtPath $script:AssetAuthoringWorkspace)) {
+        throw 'Outside artifacts, only declared generated payloads in the asset-authoring workspace can be retired.'
+    }
+}
 $ancestor=$root
-while ($ancestor -ne $script:GameTestArtifactRoot) {
+while ($ancestor -and $ancestor -ne $script:GameTestArtifactRoot -and $ancestor -ne $script:AssetAuthoringWorkspace) {
     if (Test-ArtifactEnvironment $ancestor) { throw 'Copied tool environments must be cleaned by their own tools.' }
     $ancestor=Split-Path -Parent $ancestor
 }

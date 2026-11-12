@@ -499,7 +499,7 @@ public sealed class CircleOfTheWildfire : AbstractSubclass
     {
         var battleManager = ServiceRepository.GetService<IGameLocationBattleService>() as GameLocationBattleManager;
 
-        if (!battleManager ||
+        if (!battleManager || character == null || character.RulesetCharacter == null ||
             (character.RulesetCharacter is RulesetCharacterEffectProxy proxy &&
              proxy.EffectProxyDefinition == EffectProxyCauterizingFlames))
         {
@@ -518,6 +518,11 @@ public sealed class CircleOfTheWildfire : AbstractSubclass
         {
             var rulesetProxy = cauterizingFlamesProxy.RulesetActor as RulesetCharacterEffectProxy;
             var rulesetSource = EffectHelpers.GetCharacterByGuid(rulesetProxy!.ControllerGuid);
+            if (rulesetSource == null)
+            {
+                continue;
+            }
+
             var usablePower = PowerProvider.Get(PowerCauterizingFlames, rulesetSource);
             var source = GameLocationCharacter.GetFromActor(rulesetSource);
 

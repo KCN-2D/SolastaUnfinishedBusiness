@@ -1,5 +1,6 @@
 ﻿using System;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.Api.GameExtensions;
 
 namespace SolastaUnfinishedBusiness.Builders;
 
@@ -27,11 +28,17 @@ internal class InvocationDefinitionBuilder<TDefinition, TBuilder> : DefinitionBu
 {
     internal TBuilder SetRequirements(int level = 1,
         SpellDefinition spell = null,
-        FeatureDefinition pact = null)
+        FeatureDefinition pact = null,
+        CharacterClassDefinition spellcastingClass = null)
     {
         Definition.requiredLevel = level;
         Definition.requiredKnownSpell = spell;
         Definition.requiredPact = pact;
+        if (spellcastingClass != null)
+        {
+            Definition.AddCustomSubFeatures(new InvocationDefinitionWithPrerequisites.KnownSpellClass(
+                () => spellcastingClass));
+        }
         return (TBuilder)this;
     }
 

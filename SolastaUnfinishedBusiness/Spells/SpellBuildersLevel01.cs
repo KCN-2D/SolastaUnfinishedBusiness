@@ -3156,14 +3156,7 @@ internal static partial class SpellBuilders
                 return;
             }
 
-            var delta = lowerRoll - previousRoll;
-
-            abilityCheckData.CurrentRoll = lowerRoll;
-            abilityCheckData.AbilityCheckRoll += delta;
-            abilityCheckData.AbilityCheckSuccessDelta += delta;
-            abilityCheckData.AbilityCheckRollOutcome = abilityCheckData.AbilityCheckSuccessDelta >= 0
-                ? RollOutcome.Success
-                : RollOutcome.Failure;
+            abilityCheckData.ReplaceRoll(lowerRoll);
         }
 
         private static void ApplyLowerSavingThrowRoll(

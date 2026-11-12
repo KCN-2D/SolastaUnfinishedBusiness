@@ -771,7 +771,14 @@ internal static class CombatAnimationContext
             _reference = AcquireReferenceController(_source, key.Replace("_Portrait_Controller", "_Controller"));
             _load = _reference.Handle;
             _ownsLoad = true;
-            _load.Completed += Loaded;
+            if (_load.IsDone)
+            {
+                Loaded(_load);
+            }
+            else
+            {
+                _load.Completed += Loaded;
+            }
         }
 
         private void Loaded(AsyncOperationHandle<RuntimeAnimatorController> operation)
@@ -798,6 +805,7 @@ internal static class CombatAnimationContext
             }
 
             Apply(operation.Result);
+            CustomModels.ReapplyEquipmentPoses(_character);
         }
 
         private void Apply(RuntimeAnimatorController nativeController)

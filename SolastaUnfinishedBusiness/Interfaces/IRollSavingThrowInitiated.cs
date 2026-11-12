@@ -4,6 +4,11 @@ using static RuleDefinitions;
 
 namespace SolastaUnfinishedBusiness.Interfaces;
 
+internal interface IAutomaticSavingThrowOutcome
+{
+    bool TryGetAutomaticOutcome(RulesetEffect effect, RulesetActor target, out RollOutcome outcome);
+}
+
 // Read-only bonuses can be shared by actual saving throws and character-sheet
 // values without invoking roll hooks, reactions, or resource consumption.
 internal interface IConditionalSavingThrowBonusProvider

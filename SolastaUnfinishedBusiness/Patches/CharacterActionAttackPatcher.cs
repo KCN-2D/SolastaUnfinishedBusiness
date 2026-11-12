@@ -41,7 +41,7 @@ public static class CharacterActionAttackPatcher
             CombatAiContext.PrepareEnemyBattleNativeAttackAction(__instance);
             var actionParams = __instance.ActionParams;
             var attackMode = actionParams.AttackMode;
-            var originatingMagicEffect = AttackAfterMagicEffect.ConsumeOriginatingEffect(attackMode);
+            var originatingMagicEffect = AttackAfterMagicEffect.ConsumeOriginatingEffect(actionParams);
             var battleManager = ServiceRepository.GetService<IGameLocationBattleService>() as GameLocationBattleManager;
 
             if (!battleManager)
@@ -50,7 +50,7 @@ public static class CharacterActionAttackPatcher
             }
 
             var actingCharacter = __instance.ActingCharacter;
-            using var onHitEffectScope = OnHitEffectContext.TrackAttack(__instance);
+            using var onHitEffectScope = OnHitEffectContext.TrackAttack(__instance, originatingMagicEffect);
             var rulesetCharacter = actingCharacter.RulesetCharacter;
             var locationPositioningService = ServiceRepository.GetService<IGameLocationPositioningService>();
             var locationEntityFactoryService = ServiceRepository.GetService<IWorldLocationEntityFactoryService>();
@@ -486,6 +486,7 @@ public static class CharacterActionAttackPatcher
             var damageReceived = 0;
 
             //PATCH: support for `ITryAlterOutcomeAttack`
+            using var outcomeScope = TryAlterOutcomeAttack.BeginOutcomeFinalization(__instance);
             foreach (var tryAlterOutcomeAttack in TryAlterOutcomeAttack.HandlerNegativePriority(
                          battleManager, __instance, actingCharacter, target, attackModifier, attackMode, null))
             {
@@ -546,6 +547,8 @@ public static class CharacterActionAttackPatcher
                     rulesetCharacter.AttackAutomaticHit?.Invoke(
                         rulesetCharacter, rulesetDefender, attackMode.SourceDefinition);
                 }
+
+                outcomeScope.Complete();
 
                 // Is this still a success?
                 if (__instance.AttackRollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess)

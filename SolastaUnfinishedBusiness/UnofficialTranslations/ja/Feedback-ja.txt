@@ -160,11 +160,11 @@ Feedback/&ConcentrationCheckRolledAnyAdvantageNoModifierLine={0}は精神集中�
 Feedback/&ConcentrationCheckRolledLine={0}は精神集中を維持するための耐久力セーヴィング・スローを行います（難易度{1}）：{2}={3}
 Feedback/&ConcentrationCheckRolledNoModifierLine={0}は精神集中を維持するための耐久力セーヴィング・スローを行います（難易度{1}）：{2}
 Feedback/&ConcentrationLostLine={0}は{1}への精神集中を失います
-Feedback/&ConditionAddedHasLine={0}に{1}状態が付与されました
-Feedback/&ConditionAddedLine={0}は{1}状態になります
-Feedback/&ConditionRefreshedLine={0}の{1}状態が更新されました
-Feedback/&ConditionRemovedHasLine={0}の{1}状態が解除されました
-Feedback/&ConditionRemovedLine={0}は{1}状態ではなくなりました
+Feedback/&ConditionAddedHasLine={0}に{1}が付与されました
+Feedback/&ConditionAddedLine={0}に{1}が付与されました
+Feedback/&ConditionRefreshedLine={0}の{1}が更新されました
+Feedback/&ConditionRemovedHasLine={0}から{1}が解除されました
+Feedback/&ConditionRemovedLine={0}から{1}が解除されました
 Feedback/&ContestCheckConsoleBothAdvantageLine={0}と{1}が対抗判定を行います。{2}対{3}：{4}{5}対{6}{7}{8}
 Feedback/&ContestCheckConsoleLine={0}と{1}が対抗判定を行います。{2}対{3}：{4}対{5}{6}
 Feedback/&ContestCheckConsoleMainAdvantageLine={0}と{1}が対抗判定を行います。{2}対{3}：{4}{5}対{6}{7}

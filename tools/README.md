@@ -30,3 +30,14 @@ Windowsで実行するコマンドと絶対パスは `\` を使います。URL�
 | 実ゲーム検証のビルド・入力の複製・ログ・画像 | `tools/game-test/artifacts/` |
 
 各ツールの終了処理で復元と一時生成物の撤去を行います。実ゲーム検証の証跡の保持と整理は、[証跡の容量管理](game-test/README.md#証跡の容量管理)に従います。
+
+ゲームと制作ツールを終了して、`Clear-ToolStorage.ps1`で生成物を整理します。引数なしで対象を確認し、`-Apply`で削除します。必須検査の完了時にも自動実行されます。
+
+```powershell
+.\tools\Clear-ToolStorage.ps1
+.\tools\Clear-ToolStorage.ps1 -Apply
+```
+
+採用中と直前のモデル、制作入力、レシピ、検証記録を残し、採用版より古い完了済み候補のbundleを削除します。
+
+実ゲーム証跡の保持予算は既定40GBです。`-PreserveDirectory`で保持する作業フォルダーを指定できます。整理結果とドライブ空き容量の変化は`tools/game-test/artifacts/ToolStorage/`に保存されます。

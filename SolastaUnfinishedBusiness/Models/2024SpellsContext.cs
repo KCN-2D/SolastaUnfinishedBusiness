@@ -96,11 +96,15 @@ public static partial class Tabletop2024Context
         yield return (SpellListBard, PhantasmalKiller, true);
         yield return (SpellListBard, GetDefinition<SpellDefinition>("HeroesFeast"), true);
         yield return (SpellListBard, PrismaticSpray, true);
+        yield return (SpellListBard, SpellsContext.PowerWordFortify, true);
+        yield return (SpellListBard, SpellsContext.ReweaveFate, true);
 
         // Cleric
         yield return (SpellListCleric, GetDefinition<SpellDefinition>("CircleOfMagicalNegation"), true);
         yield return (SpellListCleric, Sunbeam, true);
         yield return (SpellListCleric, Sunburst, true);
+        yield return (SpellListCleric, SpellsContext.PowerWordFortify, true);
+        yield return (SpellListCleric, SpellsContext.ReweaveFate, true);
 
         // Druid
         yield return (SpellListDruid, SpellsContext.BattleFamiliar, true);
@@ -147,9 +151,11 @@ public static partial class Tabletop2024Context
         yield return (SpellListWarlock, HideousLaughter, true);
         yield return (SpellListWarlock, Shatter, false);
         yield return (SpellListWarlock, ConjureFey, false);
+        yield return (SpellListWarlock, SpellsContext.ReweaveFate, true);
         // Wizard
         yield return (SpellListWizard, SpellsContext.BattleFamiliar, true);
         yield return (SpellListWizard, EnhanceAbility, true);
+        yield return (SpellListWizard, SpellsContext.ReweaveFate, true);
         yield return (SpellListWizard, GetDefinition<SpellDefinition>("CircleOfMagicalNegation"), true);
 
         // Revised Artificer

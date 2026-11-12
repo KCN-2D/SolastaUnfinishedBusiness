@@ -5,6 +5,11 @@ using System.Linq;
 // ReSharper disable once CheckNamespace
 internal sealed class InvocationDefinitionWithPrerequisites : InvocationDefinition
 {
+    internal sealed class KnownSpellClass(Func<CharacterClassDefinition> resolveClass)
+    {
+        internal CharacterClassDefinition RequiredClass => resolveClass();
+    }
+
     internal List<Func<InvocationDefinitionWithPrerequisites, RulesetCharacterHero, (bool result, string output)>>
         Validators { get; } = [];
 

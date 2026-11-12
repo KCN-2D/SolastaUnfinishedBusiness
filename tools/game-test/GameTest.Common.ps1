@@ -1,8 +1,14 @@
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns','',Justification='Internal collection helper names are shared with the existing tool contracts.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions','',Scope='Function',Target='New-GtDirectory',Justification='This helper creates the evidence owner; public cleanup commands govern mutations with Apply.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions','',Scope='Function',Target='New-GtInputValidationAudit',Justification='This helper records validation evidence and does not change user data.')]
+param()
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $script:GameTestRepo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $script:GameTestBuildRoot = Join-Path $script:GameTestRepo 'tools\CustomBuildLocal'
 $script:GameTestArtifactRoot = Join-Path $PSScriptRoot 'artifacts'
+$script:AssetAuthoringWorkspace = Join-Path $script:GameTestRepo 'tools\asset-authoring\workspace'
 . (Join-Path $script:GameTestRepo 'tools\runtime-verification\WindowsDesktop.ps1')
 . (Join-Path $script:GameTestRepo 'tools\runtime-verification\EvidencePaths.ps1')
 $script:GtValidatedDirectories = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
@@ -880,16 +886,25 @@ function Get-GtToolRun([string]$Path,$Result) {
         $identityPath=$auditPath
         $caseId='@ToolAudit'
     } else {
-        if($null -eq $Result -or 'kind' -notin $Result.PSObject.Properties.Name -or $Result.kind -cne 'tool-contracts'){return $null}
+        if($null -eq $Result -or 'kind' -notin $Result.PSObject.Properties.Name -or $Result.kind -cnotin @('tool-contracts','tool-storage')){return $null}
+        $storageReport=$Result.kind -ceq 'tool-storage'
+        $expectedName=if($storageReport){'ToolStorage'}else{'Contracts'}
         $owner=Read-GtObject (Join-Path $Path 'Directory.json')
         if($Result.schemaVersion -ne 1 -or $Result.status -cne 'PASS' -or
-            $Result.fixtureScope -cne 'isolated' -or (Get-GtPath $Result.evidenceDirectory) -ne (Get-GtPath $Path) -or
-            $owner.schemaVersion -ne 1 -or $owner.layout -cne 'GameTest' -or $owner.requestedName -cne 'Contracts' -or
+            (-not $storageReport -and $Result.fixtureScope -cne 'isolated') -or (Get-GtPath $Result.evidenceDirectory) -ne (Get-GtPath $Path) -or
+            $owner.schemaVersion -ne 1 -or $owner.layout -cne 'GameTest' -or $owner.requestedName -cne $expectedName -or
             (Get-GtPath $owner.directory) -ne (Get-GtPath $Path)) {throw 'Tool contract ownership is incomplete.'}
         $completed=([datetime]$Result.completedUtc).ToUniversalTime()
         if($completed -lt ([datetime]$Result.startedUtc).ToUniversalTime()){throw 'Tool completion precedes its start.'}
         $identityPath=Join-Path $Path 'Result.json'
-        $caseId='@ToolContracts'
+        $caseId=if($storageReport){'@ToolStorage'}else{'@ToolContracts'}
+        if($storageReport){
+            foreach($entry in Get-ChildItem -LiteralPath $Path -Force){
+                if($entry.PSIsContainer -or $entry.Name -cnotmatch '^(Directory|Result|ResourceLifecycle|RetainedInputs|ReferencesBefore|ResourcePayloads-[01])\.json$|^ResourceStorage\.log$'){
+                    throw 'Storage report contains unowned files.'
+                }
+            }
+        }
     }
     [pscustomobject]@{path=$Path;name=(Split-Path -Leaf $Path);caseId=$caseId;completed=$completed;
         gameDirectory=$null;buildHash=$null;kind='tool';result=$Result;identityPath=$identityPath}
@@ -956,7 +971,8 @@ function Read-GtStorageReferences([string[]]$ReferencePath) {
         foreach($entry in $manifest.paths){
             if($entry -isnot [string] -or [string]::IsNullOrWhiteSpace($entry)){throw 'Storage references must be paths.'}
             $resolved=if([IO.Path]::IsPathRooted($entry)){Get-GtPath $entry}else{Get-GtPath (Join-Path (Split-Path -Parent $manifestPath) $entry)}
-            if(-not(Test-GtWithin $resolved $script:GameTestArtifactRoot)){throw 'Storage references must identify artifact paths.'}
+            if(-not(Test-GtWithin $resolved $script:GameTestArtifactRoot) -and
+               -not(Test-GtWithin $resolved $script:AssetAuthoringWorkspace)){throw 'Storage references must identify owned tool workspace paths.'}
             [void]$paths.Add($resolved)
         }
         [ordered]@{path=$manifestPath;sha256=Get-GtHash $manifestPath}

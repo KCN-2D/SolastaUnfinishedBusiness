@@ -3901,9 +3901,12 @@ def package_resources():
     print(json.dumps(dict(status='PASS_RESOURCE_PACKS',packs=len(result['packs']),bytes=sum(row['bytes']for row in result['packs']))))
 
 
-def create_resource_retirement_plan(directories,reference_path,output) -> dict[str, Any]:
+def create_resource_retirement_plan(directories,reference_path,output,storage_root=None) -> dict[str, Any]:
     """Select declared old catalog payloads; retain every current input path."""
     artifacts=ROOT/'tools/game-test/artifacts'
+    owned_roots=(artifacts,ROOT/'tools/asset-authoring/workspace')
+    storage_root=(storage_root or artifacts).resolve()
+    if storage_root not in owned_roots:raise ValueError('Resource retirement needs an owned tool workspace root.')
     reference_path=checked_source_path(reference_path)
     reference_sha=sha(reference_path)
     reference=read(reference_path)
@@ -3914,26 +3917,31 @@ def create_resource_retirement_plan(directories,reference_path,output) -> dict[s
         if not isinstance(value,str)or not value:raise ValueError('A retained resource input is not a path.')
         path=Path(value);path=path if path.is_absolute()else reference_path.parent/path
         path=path.resolve()
-        if not path.is_relative_to(artifacts):raise ValueError('A retained resource input escaped artifacts.')
+        if not any(path.is_relative_to(root)for root in owned_roots):raise ValueError('A retained resource input escaped owned tool workspaces.')
         protected.add(str(path).casefold())
         if path.is_dir():protected_directories.append(str(path).casefold()+os.sep)
     rows={};roots=set()
     for directory in directories:
         directory=checked_catalog_path(directory)
-        if directory==artifacts or not directory.is_relative_to(artifacts):raise ValueError('Retired resource catalogs must be below artifacts.')
+        if directory==storage_root or not directory.is_relative_to(storage_root):raise ValueError('Retired resource catalogs must be below the declared workspace.')
         owner=checked_source_path(directory/'ResourceAssembly.json');assembly=read(owner)
         catalog=directory/'Catalog';manifest=checked_source_path(catalog/'CharacterModels.manifest.json')
         if assembly.get('status')!='PASS_STANDALONE_CHARACTER_RESOURCES'or assembly.get('catalogSha256')!=sha(manifest):
             raise ValueError('A retired catalog has no unchanged completed resource owner.')
+        # Validate the shared directory ancestry once. Scandir supplies each leaf's
+        # own no-follow metadata; deletion performs a second full path/hash check.
+        checked_catalog_path(catalog)
+        with os.scandir(catalog)as entries:
+            leaves={entry.name:entry.stat(follow_symlinks=False)for entry in entries if entry.is_file(follow_symlinks=False)}
         for name,digest in catalog_payloads(read(manifest)).items():
             if Path(name).suffix!='.bundle':continue
-            path=checked_catalog_path(catalog,name);key=str(path).casefold()
-            if not path.is_file()or key in protected or any(key.startswith(prefix)for prefix in protected_directories):continue
-            info=checked_source_path(path).stat()
+            path=catalog/name;key=str(path).casefold();info=leaves.get(name)
+            if info is None or key in protected or any(key.startswith(prefix)for prefix in protected_directories):continue
+            if getattr(info,'st_file_attributes',0)&0x400:raise ValueError('A retired payload contains a reparse point.')
             rows[key]=dict(path=str(path),bytes=info.st_size,lastWriteUtcTicks=info.st_mtime_ns//100+621355968000000000,sha256=digest)
-            roots.add(str(catalog.relative_to(artifacts)))
+            roots.add(str(catalog.relative_to(storage_root)))
     if sha(reference_path)!=reference_sha:raise ValueError('Retained inputs changed during planning.')
-    plan=dict(schemaVersion=1,artifactRoot=str(artifacts),reference=dict(path=str(reference_path),sha256=reference_sha),
+    plan=dict(schemaVersion=1,artifactRoot=str(storage_root),reference=dict(path=str(reference_path),sha256=reference_sha),
         scope='Unreferenced declared payloads of completed old resource catalogs.',roots=sorted(roots),files=sorted(rows.values(),key=lambda row:row['path']),
         logicalBytes=sum(row['bytes']for row in rows.values()))
     output=checked_catalog_path(output)

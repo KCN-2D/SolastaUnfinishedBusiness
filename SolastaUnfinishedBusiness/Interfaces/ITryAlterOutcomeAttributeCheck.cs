@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api;
 using SolastaUnfinishedBusiness.Api.GameExtensions;
@@ -41,6 +42,27 @@ public interface IAttributeCheckRolledByMe
 
 public sealed class AbilityCheckData
 {
+    internal int MinimumRoll { get; set; }
+
+    internal void ReplaceRoll(int replacement)
+    {
+        var roll = Math.Max(MinimumRoll, replacement);
+        var change = roll - CurrentRoll;
+        CurrentRoll = roll;
+        AbilityCheckRoll += change;
+        AbilityCheckSuccessDelta += change;
+        AbilityCheckRollOutcome = AbilityCheckSuccessDelta >= 0 ? RollOutcome.Success : RollOutcome.Failure;
+    }
+
+    internal Action<RollOutcome> OutcomeFinalized;
+
+    internal void CompleteOutcome()
+    {
+        var callbacks = OutcomeFinalized;
+        OutcomeFinalized = null;
+        callbacks?.Invoke(AbilityCheckRollOutcome);
+    }
+
     public int AbilityCheckRoll { get; set; }
     public int CurrentRoll { get; set; }
     public RollOutcome AbilityCheckRollOutcome { get; set; }
@@ -51,6 +73,19 @@ public sealed class AbilityCheckData
 
 internal static class TryAlterOutcomeAttributeCheck
 {
+    private static readonly ConditionalWeakTable<List<TrendInfo>, StrongBox<int>> MinimumRolls = new();
+
+    internal static void RecordMinimumRoll(List<TrendInfo> trends, int minimum)
+    {
+        if (trends == null) return;
+        if (minimum <= 0)
+        {
+            MinimumRolls.Remove(trends);
+            return;
+        }
+        MinimumRolls.GetOrCreateValue(trends).Value = minimum;
+    }
+
     // this is vanilla code converted to an IEnumerator
     public static IEnumerator ResolveRolls(
         GameLocationCharacter actor,
@@ -217,7 +252,8 @@ internal static class TryAlterOutcomeAttributeCheck
         string abilityScoreName,
         string proficiencyName,
         List<TrendInfo> advantageTrends,
-        List<TrendInfo> modifierTrends)
+        List<TrendInfo> modifierTrends,
+        AbilityCheckData abilityCheckData)
     {
         var minRoll = 0;
 
@@ -234,6 +270,7 @@ internal static class TryAlterOutcomeAttributeCheck
             dieType, rollContext, isProficient, advantageType, out _, out _,
             enumerateFeatures, canRerollDice, skill);
 
+        abilityCheckData.MinimumRoll = minRoll;
         return Math.Max(minRoll, roll);
     }
 
@@ -300,7 +337,8 @@ internal static class TryAlterOutcomeAttributeCheck
                 abilityScoreName,
                 proficiencyName,
                 advantageTrends,
-                modifierTrends);
+                modifierTrends,
+                abilityCheckData);
         }
 
         var advantageOpponent = ComputeAdvantage(opponentAdvantageTrends);
@@ -341,7 +379,8 @@ internal static class TryAlterOutcomeAttributeCheck
                 opponentAbilityScoreName,
                 opponentProficiencyName,
                 opponentAdvantageTrends,
-                opponentModifierTrends);
+                opponentModifierTrends,
+                opponentAbilityCheckData);
         }
 
         var totalRoll = baseBonus + rawRoll + rollModifier;
@@ -432,6 +471,12 @@ internal static class TryAlterOutcomeAttributeCheck
         var battleManager = ServiceRepository.GetService<IGameLocationBattleService>()
             as GameLocationBattleManager;
 
+        var trends = abilityCheckData.AbilityCheckActionModifier?.AbilityCheckModifierTrends;
+        if (trends != null && MinimumRolls.TryGetValue(trends, out var minimum))
+        {
+            abilityCheckData.MinimumRoll = minimum.Value;
+            MinimumRolls.Remove(trends);
+        }
         yield return HandleBardicRollOnFailure(battleManager, actingCharacter, abilityCheckData);
 
         abilityCheckData.CurrentRoll = rawRoll;
@@ -480,6 +525,7 @@ internal static class TryAlterOutcomeAttributeCheck
         AbilityCheckData abilityCheckData,
         int rawRoll)
     {
+        abilityCheckData.CompleteOutcome();
         if (actingCharacter?.RulesetCharacter == null)
         {
             return;
