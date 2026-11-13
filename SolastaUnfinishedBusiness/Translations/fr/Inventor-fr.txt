@@ -57,3 +57,4 @@ Subclass/&InventorInnovationDescription=Sélectionnez le domaine d'études sur l
 Subclass/&InventorInnovationTitle=Domaine d'études
 Feature/&FeatureSetInventorMagicItemMasterTitle=Maître des objets magiques
 Feature/&FeatureSetInventorMagicItemMasterDescription=Votre limite d'harmonisation augmente de 1.
+Feature/&PowerInventorSoulOfArtifice2024Description=• Si vous êtes harmonisé avec au moins un objet magique, vous récupérez toutes les utilisations dépensées d'Un éclair de génie à la fin d'un repos court.\n• Chaque fois que vous êtes réduit à 0 point de vie, vous récupérez un nombre de points de vie égal à votre niveau d'artificier et vous vous relevez. Vous pouvez utiliser cette capacité une fois par repos long.

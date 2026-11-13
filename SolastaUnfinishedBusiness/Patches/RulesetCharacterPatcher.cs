@@ -1062,7 +1062,8 @@ public static class RulesetCharacterPatcher
             ref string failure)
         {
             if (RulesetEffectSpellWithOrigin.IsPendingOriginWithMaterialBypass(character, spellDefinition) ||
-                SpellCastingValidation.BypassesSpellComponents(character, spellDefinition))
+                SpellCastingValidation.BypassesSpellComponents(character, spellDefinition) ||
+                MetamagicContext.CanPreviewSubtleSpellMaterialComponent(character, spellDefinition))
             {
                 result = true;
                 failure = string.Empty;
@@ -2190,7 +2191,7 @@ public static class RulesetCharacterPatcher
         {
             FeatureDefinitionPower[] bindChainPowers =
             [
-                PowerPactChainImp, PowerPactChainPseudodragon, PowerPactChainPseudodragon, PowerPactChainQuasit
+                PowerPactChainImp, PowerPactChainPseudodragon, PowerPactChainQuasit
             ];
 
             if (restType != RestType.ShortRest)
@@ -2259,10 +2260,7 @@ public static class RulesetCharacterPatcher
             SwitchBindChainPowers(restType, RechargeRate.BindChain);
 
             //PATCH: update usage for power pools
-            if (!simulate)
-            {
-                PowerBundle.RechargeLinkedPowers(__instance, restType);
-            }
+            PowerBundle.RechargeLinkedPowers(__instance, restType, simulate);
 
             // Report active resources, not their shared consumers or disabled replacement traits.
             __instance.RecoveredFeatures.RemoveAll(feature =>
@@ -2390,6 +2388,9 @@ public static class RulesetCharacterPatcher
                 new Action<RulesetSpellRepertoire, RulesetCharacter, RestType>(RestoreAllSpellSlots).Method;
 
             return instructions
+                .ReplaceCalls(AccessTools.PropertyGetter(typeof(FeatureDefinitionPower), nameof(FeatureDefinitionPower.RechargeRate)),
+                    3, "RulesetCharacter.ApplyRest.RechargeRate",
+                    new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(PowerBundle), nameof(PowerBundle.GetRestRechargeRate))))
                 .ReplaceCalls(bind,
                     "RulesetCharacter.ApplyRest.MaxUses",
                     new CodeInstruction(OpCodes.Ldarg_0),

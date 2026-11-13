@@ -25,10 +25,8 @@ def main():
             if file.endswith('.txt'):
                 filename = os.path.join(root, file)
                 print(f"sorting {filename}")
-                with open(filename, "rt", encoding="utf-8") as f:
-                    data = f.readlines()
-                    if data:
-                        data[0] = data[0].replace('﻿', '')
+                with open(filename, "rt", encoding="utf-8-sig") as f:
+                    data = [line.rstrip('\r\n') + '\n' for line in f if line.strip()]
                     for idx, record in enumerate(data):
                         data[idx] = re.sub(r"(.+?)=(.)(.*)", upper_repl, data[idx])
                     data.sort()

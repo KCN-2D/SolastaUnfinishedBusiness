@@ -738,3 +738,6 @@ ModUi/&EnableMultiplayerAutoFollow=자동 따라가기 활성화
 ModUi/&ExtendExplorationItemTransferRange=탐험 중 아이템 전달 거리를 24칸으로 확장
 ModUi/&CooperativeHelp=캐릭터마다 행동을 예약하고 모든 플레이어가 준비를 마치면 함께 시작할 수 있습니다. 경과 시간은 가장 긴 행동을 기준으로 합니다.
 ModUi/&CooperativeFollowHelp=모험 준비에서 선택한 동료를 자동으로 따라갑니다. 이동 명령을 내리면 따라가기가 해제됩니다.
+ModUi/&EnableSorcererEmpoweredSpell2014=테이블톱 <color=#D89555>강화 주문</color> 사용: 피해 굴림 결과를 본 뒤 다시 굴릴 주사위를 선택합니다
+ModUi/&EnableInventorSoulOfArtifice2024=20레벨 <color=#D89555>인공의 영혼</color> 변경
+ModUi/&InventorSoulOfArtifice2024Help=마법 아이템 하나 이상에 조율한 동안 짧은 휴식을 마치면 빠른 재치의 사용 횟수를 모두 회복합니다. 이 효과는 내성 굴림 보너스를 대체합니다.

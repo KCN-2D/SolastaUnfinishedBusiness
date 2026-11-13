@@ -150,7 +150,6 @@ Feat/&FeatGroupWeaponMasteryTitle=Maîtrise des armes
 Feature/&MartialChampionSuperiorCriticalDescription=Vos attaques d'armes infligent un coup critique sur un résultat de 18, 19 ou 20.
 Feat/&FeatGroupOriginTitle=Dons d'origine
 Feat/&FeatGroupOriginDescription=Dons d'historique utilisés par les options d'historique de 2024.
-
 Feat/&FeatGroupWarCaster2024Title=Mage de guerre
 Feat/&FeatGroupWarCaster2024Description=Augmentez votre Intelligence, votre Sagesse ou votre Charisme de 1, jusqu’à un maximum de 20.\nVous avez l’avantage aux jets de sauvegarde de Constitution pour maintenir votre concentration.\nVous pouvez exécuter les composantes somatiques des sorts même en tenant des armes ou un bouclier dans une ou deux mains.\nQuand le déplacement d’une créature hostile provoque une attaque d’opportunité de votre part, vous pouvez utiliser votre réaction pour lancer un sort mineur sur elle à la place. Ce sort mineur doit avoir un temps d’incantation d’une action ou d’une action bonus et ne cibler que cette créature.
 Feat/&FeatWarCaster2024IntTitle=Mage de guerre [Intelligence]
@@ -202,7 +201,6 @@ Feat/&FeatHeavilyArmored2024Description=Augmentez votre Force de 1, jusqu'à un 
 Feat/&FeatGroupResilient2024Title=Résilient
 Feat/&FeatGroupResilient2024Description=Augmentez une valeur de caractéristique de 1, jusqu'à un maximum de 20.\nVous maîtrisez les jets de sauvegarde de la caractéristique choisie.
 Feat/&FeatGroupResilient2024VariantDescription=Vous maîtrisez les jets de sauvegarde de {0}.
-
 Feat/&FeatGroupSpeedyTitle=Rapide
 Feat/&FeatGroupSpeedyDescription=Augmentez votre Dextérité ou votre Constitution de 1, jusqu'à un maximum de 20.\nVotre vitesse augmente de 10 pieds.\nQuand vous effectuez l'action Foncer pendant votre tour, le terrain difficile ne vous coûte pas de déplacement supplémentaire jusqu'à la fin de ce tour.\nLes attaques d'opportunité contre vous sont effectuées avec désavantage.
 Feat/&FeatShieldMaster2024Title=Maître du bouclier
@@ -222,4 +220,3 @@ Feat/&FeatGroupSpellSniper2024Title=Tireur de sorts
 Feat/&FeatGroupSpellSniper2024Description=Augmentez votre Intelligence, votre Sagesse ou votre Charisme de 1, jusqu'à un maximum de 20.\nÊtre à 5 pieds ou moins d'un ennemi n'impose pas de désavantage à vos jets d'attaque avec des sorts. Quand vous lancez un sort ayant une portée d'au moins 10 pieds et nécessitant un jet d'attaque, vous pouvez augmenter sa portée de 60 pieds. Vos attaques de sort à distance ignorent le couvert partiel et le couvert aux trois quarts.
 Feat/&FeatGroupHeavilyArmored2024Title=Lourdement armuré
 Feat/&FeatGroupHeavilyArmored2024Description=Augmentez votre Force ou votre Constitution de 1, jusqu'à un maximum de 20.\nPrérequis : maîtrise des armures intermédiaires.\nVous maîtrisez les armures lourdes.
-

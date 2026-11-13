@@ -48,7 +48,7 @@ def readRecord(filename):
                 if line_count == 0 and record.startswith(codecs.BOM_UTF8.decode("utf-8")):
                     record = record[1:]
                 line_count += 1
-                if record:
+                if record.strip():
                     term, text = unpack_record(record)
                     dic[term] = text
     except FileNotFoundError:

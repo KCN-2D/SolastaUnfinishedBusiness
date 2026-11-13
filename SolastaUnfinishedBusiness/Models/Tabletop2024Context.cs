@@ -345,6 +345,7 @@ public static partial class Tabletop2024Context
         SwitchFighterTacticalMaster();
         SwitchFighterTacticalProgression();
         SwitchInventorMagicItemMaster();
+        SwitchInventorSoulOfArtifice();
         SwitchArtilleristEldritchCannon();
         SwitchArtilleristFortifiedPosition();
         SwitchMonkWeaponProficiency();
@@ -448,6 +449,11 @@ public static partial class Tabletop2024Context
     internal static void SwitchInventorMagicItemMaster()
     {
         InventorClass.SwitchMagicItemMaster();
+    }
+
+    internal static void SwitchInventorSoulOfArtifice()
+    {
+        InventorClass.SwitchSoulOfArtifice();
     }
 
     internal static void SwitchArtilleristEldritchCannon()

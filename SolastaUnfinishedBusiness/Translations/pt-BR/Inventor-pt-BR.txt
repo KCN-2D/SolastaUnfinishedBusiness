@@ -57,3 +57,4 @@ Subclass/&InventorInnovationDescription=Selecione o campo de estudo para se conc
 Subclass/&InventorInnovationTitle=Área de estudo
 Feature/&FeatureSetInventorMagicItemMasterTitle=Mestre dos Itens Mágicos
 Feature/&FeatureSetInventorMagicItemMasterDescription=Seu limite de sintonização aumenta em 1.
+Feature/&PowerInventorSoulOfArtifice2024Description=• Enquanto estiver sintonizado com pelo menos um item mágico, você recupera todos os usos gastos de Flash de gênio ao terminar um descanso curto.\n• Sempre que for reduzido a 0 pontos de vida, você recupera um número de pontos de vida igual ao seu nível de artífice e se levanta. Você pode usar esta habilidade uma vez por descanso longo.

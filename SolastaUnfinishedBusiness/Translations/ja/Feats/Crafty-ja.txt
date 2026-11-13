@@ -16,4 +16,3 @@ Feat/&FeatToxicologistIntDescription=知力を1増加させ、最大20まで高�
 Feat/&FeatToxicologistIntTitle=毒物学者［知力］
 Feat/&FeatToxicologistWisDescription=判断力を1増加させ、最大20まで高めます。\n〈自然〉と調毒道具に習熟します。それぞれ、すでに習熟している場合は、代わりに習熟強化を得ます。
 Feat/&FeatToxicologistWisTitle=毒物学者［判断力］
-

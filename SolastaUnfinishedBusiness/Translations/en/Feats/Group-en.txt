@@ -152,7 +152,6 @@ Feat/&FeatGroupOriginTitle=Origin Feats
 Feat/&FeatGroupOriginDescription=Background feats used by the 2024 background options.
 Feat/&FeatGroupSpeedyTitle=Speedy
 Feat/&FeatGroupSpeedyDescription=Increase your Dexterity or Constitution by 1, to a maximum of 20.\nYour Speed increases by 10 feet.\nWhen you take the Dash action on your turn, difficult terrain doesn't cost you extra movement for the rest of that turn.\nOpportunity attacks against you are made with disadvantage.
-
 Feat/&FeatGroupWarCaster2024Title=War Caster
 Feat/&FeatGroupWarCaster2024Description=Increase your Intelligence, Wisdom, or Charisma by 1, to a maximum of 20.\nYou gain advantage on Constitution saving throws to maintain Concentration.\nYou can perform the somatic components of spells even when you have weapons or a shield in one or both hands.\nWhen a hostile creature's movement provokes an opportunity attack from you, you can use your reaction to cast a cantrip at the creature rather than making an opportunity attack. The cantrip must have a casting time of 1 action or bonus action and must target only that creature.
 Feat/&FeatWarCaster2024IntTitle=War Caster [Int]
@@ -221,4 +220,3 @@ Feat/&FeatHeavilyArmored2024Description=Increase your Strength by 1, to a maximu
 Feat/&FeatGroupResilient2024Title=Resilient
 Feat/&FeatGroupResilient2024Description=Increase one ability score by 1, to a maximum of 20.\nYou gain proficiency in saving throws using the chosen ability.
 Feat/&FeatGroupResilient2024VariantDescription=You gain proficiency in {0} saving throws.
-

@@ -738,3 +738,6 @@ ModUi/&EnableMultiplayerAutoFollow=Activar el seguimiento automático
 ModUi/&ExtendExplorationItemTransferRange=Ampliar a 24 casillas el intercambio de objetos durante la exploración
 ModUi/&CooperativeHelp=Reserva una acción para cada personaje y permite iniciarlas juntas cuando todos los jugadores estén listos. El tiempo transcurrido corresponde a la acción más larga.
 ModUi/&CooperativeFollowHelp=Sigue automáticamente al compañero elegido en Preparativos de aventura. Dar una orden de movimiento cancela el seguimiento.
+ModUi/&EnableSorcererEmpoweredSpell2014=Usa <color=#D89555>Conjuro potenciado</color> de mesa: elige los dados de daño que repetirás después de ver sus resultados
+ModUi/&EnableInventorSoulOfArtifice2024=Modificar <color=#D89555>Alma de artificio</color> de nivel 20
+ModUi/&InventorSoulOfArtifice2024Help=Mientras estés vinculado a al menos un objeto mágico, terminar un descanso corto restaura todos los usos de Destello de genio. Esto sustituye la bonificación a las tiradas de salvación.

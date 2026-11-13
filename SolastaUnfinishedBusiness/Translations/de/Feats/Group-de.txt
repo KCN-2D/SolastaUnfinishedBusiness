@@ -150,7 +150,6 @@ Feat/&FeatGroupWeaponMasteryTitle=Waffenbeherrschung
 Feature/&MartialChampionSuperiorCriticalDescription=Ihre Waffenangriffe erzielen bei einem Ergebnis von 18, 19 oder 20 einen kritischen Treffer.
 Feat/&FeatGroupOriginTitle=Herkunftstalente
 Feat/&FeatGroupOriginDescription=Herkunftstalente für die Hintergrundoptionen von 2024.
-
 Feat/&FeatGroupWarCaster2024Title=Kriegsmagier
 Feat/&FeatGroupWarCaster2024Description=Erhöhe deine Intelligenz, Weisheit oder dein Charisma um 1, bis zu einem Maximum von 20.\nDu hast Vorteil auf Konstitutionsrettungswürfe, um deine Konzentration aufrechtzuerhalten.\nDu kannst die somatischen Komponenten von Zaubern auch ausführen, wenn du Waffen oder einen Schild in einer oder beiden Händen hältst.\nWenn die Bewegung einer feindlichen Kreatur einen Gelegenheitsangriff von dir provoziert, kannst du als Reaktion einen Zaubertrick auf sie wirken, statt den Gelegenheitsangriff auszuführen. Der Zaubertrick muss eine Zauberzeit von einer Aktion oder Bonusaktion haben und darf nur diese Kreatur zum Ziel haben.
 Feat/&FeatWarCaster2024IntTitle=Kriegsmagier [Intelligenz]
@@ -202,7 +201,6 @@ Feat/&FeatHeavilyArmored2024Description=Erhöhen Sie Ihre Stärke um 1, bis zu e
 Feat/&FeatGroupResilient2024Title=Widerstandsfähig
 Feat/&FeatGroupResilient2024Description=Erhöhen Sie einen Attributswert um 1, bis zu einem Maximum von 20.\nSie sind in Rettungswürfen mit dem gewählten Attribut geübt.
 Feat/&FeatGroupResilient2024VariantDescription=Sie sind in Rettungswürfen auf {0} geübt.
-
 Feat/&FeatGroupSpeedyTitle=Schnell
 Feat/&FeatGroupSpeedyDescription=Erhöhen Sie Ihre Geschicklichkeit oder Konstitution um 1, bis zu einem Maximum von 20.\nIhre Bewegungsrate erhöht sich um 10 Fuß.\nWenn Sie in Ihrem Zug die Sprint-Aktion ausführen, kostet schwieriges Gelände Sie für den Rest dieses Zuges keine zusätzliche Bewegung.\nGelegenheitsangriffe gegen Sie werden mit Nachteil ausgeführt.
 Feat/&FeatShieldMaster2024Title=Schildmeister
@@ -222,4 +220,3 @@ Feat/&FeatGroupSpellSniper2024Title=Zauberscharfschütze
 Feat/&FeatGroupSpellSniper2024Description=Erhöhen Sie Ihre Intelligenz, Weisheit oder Ihr Charisma um 1, bis zu einem Maximum von 20.\nWenn Sie sich innerhalb von 5 Fuß um einen Gegner befinden, erhalten Ihre Angriffswürfe mit Zaubern keinen Nachteil. Wenn Sie einen Zauber wirken, der eine Reichweite von mindestens 10 Fuß hat und bei dem Sie einen Angriffswurf machen müssen, können Sie die Reichweite des Zaubers um 60 Fuß erhöhen. Ihre Fernkampf-Zauberangriffe ignorieren halbe Deckung und Dreivierteldeckung.
 Feat/&FeatGroupHeavilyArmored2024Title=Schwer gerüstet
 Feat/&FeatGroupHeavilyArmored2024Description=Erhöhen Sie Ihre Stärke oder Konstitution um 1, bis zu einem Maximum von 20.\nVoraussetzung: Umgang mit mittlerer Rüstung.\nSie erhalten Kenntnis im Umgang mit schwerer Rüstung.
-

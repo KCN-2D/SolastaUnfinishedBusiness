@@ -57,3 +57,4 @@ Subclass/&InventorInnovationDescription=Выберите область иссл
 Subclass/&InventorInnovationTitle=Область исследования
 Feature/&FeatureSetInventorMagicItemMasterTitle=Мастер магических предметов
 Feature/&FeatureSetInventorMagicItemMasterDescription=Ваш предел настройки увеличивается на 1.
+Feature/&PowerInventorSoulOfArtifice2024Description=• Если вы настроены хотя бы на один магический предмет, по окончании короткого отдыха вы восстанавливаете все потраченные использования Проблеска гениальности.\n• Всякий раз, когда ваши хиты падают до 0, вы восстанавливаете количество хитов, равное вашему уровню Изобретателя, и поднимаетесь. Вы можете использовать эту способность один раз до продолжительного отдыха.

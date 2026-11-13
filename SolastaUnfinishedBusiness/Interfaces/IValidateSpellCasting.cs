@@ -39,7 +39,8 @@ internal readonly struct SpellCastingValidationContext(
     RulesetEffectSpell activeSpell,
     bool bypassComponentsAndCastingTime,
     bool bypassMaterialComponent,
-    bool bypassSpellSlotLimit)
+    bool bypassSpellSlotLimit,
+    bool validateMetamagicSelection = false)
 {
     internal RulesetCharacter Caster { get; } = caster;
     internal RulesetSpellRepertoire Repertoire { get; } = repertoire;
@@ -48,6 +49,7 @@ internal readonly struct SpellCastingValidationContext(
     internal bool BypassComponentsAndCastingTime { get; } = bypassComponentsAndCastingTime;
     internal bool BypassMaterialComponent { get; } = bypassMaterialComponent;
     internal bool BypassSpellSlotLimit { get; } = bypassSpellSlotLimit;
+    internal bool ValidateMetamagicSelection { get; } = validateMetamagicSelection;
 }
 
 internal static class SpellCastingValidation
@@ -299,7 +301,8 @@ internal static class SpellCastingValidation
         out string failure,
         bool bypassComponentsAndCastingTime = false,
         bool bypassMaterialComponent = false,
-        bool bypassSpellSlotLimit = false)
+        bool bypassSpellSlotLimit = false,
+        bool validateMetamagicSelection = false)
     {
         failure = string.Empty;
 
@@ -336,9 +339,11 @@ internal static class SpellCastingValidation
             activeSpell,
             bypassComponentsAndCastingTime,
             bypassMaterialComponent,
-            bypassSpellSlotLimit);
+            bypassSpellSlotLimit,
+            validateMetamagicSelection);
 
         if (!MetamagicContext.CanCastSpellWithQuickenedSpell2024Rules(context, out failure) ||
+            !MetamagicContext.ValidateSelectedMaterialComponent(context, out failure) ||
             !SpellSlotCastingLimit2024Context.CanCastSpell(context, out failure))
         {
             return false;

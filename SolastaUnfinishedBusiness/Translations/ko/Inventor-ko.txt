@@ -57,3 +57,4 @@ Subclass/&InventorInnovationDescription=집중할 연구 분야를 선택하세�
 Subclass/&InventorInnovationTitle=연구 분야
 Feature/&FeatureSetInventorMagicItemMasterTitle=마법 아이템의 달인
 Feature/&FeatureSetInventorMagicItemMasterDescription=조율할 수 있는 마법 아이템의 한도가 1 늘어납니다.
+Feature/&PowerInventorSoulOfArtifice2024Description=• 마법 아이템 하나 이상과 조율한 상태에서 짧은 휴식을 마치면 빠른 재치의 소모한 사용 횟수를 모두 회복합니다.\n• 체력이 0으로 감소할 때마다 기술자 레벨과 동일한 체력을 회복하고 일어납니다. 이 기능은 긴 휴식당 한 번 사용할 수 있습니다.

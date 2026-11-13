@@ -738,3 +738,6 @@ ModUi/&EnableMultiplayerAutoFollow=Enable automatic following
 ModUi/&ExtendExplorationItemTransferRange=Extend exploration item transfers to 24 cells
 ModUi/&CooperativeHelp=Queue an action for each character, then start them together once all players are ready. Elapsed time is determined by the longest action.
 ModUi/&CooperativeFollowHelp=Automatically follow the companion selected in Adventure Preparations. Issuing a movement command ends following.
+ModUi/&EnableSorcererEmpoweredSpell2014=Use tabletop <color=#D89555>Empowered Spell</color>: choose damage dice to reroll after seeing their results
+ModUi/&EnableInventorSoulOfArtifice2024=Change level 20 <color=#D89555>Soul of Artifice</color>
+ModUi/&InventorSoulOfArtifice2024Help=While attuned to at least one magic item, finishing a short rest restores all uses of Flash of Genius instead of granting a saving throw bonus.

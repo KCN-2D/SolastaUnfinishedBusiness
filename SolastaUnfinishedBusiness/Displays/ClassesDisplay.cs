@@ -285,6 +285,14 @@ internal static class ClassesDisplay
             Tabletop2024Context.SwitchInventorMagicItemMaster();
         }
 
+        toggle = Main.Settings.EnableInventorSoulOfArtifice2024;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableInventorSoulOfArtifice2024"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableInventorSoulOfArtifice2024 = toggle;
+            Tabletop2024Context.SwitchInventorSoulOfArtifice();
+        }
+        UI.Label(Gui.Localize("ModUi/&InventorSoulOfArtifice2024Help"));
+
         UI.Label();
         UI.Label("<color=#F0DAA0>" + Gui.Localize("Class/&FighterTitle") + ":</color>");
         UI.Label();
@@ -786,6 +794,13 @@ internal static class ClassesDisplay
             {
                 Main.Settings.EnableSorcererMagicalGuidance = toggle;
                 ClassesContext.SwitchSorcererMagicalGuidance();
+            }
+
+            toggle = Main.Settings.EnableSorcererEmpoweredSpell2014;
+            if (UI.Toggle(Gui.Localize("ModUi/&EnableSorcererEmpoweredSpell2014"), ref toggle, UI.AutoWidth()))
+            {
+                Main.Settings.EnableSorcererEmpoweredSpell2014 = toggle;
+                MetamagicContext.SwitchSorcererMetamagicRules();
             }
 
             toggle = Main.Settings.EnableSorcererQuickenedAction;

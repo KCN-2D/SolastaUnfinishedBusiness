@@ -208,6 +208,9 @@ internal static class CustomReactionsContext
         MakeReactDefinition(ReactionRequestWarcaster.Name);
         MakeReactDefinition(ReactionRequestSpendBundlePower.Name);
         MakeReactDefinition(ReactionRequestSelectTarget.Name);
+        ReactionDefinitionBuilder.Create(ReactionRequestSelectDamageDice.Name)
+            .SetGuiPresentation("Rules/&MetamagicOptionEmpoweredSpellTitle", "Reaction/&CustomReactionEmpoweredSpellDescription")
+            .AddToDB();
         MakeReactDefinition(ReactionRequestSelectSmiteSpell.Name);
         MakeReactDefinition(ReactionRequestSelectSmiteSlot.Name);
     }

@@ -19,6 +19,27 @@ $cases = @(
 if ($PlanPath) { $cases += @{name='verified project';event='Stop';expected='allow';plan=$PlanPath} }
 $results = [Collections.Generic.List[object]]::new()
 try {
+    . (Join-Path $PSScriptRoot '../game-test/GameTest.Common.ps1')
+    $reportPath = Join-Path $temporary 'Checks.json'
+    $requirements = [pscustomobject]@{reportFile='Checks.json';checks=@([pscustomobject]@{name='resource recovery';minimumCount=1},[pscustomobject]@{name='localized display';minimumCount=2})}
+    $validChecks = @([pscustomobject]@{name='resource recovery';passed=$true},[pscustomobject]@{name='localized display';passed=$true},[pscustomobject]@{name='localized display';passed=$true})
+    foreach ($mode in @('valid','missing-report','missing-requirement','insufficient-count','failed-check','string-status','duplicate-report','path-escape')) {
+        $rows = @($validChecks | ForEach-Object { [pscustomobject]@{name=$_.name;passed=$_.passed} })
+        if ($mode -eq 'missing-requirement') { $rows = @($rows | Where-Object name -NE 'resource recovery') }
+        if ($mode -eq 'insufficient-count') { $rows = @($rows | Select-Object -First 2) }
+        if ($mode -eq 'failed-check') { $rows[0].passed = $false }
+        if ($mode -eq 'string-status') { $rows[0].passed = 'true' }
+        Write-GtJson $reportPath ([ordered]@{checks=$rows})
+        if ($mode -eq 'missing-report') { Remove-Item -LiteralPath $reportPath }
+        if ($mode -eq 'duplicate-report') { [void][IO.Directory]::CreateDirectory((Join-Path $temporary 'Duplicate')); Copy-Item -LiteralPath $reportPath -Destination (Join-Path $temporary 'Duplicate/Checks.json') }
+        $requirements.reportFile = if ($mode -eq 'path-escape') { '../Checks.json' } else { 'Checks.json' }
+        $passed = $false
+        try { Assert-GtRequiredEvidence $temporary $requirements; $passed = $true } catch { if ($mode -eq 'valid') { throw } }
+        if ($passed -ne ($mode -eq 'valid')) { throw "Evidence requirement contract failed: $mode" }
+        $results.Add([pscustomobject]@{name=('evidence requirements: ' + $mode);passed=$true})
+        $duplicatePath = Join-Path $temporary 'Duplicate/Checks.json'
+        if ([IO.File]::Exists($duplicatePath)) { Remove-Item -LiteralPath $duplicatePath }
+    }
     foreach ($case in $cases) {
         $inputObject = @{hook_event_name=$case.event;stop_hook_active=($case.ContainsKey('active') -and $case.active);tool_input=@{command=$(if($case.ContainsKey('command')){$case.command}else{''})}}
         $casePlan = if ($case.ContainsKey('plan')) { $case.plan } else { $missing }

@@ -67,4 +67,3 @@ Reaction/&ReactionAttackExploiterDescription={0}が攻撃でダメージを受�
 Reaction/&ReactionAttackExploiterReactDescription=リアクションを使って攻撃します。
 Reaction/&ReactionAttackExploiterReactTitle=攻撃
 Reaction/&ReactionAttackExploiterTitle=隙を突く者
-

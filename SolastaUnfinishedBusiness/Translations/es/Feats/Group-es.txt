@@ -150,7 +150,6 @@ Feat/&FeatGroupWeaponMasteryTitle=Maestría en armas
 Feature/&MartialChampionSuperiorCriticalDescription=Tus ataques con armas obtienen un impacto crítico con un resultado de 18, 19 o 20.
 Feat/&FeatGroupOriginTitle=Dotes de origen
 Feat/&FeatGroupOriginDescription=Dotes de trasfondo utilizadas por las opciones de trasfondo de 2024.
-
 Feat/&FeatGroupWarCaster2024Title=Lanzador de guerra
 Feat/&FeatGroupWarCaster2024Description=Aumenta tu Inteligencia, Sabiduría o Carisma en 1, hasta un máximo de 20.\nTienes ventaja en las tiradas de salvación de Constitución para mantener la concentración.\nPuedes realizar los componentes somáticos de los conjuros aunque tengas armas o un escudo en una o ambas manos.\nCuando el movimiento de una criatura hostil provoque un ataque de oportunidad por tu parte, puedes usar tu reacción para lanzarle un truco en lugar de realizar ese ataque. El truco debe tener un tiempo de lanzamiento de una acción o acción adicional y solo puede tener como objetivo a esa criatura.
 Feat/&FeatWarCaster2024IntTitle=Lanzador de guerra [Inteligencia]
@@ -202,7 +201,6 @@ Feat/&FeatHeavilyArmored2024Description=Aumenta tu Fuerza en 1, hasta un máximo
 Feat/&FeatGroupResilient2024Title=Resistente
 Feat/&FeatGroupResilient2024Description=Aumenta una puntuación de característica en 1, hasta un máximo de 20.\nObtienes competencia en las tiradas de salvación de la característica elegida.
 Feat/&FeatGroupResilient2024VariantDescription=Obtienes competencia en las tiradas de salvación de {0}.
-
 Feat/&FeatGroupSpeedyTitle=Veloz
 Feat/&FeatGroupSpeedyDescription=Aumenta tu Destreza o Constitución en 1, hasta un máximo de 20.\nTu velocidad aumenta en 10 pies.\nCuando realizas la acción de Correr en tu turno, el terreno difícil no te cuesta movimiento adicional durante el resto de ese turno.\nLos ataques de oportunidad contra ti se realizan con desventaja.
 Feat/&FeatShieldMaster2024Title=Maestro del escudo
@@ -222,4 +220,3 @@ Feat/&FeatGroupSpellSniper2024Title=Francotirador de conjuros
 Feat/&FeatGroupSpellSniper2024Description=Aumenta tu Inteligencia, Sabiduría o Carisma en 1, hasta un máximo de 20.\nEstar a 5 pies o menos de un enemigo no impone desventaja a tus tiradas de ataque con conjuros. Cuando lanzas un conjuro con un alcance de al menos 10 pies y que requiere hacer una tirada de ataque, puedes aumentar el alcance del conjuro en 60 pies. Tus ataques de conjuro a distancia ignoran la cobertura media y la cobertura de tres cuartos.
 Feat/&FeatGroupHeavilyArmored2024Title=Fuertemente blindado
 Feat/&FeatGroupHeavilyArmored2024Description=Aumenta tu Fuerza o Constitución en 1, hasta un máximo de 20.\nRequisito previo: competencia con armaduras medias.\nObtienes competencia con armaduras pesadas.
-

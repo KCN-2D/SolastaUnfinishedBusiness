@@ -57,3 +57,4 @@ Subclass/&InventorInnovationDescription=Seleziona l'ambito di studio su cui conc
 Subclass/&InventorInnovationTitle=Campo di studi
 Feature/&FeatureSetInventorMagicItemMasterTitle=Maestro degli oggetti magici
 Feature/&FeatureSetInventorMagicItemMasterDescription=Il tuo limite di sintonia aumenta di 1.
+Feature/&PowerInventorSoulOfArtifice2024Description=• Se sei in sintonia con almeno un oggetto magico, recuperi tutti gli usi spesi di Lampo di genio al termine di un riposo breve.\n• Ogni volta che vieni ridotto a 0 punti ferita, recuperi un numero di punti ferita pari al tuo livello da artefice e ti rialzi. Puoi usare questa caratteristica una volta per riposo lungo.

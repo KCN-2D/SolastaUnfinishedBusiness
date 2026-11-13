@@ -738,3 +738,6 @@ ModUi/&EnableMultiplayerAutoFollow=Abilita il seguito automatico
 ModUi/&ExtendExplorationItemTransferRange=Estendi a 24 caselle lo scambio di oggetti durante l’esplorazione
 ModUi/&CooperativeHelp=Consente di prenotare un’azione per ogni personaggio e di avviarle insieme quando tutti i giocatori sono pronti. Il tempo trascorso corrisponde all’azione più lunga.
 ModUi/&CooperativeFollowHelp=Segue automaticamente il compagno scelto nei Preparativi d’avventura. Un ordine di movimento interrompe il seguito.
+ModUi/&EnableSorcererEmpoweredSpell2014=Usa <color=#D89555>Incantesimo potenziato</color> da tavolo: scegli i dadi di danno da ritirare dopo aver visto i risultati
+ModUi/&EnableInventorSoulOfArtifice2024=Modifica <color=#D89555>Anima dell'artificio</color> al livello 20
+ModUi/&InventorSoulOfArtifice2024Help=Mentre sei in sintonia con almeno un oggetto magico, terminare un riposo breve ripristina tutti gli utilizzi di Lampo di genio. Questo effetto sostituisce il bonus ai tiri salvezza.

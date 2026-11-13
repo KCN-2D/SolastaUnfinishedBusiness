@@ -150,7 +150,6 @@ Feat/&FeatGroupWeaponMasteryTitle=Padronanza delle armi
 Feature/&MartialChampionSuperiorCriticalDescription=I tuoi attacchi con le armi ottengono un colpo critico con un risultato di 18, 19 o 20.
 Feat/&FeatGroupOriginTitle=Talenti di origine
 Feat/&FeatGroupOriginDescription=Talenti del background usati dalle opzioni dei background del 2024.
-
 Feat/&FeatGroupWarCaster2024Title=Lanciatore di guerra
 Feat/&FeatGroupWarCaster2024Description=Aumenta la tua Intelligenza, Saggezza o Carisma di 1, fino a un massimo di 20.\nHai vantaggio ai tiri salvezza su Costituzione per mantenere la concentrazione.\nPuoi eseguire le componenti somatiche degli incantesimi anche se impugni armi o uno scudo in una o entrambe le mani.\nQuando il movimento di una creatura ostile provoca un tuo attacco di opportunità, puoi usare la tua reazione per lanciarle un trucchetto al posto dell’attacco. Il trucchetto deve avere un tempo di lancio di un’azione o azione bonus e deve avere come unico bersaglio quella creatura.
 Feat/&FeatWarCaster2024IntTitle=Lanciatore di guerra [Int]
@@ -202,7 +201,6 @@ Feat/&FeatHeavilyArmored2024Description=Aumenta la tua Forza di 1, fino a un mas
 Feat/&FeatGroupResilient2024Title=Resiliente
 Feat/&FeatGroupResilient2024Description=Aumenta un punteggio di caratteristica di 1, fino a un massimo di 20.\nOttieni competenza nei tiri salvezza che usano la caratteristica scelta.
 Feat/&FeatGroupResilient2024VariantDescription=Ottieni competenza nei tiri salvezza su {0}.
-
 Feat/&FeatGroupSpeedyTitle=Rapido
 Feat/&FeatGroupSpeedyDescription=Aumenta la tua Destrezza o Costituzione di 1, fino a un massimo di 20.\nLa tua velocità aumenta di 10 piedi.\nQuando esegui l'azione Scatto nel tuo turno, il terreno difficile non ti costa movimento extra per il resto di quel turno.\nGli attacchi di opportunità contro di te sono effettuati con svantaggio.
 Feat/&FeatShieldMaster2024Title=Maestro dello scudo
@@ -222,4 +220,3 @@ Feat/&FeatGroupSpellSniper2024Title=Cecchino di incantesimi
 Feat/&FeatGroupSpellSniper2024Description=Aumenta la tua Intelligenza, Saggezza o Carisma di 1, fino a un massimo di 20.\nTrovarsi entro 5 piedi da un nemico non impone svantaggio ai tuoi tiri per colpire con gli incantesimi. Quando lanci un incantesimo con gittata di almeno 10 piedi e che richiede un tiro per colpire, puoi aumentarne la gittata di 60 piedi. I tuoi attacchi magici a distanza ignorano mezza copertura e copertura per tre quarti.
 Feat/&FeatGroupHeavilyArmored2024Title=Pesantemente corazzato
 Feat/&FeatGroupHeavilyArmored2024Description=Aumenta la tua Forza o Costituzione di 1, fino a un massimo di 20.\nPrerequisito: competenza nelle armature medie.\nOttieni competenza nelle armature pesanti.
-

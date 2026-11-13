@@ -738,3 +738,6 @@ ModUi/&EnableMultiplayerAutoFollow=Activer le suivi automatique
 ModUi/&ExtendExplorationItemTransferRange=Étendre à 24 cases les transferts d’objets en exploration
 ModUi/&CooperativeHelp=Permet de prévoir une action par personnage, puis de les lancer ensemble une fois tous les joueurs prêts. Le temps écoulé correspond à l’action la plus longue.
 ModUi/&CooperativeFollowHelp=Suit automatiquement le compagnon choisi dans les Préparatifs d’aventure. Donner un ordre de déplacement met fin au suivi.
+ModUi/&EnableSorcererEmpoweredSpell2014=Utiliser <color=#D89555>Sort renforcé</color> des règles sur table : choisir les dés de dégâts à relancer après avoir vu leurs résultats
+ModUi/&EnableInventorSoulOfArtifice2024=Modifier <color=#D89555>L'âme de l'artifice</color> au niveau 20
+ModUi/&InventorSoulOfArtifice2024Help=Lorsque vous êtes harmonisé avec au moins un objet magique, terminer un repos court rend toutes les utilisations de Un éclair de génie. Cet effet remplace le bonus aux jets de sauvegarde.

@@ -20,4 +20,3 @@ Reaction/&SpendPowerShieldMaster2024Description=盾をかざして、この効�
 Reaction/&SpendPowerShieldMaster2024ReactDescription=リアクションを使って、この効果によるダメージを受けません。
 Reaction/&SpendPowerShieldMaster2024ReactTitle=盾で防ぐ
 Reaction/&SpendPowerShieldMaster2024Title=盾で防ぐ
-

@@ -1090,7 +1090,10 @@ internal static class InventorClass
             .SetGuiPresentation("PowerInventorFlashOfGenius", Category.Feature, sprite)
             .SetUsesAbilityBonus(ActivationTime.NoCost, RechargeRate.LongRest, AttributeDefinitions.Intelligence)
             .SetShowCasting(false)
-            .AddCustomSubFeatures(ModifyPowerVisibility.Hidden)
+            .AddCustomSubFeatures(
+                ModifyPowerVisibility.Hidden,
+                new ModifyPowerRestRecoveryHandler((character, _, restType, maxUses, remainingUses) =>
+                    restType == RestType.ShortRest && HasMagicalGuidance(character) ? maxUses : remainingUses))
             .AddToDB();
 
         var auraPower = FeatureDefinitionPowerBuilder
@@ -1122,12 +1125,29 @@ internal static class InventorClass
             .AddToDB();
     }
 
+    internal static void SwitchSoulOfArtifice()
+    {
+        if (_powerInventorSoulOfArtifice != null)
+        {
+            _powerInventorSoulOfArtifice.GuiPresentation.description = Main.Settings.EnableInventorSoulOfArtifice2024
+                ? "Feature/&PowerInventorSoulOfArtifice2024Description"
+                : "Feature/&PowerInventorSoulOfArtificeDescription";
+        }
+    }
+
+    private static bool HasMagicalGuidance(RulesetCharacter character)
+    {
+        return Main.Settings.EnableInventorSoulOfArtifice2024 && Class != null &&
+               character.GetOriginalHero() is { } hero && hero.GetClassLevel(Class) >= 20 &&
+               CountAttunedItems(hero) > 0;
+    }
+
     internal static void TryAddSoulOfArtificeSavingThrowBonus(
         RulesetCharacter character,
         ref int bonus,
         List<TrendInfo> trends)
     {
-        if (_powerInventorSoulOfArtifice == null ||
+        if (Main.Settings.EnableInventorSoulOfArtifice2024 || _powerInventorSoulOfArtifice == null ||
             Class == null ||
             character.GetOriginalHero() is not { } hero ||
             hero.GetClassLevel(Class) < 20)
@@ -1146,7 +1166,7 @@ internal static class InventorClass
             }
         }
 
-        var attunedItems = CountSoulOfArtificeAttunedItems(hero);
+        var attunedItems = CountAttunedItems(hero);
 
         if (attunedItems <= 0)
         {
@@ -1160,7 +1180,7 @@ internal static class InventorClass
                 _powerInventorSoulOfArtifice.Name, _powerInventorSoulOfArtifice));
     }
 
-    private static int CountSoulOfArtificeAttunedItems(RulesetCharacterHero hero)
+    private static int CountAttunedItems(RulesetCharacterHero hero)
     {
         if (hero.CharacterInventory == null)
         {

@@ -57,3 +57,4 @@ Subclass/&InventorInnovationDescription=Wählen Sie das Studienfach aus, auf das
 Subclass/&InventorInnovationTitle=Forschungsbereich
 Feature/&FeatureSetInventorMagicItemMasterTitle=Meister magischer Gegenstände
 Feature/&FeatureSetInventorMagicItemMasterDescription=Dein Einstimmungslimit erhöht sich um 1.
+Feature/&PowerInventorSoulOfArtifice2024Description=• Wenn du auf mindestens einen magischen Gegenstand eingestimmt bist, erhältst du nach einer kurzen Rast alle verbrauchten Anwendungen von Ein Geistesblitz zurück.\n• Wenn deine Trefferpunkte auf 0 sinken, erhältst du eine Anzahl an Trefferpunkten zurück, die deiner Stufe als Kunsthandwerker entspricht, und stehst auf. Du kannst diese Funktion einmal pro langer Pause nutzen.

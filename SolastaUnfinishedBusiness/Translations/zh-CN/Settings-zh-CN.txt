@@ -738,3 +738,6 @@ ModUi/&EnableMultiplayerAutoFollow=启用自动跟随
 ModUi/&ExtendExplorationItemTransferRange=将探索中的物品传递距离扩大至24格
 ModUi/&CooperativeHelp=为每名角色预约一项行动，所有玩家准备就绪后即可同时开始。经过的时间以耗时最长的行动为准。
 ModUi/&CooperativeFollowHelp=自动跟随在冒险准备中选择的队友。发出移动指令会停止跟随。
+ModUi/&EnableSorcererEmpoweredSpell2014=采用桌面规则的<color=#D89555>强效法术</color>：看到伤害骰结果后，选择要重掷的骰子
+ModUi/&EnableInventorSoulOfArtifice2024=更改20级的<color=#D89555>奇械之魂</color>
+ModUi/&InventorSoulOfArtifice2024Help=当你同调了至少一件魔法物品时，完成短休会恢复灵光一闪的全部使用次数。此效果替代豁免检定加值。

@@ -124,17 +124,7 @@ internal static class SorceryIncarnateContext
 
         var cost = GetPayableCost(caster, spell, option);
 
-        if (apotheosis)
-        {
-            // Claim the benefit before callbacks can initiate another spell on the same turn.
-            Tabletop2024Context.MarkArcaneApotheosisUsed(caster);
-        }
-
-        if (cost > 0)
-        {
-            // Only genuinely spent points trigger on-spend effects and resource events.
-            caster.SpendSorceryPoints(cost);
-        }
+        PayMetamagicCost(caster, spell, option, cost);
         caster.MetamagicFeatures.Clear();
 
         foreach (var component in CombinedMetamagic.Enumerate(option))
@@ -153,5 +143,21 @@ internal static class SorceryIncarnateContext
         }
 
         return false;
+    }
+
+    internal static void PayMetamagicCost(RulesetCharacter caster, RulesetEffectSpell spell,
+        MetamagicOptionDefinition option, int cost)
+    {
+        if (cost < CombinedMetamagic.GetCost(option, spell.EffectLevel))
+        {
+            // Claim the benefit before callbacks can initiate another spell on the same turn.
+            Tabletop2024Context.MarkArcaneApotheosisUsed(caster);
+        }
+
+        if (cost > 0)
+        {
+            // Only genuinely spent points trigger on-spend effects and resource events.
+            caster.SpendSorceryPoints(cost);
+        }
     }
 }

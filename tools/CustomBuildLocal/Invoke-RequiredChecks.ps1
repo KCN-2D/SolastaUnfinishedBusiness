@@ -83,6 +83,11 @@ try {
         $base = if ($hasUpstream) { [string](Invoke-GtGit @('merge-base','HEAD','@{upstream}')) } else { $head }
         $translationArguments = @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',
             (Join-Path $repositoryRoot 'tools/localization/Test-Translations.ps1'),'-RepositoryRoot',$repositoryRoot,'-BaseCommit',$base)
+        if ($plan.PSObject.Properties['translations']) {
+            Assert-GtProperties $plan.translations @('japaneseGlossaryPath','terminologyReportPath') @('japaneseGlossaryPath','terminologyReportPath')
+            $translationArguments += @('-JapaneseGlossaryPath',$plan.translations.japaneseGlossaryPath,
+                '-TerminologyReportPath',$plan.translations.terminologyReportPath)
+        }
         [void](Invoke-CheckProcess 'powershell.exe' $translationArguments)
         if ($CodexHook -and $eventName -eq 'PreToolUse' -and $command -match '(?i)\bcommit\b') {
             [void](Invoke-CheckProcess 'powershell.exe' ($translationArguments + '-Staged'))
@@ -100,7 +105,9 @@ try {
         })
         Write-GtJson (Join-Path $evidenceRoot 'ScriptAnalysis.json') ([ordered]@{warningsAndErrors=$analysis.Count;files=@($scriptFiles | Sort-Object -Unique);findings=@($analysis | Select-Object ScriptName,Line,RuleName,Message)})
         if ($analysis.Count -gt 0) { throw (($analysis | ForEach-Object { "$($_.ScriptName):$($_.Line) $($_.RuleName): $($_.Message)" }) -join "`n") }
-        $contractSources = @($maintainedScripts | ForEach-Object { [ordered]@{path=$_;sha256=(Get-GtHash (Join-Path $repositoryRoot $_))} })
+        $contractFiles = $maintainedScripts + 'tools/game-test/GameTest.Common.ps1' +
+            @(Invoke-GtGit @('ls-files','--','tools/localization/*.py'))
+        $contractSources = @($contractFiles | Sort-Object -Unique | ForEach-Object { [ordered]@{path=$_;sha256=(Get-GtHash (Join-Path $repositoryRoot $_))} })
         $contractPath = Join-Path $evidenceRoot 'VerificationContracts.json'
         $contracts = if ([IO.File]::Exists($contractPath)) { Read-GtObject $contractPath } else { $null }
         if (-not $contracts -or $contracts.status -ne 'PASS' -or
@@ -139,6 +146,7 @@ try {
         if ($inputCase.initialState.PSObject.Properties['savePath']) { $nativeFiles += $inputCase.initialState.savePath }
         if ($inputCase.initialState.PSObject.Properties['nativePreferences']) { $nativeFiles += @($inputCase.initialState.nativePreferences | ForEach-Object path) }
         $nativeInputs = [ordered]@{adapter=$plan.native.adapter;type=$plan.native.type;files=@($nativeFiles | Sort-Object -Unique | ForEach-Object { [ordered]@{path=$_;sha256=(Get-GtHash $_)} })}
+        if ($plan.native.PSObject.Properties['requirements']) { $nativeInputs['requirements'] = $plan.native.requirements }
         $native = if ([IO.File]::Exists($nativePath)) { Read-GtObject $nativePath } else { $null }
         $nativeBuildPath = if ($native) { Join-Path (Split-Path -Parent $nativePath) 'Build.json' } else { $null }
         $testedBuild = if ($nativeBuildPath -and [IO.File]::Exists($nativeBuildPath)) { Read-GtObject $nativeBuildPath } else { $null }
@@ -166,6 +174,9 @@ try {
             $nativePath = Join-Path $nativeDirectory 'Result.json'
             $native = Read-GtObject $nativePath
             if ($native.status -ne 'PASS' -or -not $native.restored) { throw '実ゲーム検証または復元が完了していません。' }
+        }
+        if ($plan.native.PSObject.Properties['requirements']) {
+            Assert-GtRequiredEvidence (Split-Path -Parent $nativePath) $plan.native.requirements
         }
         $zipPath = Join-Path $repositoryRoot 'tools/CustomBuildLocal/SolastaUnfinishedBusiness.zip'
         if ((Get-GtHash $zipPath) -ine $build.zipSha256) { throw '配布ZIPと正式ビルドの内容が一致していません。' }

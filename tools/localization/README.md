@@ -7,6 +7,10 @@
 ## 変更した翻訳の検査
 
 変更キーを全10言語と非公式訳に照合し、欠落、重複、プレースホルダー、タグ、改行を検査します。比較元は既定で `HEAD`、コミット範囲を調べる場合は `-BaseCommit` で指定します。`-Staged` はステージ済みの内容だけを検査します。
+翻訳ファイル全体の空白行も検査します。本文中の改行は `\n` で記述します。
+
+日本語のチェックボックスは、C#の `UI.Toggle` に渡す翻訳キーを抽出し、敬体に揃っているかも検査します。用語と意味は[日本語翻訳方針](../../.codex/PROJECT_GUIDE.md#日本語翻訳方針)に従って原文と照合します。
+日本語の変更キーでは、禁止された括弧、括弧の入れ子、コロンの表記も検査します。`-JapaneseGlossaryPath` に指定の用語集を渡すと、活用形や複合語を含めて英語原文から対応語を抽出し、表示名を照合します。`-TerminologyReportPath` で本文の用語照合結果をJSONに保存できます。同綴異義語は用語集のカテゴリと前後の文脈から選びます。
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\localization\Test-Translations.ps1

@@ -150,7 +150,6 @@ Feat/&FeatGroupWeaponMasteryTitle=무기 마스터리
 Feature/&MartialChampionSuperiorCriticalDescription=무기 공격은 주사위를 굴려 18, 19, 20이 나오면 치명타가 됩니다.
 Feat/&FeatGroupOriginTitle=기원 재주
 Feat/&FeatGroupOriginDescription=2024년 배경에서 얻는 재주입니다.
-
 Feat/&FeatGroupWarCaster2024Title=워 캐스터
 Feat/&FeatGroupWarCaster2024Description=지능, 지혜 또는 매력을 1 증가시킵니다. 최대 20까지 증가할 수 있습니다.\n집중을 유지하기 위한 건강 내성 굴림에 이점을 얻습니다.\n한 손이나 양손에 무기 또는 방패를 들고 있어도 주문의 동작 구성요소를 수행할 수 있습니다.\n적대적인 크리쳐의 이동으로 당신의 기회공격이 유발되면, 그 공격 대신 반응행동으로 해당 크리쳐에게 소마법을 시전할 수 있습니다. 시전 시간이 행동 또는 추가행동이어야 하며, 해당 크리쳐만 대상으로 삼아야 합니다.
 Feat/&FeatWarCaster2024IntTitle=워 캐스터 [지능]
@@ -202,7 +201,6 @@ Feat/&FeatHeavilyArmored2024Description=근력을 1 증가시킵니다. 최대 2
 Feat/&FeatGroupResilient2024Title=회복력
 Feat/&FeatGroupResilient2024Description=원하는 능력치 하나를 1 증가시킵니다. 최대 20까지 증가할 수 있습니다.\n선택한 능력치의 내성 굴림에 숙련을 얻습니다.
 Feat/&FeatGroupResilient2024VariantDescription={0} 내성 굴림에 숙련을 얻습니다.
-
 Feat/&FeatGroupSpeedyTitle=신속함
 Feat/&FeatGroupSpeedyDescription=민첩 또는 건강을 1 증가시킵니다(최대 20).\n이동 속도가 10피트 증가합니다.\n자신의 턴에 질주 행동을 하면 그 턴이 끝날 때까지 험지 때문에 추가 이동을 소비하지 않습니다.\n당신에 대한 기회공격은 불리점을 받습니다.
 Feat/&FeatShieldMaster2024Title=방패의 달인
@@ -222,4 +220,3 @@ Feat/&FeatGroupSpellSniper2024Title=주문 저격수
 Feat/&FeatGroupSpellSniper2024Description=지능, 지혜 또는 매력을 1 증가시킵니다(최대 20).\n적이 5피트 이내에 있어도 당신의 주문 공격 굴림에 불리점을 받지 않습니다. 사거리가 최소 10피트이고 공격 굴림을 요구하는 주문을 시전할 때, 그 주문의 사거리를 60피트 늘릴 수 있습니다. 당신의 원거리 주문 공격은 절반 엄폐와 3/4 엄폐를 무시합니다.
 Feat/&FeatGroupHeavilyArmored2024Title=중무장 숙련
 Feat/&FeatGroupHeavilyArmored2024Description=근력 또는 건강을 1 증가시킵니다(최대 20).\n전제조건: 중형 갑옷 숙련.\n중갑 숙련을 얻습니다.
-

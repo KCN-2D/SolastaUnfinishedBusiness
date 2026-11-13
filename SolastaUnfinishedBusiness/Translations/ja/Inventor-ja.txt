@@ -57,3 +57,4 @@ Subclass/&InventorInnovationDescription=重点を置く研究分野を選択し�
 Subclass/&InventorInnovationTitle=研究分野
 Feature/&FeatureSetInventorMagicItemMasterTitle=魔法のアイテムの達人
 Feature/&FeatureSetInventorMagicItemMasterDescription=同調できる魔法のアイテムの上限が1増加します。
+Feature/&PowerInventorSoulOfArtifice2024Description=• 魔法のアイテムに1つ以上同調していれば、小休憩を終えると天才のひらめきの使用回数がすべて回復します。\n• ヒット・ポイントが0に減少したときはいつでも、あなたのアーティフィサー・レベルに等しいヒット・ポイントを回復して立ち上がります。この特徴は大休憩ごとに1回使用できます。

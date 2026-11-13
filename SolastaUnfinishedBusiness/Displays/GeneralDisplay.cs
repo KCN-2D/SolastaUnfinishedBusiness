@@ -874,6 +874,13 @@ internal static class ToolsDisplay
             ClassesContext.SwitchSorcererMagicalGuidance();
         }
 
+        toggle = Main.Settings.EnableSorcererEmpoweredSpell2014;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableSorcererEmpoweredSpell2014"), ref toggle, UI.AutoWidth()))
+        {
+            Main.Settings.EnableSorcererEmpoweredSpell2014 = toggle;
+            MetamagicContext.SwitchSorcererMetamagicRules();
+        }
+
         toggle = Main.Settings.EnableSorcererQuickenedAction;
         if (UI.Toggle(Gui.Localize("ModUi/&EnableSorcererQuickenedAction"), ref toggle, UI.AutoWidth()))
         {

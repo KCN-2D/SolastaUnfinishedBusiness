@@ -494,7 +494,7 @@ public static class RulesetActorPatcher
         {
             if (__instance is RulesetCharacter rulesetCharacter)
             {
-                maximumDamage = rulesetCharacter
+                maximumDamage |= rulesetCharacter
                     .GetEffectControllerOrSelf()
                     .GetSubFeaturesByType<IForceMaxDamageTypeDependent>()
                     .Any(x => x.IsValid(__instance, damageForm));

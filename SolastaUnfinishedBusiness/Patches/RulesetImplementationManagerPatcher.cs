@@ -98,15 +98,8 @@ public static class RulesetImplementationManagerPatcher
             bool canRerollDice)
         {
             //crunchycrits
-            var dieType = useVersatileDamage ? damageForm.VersatileDieType : damageForm.DieType;
-            var diceMaxValue = DiceMaxValue[(int)damageForm.dieType];
-
-            if (damageForm.OverrideWithBardicInspirationDie &&
-                rulesetActor is RulesetCharacter character &&
-                character.GetBardicInspirationDieValue() != DieType.D1)
-            {
-                dieType = character.GetBardicInspirationDieValue();
-            }
+            var dieType = GetDamageDieType(rulesetActor, damageForm, useVersatileDamage);
+            var diceMaxValue = DiceMaxValue[(int)dieType];
 
             var totalDamage = rulesetActor.RollDiceAndSum(
                 dieType,
@@ -176,14 +169,7 @@ public static class RulesetImplementationManagerPatcher
             ICollection<int> rolledValues,
             bool canRerollDice)
         {
-            var diceType = useVersatileDamage ? damageForm.VersatileDieType : damageForm.DieType;
-
-            if (damageForm.OverrideWithBardicInspirationDie &&
-                rulesetActor is RulesetCharacter character &&
-                character.GetBardicInspirationDieValue() != DieType.D1)
-            {
-                diceType = character.GetBardicInspirationDieValue();
-            }
+            var diceType = GetDamageDieType(rulesetActor, damageForm, useVersatileDamage);
 
             var totalDamage = RollDiceKeepRollingMaxAndSum(rulesetActor,
                 diceType,
@@ -213,14 +199,7 @@ public static class RulesetImplementationManagerPatcher
             List<int> rolledValues,
             bool canRerollDice)
         {
-            var diceType = useVersatileDamage ? damageForm.VersatileDieType : damageForm.DieType;
-
-            if (damageForm.OverrideWithBardicInspirationDie &&
-                rulesetActor is RulesetCharacter character &&
-                character.GetBardicInspirationDieValue() != DieType.D1)
-            {
-                diceType = character.GetBardicInspirationDieValue();
-            }
+            var diceType = GetDamageDieType(rulesetActor, damageForm, useVersatileDamage);
 
             // different from original game code we roll usual dices and multiply result by 2
             var totalDamage = rulesetActor.RollDiceAndSum(
@@ -234,15 +213,20 @@ public static class RulesetImplementationManagerPatcher
             // duplicates the rolled dices
             rolledValues.AddRange([.. rolledValues]);
 
-            // doubles the rolled damage
-            damageForm.bonusDamage *= 2;
-
             return Mathf.FloorToInt(
                 damageMultiplier *
-                ((2 * totalDamage) + damageForm.BonusDamage - damageRollReduction + additionalDamage));
+                ((2 * totalDamage) + (2 * damageForm.BonusDamage) - damageRollReduction + additionalDamage));
         }
 
-        private static int GetCriticalHitMode(RulesetActor rulesetActor, bool criticalSuccess)
+        internal static DieType GetDamageDieType(RulesetActor actor, DamageForm form, bool versatile = false)
+        {
+            return form.OverrideWithBardicInspirationDie && actor is RulesetCharacter character &&
+                   character.GetBardicInspirationDieValue() != DieType.D1
+                ? character.GetBardicInspirationDieValue()
+                : versatile ? form.VersatileDieType : form.DieType;
+        }
+
+        internal static int GetCriticalHitMode(RulesetActor rulesetActor, bool criticalSuccess)
         {
             if (!criticalSuccess)
             {
@@ -267,7 +251,7 @@ public static class RulesetImplementationManagerPatcher
             return criticalHitMode;
         }
 
-        private static int RollDamageValue(
+        internal static int RollDamageValue(
             RulesetActor rulesetActor,
             DamageForm damageForm,
             int addDice,
@@ -282,6 +266,14 @@ public static class RulesetImplementationManagerPatcher
             bool canRerollDice,
             RulesetImplementationDefinitions.ApplyFormsParams formsParams)
         {
+            if (MetamagicContext.TryUseEmpoweredDamageRoll(formsParams, damageForm, addDice, criticalSuccess,
+                    rolledValues, out var preparedMode))
+            {
+                var bonus = criticalSuccess && preparedMode == 3 ? 2 * damageForm.BonusDamage : damageForm.BonusDamage;
+                return AggregateModifiedDice(rolledValues.Sum(), bonus, damageRollReduction,
+                    additionalDamage, damageMultiplier, preparedMode);
+            }
+
             if (rulesetActor is not RulesetCharacter rulesetCharacter)
             {
                 return rulesetActor.RollDamage(

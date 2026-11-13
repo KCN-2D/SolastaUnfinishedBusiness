@@ -91,4 +91,3 @@ Tag/&RetinueTouchedSpellSpecialTagTitle=従者の力宿す者の呪文
 Tag/&ShadowTouchedSpellSpecialTagTitle=影の力宿す者の呪文
 Tag/&VerdantTouchedSpellSpecialTagTitle=緑の力宿す者の呪文
 UI/&CustomFeatureSelectionTooltipTypePlaneMagic=次元魔法
-

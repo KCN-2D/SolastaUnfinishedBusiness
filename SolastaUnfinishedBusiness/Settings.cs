@@ -436,6 +436,7 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2024)] public bool EnableFighterTacticalMaster2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableFighterTacticalProgression2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableInventorMagicItemMaster2024 { get; set; }
+    [Tag(Type = TagType.T2024)] public bool EnableInventorSoulOfArtifice2024 { get; set; }
     public bool EnableMonkAbundantKi { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableMonkWeaponProficiency2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableMonkBodyAndMind2024 { get; set; }
@@ -493,6 +494,7 @@ public class Settings : UnityModManager.ModSettings
     [Tag(Type = TagType.T2024)] public bool EnableSorcererArcaneApotheosis2024 { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableSorcererInnateSorcery2024 { get; set; }
     [Tag(Type = TagType.T2014)] public bool EnableSorcererMagicalGuidance { get; set; }
+    [Tag(Type = TagType.T2014)] public bool EnableSorcererEmpoweredSpell2014 { get; set; }
     [Tag(Type = TagType.T2014)] public bool EnableSorcererQuickenedAction { get; set; }
     public bool HideQuickenedActionWhenMetamagicOff { get; set; }
     [Tag(Type = TagType.T2024)] public bool EnableSorcererSorcerousRestoration2024 { get; set; }

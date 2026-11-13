@@ -231,7 +231,7 @@ ModUi/&EnablePaladinSmite2024=<color=#D89555>神聖なる一撃</color>を2024�
 ModUi/&EnableSmiteSpells2024=一撃系呪文を2024年版に置き換えます<i><color=#F0DAA0>（命中時に発動し、精神集中を必要としない）</color></i>
 ModUi/&EnablePaladinSpellCastingAtLevel1=<color=#D89555>呪文発動</color>をレベル2ではなくレベル1で有効にします
 ModUi/&EnablePaladinAnyFightingStyle2024=<color=#D89555>パラディン</color>が任意の戦闘スタイルを選択できるようにします<i><color=#F0DAA0>（アーチェリーと二刀流を追加）</color></i>
-ModUi/&EnableFastLocationLoads=ロードを高速化する
+ModUi/&EnableFastLocationLoads=ロードを高速化します
 ModUi/&EnableFastLocationLoadsHelp=ゲームが前面にある間、リソースの読み込みを優先し、ゲーム内のFPS制限と垂直同期を一時的に解除します。ロード完了後に元の設定へ戻します。FPS制限下でのロード時間を短縮できる場合があります。
 ModUi/&EnablePcgRandom=PCG方式の乱数生成を使用します<i><color=#F0DAA0>（https://www.pcg-random.org）</color></i>
 ModUi/&PcgRandomMultiplayerHelp=マルチプレイでは、ゲーム標準の同期された乱数生成を使用します。PCGの設定は保存されますが、乱数の状態が同期されないため、シングルプレイでのみ有効になります。
@@ -286,7 +286,7 @@ ModUi/&EnableSortingDungeonMakerAssets=ダンジョンメーカー・エディ�
 ModUi/&EnableSpeech=カスタムキャンペーンで音声読み上げを有効にします<i><color=#F0DAA0>（ナレーションとヒーローのみ）</color></i>
 ModUi/&EnableSpeechActorHelp=• 話者を選択します
 ModUi/&EnableSpeechOnNpcs=NPCの音声読み上げを有効にします
-ModUi/&EnableSpeechOnInteractions=調べたときの説明文をナレーションとして読み上げる
+ModUi/&EnableSpeechOnInteractions=調べたときの説明文をナレーションとして読み上げます
 ModUi/&EnableSpeechVoiceHelp=• 音声とナレーションの速度を選択します
 ModUi/&EnableStackableArtItems=<color=#D89555>芸術品</color>のスタックを有効にします
 ModUi/&EnableStackableAxesAndDaggers=<color=#D89555>ダガー</color>と<color=#D89555>ハンドアックス</color>のスタックを有効にします
@@ -587,9 +587,9 @@ ModUI/&ModifyThrowingRulesForStrength=筋力が不足している場合、投擲
 ModUI/&ModVersionControl=Unfinished Businessのバージョン設定
 ModUI/&RoleplaySettings=ロールプレイ
 ModUI/&RoleplaySettingsDescription=NPCの振る舞いや冒険中の判定を調整する設定です。
-ModUI/&EnableCivilianAmbientAnimations=市民NPCの待機と会話の動作を増やす
+ModUI/&EnableCivilianAmbientAnimations=市民NPCの待機と会話の動作を増やします
 ModUI/&EnableCivilianAmbientAnimationsDescription=NPCに、装備と周囲の状況に合った待機動作や会話の身振りを追加します。会話中や休息中は武器をしまいます。椅子やベンチに合う配置では、位置と向きを合わせて着席します。
-ModUI/&EnableCivilianBattleReactions=非戦闘NPCの戦闘への反応を追加する
+ModUI/&EnableCivilianBattleReactions=非戦闘NPCの戦闘への反応を追加します
 ModUI/&EnableCivilianBattleReactionsDescription=非戦闘NPCの装備や役割に応じて、怯える姿勢や身を守る姿勢を追加します。
 ModUI/&EnableDamageOnFailedJumpCheck=跳躍判定に失敗した場合、1d4ダメージを受けるようにします
 ModUi/&LegendaryTweaksTitle=<color=#F0DAA0>伝説級の調整：</color>
@@ -626,7 +626,7 @@ ModUi/&EnableMonkWeaponProficiency2024=<color=#D89555>モンクの武器習熟</
 ModUi/&EnableRogueWeaponProficiency2024=<color=#D89555>ローグの武器習熟</color>を2024年版に変更します<i><color=#F0DAA0>（単純武器と、妙技または軽武器の特性を持つ軍用武器）</color></i>
 ModUi/&EnableSorcererWeaponProficiency2024=<color=#D89555>ソーサラーの武器習熟</color>を2024年版に変更します<i><color=#F0DAA0>（すべての単純武器）</color></i>
 ModUi/&EnableWizardWeaponProficiency2024=<color=#D89555>ウィザードの武器習熟</color>を2024年版に変更します<i><color=#F0DAA0>（すべての単純武器）</color></i>
-ModUI/&EnableEnemyBattleTactics=敵の種別と戦闘役割に応じた追加能力を有効にする
+ModUI/&EnableEnemyBattleTactics=敵の種別と戦闘役割に応じた追加能力を有効にします
 ModUI/&EnableEnemyBattleTacticsDescription=敵の種別と戦い方に合う能力を付与します。枠数は脅威度1〜4：1、5〜8：2、9〜12：3、13〜16：4、17以上：5。ティア1〜3は同数の枠を使い、ティア2は脅威度5、ティア3は11から。枠内の重み付き抽選で選ぶため、最高ティアは保証されません。脅威度1未満は、その値と同じ確率でティア1を1つ得ます。カスタム敵の脅威度が0の場合は、元のモンスターテンプレートの脅威度で判定します。
 ModUI/&EnableEnemyBattleTacticsMultiplayerDescription=マルチプレイでは、参加者全員が同じ設定にしてからセッションを開始してください。マルチプレイのセッション中は変更できません。
 ModUi/&FlexibleRacesDisabledByBackgroundASI=背景による能力値上昇が有効なため、種族の能力値上昇を自由に選ぶ設定は適用されません。背景による能力値上昇を無効にすると、元の選択が適用されます。
@@ -703,7 +703,7 @@ ModUi/&EnableToolChecks2024=2024年版の道具判定の習熟ルールを適用
 ModUi/&ToolChecks2024Description=盗賊道具を用いる判定に、〈手先の早業〉の習熟と、その技能に固有の効果を適用します。技能と道具の習熟によるボーナスのうち、高い方を1回だけ加えます。両方に習熟している場合は有利も得ます。
 ModUi/&EnableAssassinInfiltrationExpertise2024=アサシンのレベル9の特徴を2024年版の<color=#D89555>偽りの素性</color>に変更します。<i><color=#F0DAA0>〈ペテン〉の習熟または習熟強化を得て、着実な狙いの使用後に移動できるようになります。ローグ全体の着実な狙い設定が無効でも、このアサシンに着実な狙いを付与します。</color></i>
 Setting/&NoToolRequirementDescription=キャラクターは道具なしでアイテムを製作したり、宝箱や扉の錠前を開けたりできます。
-ModUi/&EnableEpicBoons2024=偉業の証を有効化
+ModUi/&EnableEpicBoons2024=偉業の証を有効にします
 ModUi/&EpicBoons2024Help=2024年版のテーブルトップ特技が有効な場合、偉業の証のカテゴリとキャラクター・レベル19以降で修得できる特技を表示します。
 ModUi/&EpicBoons2024RequiresTabletopHelp=2024年版のテーブルトップ特技を有効にすると利用できます。この設定の選択は保持されます。
 ModUi/&EnableInventorMagicItemMaster2024=レベル18で<color=#D89555>魔法のアイテムの達人</color>を得られるようにします<i><color=#F0DAA0>（同調上限+1）</color></i>
@@ -711,7 +711,7 @@ ModUi/&EnableArtilleristFortifiedPosition2024=砲術士のレベル15の特徴�
 ModUi/&EnableArtilleristEldritchCannon2024=砲術士のレベル3の特徴を2024年版の<color=#D89555>魔導砲</color>に変更します<i><color=#F0DAA0>（起動のたびに3種類の効果から選択）</color></i>
 ModUi/&SpeechVoiceVoxEngineVersion=VOICEVOX Engine：{0}
 ModUi/&SpeechVoiceVoxVersionUnknown=バージョン未取得
-ModUi/&SpeechVoiceVoxCheckAutomatically=本体とエンジンの更新を自動確認
+ModUi/&SpeechVoiceVoxCheckAutomatically=本体とエンジンの更新を自動で確認します
 ModUi/&SpeechVoiceVoxCheckUpdates=VOICEVOXの更新を確認
 ModUi/&SpeechVoiceVoxReleases=エンジンの配布ページ
 ModUi/&SpeechVoiceVoxUpdateNotChecked=エンジンの更新は未確認です。
@@ -731,10 +731,13 @@ ModUi/&SpeechVoiceVoxAppLatestVersion=最新の本体：{0}
 ModUi/&SpeechVoiceVoxAppReleases=VOICEVOX本体の配布ページ
 ModUi/&SpeechVoiceVoxCheckAndInstall=最新版を確認してエンジンを導入
 ModUi/&SpeechVoiceVoxCheckAndUpdate=最新版を確認して管理中のエンジンを更新
-ModUi/&EnableCoordinatedExplorationActivities=探索中の長時間行動を予約する
-ModUi/&AutoConfirmMultiplayerLoading=ロード後の開始確認を自動化する
-ModUi/&AutoAcceptMultiplayerFastTravel=高速移動に自動で賛成する
-ModUi/&EnableMultiplayerAutoFollow=仲間への自動追従を有効にする
-ModUi/&ExtendExplorationItemTransferRange=探索中のアイテム受け渡し距離を24マスにする
+ModUi/&EnableCoordinatedExplorationActivities=探索中の長時間行動を予約します
+ModUi/&AutoConfirmMultiplayerLoading=ロード後の開始確認を自動化します
+ModUi/&AutoAcceptMultiplayerFastTravel=高速移動に自動で賛成します
+ModUi/&EnableMultiplayerAutoFollow=仲間への自動追従を有効にします
+ModUi/&ExtendExplorationItemTransferRange=探索中のアイテム受け渡し距離を24マスにします
 ModUi/&CooperativeHelp=各キャラクターの行動を予約し、全員の準備完了後に同時に開始できます。経過時間は最も長い行動の所要時間になります。
 ModUi/&CooperativeFollowHelp=冒険の支度で選んだ仲間に自動で追従します。移動を指示すると追従を解除します。
+ModUi/&EnableSorcererEmpoweredSpell2014=<color=#D89555>呪文威力強化</color>で、ダメージの出目を見てから再ロールするダイスを選択できるようにします
+ModUi/&EnableInventorSoulOfArtifice2024=レベル20の<color=#D89555>技術魔法の神髄</color>を変更します
+ModUi/&InventorSoulOfArtifice2024Help=魔法のアイテムに1つ以上同調していると、セーヴィング・スローへのボーナスの代わりに、小休憩で天才のひらめきの使用回数がすべて回復します。

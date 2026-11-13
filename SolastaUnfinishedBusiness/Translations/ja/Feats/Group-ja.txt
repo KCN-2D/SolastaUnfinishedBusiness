@@ -150,10 +150,8 @@ Feat/&FeatGroupWeaponMasteryTitle=武器マスタリー
 Feature/&MartialChampionSuperiorCriticalDescription=武器攻撃は、18、19、または20のロールでクリティカル・ヒットとなります。
 Feat/&FeatGroupOriginTitle=起源特技
 Feat/&FeatGroupOriginDescription=2024背景オプションで使われる起源特技です。
-
 Feat/&FeatGroupSpeedyTitle=機動力
 Feat/&FeatGroupSpeedyDescription=敏捷力または耐久力を1増加させ、最大20まで高めます。\n移動速度が2マス増加します。\n自分のターンに早足アクションを行ったとき、そのターンの残りの間、移動困難な地形では追加の移動を消費しません。\nあなたに対する機会攻撃は不利で行われます。
-
 Feat/&FeatGroupWarCaster2024Title=戦場の術者
 Feat/&FeatGroupWarCaster2024Description=知力、判断力、魅力のいずれか1つを1増加させ、最大20まで高めます。\n呪文の精神集中を維持するための耐久力セーヴィング・スローに有利を得ます。\n片手または両手に武器や盾を持っていても、呪文の動作要素を行えます。\n敵対的なクリーチャーの移動があなたからの機会攻撃を誘発したとき、機会攻撃の代わりにリアクションを使ってそのクリーチャーに初級呪文を発動できます。その初級呪文の発動に要する時間は1アクションまたはボーナス・アクションでなければならず、そのクリーチャーのみを対象にしなければなりません。
 Feat/&FeatWarCaster2024IntTitle=戦場の術者［知力］

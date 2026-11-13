@@ -36,7 +36,7 @@ public static class CharacterReactionItemPatcher
                 __instance.ReactButton.interactable = true;
             }
 
-            if (reactionRequest is ReactionRequestSelectTarget or ReactionRequestWarcaster
+            if (reactionRequest is IReactionRequestMultiSelection or ReactionRequestWarcaster
                 or ReactionRequestSpendBundlePower or ReactionRequestSelectSmiteSpell ||
                 SpellCastingResourceContext.IsManaged(reactionRequest))
             {
@@ -89,8 +89,7 @@ public static class CharacterReactionItemPatcher
                 __instance.characterName.Text = ReactionCharacterNameFormatter.Format(request.Character);
             }
 
-            var size = request is ReactionRequestWarcaster or ReactionRequestSpendBundlePower
-                or ReactionRequestSelectTarget
+            var size = request is IReactionRequestMultiSelection or ReactionRequestWarcaster or ReactionRequestSpendBundlePower
                 or ReactionRequestSelectSmiteSpell || SpellCastingResourceContext.IsManaged(request)
                 ? 400
                 : 290;
@@ -98,7 +97,7 @@ public static class CharacterReactionItemPatcher
             __instance.GetComponent<RectTransform>()
                 .SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, size);
 
-            if (request is ReactionRequestSelectTarget or ReactionRequestWarcaster
+            if (request is IReactionRequestMultiSelection or ReactionRequestWarcaster
                 or ReactionRequestSpendBundlePower or ReactionRequestSelectSmiteSpell ||
                 SpellCastingResourceContext.IsManaged(request))
             {
@@ -235,6 +234,9 @@ public static class CharacterReactionItemPatcher
 
             switch (reactionRequest)
             {
+                case ReactionRequestSelectDamageDice diceRequest:
+                    instance.BindDamageDieChoice(diceRequest, slotLevel, interactable, subitemSelected);
+                    break;
                 case ReactionRequestSelectTarget selectTargetRequest:
                     instance.BindTargetChoice(selectTargetRequest, slotLevel, interactable, subitemSelected);
                     break;

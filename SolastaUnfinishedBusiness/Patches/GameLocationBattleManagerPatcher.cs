@@ -75,11 +75,37 @@ public static class GameLocationBattleManagerPatcher
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             var iterator = TargetMethod();
-            var code = CombinedMetamagic.ReplaceTypeChecks(instructions, MetamagicType.SubtleSpell,
-                "GameLocationBattleManager.HandleSpellCast.MoveNext");
-
+            var code = PatchNoticeableComponents(instructions, iterator);
             code = PatchCounterspellSelfTargeting(code, iterator);
             return PatchCounterspellTargetSides(code, iterator);
+        }
+
+        private static IEnumerable<CodeInstruction> PatchNoticeableComponents(
+            IEnumerable<CodeInstruction> instructions, MethodBase iterator)
+        {
+            var checkType = AccessTools.PropertyGetter(typeof(MetamagicOptionDefinition), nameof(MetamagicOptionDefinition.Type));
+            var spellField = AccessTools.Field(iterator.DeclaringType, "selectEffectSpell");
+            var canHide = AccessTools.Method(typeof(HandleSpellCast_MoveNext_Patch), nameof(ResolveCastingType));
+            var replacements = 0;
+            foreach (var instruction in instructions)
+            {
+                if (!instruction.Calls(checkType)) { yield return instruction; continue; }
+                replacements++;
+                var load = new CodeInstruction(OpCodes.Ldarg_0);
+                load.labels.AddRange(instruction.labels);
+                load.blocks.AddRange(instruction.blocks);
+                yield return load;
+                yield return new CodeInstruction(OpCodes.Ldfld, spellField);
+                yield return new CodeInstruction(OpCodes.Call, canHide);
+            }
+            if (replacements != 1) { throw new InvalidOperationException($"Expected one Subtle Spell component check, found {replacements}."); }
+        }
+
+        private static MetamagicType ResolveCastingType(MetamagicOptionDefinition option, RulesetEffectSpell spell)
+        {
+            var type = CombinedMetamagic.ResolveType(option, MetamagicType.SubtleSpell);
+            return type == MetamagicType.SubtleSpell && spell != null &&
+                   !MetamagicContext.HasUnnoticeableSpellComponents(spell) ? (MetamagicType)(-1) : type;
         }
 
         private static IEnumerable<CodeInstruction> PatchCounterspellSelfTargeting(

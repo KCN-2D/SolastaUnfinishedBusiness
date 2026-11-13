@@ -57,3 +57,4 @@ Subclass/&InventorInnovationDescription=选择你要专精的研究领域。
 Subclass/&InventorInnovationTitle=研究领域
 Feature/&FeatureSetInventorMagicItemMasterTitle=魔法物品大师
 Feature/&FeatureSetInventorMagicItemMasterDescription=你的同调上限提高1。
+Feature/&PowerInventorSoulOfArtifice2024Description=• 同调至少一件魔法物品时，完成短休即可恢复灵光一闪的所有已消耗使用次数。\n• 当你的生命值降至 0 时，你会恢复等同于你奇械师等级的生命值，并立即重新站起。此特性每次长休后可使用一次。

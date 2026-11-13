@@ -30,10 +30,51 @@ internal static class PowerBundle
 
     private static Transform _parent;
 
+    internal static RechargeRate GetRestRechargeRate(FeatureDefinitionPower power)
+    {
+        return power.HasSubFeatureOfType<ModifyPowerRestRecoveryHandler>() ? RechargeRate.None : power.RechargeRate;
+    }
+
     internal static void RechargeLinkedPowers(
         [NotNull] RulesetCharacter character,
-        RestType restType)
+        RestType restType,
+        bool simulate = false)
     {
+        foreach (var usablePower in character.UsablePowers)
+        {
+            var power = usablePower.PowerDefinition;
+            var recovery = power.GetFirstSubFeatureOfType<ModifyPowerRestRecoveryHandler>();
+
+            if (recovery == null || power is FeatureDefinitionPowerSharedPool ||
+                CharacterFeatureReplacement.IsInactiveReplacement(character, power))
+            {
+                continue;
+            }
+
+            var maxUses = character.GetMaxUsesOfPower(usablePower);
+            var remainingUses = character.GetRemainingUsesOfPower(usablePower);
+            var ordinaryRecovery = power.RechargeRate == RechargeRate.ShortRest ||
+                                   power.RechargeRate == RechargeRate.LongRest && restType == RestType.LongRest;
+            var recoveredUses = Math.Max(0, Math.Min(maxUses,
+                recovery(character, usablePower, restType, maxUses, ordinaryRecovery ? maxUses : remainingUses)));
+
+            if (recoveredUses > remainingUses && !character.RecoveredFeatures.Contains(power))
+            {
+                character.RecoveredFeatures.Add(power);
+            }
+
+            if (!simulate)
+            {
+                usablePower.remainingUses = recoveredUses;
+                AssignUsesToSharedPowersForPool(character, usablePower, recoveredUses, maxUses);
+            }
+        }
+
+        if (simulate)
+        {
+            return;
+        }
+
         var pointPoolPowerDefinitions = new List<FeatureDefinitionPower>();
 
         foreach (var usablePower in character.UsablePowers)
@@ -55,7 +96,8 @@ internal static class PowerBundle
 
             // Only add to recharge here if it (recharges on a short rest and this is a short or long rest) or
             // it recharges on a long rest and this is a long rest
-            if (!pointPoolPowerDefinitions.Contains(rechargedPower)
+            if (!rechargedPower.HasSubFeatureOfType<ModifyPowerRestRecoveryHandler>()
+                && !pointPoolPowerDefinitions.Contains(rechargedPower)
                 && (rechargedPower.RechargeRate == RechargeRate.ShortRest
                     || (rechargedPower.RechargeRate == RechargeRate.LongRest
                         && restType == RestType.LongRest)))

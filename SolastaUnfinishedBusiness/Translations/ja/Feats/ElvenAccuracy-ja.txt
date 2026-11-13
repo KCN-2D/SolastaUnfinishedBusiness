@@ -9,4 +9,3 @@ Feat/&FeatElvenAccuracyWisdomTitle=エルフの正確さ［判断力］
 Feedback/&ElvenAccuracyTriggered={0}は{1}により、d20の出目{2}を残し、出目{3}のd20を振り直して{4}を出します。
 Tooltip/&FeatElvenAccuracyBaseDescription=敏捷力、知力、判断力、魅力のいずれかを使う攻撃ロールで有利を得ているなら、d20を3個振り、最も高い出目を使います。
 Tooltip/&FeatElvenAccuracyBaseTitle=エルフの正確さ
-

@@ -100,7 +100,11 @@ public sealed class WizardWarMagic : AbstractSubclass
             .OverrideClassName("Toggle")
             .AddToDB();
 
-        powerSurge.AddCustomSubFeatures(new CustomBehaviorPowerSurge(powerSurge, conditionSurgeMark));
+        powerSurge.AddCustomSubFeatures(
+            new CustomBehaviorPowerSurge(powerSurge, conditionSurgeMark),
+            new ModifyPowerRestRecoveryHandler((_, _, restType, _, remainingUses) =>
+                restType == RestType.LongRest ? 1 :
+                restType == RestType.ShortRest ? Math.Max(1, remainingUses) : remainingUses));
 
         var actionAffinityPowerSurgeToggle = FeatureDefinitionActionAffinityBuilder
             .Create(FeatureDefinitionActionAffinitys.ActionAffinitySorcererMetamagicToggle,
@@ -389,9 +393,14 @@ public sealed class WizardWarMagic : AbstractSubclass
             GameLocationCharacter attacker,
             List<GameLocationCharacter> targets)
         {
-            if (action is not CharacterActionCastSpell actionCastSpell ||
-                RulesetEffectSpellWithOrigin.GetOriginSpell(actionCastSpell.ActiveSpell) != SpellDefinitions.Counterspell ||
-                !SpellInterruptionContext.HasCounteredSpell(action))
+            if (action is not CharacterActionCastSpell actionCastSpell)
+            {
+                yield break;
+            }
+
+            var spell = RulesetEffectSpellWithOrigin.GetOriginSpell(actionCastSpell.ActiveSpell);
+            if (!(spell == SpellDefinitions.Counterspell && SpellInterruptionContext.HasCounteredSpell(action) ||
+                  spell == SpellDefinitions.DispelMagic && SpellInterruptionContext.HasDispelledSpell(actionCastSpell.ActiveSpell)))
             {
                 yield break;
             }

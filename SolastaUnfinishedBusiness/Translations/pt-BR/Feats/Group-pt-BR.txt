@@ -150,7 +150,6 @@ Feat/&FeatGroupWeaponMasteryTitle=Maestria em Armas
 Feature/&MartialChampionSuperiorCriticalDescription=Seus ataques com armas marcam um acerto crítico em uma jogada de 18, 19 ou 20.
 Feat/&FeatGroupOriginTitle=Talentos de Origem
 Feat/&FeatGroupOriginDescription=Talentos de antecedente usados pelas opções de antecedente de 2024.
-
 Feat/&FeatGroupWarCaster2024Title=Conjurador de Guerra
 Feat/&FeatGroupWarCaster2024Description=Aumente sua Inteligência, Sabedoria ou Carisma em 1, até o máximo de 20.\nVocê tem vantagem em salvaguardas de Constituição para manter a concentração.\nVocê pode realizar os componentes somáticos de magias mesmo segurando armas ou um escudo em uma ou ambas as mãos.\nQuando o movimento de uma criatura hostil provocar um ataque de oportunidade seu, você pode usar sua reação para conjurar um truque contra ela em vez de realizar o ataque. O truque deve ter tempo de conjuração de uma ação ou ação bônus e ter apenas essa criatura como alvo.
 Feat/&FeatWarCaster2024IntTitle=Conjurador de Guerra [Int]
@@ -202,7 +201,6 @@ Feat/&FeatHeavilyArmored2024Description=Aumente sua Força em 1, até o máximo 
 Feat/&FeatGroupResilient2024Title=Resiliente
 Feat/&FeatGroupResilient2024Description=Aumente um valor de atributo em 1, até o máximo de 20.\nVocê ganha proficiência nas salvaguardas do atributo escolhido.
 Feat/&FeatGroupResilient2024VariantDescription=Você ganha proficiência em salvaguardas de {0}.
-
 Feat/&FeatGroupSpeedyTitle=Veloz
 Feat/&FeatGroupSpeedyDescription=Aumente sua Destreza ou Constituição em 1, até um máximo de 20.\nSeu Deslocamento aumenta em 10 pés.\nQuando você realiza a ação Disparada no seu turno, terreno difícil não custa movimento extra pelo restante desse turno.\nAtaques de oportunidade contra você são feitos com desvantagem.
 Feat/&FeatShieldMaster2024Title=Mestre do Escudo
@@ -222,4 +220,3 @@ Feat/&FeatGroupSpellSniper2024Title=Atirador de Magias
 Feat/&FeatGroupSpellSniper2024Description=Aumente sua Inteligência, Sabedoria ou Carisma em 1, até um máximo de 20.\nEstar a até 5 pés de um inimigo não impõe Desvantagem às suas jogadas de ataque com magias. Quando lançar uma magia com alcance de pelo menos 10 pés e que exija uma jogada de ataque, você pode aumentar o alcance da magia em 60 pés. Seus ataques mágicos à distância ignoram meia cobertura e cobertura de três quartos.
 Feat/&FeatGroupHeavilyArmored2024Title=Pesadamente Armadurado
 Feat/&FeatGroupHeavilyArmored2024Description=Aumente sua Força ou Constituição em 1, até um máximo de 20.\nPré-requisito: proficiência com armaduras médias.\nVocê ganha proficiência com armaduras pesadas.
-

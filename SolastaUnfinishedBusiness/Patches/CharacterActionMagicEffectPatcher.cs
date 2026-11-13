@@ -571,7 +571,8 @@ public static class CharacterActionMagicEffectPatcher
                     spellRepertoire,
                     originSpell,
                     activeSpell,
-                    out var castingFailure);
+                    out var castingFailure,
+                    validateMetamagicSelection: true);
                 var isEffectValid = !isOriginValid ||
                                     originSpell == activeSpell.SpellDefinition ||
                                     SpellCastingValidation.IsValid(
@@ -579,7 +580,8 @@ public static class CharacterActionMagicEffectPatcher
                                         spellRepertoire,
                                         activeSpell.SpellDefinition,
                                         activeSpell,
-                                        out castingFailure);
+                                        out castingFailure,
+                                        validateMetamagicSelection: true);
 
                 if (!isOriginValid || !isEffectValid)
                 {
@@ -1413,16 +1415,18 @@ public static class CharacterActionMagicEffectPatcher
             CharacterActionMagicEffect __instance,
             RulesetEffect activeEffect,
             GameLocationCharacter target,
+            List<EffectForm> actualEffectForms,
             ref IEnumerator __result)
         {
-            __result = ExecuteWithFinishedHandlers(__result, __instance, activeEffect, target);
+            __result = ExecuteWithFinishedHandlers(__result, __instance, activeEffect, target, actualEffectForms);
         }
 
         private static IEnumerator ExecuteWithFinishedHandlers(
             IEnumerator original,
             CharacterActionMagicEffect action,
             RulesetEffect activeEffect,
-            GameLocationCharacter target)
+            GameLocationCharacter target,
+            List<EffectForm> actualEffectForms)
         {
             yield return original;
 
@@ -1436,6 +1440,13 @@ public static class CharacterActionMagicEffectPatcher
                 {
                     handler.OnMagicAttackFinishedByMe(action.ActingCharacter, target, action.AttackRollOutcome);
                 }
+            }
+
+            if (action.AttackRollOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess ||
+                activeEffect.EffectDescription.HalfDamageOnAMiss)
+            {
+                yield return MetamagicContext.TryEmpowerSpellDamage(action, action.ActingCharacter, target,
+                    activeEffect, actualEffectForms, action.AttackRollOutcome == RollOutcome.CriticalSuccess);
             }
         }
 

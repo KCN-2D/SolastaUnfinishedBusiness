@@ -57,3 +57,4 @@ Subclass/&InventorInnovationDescription=Seleccione el campo de estudio en el que
 Subclass/&InventorInnovationTitle=Campo de estudio
 Feature/&FeatureSetInventorMagicItemMasterTitle=Maestro de objetos mágicos
 Feature/&FeatureSetInventorMagicItemMasterDescription=Tu límite de sintonización aumenta en 1.
+Feature/&PowerInventorSoulOfArtifice2024Description=• Mientras estés en sintonía con al menos un objeto mágico, recuperas todos los usos gastados de Destello de genio al terminar un descanso corto.\n• Siempre que te reduzcan a 0 puntos de golpe, recuperas una cantidad de puntos de golpe igual a tu nivel de artífice y te pones de pie. Puedes usar esta característica una vez por cada descanso prolongado.

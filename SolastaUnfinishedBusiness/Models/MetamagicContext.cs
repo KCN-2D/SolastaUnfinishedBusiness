@@ -13,9 +13,11 @@ using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
 using SolastaUnfinishedBusiness.Builders;
 using SolastaUnfinishedBusiness.Behaviors;
+using SolastaUnfinishedBusiness.Behaviors.Specific;
 using SolastaUnfinishedBusiness.Builders.Features;
 using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Interfaces;
+using SolastaUnfinishedBusiness.Patches;
 using SolastaUnfinishedBusiness.Validators;
 using TA;
 using static RuleDefinitions;
@@ -31,6 +33,11 @@ internal static class MetamagicContext
     internal static HashSet<MetamagicOptionDefinition> Metamagic { get; private set; } = [];
 
     private const string MetamagicSeekingSpell = "MetamagicSeekingSpell";
+    private const string MetamagicEmpoweredSpell = "MetamagicEmpoweredSpell";
+    private const string EmpoweredDiceRemaining = "MetamagicEmpoweredDiceRemaining";
+    private static SmartAttributeDefinition _empoweredDiceRemaining;
+    [ThreadStatic] private static bool _validatingSelectedMaterialComponent;
+    private static readonly ConditionalWeakTable<RulesetEffectSpell, EmpoweredSpellState> EmpoweredSpells = new();
     private const string MetamagicCarefulSpell = "MetamagicCarefullSpell";
     private const string MetamagicExtendedSpell = "MetamagicExtendedSpell";
     private const string MetamagicHeightenedSpell = "MetamagicHeightenedSpell";
@@ -620,7 +627,11 @@ internal static class MetamagicContext
     {
         var page = GetSelection(panel)?.Current;
         var options = page?.Replacement?.GetFirstSubFeatureOfType<ReplaceMetamagicOption>()?.Options.ToList() ??
-                      ReplaceMetamagicOption.GetSelectionOptions(caster);
+                      ReplaceMetamagicOption.GetSelectionOptions(caster).ToList();
+        if (Main.Settings.EnableSorcererEmpoweredSpell2014)
+        {
+            options.RemoveAll(option => CombinedMetamagic.Contains(option, MetamagicEmpoweredSpell));
+        }
         if (page?.First is not { } first)
         {
             return options;
@@ -652,6 +663,12 @@ internal static class MetamagicContext
         IRulesetImplementationService service, RulesetEffectSpell spell, RulesetCharacter caster,
         MetamagicOptionDefinition option, out string failure, out int cost)
     {
+        cost = 0;
+        if (!ValidateSelectedMaterialComponent(caster, spell, option, out failure))
+        {
+            return false;
+        }
+
         var parent = GetPendingReplacement(option);
         if (parent == null)
         {
@@ -846,11 +863,11 @@ internal static class MetamagicContext
         EnsureRules2024SubFeatures();
         // Native effect attributes are already serialized for saves and peer synchronization.
         // Preserve all Guid bits in BaseValue; CurrentValue can apply numeric-stat modifiers.
-        spell.Attributes[HeightenedTargetLow] = CreateGuidAttribute(_heightenedTargetLow, unchecked((int)targetGuid));
-        spell.Attributes[HeightenedTargetHigh] = CreateGuidAttribute(_heightenedTargetHigh, unchecked((int)(targetGuid >> 32)));
+        spell.Attributes[HeightenedTargetLow] = CreateEffectAttribute(_heightenedTargetLow, unchecked((int)targetGuid));
+        spell.Attributes[HeightenedTargetHigh] = CreateEffectAttribute(_heightenedTargetHigh, unchecked((int)(targetGuid >> 32)));
     }
 
-    private static RulesetAttribute CreateGuidAttribute(SmartAttributeDefinition definition, int value) => new()
+    private static RulesetAttribute CreateEffectAttribute(SmartAttributeDefinition definition, int value) => new()
     {
         AttributeDefinition = definition,
         BaseValue = value,
@@ -1097,7 +1114,7 @@ internal static class MetamagicContext
             _spell = null;
         }
     }
-    internal static void SwitchSorcererMetamagicRules2024()
+    internal static void SwitchSorcererMetamagicRules()
     {
         EnsureRules2024SubFeatures();
 
@@ -1126,6 +1143,247 @@ internal static class MetamagicContext
         SetOrRestoreDescription(MetamagicExtendedSpell, MetamagicExtendedSpell2024Description, enabled);
         SetOrRestoreDescription(MetamagicQuickenedSpell, MetamagicQuickenedSpell2024Description, enabled);
         SetOrRestoreDescription(MetamagicTwinnedSpell, MetamagicTwinnedSpell2024Description, enabled);
+        SetOrRestoreDescription("MetamagicSubtleSpell", "Rules/&MetamagicOptionSubtleSpell2024Description", enabled);
+        SetOrRestoreDescription(MetamagicEmpoweredSpell, "Rules/&MetamagicOptionEmpoweredSpell2014Description",
+            Main.Settings.EnableSorcererEmpoweredSpell2014);
+    }
+
+    private static bool HasOrdinaryMaterialComponent(SpellDefinition spell) =>
+        spell != null && (spell.MaterialComponentType != MaterialComponentType.Specific ||
+                         !spell.SpecificMaterialComponentConsumed && spell.SpecificMaterialComponentCostGp <= 0);
+
+    internal static bool HasUnnoticeableSpellComponents(RulesetEffectSpell spell) =>
+        spell != null && CombinedMetamagic.HasType(spell.MetamagicOption, MetamagicType.SubtleSpell) &&
+        (!Main.Settings.EnableSorcererMetamagic2024 || HasOrdinaryMaterialComponent(spell.SpellDefinition));
+
+    internal static bool CanPreviewSubtleSpellMaterialComponent(RulesetCharacter caster, SpellDefinition spell)
+    {
+        return Main.Settings.EnableSorcererMetamagic2024 && !_validatingSelectedMaterialComponent &&
+               HasOrdinaryMaterialComponent(spell) && caster is { IsMetamagicToggled: true } &&
+               (caster.RemainingSorceryPoints >= 1 || Tabletop2024Context.IsArcaneApotheosisAvailable(caster)) &&
+               ReplaceMetamagicOption.GetOptions(caster).Any(option =>
+                   CombinedMetamagic.HasType(option, MetamagicType.SubtleSpell));
+    }
+
+    internal static IEnumerator TryEmpowerSpellDamage(CharacterAction action, GameLocationCharacter attacker,
+        GameLocationCharacter defender, RulesetEffect effect, List<EffectForm> forms, bool critical)
+    {
+        if (!Main.Settings.EnableSorcererEmpoweredSpell2014 || action is not CharacterActionMagicEffect magicAction ||
+            GetOriginatingSpell(effect) is not { Caster: { } caster } spell ||
+            attacker?.RulesetCharacter is not { } roller ||
+            defender?.RulesetActor == null || !TryGetMetamagic(MetamagicEmpoweredSpell, out var empowered) ||
+            !SimulacrumBehavior.EnumerateTrainedMetamagicOptions(caster)
+                .Any(option => CombinedMetamagic.HasType(option, MetamagicType.EmpoweredSpell)))
+        {
+            yield break;
+        }
+
+        var responder = GameLocationCharacter.GetFromActor(caster);
+        var paid = spell.TryGetAttribute(EmpoweredDiceRemaining, out var remaining);
+        var maximum = paid ? remaining.BaseValue : Math.Max(1, AttributeDefinitions.ComputeAbilityScoreModifier(
+            caster.TryGetAttributeValue(AttributeDefinitions.Charisma)));
+        var cost = paid ? 0 : SorceryIncarnateContext.GetPayableCost(caster, spell, empowered);
+        if (responder == null || maximum <= 0 || caster.RemainingSorceryPoints < cost)
+        {
+            yield break;
+        }
+
+        var state = EmpoweredSpells.GetValue(spell, _ => new EmpoweredSpellState());
+        var sharedForms = effect.EffectDescription.IsAoE
+            ? state.SharedForms.GetValue(action, _ => new HashSet<int>()) : null;
+        var parameters = new RulesetImplementationDefinitions.ApplyFormsParams();
+        parameters.FillSourceAndTarget(roller, defender.RulesetActor);
+        parameters.FillFromActiveEffect(effect);
+        parameters.addDice = magicAction.AddDice;
+        var mode = RulesetImplementationManagerPatcher.ApplyDamageForm_Patch.GetCriticalHitMode(roller, critical);
+        var plans = new List<EmpoweredDamageRoll>();
+        var firstDamage = true;
+        for (var formIndex = 0; formIndex < forms.Count; formIndex++)
+        {
+            var form = forms[formIndex];
+            if (form.FormType != EffectForm.EffectFormType.Damage)
+            {
+                continue;
+            }
+
+            var damage = form.DamageForm;
+            var additionalDice = ComputeDamageAdditionalDice(form, parameters, firstDamage);
+            firstDamage = false;
+            if (magicAction.RolledSaveThrow && magicAction.SaveOutcome is RollOutcome.Success or RollOutcome.CriticalSuccess &&
+                form.SavingThrowAffinity == EffectSavingThrowType.Negates ||
+                sharedForms != null && !sharedForms.Add(formIndex))
+            {
+                continue;
+            }
+
+            var values = new List<int>();
+            RulesetImplementationManagerPatcher.ApplyDamageForm_Patch.RollDamageValue(
+                roller, damage, additionalDice, critical, 0, 0, 1f, false, false, false, values, true, parameters);
+
+            var maximized = roller.GetEffectControllerOrSelf().GetSubFeaturesByType<IForceMaxDamageTypeDependent>()
+                .Any(provider => provider.IsValid(roller, damage));
+            var dieType = RulesetImplementationManagerPatcher.ApplyDamageForm_Patch.GetDamageDieType(roller, damage);
+            plans.Add(new EmpoweredDamageRoll(damage, dieType, additionalDice, critical, mode, values, !maximized));
+        }
+
+        var choices = plans.SelectMany(plan => Enumerable.Range(0, plan.SelectableCount)
+            .Select(index => (Plan: plan, Index: index))).ToList();
+        if (choices.Count > 0 && ServiceRepository.GetService<IGameLocationActionService>() is GameLocationActionManager manager &&
+            ServiceRepository.GetService<IGameLocationBattleService>() is GameLocationBattleManager battle)
+        {
+            var reaction = new CharacterActionParams(responder, (ActionDefinitions.Id)ExtraActionId.DoNothingFree);
+            bool StillValid() => Main.Settings.EnableSorcererEmpoweredSpell2014 &&
+                                 !caster.IsDeadOrDyingOrUnconscious && caster.RemainingSorceryPoints >= cost &&
+                                 spell.TryGetAttribute(EmpoweredDiceRemaining, out var current) == paid &&
+                                 (!paid || current.BaseValue == maximum) &&
+                                 (paid || SorceryIncarnateContext.GetPayableCost(caster, spell, empowered) == cost);
+            var request = new ReactionRequestSelectDamageDice(reaction, spell.SpellDefinition,
+                choices.Select(choice => (choice.Plan.DieType, choice.Plan.Values[choice.Index],
+                    choice.Plan.Form.DamageType)).ToArray(), maximum, cost, StillValid);
+            var count = manager.PendingReactionRequestGroups.Count;
+            manager.AddInterruptRequest(request);
+            yield return battle.WaitForReactions(responder, manager, count);
+            if (reaction.ReactionValidated && request.IsStillValid)
+            {
+                spell.Attributes[EmpoweredDiceRemaining] = CreateEffectAttribute(
+                    _empoweredDiceRemaining, maximum - request.Selection.Count);
+                if (!paid)
+                {
+                    SorceryIncarnateContext.PayMetamagicCost(caster, spell, empowered, cost);
+                }
+                foreach (var option in request.Selection.SelectedOptions)
+                {
+                    var (plan, index) = choices[option];
+                    var previous = plan.Values[index];
+                    var replacement = RuleDefinitions.RollDie(plan.DieType, AdvantageType.None, out _, out _, 0);
+                    plan.Values[index] = replacement;
+                    caster.DieRerolled?.Invoke(caster, plan.DieType, previous, replacement,
+                        "Feature/&MetamagicOptionEmpoweredSpellRerollDescription");
+                    if (plan.Critical && plan.Mode == 3)
+                    {
+                        plan.Values[index + plan.Values.Count / 2] = replacement;
+                    }
+                }
+            }
+        }
+
+        foreach (var plan in plans)
+        {
+            var key = (defender.RulesetActor.Guid, plan.Form);
+            if (!state.Rolls.TryGetValue(key, out var queue))
+            {
+                state.Rolls.Add(key, queue = new Queue<EmpoweredDamageRoll>());
+            }
+            queue.Enqueue(plan);
+        }
+    }
+
+    private static int ComputeDamageAdditionalDice(EffectForm form,
+        RulesetImplementationDefinitions.ApplyFormsParams parameters, bool firstDamage)
+    {
+        var dice = firstDamage || !form.DamageForm.IgnoreSpellAdvancementDamageDice ? parameters.addDice : 0;
+        if (form.ApplyLevel == EffectForm.LevelApplianceType.MultiplyDice)
+        {
+            dice = form.LevelType switch
+            {
+                LevelSourceType.CharacterLevel => parameters.sourceCharacter.TryGetAttributeValue(AttributeDefinitions.CharacterLevel),
+                LevelSourceType.ClassLevel => parameters.classLevel,
+                LevelSourceType.ClassLevelHalfUp => (parameters.classLevel + 1) / 2,
+                LevelSourceType.EffectLevel => parameters.effectLevel,
+                _ => dice
+            };
+        }
+        else if (form.ApplyLevel == EffectForm.LevelApplianceType.DiceNumberByLevelTable)
+        {
+            dice = DiceByRank.GetDiceOfRank(parameters.sourceCharacter.TryGetAttributeValue(AttributeDefinitions.CharacterLevel),
+                form.DiceByLevelTable, true);
+        }
+        return dice;
+    }
+
+    internal static bool TryUseEmpoweredDamageRoll(RulesetImplementationDefinitions.ApplyFormsParams parameters,
+        DamageForm form, int additionalDice, bool critical, List<int> values, out int mode)
+    {
+        mode = 0;
+        if (GetOriginatingSpell(parameters.activeEffect) is not { } spell || parameters.targetCharacter == null ||
+            !EmpoweredSpells.TryGetValue(spell, out var state) ||
+            !state.Rolls.TryGetValue((parameters.targetCharacter.Guid, form), out var queue) || queue.Count == 0)
+        {
+            return false;
+        }
+        var roll = queue.Dequeue();
+        if (queue.Count == 0)
+        {
+            state.Rolls.Remove((parameters.targetCharacter.Guid, form));
+        }
+        if (roll.AdditionalDice != additionalDice || roll.Critical != critical)
+        {
+            Main.Error($"Empowered Spell damage roll changed before application: {spell.SpellDefinition.Name}");
+            return false;
+        }
+        mode = roll.Mode;
+        values.AddRange(roll.Values);
+        return true;
+    }
+
+    private sealed class EmpoweredSpellState
+    {
+        internal readonly ConditionalWeakTable<CharacterAction, HashSet<int>> SharedForms = new();
+        internal readonly Dictionary<(ulong Target, DamageForm Form), Queue<EmpoweredDamageRoll>> Rolls = new();
+    }
+
+    private sealed class EmpoweredDamageRoll(DamageForm form, DieType dieType, int additionalDice, bool critical, int mode,
+        List<int> values, bool canReroll)
+    {
+        internal DamageForm Form { get; } = form;
+        internal int AdditionalDice { get; } = additionalDice;
+        internal bool Critical { get; } = critical;
+        internal int Mode { get; } = mode;
+        internal List<int> Values { get; } = values;
+        internal DieType DieType { get; } = dieType;
+        internal int SelectableCount => !canReroll || DieType == RuleDefinitions.DieType.D1 ? 0 :
+            Critical && Mode is 1 or 3 ? Values.Count / 2 : Values.Count;
+    }
+
+    private sealed class ValidateEmpoweredSpellDice : IValidateDieRollModifier
+    {
+        public bool CanModifyRoll(RulesetCharacter character, List<FeatureDefinition> features, List<string> damageTypes) =>
+            !Main.Settings.EnableSorcererEmpoweredSpell2014;
+    }
+
+    internal static bool ValidateSelectedMaterialComponent(SpellCastingValidationContext context, out string failure)
+    {
+        failure = string.Empty;
+        return context.ActiveSpell == null || context.BypassMaterialComponent || context.BypassComponentsAndCastingTime ||
+               !context.ValidateMetamagicSelection && context.ActiveSpell.MetamagicOption == null &&
+               CanPreviewSubtleSpellMaterialComponent(context.Caster, context.SpellDefinition) ||
+               ValidateSelectedMaterialComponent(context.Caster, context.ActiveSpell,
+                   context.ActiveSpell.MetamagicOption, out failure);
+    }
+
+    private static bool ValidateSelectedMaterialComponent(RulesetCharacter caster, RulesetEffectSpell spell,
+        MetamagicOptionDefinition option, out string failure)
+    {
+        failure = string.Empty;
+        if (!Main.Settings.EnableSorcererMetamagic2024 || spell == null ||
+            spell is RulesetEffectSpellWithOrigin { BypassMaterialComponent: true } ||
+            SpellCastingResourceContext.EffectIgnoresComponents(spell) ||
+            HasOrdinaryMaterialComponent(spell.SpellDefinition) &&
+            CombinedMetamagic.HasType(option, MetamagicType.SubtleSpell))
+        {
+            return true;
+        }
+
+        var previous = _validatingSelectedMaterialComponent;
+        try
+        {
+            _validatingSelectedMaterialComponent = true;
+            return caster.IsComponentMaterialValid(spell.SpellDefinition, out failure);
+        }
+        finally
+        {
+            _validatingSelectedMaterialComponent = previous;
+        }
     }
 
     internal static int GetSeekingSpellCost()
@@ -1410,8 +1668,23 @@ internal static class MetamagicContext
         }
 
         _rules2024SubFeaturesInstalled = true;
+        GetDefinition<FeatureDefinitionDieRollModifier>("DieRollModifierEmpoweredSpell")
+            .AddCustomSubFeatures(new ValidateEmpoweredSpellDice());
+        if (TryGetMetamagic(MetamagicEmpoweredSpell, out var empoweredSpell))
+        {
+            empoweredSpell.AddCustomSubFeatures(new ValidateMetamagicApplication(
+                (RulesetCharacter _, RulesetEffectSpell _, MetamagicOptionDefinition _, ref bool valid, ref string failure) =>
+                {
+                    if (Main.Settings.EnableSorcererEmpoweredSpell2014)
+                    {
+                        valid = false;
+                        failure = "Failure/&FailureFlagMetamagicAfterDamageRoll";
+                    }
+                }));
+        }
         _heightenedTargetLow = SmartAttributeDefinitionBuilder.Create(HeightenedTargetLow).SetGuiPresentationNoContent(true).AddToDB();
         _heightenedTargetHigh = SmartAttributeDefinitionBuilder.Create(HeightenedTargetHigh).SetGuiPresentationNoContent(true).AddToDB();
+        _empoweredDiceRemaining = SmartAttributeDefinitionBuilder.Create(EmpoweredDiceRemaining).SetGuiPresentationNoContent(true).AddToDB();
         _conditionCarefulSpell2024 = BuildCarefulSpell2024Condition();
         _conditionExtendedSpell2024 = BuildExtendedSpell2024Condition();
 

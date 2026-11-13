@@ -165,7 +165,7 @@ public static partial class Tabletop2024Context
 
     internal static void SwitchSorcererMetamagic()
     {
-        MetamagicContext.SwitchSorcererMetamagicRules2024();
+        MetamagicContext.SwitchSorcererMetamagicRules();
 
         Sorcerer.FeatureUnlocks.RemoveAll(x =>
             x.FeatureDefinition == PointPoolSorcererMetamagic ||
@@ -247,7 +247,17 @@ public static partial class Tabletop2024Context
             return false;
         }
 
-        var rulesetCharacter = character.RulesetCharacter;
+        return IsArcaneApotheosisAvailable(character.RulesetCharacter);
+    }
+
+    internal static bool IsArcaneApotheosisAvailable(RulesetCharacter rulesetCharacter)
+    {
+        var character = GameLocationCharacter.GetFromActor(rulesetCharacter);
+        if (character == null || !Main.Settings.EnableSorcererArcaneApotheosis2024)
+        {
+            return false;
+        }
+
         var sorcererLevel = rulesetCharacter.GetClassLevel(Sorcerer);
 
         if (sorcererLevel < 20)

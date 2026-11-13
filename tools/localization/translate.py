@@ -53,15 +53,12 @@ def unpack_record(record):
 
 def get_records(filename):
     try:
-        line_count = 0
-        line_total = sum(1 for line in open(filename))
-        with open(filename, "rt", encoding="utf-8") as f:
-            record = "\n"
-            while record:
+        with open(filename, "rt", encoding="utf-8-sig") as f:
+            line_total = sum(1 for _ in f)
+            f.seek(0)
+            for line_count, record in enumerate(f, 1):
                 display_progress(line_count, line_total, filename)
-                record = f.readline()
-                line_count += 1
-                if record: yield unpack_record(record)
+                if record.strip(): yield unpack_record(record)
             print()
 
     except FileNotFoundError:

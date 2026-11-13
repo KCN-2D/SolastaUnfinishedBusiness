@@ -738,3 +738,6 @@ ModUi/&EnableMultiplayerAutoFollow=Automatisches Folgen aktivieren
 ModUi/&ExtendExplorationItemTransferRange=Gegenstandsübergabe beim Erkunden auf 24 Felder erweitern
 ModUi/&CooperativeHelp=Merkt für jeden Charakter eine Aktion vor. Sobald alle Spieler bereit sind, können die Aktionen gemeinsam beginnen. Die längste Aktion bestimmt die verstrichene Zeit.
 ModUi/&CooperativeFollowHelp=Folgt automatisch dem in den Abenteuervorbereitungen gewählten Gefährten. Ein Bewegungsbefehl beendet das Folgen.
+ModUi/&EnableSorcererEmpoweredSpell2014=Nutze <color=#D89555>Verstärkter Zauber</color> nach Tischrollenspielregeln: Wähle die Schadenswürfel nach dem Wurf zum erneuten Würfeln aus
+ModUi/&EnableInventorSoulOfArtifice2024=<color=#D89555>Seele der Kunstfertigkeit</color> auf Stufe 20 ändern
+ModUi/&InventorSoulOfArtifice2024Help=Wenn du auf mindestens einen magischen Gegenstand eingestimmt bist, stellt eine kurze Rast alle Anwendungen von Ein Geistesblitz wieder her. Dies ersetzt den Bonus auf Rettungswürfe.

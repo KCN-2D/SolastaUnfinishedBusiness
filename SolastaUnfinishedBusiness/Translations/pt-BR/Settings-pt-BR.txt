@@ -738,3 +738,6 @@ ModUi/&EnableMultiplayerAutoFollow=Ativar acompanhamento automático
 ModUi/&ExtendExplorationItemTransferRange=Ampliar para 24 células a transferência de itens na exploração
 ModUi/&CooperativeHelp=Permite reservar uma ação por personagem e iniciá-las juntas quando todos os jogadores estiverem prontos. O tempo decorrido corresponde à ação mais longa.
 ModUi/&CooperativeFollowHelp=Segue automaticamente o companheiro escolhido nos Preparativos de aventura. Uma ordem de movimento encerra o acompanhamento.
+ModUi/&EnableSorcererEmpoweredSpell2014=Usar <color=#D89555>Magia Potencializada</color> de mesa: escolher os dados de dano para rolar novamente após ver os resultados
+ModUi/&EnableInventorSoulOfArtifice2024=Alterar <color=#D89555>Alma do Artifício</color> do nível 20
+ModUi/&InventorSoulOfArtifice2024Help=Enquanto estiver sintonizado com pelo menos um item mágico, terminar um descanso curto recupera todos os usos de Flash de gênio. Este efeito substitui o bônus nas salvaguardas.

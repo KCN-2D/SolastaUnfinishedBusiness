@@ -77,6 +77,22 @@ internal static class CharacterReactionSubitemExtension
         return true;
     }
 
+    internal static void BindDamageDieChoice(this CharacterReactionSubitem instance,
+        ReactionRequestSelectDamageDice request, int option, bool interactable,
+        CharacterReactionSubitem.SubitemSelectedHandler selected)
+    {
+        var layout = CaptureReactionChoiceLayout(instance);
+        instance.label.Text = request.FormatDie(option);
+        instance.toggle.interactable = interactable;
+        instance.canvasGroup.interactable = interactable;
+        instance.SubitemSelected = selected;
+        for (var index = 0; index < instance.slotStatusTable.childCount; index++)
+        {
+            instance.slotStatusTable.GetChild(index).gameObject.SetActive(false);
+        }
+        layout.Apply(instance, GetReactionChoiceWidth(instance));
+    }
+
     internal static void BindTargetChoice(
         [NotNull] this CharacterReactionSubitem instance,
         [NotNull] ReactionRequestSelectTarget reactionRequest,

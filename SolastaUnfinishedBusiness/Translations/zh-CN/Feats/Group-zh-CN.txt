@@ -150,7 +150,6 @@ Feat/&FeatGroupWeaponMasteryTitle=武器精通
 Feature/&MartialChampionSuperiorCriticalDescription=如果掷出 18、19 或 20，您的武器攻击将产生致命一击。
 Feat/&FeatGroupOriginTitle=起源专长
 Feat/&FeatGroupOriginDescription=2024版背景提供的专长。
-
 Feat/&FeatGroupWarCaster2024Title=战地施法者
 Feat/&FeatGroupWarCaster2024Description=你的智力、感知或魅力提高1，最高为20。\n你维持专注的体质豁免具有优势。\n即使单手或双手持有武器或盾牌，你仍可以执行法术的姿势成分。\n当敌对生物的移动引发你的借机攻击时，你可以改用反应对其施放一个戏法。该戏法的施法时间必须为一个动作或附赠动作，且只能以该生物为目标。
 Feat/&FeatWarCaster2024IntTitle=战地施法者 [智力]
@@ -202,7 +201,6 @@ Feat/&FeatHeavilyArmored2024Description=你的力量提高1，最高为20。\n�
 Feat/&FeatGroupResilient2024Title=强健
 Feat/&FeatGroupResilient2024Description=你选择的一项属性值提高1，最高为20。\n你获得所选属性的豁免熟练项。
 Feat/&FeatGroupResilient2024VariantDescription=你获得{0}豁免熟练项。
-
 Feat/&FeatGroupSpeedyTitle=迅捷
 Feat/&FeatGroupSpeedyDescription=你的敏捷或体质提高1点，最多为20。\n你的速度增加10英尺。\n当你在自己的回合采取疾走动作时，困难地形在该回合剩余时间内不会让你额外消耗移动。\n对你进行的借机攻击具有劣势。
 Feat/&FeatShieldMaster2024Title=盾牌大师
@@ -222,4 +220,3 @@ Feat/&FeatGroupSpellSniper2024Title=法术狙击手
 Feat/&FeatGroupSpellSniper2024Description=你的智力、感知或魅力提高1点，最多为20。\n敌人在你5英尺内时，不会使你的法术攻击检定具有劣势。当你施放一个射程至少10英尺且需要进行攻击检定的法术时，你可以将该法术的射程增加60英尺。你的远程法术攻击无视半身掩护和四分之三掩护。
 Feat/&FeatGroupHeavilyArmored2024Title=重甲训练
 Feat/&FeatGroupHeavilyArmored2024Description=你的力量或体质提高1点，最多为20。\n先决条件：中甲熟练项。\n你获得重甲熟练项。
-

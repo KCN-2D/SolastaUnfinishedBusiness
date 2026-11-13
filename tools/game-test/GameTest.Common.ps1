@@ -519,6 +519,31 @@ function Clear-GtSupersededBuildAssets {
 
 function Read-GtObject([string] $Path) { Assert-GtFile $Path; $value=[IO.File]::ReadAllText($Path) | ConvertFrom-Json; return $value }
 
+function Assert-GtRequiredEvidence([string]$Directory, [object]$Requirements) {
+    Assert-GtProperties $Requirements @('reportFile','checks') @('reportFile','checks')
+    $name = [string]$Requirements.reportFile
+    if (-not $name -or [IO.Path]::GetFileName($name) -cne $name -or [IO.Path]::GetExtension($name) -ine '.json' -or
+        $name.IndexOfAny([IO.Path]::GetInvalidFileNameChars()) -ge 0) { throw 'Evidence report must be a JSON filename.' }
+    Assert-GtTree $Directory
+    $reports = @(Get-ChildItem -LiteralPath $Directory -Recurse -File | Where-Object Name -CEQ $name)
+    if ($reports.Count -ne 1) { throw "Required evidence report must occur exactly once: $name" }
+    $report = Read-GtObject $reports[0].FullName
+    Assert-GtProperties $report @('checks') @('checks')
+    foreach ($check in @($report.checks)) {
+        Assert-GtProperties $check @('name','passed') @('name','passed')
+        if ($check.passed -isnot [bool] -or -not $check.passed) { throw "Evidence check failed: $($check.name)" }
+    }
+    if (@($Requirements.checks).Count -eq 0) { throw 'Required evidence checks are empty.' }
+    foreach ($required in @($Requirements.checks)) {
+        Assert-GtProperties $required @('name','minimumCount') @('name','minimumCount')
+        if (-not $required.name -or $required.minimumCount -isnot [int] -or $required.minimumCount -lt 1) {
+            throw 'Each required evidence check needs a name and positive integer count.'
+        }
+        $matching = @($report.checks | Where-Object name -CEQ $required.name)
+        if ($matching.Count -lt $required.minimumCount) { throw "Required evidence check is missing: $($required.name)" }
+    }
+}
+
 function Assert-GtProperties([object] $Object, [string[]] $Allowed, [string[]] $Required) {
     $properties=@($Object.PSObject.Properties | ForEach-Object { $_.Name })
     foreach ($property in $properties) { if ($property -notin $Allowed) { throw "Unknown JSON property: $property" } }

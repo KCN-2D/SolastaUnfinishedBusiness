@@ -57,3 +57,4 @@ Subclass/&InventorInnovationDescription=Select Field Of Study to focus on.
 Subclass/&InventorInnovationTitle=Field Of Study
 Feature/&FeatureSetInventorMagicItemMasterTitle=Magic Item Master
 Feature/&FeatureSetInventorMagicItemMasterDescription=Your attunement limit increases by 1.
+Feature/&PowerInventorSoulOfArtifice2024Description=• While attuned to at least one magic item, you regain all expended uses of Flash of Genius when you finish a short rest.\n• Whenever you are reduced to 0 hit points, you regain a number of hit points equal to your artificer level, and stand up. You can use this feature once per long rest.

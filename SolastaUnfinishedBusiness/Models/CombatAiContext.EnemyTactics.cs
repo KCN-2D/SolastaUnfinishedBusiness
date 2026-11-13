@@ -7574,7 +7574,7 @@ internal static partial class CombatAiContext
             actor == null || caster?.RulesetCharacter is not { IsDeadOrDyingOrUnconscious: false } ||
             !actor.IsOppositeSide(caster.Side) || !actor.CanSeeTarget(caster) ||
             RulesetEffectSpellWithOrigin.GetOriginSpell(spell)?.SpellLevel is not > 0 ||
-            CombinedMetamagic.HasType(spell.MetamagicOption, MetamagicType.SubtleSpell) ||
+            MetamagicContext.HasUnnoticeableSpellComponents(spell) ||
             !actor.RulesetCharacter.AreSpellComponentsValid(Counterspell) ||
             !actor.IsWithinRange(caster, Counterspell.EffectDescription.RangeParameter) ||
             caster.RulesetActor.IsImmuneToSpellLevel(caster.LocationPosition, actor.LocationPosition,
