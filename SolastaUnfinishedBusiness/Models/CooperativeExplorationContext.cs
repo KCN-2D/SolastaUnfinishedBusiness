@@ -64,6 +64,9 @@ internal static class CooperativeExplorationContext
     internal static int LocalPlayer => Online ? PhotonNetwork.LocalPlayer.ActorNumber : 0;
     internal static bool Enabled => Main.Enabled && Main.Settings.EnableCoordinatedExplorationActivities;
     internal static bool Busy => running || prepared != null;
+    internal static bool HasPanelActions => Busy ||
+        Enabled && GetPlayers().Any(player => player.State.Activities.Count > 0) ||
+        Main.Settings.EnableMultiplayerAutoFollow && (FollowLeader != 0 || FollowCandidates().Any());
     internal static bool FreezeClock => running && advancingClock == 0;
     internal enum ActivityFailure
     {
@@ -221,7 +224,7 @@ internal static class CooperativeExplorationContext
             }
         }
 
-        if (Enabled || Busy || Main.Settings.EnableMultiplayerAutoFollow && FollowCandidates().Any())
+        if (Enabled || HasPanelActions)
         {
             CooperativeExplorationPanel.Refresh(manager);
         }

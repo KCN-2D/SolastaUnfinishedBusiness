@@ -105,10 +105,12 @@ public static class GuiPanelPatcher
         [UsedImplicitly]
         private static Exception Finalizer(GuiPanel __instance, Exception __exception) =>
             // Native GuiPanel.Unload only yields null once and reads no panel state.
-            // ContainerPanel inherits it, so release its unbound rows at this boundary.
-            __instance is ContainerPanel container
-                ? ContainerPanelPatcher.ReleaseInventorySlots(container, __exception)
-                : __exception;
+            __instance switch
+            {
+                ContainerPanel container => ContainerPanelPatcher.ReleaseInventorySlots(container, __exception),
+                StockPanel stock => StockPanelPatcher.ReleaseStockRows(stock, __exception),
+                _ => __exception
+            };
     }
 
     [HarmonyPatch(typeof(GuiPanel), "OnDestroy")]
@@ -118,7 +120,8 @@ public static class GuiPanelPatcher
         [UsedImplicitly]
         private static Exception Finalizer(GuiPanel __instance, Exception __exception)
         {
-            if (__instance is not CharacterStageIdentityDefinitionPanel && __instance is not ContainerPanel)
+            if (__instance is not CharacterStageIdentityDefinitionPanel && __instance is not ContainerPanel &&
+                __instance is not StockPanel)
             {
                 return __exception;
             }
@@ -136,6 +139,7 @@ public static class GuiPanelPatcher
                 CharacterStageIdentityDefinitionPanel identity =>
                     CharacterStageIdentityDefinitionPanelPatcher.ReleaseCustomizationChoices(identity, __exception),
                 ContainerPanel container => ContainerPanelPatcher.ReleaseInventorySlots(container, __exception),
+                StockPanel stock => StockPanelPatcher.ReleaseStockRows(stock, __exception),
                 _ => __exception
             };
         }

@@ -802,8 +802,12 @@ public static class GameTestSaveSmokeProbe
             throw new BlockedConditionException("The native tutorial did not finish before timeout.");
     }
 
-    private static IEnumerator Click(Button button, string label)
+    internal static IEnumerator Click(Button button, string label, Action afterClick = null)
     {
+        // Input targets a presented frame, after activation and layout have settled.
+        yield return null;
+        Check(button && button.gameObject.activeInHierarchy && button.enabled && button.IsInteractable(),
+            label + " is enabled and interactable");
         var rect = button.GetComponent<RectTransform>();
         var canvas = button.GetComponentInParent<Canvas>();
         var point = RectTransformUtility.WorldToScreenPoint(canvas && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null, rect.TransformPoint(rect.rect.center));
@@ -817,6 +821,7 @@ public static class GameTestSaveSmokeProbe
         ExecuteEvents.Execute(button.gameObject, pointer, ExecuteEvents.pointerDownHandler);
         ExecuteEvents.Execute(button.gameObject, pointer, ExecuteEvents.pointerUpHandler);
         ExecuteEvents.Execute(button.gameObject, pointer, ExecuteEvents.pointerClickHandler);
+        afterClick?.Invoke();
         RecordOperation("native-ui", label);
         yield return SettleFrames(4);
     }

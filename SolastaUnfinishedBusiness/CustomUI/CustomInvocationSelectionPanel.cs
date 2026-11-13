@@ -1320,8 +1320,7 @@ internal class CustomInvocationSelectionPanel : CharacterStagePanel
         private static void ConfigureButton(Button button, string name, string caption, UnityEngine.Events.UnityAction action)
         {
             button.name = name;
-            button.onClick = new Button.ButtonClickedEvent();
-            button.onClick.AddListener(action);
+            UiHelpers.BindButton(button, action);
             var layout = button.GetComponent<LayoutElement>();
             layout.minWidth = 180f;
             layout.preferredWidth = 220f;

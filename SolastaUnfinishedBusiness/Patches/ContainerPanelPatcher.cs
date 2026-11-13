@@ -35,31 +35,10 @@ public static class ContainerPanelPatcher
 
     private static void ReleaseUnboundInventorySlots(Transform parent, ContainerPanel panel)
     {
-        if (OwnsInventorySlots(panel, parent))
+        if (OwnsInventorySlots(panel, parent) && UiHelpers.RetainUnboundChildren<InventorySlotBox>(parent,
+                slot => slot.InventorySlot == null && slot.GuiCharacter == null && !slot.BindToGameItems))
         {
-            var unbound = true;
-            foreach (Transform child in parent)
-            {
-                var slot = child.GetComponent<InventorySlotBox>();
-                if (!slot || slot.InventorySlot != null || slot.GuiCharacter != null || slot.BindToGameItems)
-                {
-                    unbound = false;
-                    break;
-                }
-            }
-
-            if (unbound)
-            {
-                // Native Unbind has cleared subscriptions, duration, tooltips and
-                // decorations. Native RefreshVisibleSlots rebuilds its scratch lists
-                // from these inactive children and performs every normal state refresh.
-                foreach (Transform child in parent)
-                {
-                    child.gameObject.SetActive(false);
-                }
-
-                return;
-            }
+            return;
         }
 
         Gui.ReleaseChildrenToPool(parent);
@@ -72,34 +51,7 @@ public static class ContainerPanelPatcher
             return originalException;
         }
 
-        foreach (Transform child in panel.slotsTable)
-        {
-            try
-            {
-                var slot = child.GetComponent<InventorySlotBox>();
-                if (slot)
-                {
-                    slot.Unbind();
-                }
-            }
-            catch (Exception error)
-            {
-                originalException = originalException == null ? error :
-                    new AggregateException(originalException, error);
-            }
-        }
-
-        try
-        {
-            Gui.ReleaseChildrenToPool(panel.slotsTable);
-        }
-        catch (Exception error)
-        {
-            originalException = originalException == null ? error :
-                new AggregateException(originalException, error);
-        }
-
-        return originalException;
+        return UiHelpers.ReleasePooledChildren<InventorySlotBox>(panel.slotsTable, slot => slot.Unbind(), originalException);
     }
 
     [HarmonyPatch(typeof(ContainerPanel), nameof(ContainerPanel.Unbind))]

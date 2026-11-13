@@ -303,12 +303,11 @@ internal class SubFeatSelectionModal : GuiGameScreen
         var message = Gui.GuiService.GetScreen<MessageModal>();
         _backButton = Instantiate(message.cancelButton, transform, false);
         _backButton.name = "SubFeatSelectionBack";
-        _backButton.onClick = new Button.ButtonClickedEvent();
-        _backButton.onClick.AddListener(OnCloseCb);
         var backSetup = _backButton.GetComponent<GuiButtonSetup>();
         backSetup.DeactivateGamepadBindingButton();
         backSetup.enabled = false;
         backSetup.BasicImage.gameObject.SetActive(false);
+        UiHelpers.BindButton(_backButton, OnCloseCb);
         _backButton.GetComponentInChildren<GuiLabel>(true).Text = "Screen/&BackTitle";
         var backRect = _backButton.GetComponent<RectTransform>();
         backRect.anchorMin = backRect.anchorMax = new Vector2(0.5f, 0.06f);

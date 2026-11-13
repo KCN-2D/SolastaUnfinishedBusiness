@@ -1,5 +1,7 @@
 using System;
 using UnityEngine;
+using UnityEngine.Events;
+using UnityEngine.UI;
 
 namespace SolastaUnfinishedBusiness.Api.Helpers;
 internal static class UiHelpers
@@ -8,6 +10,57 @@ internal static class UiHelpers
     private static NativePanelInitialization _nativePanelInitialization;
 
     internal static bool NativePanelShowInitializationAvailable { get; set; }
+
+    internal static void BindButton(Button button, UnityAction action)
+    {
+        // Cloned native controls carry the source screen's current selection state.
+        // Their owner applies its own availability after binding the new callback.
+        button.onClick = new Button.ButtonClickedEvent();
+        button.onClick.AddListener(action);
+        button.enabled = true;
+        button.interactable = true;
+        button.navigation = Navigation.defaultNavigation;
+        if (button.targetGraphic) button.targetGraphic.raycastTarget = true;
+    }
+
+    internal static bool RetainUnboundChildren<T>(Transform parent, Func<T, bool> isUnbound) where T : Component
+    {
+        if (!parent) return false;
+        foreach (Transform child in parent)
+        {
+            var row = child.GetComponent<T>();
+            if (!row || !isUnbound(row)) return false;
+        }
+
+        foreach (Transform child in parent) child.gameObject.SetActive(false);
+        return true;
+    }
+
+    internal static Exception ReleasePooledChildren<T>(Transform parent, Action<T> unbind,
+        Exception originalException = null) where T : Component
+    {
+        if (!parent) return originalException;
+        foreach (Transform child in parent)
+        {
+            try
+            {
+                var row = child.GetComponent<T>();
+                if (row) unbind(row);
+            }
+            catch (Exception error)
+            {
+                originalException = originalException == null ? error : new AggregateException(originalException, error);
+            }
+        }
+
+        try { Gui.ReleaseChildrenToPool(parent); }
+        catch (Exception error)
+        {
+            originalException = originalException == null ? error : new AggregateException(originalException, error);
+        }
+
+        return originalException;
+    }
 
     internal static NativePanelInitialization BeginNativePanelInitialization(
         GuiPanel owner,

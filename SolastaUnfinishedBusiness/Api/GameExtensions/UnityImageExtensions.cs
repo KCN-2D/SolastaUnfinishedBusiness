@@ -113,6 +113,35 @@ internal static class UnityImageExtensions
         newOwner.TrackAddressableSprite(sprite);
     }
 
+    internal static void SwapAddressableSprites(this Image image, Image other)
+    {
+        image.RestoreAddressableSpriteSwap();
+        other.RestoreAddressableSpriteSwap();
+        if (image == other || image.sprite == other.sprite) return;
+        var tracker = image.GetComponent<AddressableSpriteTracker>() ??
+                      image.gameObject.AddComponent<AddressableSpriteTracker>();
+        var partnerTracker = other.GetComponent<AddressableSpriteTracker>() ??
+                             other.gameObject.AddComponent<AddressableSpriteTracker>();
+        tracker.SwapPartner = other;
+        partnerTracker.SwapPartner = image;
+        image.TransferAddressableSprite(other, image.sprite);
+        other.TransferAddressableSprite(image, other.sprite);
+        (image.sprite, other.sprite) = (other.sprite, image.sprite);
+    }
+
+    internal static void RestoreAddressableSpriteSwap(this Image image)
+    {
+        var tracker = image.GetComponent<AddressableSpriteTracker>();
+        var other = tracker ? tracker.SwapPartner : null;
+        if (!other) return;
+        tracker.SwapPartner = null;
+        var partnerTracker = other.GetComponent<AddressableSpriteTracker>();
+        if (partnerTracker) partnerTracker.SwapPartner = null;
+        image.TransferAddressableSprite(other, image.sprite);
+        other.TransferAddressableSprite(image, other.sprite);
+        (image.sprite, other.sprite) = (other.sprite, image.sprite);
+    }
+
     internal static void SetupSprite(
         [NotNull] this Image imageComponent,
         [CanBeNull] AssetReferenceSprite spriteReference,
@@ -138,6 +167,7 @@ internal static class UnityImageExtensions
 internal sealed class AddressableSpriteTracker : MonoBehaviour
 {
     private readonly HashSet<Sprite> _sprites = [];
+    internal Image SwapPartner { get; set; }
 
     internal void Track([NotNull] Sprite sprite)
     {

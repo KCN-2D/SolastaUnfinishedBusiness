@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Api.ModKit.Utility;
 using SolastaUnfinishedBusiness.Models;
 using TMPro;
@@ -60,6 +61,16 @@ internal sealed class CooperativeExplorationPanel : MonoBehaviour
         if (instance.openButton) instance.openButton.gameObject.SetActive(false);
     }
 
+    internal static bool TryClose()
+    {
+        if (!instance || !instance.opened || !instance.root || !instance.root.gameObject.activeInHierarchy ||
+            !Gui.InputService.IsActivePanel(Gui.GuiService.GetScreen<GameLocationScreenExploration>())) return false;
+        instance.opened = false;
+        instance.signature = null;
+        instance.RefreshView();
+        return true;
+    }
+
     internal static void Reset()
     {
         Hide();
@@ -71,8 +82,18 @@ internal sealed class CooperativeExplorationPanel : MonoBehaviour
 
     private void RefreshView()
     {
+        if (!CooperativeExplorationContext.HasPanelActions &&
+            (!opened || !CooperativeExplorationContext.Enabled ||
+             CooperativeExplorationContext.Failure == CooperativeExplorationContext.ActivityFailure.None))
+        {
+            opened = false;
+            Hide();
+            return;
+        }
+
         var screen = Gui.GuiService?.GetScreen<GameLocationScreenExploration>();
-        if (!screen || !screen.Visible || screen.CanvasGroup && !screen.CanvasGroup.interactable ||
+        if (!screen || !screen.Visible || screen.Hiding || !Gui.InputService.IsActivePanel(screen) ||
+            screen.CanvasGroup && !screen.CanvasGroup.interactable ||
             Gui.GuiService is GuiManager manager && manager.screensByType.Values.Any(panel => panel is ActionSubPanel && panel.Visible) ||
             screen.CharacterControlPanel?.ActionPanels?.Any(panel => panel.Visible && !panel.IsDefaultCursorActive) == true)
         { Hide(); return; }
@@ -95,10 +116,14 @@ internal sealed class CooperativeExplorationPanel : MonoBehaviour
         var players = CooperativeExplorationContext.PlayerStatuses().ToArray();
         var coordinated = CooperativeExplorationContext.Enabled;
         var matching = MultiplayerSettingsContext.AllPlayersMatch;
+        var leaders = Main.Settings.EnableMultiplayerAutoFollow
+            ? CooperativeExplorationContext.FollowCandidates().ToArray() : [];
         var next = CooperativeExplorationContext.PlanDigest + string.Join(";", players.Select(player => player.Ready)) +
                    CooperativeExplorationContext.Busy + CooperativeExplorationContext.Failure +
                    CooperativeExplorationContext.FollowLeader + Main.Settings.EnableMultiplayerAutoFollow +
-                   coordinated + matching + title + string.Join(",", characters.Select(character => character.RulesetCharacter.Guid));
+                   coordinated + matching + CooperativeExplorationContext.IsHost + title +
+                   string.Join(",", characters.Select(character => character.RulesetCharacter.Guid)) + ";" +
+                   string.Join(",", leaders.Select(character => character.RulesetCharacter.Guid));
         if (signature == next) return;
         signature = next;
         foreach (Transform row in rows) { row.gameObject.SetActive(false); Object.Destroy(row.gameObject); }
@@ -128,7 +153,7 @@ internal sealed class CooperativeExplorationPanel : MonoBehaviour
         }
         if (Main.Settings.EnableMultiplayerAutoFollow)
         {
-            foreach (var leader in CooperativeExplorationContext.FollowCandidates())
+            foreach (var leader in leaders)
             {
                 var guid = leader.RulesetCharacter.Guid;
                 Button(rows, string.Format(Text("Follow"), leader.RulesetCharacter.Name),
@@ -138,7 +163,7 @@ internal sealed class CooperativeExplorationPanel : MonoBehaviour
                 Button(rows, Text("StopFollow"), CooperativeExplorationContext.StopFollowing);
         }
         readyButton.gameObject.SetActive(coordinated);
-        readyButton.interactable = !CooperativeExplorationContext.Busy && matching;
+        readyButton.interactable = plan.Count > 0 && !CooperativeExplorationContext.Busy && matching;
         SetButtonText(readyButton, Text(CooperativeExplorationContext.Ready ? "UndoReady" : "SetReady"));
         startButton.gameObject.SetActive(coordinated && CooperativeExplorationContext.IsHost);
         startButton.interactable = CooperativeExplorationContext.CanStart;
@@ -385,8 +410,6 @@ internal sealed class CooperativeExplorationPanel : MonoBehaviour
         var button = Object.Instantiate(buttonTemplate, parent, false);
         button.name = "Button";
         button.gameObject.SetActive(true);
-        button.onClick = new Button.ButtonClickedEvent();
-        button.onClick.AddListener(() => { action(); signature = null; });
         var setup = button.GetComponent<GuiButtonSetup>();
         if (setup)
         {
@@ -394,6 +417,12 @@ internal sealed class CooperativeExplorationPanel : MonoBehaviour
             setup.enabled = false;
             if (setup.BasicImage) setup.BasicImage.gameObject.SetActive(false);
         }
+        UiHelpers.BindButton(button, () =>
+        {
+            action();
+            signature = null;
+            RefreshView();
+        });
         var element = button.GetComponent<LayoutElement>() ?? button.gameObject.AddComponent<LayoutElement>();
         element.ignoreLayout = false;
         element.layoutPriority = 100;

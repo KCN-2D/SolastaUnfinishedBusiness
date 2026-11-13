@@ -34,9 +34,10 @@ public static class GuiItemDefinitionPatcher
     public static class Title_Getter_Patch
     {
         [UsedImplicitly]
-        public static void Postfix(GuiItemDefinition __instance, ref string __result)
+        public static bool Prefix(GuiItemDefinition __instance, ref string __result)
         {
             __result = GuiItemTweaks.FormatTitle(__instance.ItemDefinition);
+            return false;
         }
     }
     
@@ -46,9 +47,10 @@ public static class GuiItemDefinitionPatcher
     public static class Description_Getter_Patch
     {
         [UsedImplicitly]
-        public static void Postfix(GuiItemDefinition __instance, ref string __result)
+        public static bool Prefix(GuiItemDefinition __instance, ref string __result)
         {
             __result = GuiItemTweaks.FormatDescription(__instance.ItemDefinition);
+            return false;
         }
     }
     

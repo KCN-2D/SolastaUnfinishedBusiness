@@ -68,45 +68,33 @@ public static class StockUnitLinePatcher
         [UsedImplicitly]
         public static void Postfix(StockUnitLine __instance)
         {
-            var item = GetRecipeItem(__instance.factionIncompatibleGroup, false);
             var crafted = Main.Settings.ShowCraftedItemOnRecipeIcon
                 ? RecipeHelper.GetCraftedItem(__instance.StockUnit.ItemDefinition)
                 : null;
+            var spell = !crafted && SettingsContext.GuiModManagerInstance.ShowSpellIconOnScrolls
+                ? ScrollsData.GetScrollSpell(__instance.StockUnit.ItemDefinition)
+                : null;
+            var item = GetRecipeItem(__instance.factionIncompatibleGroup, !crafted && !spell);
+            __instance.itemImage.transform.localPosition = new Vector3(crafted || spell ? 58 : 33, 0, 0);
+            if (!item) return;
+            item.gameObject.SetActive(crafted || spell);
 
             if (crafted)
             {
-                item.gameObject.SetActive(true);
-                __instance.itemImage.transform.localPosition = new Vector3(58, 0, 0);
-
                 var img = SetupCraftedItem(item, crafted);
 
                 if (Main.Settings.SwapCraftedItemAndRecipeIcons)
                 {
-                    var craftedSprite = img.sprite;
-
-                    (img.sprite, __instance.itemImage.sprite) = (__instance.itemImage.sprite, img.sprite);
-                    img.TransferAddressableSprite(__instance.itemImage, craftedSprite);
+                    __instance.itemImage.SwapAddressableSprites(img);
                 }
+            }
+            else if (spell)
+            {
+                ScrollsData.SetupScrollSpellImage(item, spell);
             }
             else
             {
-                var spell = SettingsContext.GuiModManagerInstance.ShowSpellIconOnScrolls
-                    ? ScrollsData.GetScrollSpell(__instance.StockUnit.ItemDefinition)
-                    : null;
-                if (spell)
-                {
-                    item.gameObject.SetActive(true);
-                    __instance.itemImage.transform.localPosition = new Vector3(58, 0, 0);
-
-                    ScrollsData.SetupScrollSpellImage(item, spell);
-                }
-                else
-                {
-                    SetupCraftedItem(item, null);
-                    ScrollsData.SetupScrollSpellImage(item, null);
-                    item.gameObject.SetActive(false);
-                    __instance.itemImage.transform.localPosition = new Vector3(33, 0, 0);
-                }
+                SetupCraftedItem(item, null);
             }
         }
     }
@@ -117,12 +105,18 @@ public static class StockUnitLinePatcher
     public static class Unbind_Patch
     {
         [UsedImplicitly]
+        public static void Prefix(StockUnitLine __instance)
+        {
+            // Native Unbind releases the bitmap loaded for the stock item.
+            __instance.itemImage.RestoreAddressableSpriteSwap();
+        }
+
+        [UsedImplicitly]
         public static void Postfix(StockUnitLine __instance)
         {
             var item = GetRecipeItem(__instance.factionIncompatibleGroup, true);
 
             SetupCraftedItem(item, null);
-            ScrollsData.SetupScrollSpellImage(item, null);
         }
     }
 }

@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using JetBrains.Annotations;
+using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
 
 namespace SolastaUnfinishedBusiness.Patches;
@@ -21,6 +22,13 @@ public static class GameLocationBaseScreenPatcher
             {
                 __result = true;
 
+                return false;
+            }
+
+            if (__instance is GameLocationScreenExploration && command == InputCommands.Id.Cancel &&
+                CooperativeExplorationPanel.TryClose())
+            {
+                __result = true;
                 return false;
             }
 
