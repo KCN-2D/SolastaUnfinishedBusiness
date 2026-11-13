@@ -236,6 +236,7 @@ public static class CharacterStageIdentityDefinitionPanelPatcher
             var owner = __instance.GetComponentInParent<CharacterStageIdentityDefinitionPanel>();
             if (owner && ReferenceEquals(owner.currentHero, __0))
             {
+                ReconcileCustomizationChoices(__instance);
                 __state = new ModifierInitialization(__instance);
             }
         }
@@ -414,6 +415,35 @@ public static class CharacterStageIdentityDefinitionPanelPatcher
         }
     }
 
+    private static void ReconcileCustomizationChoices(CharacterCustomizationModifier modifier)
+    {
+        Reconcile(modifier.colorChoiceToggles, modifier.colorsGroup);
+        Reconcile(modifier.imageChoiceToggles, modifier.imagesGroup);
+        Reconcile(modifier.labelChoiceToggles, modifier.labelsGroup);
+        return;
+
+        void Reconcile<T>(List<T> choices, Transform group) where T : ChoiceToggle
+        {
+            if (OwnsChoiceGroup(modifier, group, choices)) return;
+
+            // A pooled parent can return its children independently of its retained
+            // component fields. Those references no longer own the returned toggles.
+            choices.Clear();
+            foreach (Transform child in group)
+            {
+                var choice = child.GetComponent<T>();
+                if (!choice)
+                {
+                    choices.Clear();
+                    Gui.ReleaseChildrenToPool(group);
+                    return;
+                }
+
+                choices.Add(choice);
+            }
+        }
+    }
+
     private static void ReleaseUnboundChoiceChildren(Transform group)
     {
         var modifier = group ? group.GetComponentInParent<CharacterCustomizationModifier>() : null;
@@ -534,6 +564,10 @@ public static class CharacterStageIdentityDefinitionPanelPatcher
     [UsedImplicitly]
     public static class UnbindCustomizationModifier_Patch
     {
+        [UsedImplicitly]
+        private static void Prefix(CharacterCustomizationModifier __instance) =>
+            ReconcileCustomizationChoices(__instance);
+
         [UsedImplicitly]
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
             instructions.ReplaceCalls(AccessTools.Method(typeof(List<ColorChoiceToggle>),

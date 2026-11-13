@@ -18,6 +18,9 @@ public static class StockPanelPatcher
     public static class Refresh_Patch
     {
         [UsedImplicitly]
+        private static bool Prefix(StockPanel __instance) => !StockPanelLayout.IsResettingForShow(__instance);
+
+        [UsedImplicitly]
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             var code = instructions.ToList();

@@ -23,6 +23,12 @@ public static class FeatItemPatcher
     public static class ProficiencySingleItemBind_Patch
     {
         [UsedImplicitly]
+        public static void Prefix(ProficiencySingleItem __instance, bool flexibleWidth)
+        {
+            if (flexibleWidth) UiTextHelpers.PrepareFlexibleTitle(__instance.ItemName.TMP_Text);
+        }
+
+        [UsedImplicitly]
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             // Native rows read raw presentation text before calculating their preferred width.

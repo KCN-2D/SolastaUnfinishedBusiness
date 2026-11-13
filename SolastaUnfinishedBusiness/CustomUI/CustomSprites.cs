@@ -337,7 +337,7 @@ public static class Sprites
         foreach (var power in DatabaseRepository.GetDatabase<FeatureDefinitionPower>())
         {
             var sprite = power.GuiPresentation.SpriteReference;
-            if (!assigned.ContainsKey(power) && sprite != null && GetSpriteByGuid(sprite.AssetGUID))
+            if (!assigned.ContainsKey(power) && sprite != null && HasSprite(sprite.AssetGUID))
             {
                 assigned[power] = sprite;
             }
@@ -441,7 +441,7 @@ public static class Sprites
         string resourceName, int width, int height, bool improveActionGlyphContrast = false)
     {
         var (_, guid) = GetSpriteId(resourceName, width, height);
-        if (SpritesByGuid.ContainsKey(guid))
+        if (HasSprite(guid))
         {
             return new AssetReferenceSprite(guid);
         }
@@ -468,8 +468,7 @@ public static class Sprites
             throw new System.InvalidOperationException($"Definition artwork must be a {width}x{height} PNG: {name}");
         }
 
-        var sprite = GetOrCreateSprite(name, bitmap, width, height, improveActionGlyphContrast);
-        return new AssetReferenceSprite(GetSpriteGuid(sprite.name));
+        return RegisterSprite(name, bitmap, width, height, improveActionGlyphContrast);
     }
 
     private static int ReadPngDimension(byte[] bitmap, int offset)
@@ -502,6 +501,21 @@ public static class Sprites
     #region CustomSprites
 
     private static readonly Dictionary<string, Sprite> SpritesByGuid = new();
+    private static readonly Dictionary<string, System.Func<Sprite>> PendingSprites = new();
+
+    private static bool HasSprite(string guid) => SpritesByGuid.ContainsKey(guid) || PendingSprites.ContainsKey(guid);
+
+    private static AssetReferenceSprite RegisterSprite(
+        string name, byte[] bitmap, int width, int height, bool improveActionGlyphContrast = false)
+    {
+        var (_, guid) = GetSpriteId(name, width, height);
+        if (!HasSprite(guid))
+        {
+            PendingSprites.Add(guid, () => GetOrCreateSprite(name, bitmap, width, height, improveActionGlyphContrast));
+        }
+
+        return new AssetReferenceSprite(guid);
+    }
     private static readonly byte[] ActionGlyphContrastCurve = Enumerable.Range(0, 256)
         .Select(value => (byte)Mathf.RoundToInt(Mathf.LinearToGammaSpace(value / 255f) * 255f)).ToArray();
 
@@ -558,6 +572,7 @@ public static class Sprites
         }
 
         SpritesByGuid[guid] = sprite;
+        PendingSprites.Remove(guid);
         sprite.name = id;
 
         return sprite;
@@ -585,11 +600,17 @@ public static class Sprites
     [CanBeNull]
     internal static Sprite GetSpriteByGuid([NotNull] string guid)
     {
-        return SpritesByGuid.TryGetValue(guid, out var sprite) ? sprite : null;
+        if (SpritesByGuid.TryGetValue(guid, out var sprite)) return sprite;
+        if (!PendingSprites.TryGetValue(guid, out var create)) return null;
+
+        sprite = create();
+        PendingSprites.Remove(guid);
+        return sprite;
     }
 
     internal static void Unload()
     {
+        PendingSprites.Clear();
         var textures = new HashSet<Texture>();
 
         foreach (var sprite in SpritesByGuid.Values.Where(x => x))
@@ -651,9 +672,7 @@ public static class Sprites
         int sizeX,
         int sizeY)
     {
-        var sprite = GetOrCreateSprite(name, bitmap, sizeX, sizeY);
-
-        return new AssetReferenceSprite(GetSpriteGuid(sprite.name));
+        return RegisterSprite(name, bitmap, sizeX, sizeY);
     }
 
     // Atlas regions share the cached texture and participate in the same sprite unload lifecycle.
@@ -662,13 +681,17 @@ public static class Sprites
     {
         var (id, guid) = GetSpriteId(name, (int)region.width, (int)region.height);
 
-        if (!SpritesByGuid.ContainsKey(guid))
+        if (!HasSprite(guid))
         {
-            var atlas = GetOrCreateSprite(atlasName, bitmap, atlasSize.x, atlasSize.y);
-            var sprite = Sprite.Create(atlas.texture, region, new Vector2(0.5f, 0.5f));
+            PendingSprites.Add(guid, () =>
+            {
+                var atlas = GetOrCreateSprite(atlasName, bitmap, atlasSize.x, atlasSize.y);
+                var sprite = Sprite.Create(atlas.texture, region, new Vector2(0.5f, 0.5f));
 
-            sprite.name = id;
-            SpritesByGuid[guid] = sprite;
+                sprite.name = id;
+                SpritesByGuid[guid] = sprite;
+                return sprite;
+            });
         }
 
         return new AssetReferenceSprite(guid);

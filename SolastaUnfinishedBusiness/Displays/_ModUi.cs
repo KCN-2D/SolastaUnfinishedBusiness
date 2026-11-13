@@ -797,20 +797,6 @@ internal sealed class CharacterViewer : IMenuSelectablePage
 
     public void OnGUI(UnityModManager.ModEntry modEntry)
     {
-        var toggle = Main.Settings.EnableStrictTabletopClassSelection;
-        if (UI.Toggle(Gui.Localize("ModUi/&EnableStrictTabletopClassSelection"), ref toggle, UI.AutoWidth()))
-        {
-            Main.Settings.EnableStrictTabletopClassSelection = toggle;
-            SubclassesContext.RefreshSubclassVisibility();
-        }
-
-        if (Main.Settings.EnableStrictTabletopClassSelection)
-        {
-            UI.Label(Gui.Localize("ModUi/&EnableStrictTabletopClassSelectionHelp"),
-                new GUIStyle(GUI.skin.label) { wordWrap = true }, UI.ExpandWidth(true));
-        }
-
-        UI.Label();
         ModUi.DisplaySubMenu(ref _characterSelectedPane, Name,
             new NamedAction(Gui.Localize("ModUi/&BackgroundsAndRaces"),
                 DisplayBackgroundsAndRaces),

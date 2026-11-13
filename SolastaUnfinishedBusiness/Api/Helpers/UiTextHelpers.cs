@@ -1603,6 +1603,60 @@ internal static class UiTextHelpers
         state.RememberFitSignature(fitKind, text, available, minFontScale, absoluteMin, compactSpacing);
     }
 
+    internal static void PrepareFlexibleTitle(TMP_Text text)
+    {
+        if (!text) return;
+        var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
+        state.Capture(text);
+        // Flexible rows measure their text before assigning a width. A reused
+        // selection caption must not carry its fitted size into that measurement.
+        text.enableAutoSizing = false;
+        text.fontSize = state.OriginalFontSizeMax;
+        text.enableWordWrapping = false;
+        text.maxVisibleLines = int.MaxValue;
+        text.overflowMode = TextOverflowModes.Overflow;
+        text.lineSpacing = state.OriginalLineSpacing;
+    }
+
+    internal static void FitCharacterPlateRace(CharacterPlateDetailed plate)
+    {
+        var text = plate.raceLabel?.TMP_Text;
+        var portrait = plate.PortraitGroup ? plate.PortraitGroup : plate.portraitBack;
+        if (!portrait && plate.portraitImage) portrait = plate.portraitImage.rectTransform;
+        if (!text || !portrait || text.rectTransform.parent is not RectTransform parent) return;
+
+        var rect = text.rectTransform;
+        var state = text.GetComponent<TextFitState>() ?? text.gameObject.AddComponent<TextFitState>();
+        state.Capture(text);
+        var bounds = RectTransformUtility.CalculateRelativeRectTransformBounds(parent, rect);
+        var portraitBounds = RectTransformUtility.CalculateRelativeRectTransformBounds(parent, portrait);
+        var padding = Mathf.Max(6f, state.OriginalFontSizeMax * 0.4f);
+        var left = Mathf.Min(portraitBounds.max.x + padding, bounds.max.x - state.OriginalFontSizeMax * 2f);
+        var offset = rect.offsetMin;
+        offset.x += left - bounds.min.x;
+
+        // The native race label spans the portrait and one line. Allocate the
+        // details column and stop above the next native heading, in every plate.
+        var bottom = bounds.max.y - Mathf.Max(state.OriginalRectHeight, state.OriginalFontSizeMax * 3f + 4f);
+        foreach (var label in plate.GetComponentsInChildren<GuiLabel>(true))
+        {
+            if (label == plate.raceLabel || !label.gameObject.activeInHierarchy || !label.TMP_Text) continue;
+            var other = RectTransformUtility.CalculateRelativeRectTransformBounds(parent, label.RectTransform);
+            if (other.max.x > left && other.min.x < bounds.max.x &&
+                other.max.y < bounds.max.y - state.OriginalRectHeight)
+                bottom = Mathf.Max(bottom, other.max.y + padding);
+        }
+
+        var height = Mathf.Max(state.OriginalRectHeight, bounds.max.y - bottom);
+        offset.y -= height - rect.rect.height;
+        rect.offsetMin = offset;
+        var margin = text.margin;
+        margin.z = Mathf.Max(2f, margin.z);
+        text.margin = margin;
+        text.alignment = TextAlignmentOptions.TopRight;
+        FitReadableTitle(text, 0.7f, 10f, 2);
+    }
+
     private static Vector2 MeasureTitleGlyphs(TMP_Text text, float fontSize, bool wrap, float width,
         TextFitState state, out int lines, bool compactSpacing = true)
     {

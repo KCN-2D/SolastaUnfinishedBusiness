@@ -453,10 +453,7 @@ internal static class ToolsContext
                 ? previous.Selected
                 : index >= 0 && index < groups.Count ? groups[index] : null;
             groups.RemoveAll(group => group == panel.firstNameValidationGroup ||
-                                      group == panel.lastNameValidationGroup ||
-                                      group == panel.voiceModifier.ValidationGroup ||
-                                      group == panel.pronounModifier.ValidationGroup ||
-                                      group == panel.backstoryModifier.ValidationGroup);
+                                      group == panel.lastNameValidationGroup);
             panel.validationGroupIndex = selected && groups.Contains(selected)
                 ? groups.IndexOf(selected)
                 : Mathf.Clamp(index, 0, groups.Count - 1);
@@ -467,9 +464,11 @@ internal static class ToolsContext
             internal readonly RulesetCharacterHero Original = original;
             internal readonly RulesetCharacterHero Hero = hero;
             internal bool Accepted;
-            private readonly Dictionary<GameObject, bool> _visibility = [];
             private Dictionary<MorphotypeElementDefinition.ElementCategory, string> _initialElements;
             private Dictionary<MorphotypeElementDefinition.ElementCategory, float> _initialValues;
+            private string _initialVoice;
+            private string _initialBackstory;
+            private Gui.LocalizationSpeakerGender _initialPronoun;
             private CharacterStageIdentityDefinitionPanel _identity;
             private (bool FirstReadOnly, bool LastReadOnly, bool FirstRoll, bool LastRoll, bool FirstEdit, bool LastEdit) _controls;
 
@@ -480,6 +479,9 @@ internal static class ToolsContext
                     _identity = panel;
                     _initialElements = new Dictionary<MorphotypeElementDefinition.ElementCategory, string>(Hero.MorphotypeElements);
                     _initialValues = new Dictionary<MorphotypeElementDefinition.ElementCategory, float>(Hero.MorphotypeElementAdditionalValues);
+                    _initialVoice = Hero.VoiceID;
+                    _initialPronoun = Hero.pronoun;
+                    _initialBackstory = Hero.AdditionalBackstory;
                     _controls = (panel.firstNameInputField.readOnly, panel.lastNameInputField.readOnly,
                         panel.firstNameRollButton.interactable, panel.lastNameRollButton.interactable,
                         panel.firstNameEditButton.interactable, panel.lastNameEditButton.interactable);
@@ -491,23 +493,10 @@ internal static class ToolsContext
                 panel.lastNameRollButton.interactable = false;
                 panel.firstNameEditButton.interactable = false;
                 panel.lastNameEditButton.interactable = false;
-                foreach (var control in new Component[] { panel.voiceModifier, panel.pronounModifier,
-                             panel.backstoryModifier, panel.backstoryInputField })
-                {
-                    if (!_visibility.ContainsKey(control.gameObject))
-                    {
-                        _visibility.Add(control.gameObject, control.gameObject.activeSelf);
-                    }
-
-                    control.gameObject.SetActive(false);
-                }
             }
 
             private static bool IsAppearanceMorph(MorphotypeElementDefinition.ElementCategory category) =>
-                category is not (MorphotypeElementDefinition.ElementCategory.Max or
-                    MorphotypeElementDefinition.ElementCategory.Voice or
-                    MorphotypeElementDefinition.ElementCategory.Backstory or
-                    MorphotypeElementDefinition.ElementCategory.Pronoun);
+                category != MorphotypeElementDefinition.ElementCategory.Max;
 
             internal void CopyAppearance()
             {
@@ -516,6 +505,9 @@ internal static class ToolsContext
                 CopyMorphs(Hero.MorphotypeElements, Original.MorphotypeElements, _initialElements, replace);
                 CopyMorphs(Hero.MorphotypeElementAdditionalValues, Original.MorphotypeElementAdditionalValues,
                     _initialValues, replace);
+                if (replace || Hero.VoiceID != _initialVoice) Original.VoiceID = Hero.VoiceID;
+                if (Hero.pronoun != _initialPronoun) Original.pronoun = Hero.pronoun;
+                if (Hero.AdditionalBackstory != _initialBackstory) Original.AdditionalBackstory = Hero.AdditionalBackstory;
                 var sizeChanged = false;
                 Original.RefreshSizeParams(ref sizeChanged);
             }
@@ -557,13 +549,6 @@ internal static class ToolsContext
                 _identity.lastNameRollButton.interactable = _controls.LastRoll;
                 _identity.firstNameEditButton.interactable = _controls.FirstEdit;
                 _identity.lastNameEditButton.interactable = _controls.LastEdit;
-                foreach (var control in _visibility)
-                {
-                    if (control.Key)
-                    {
-                        control.Key.SetActive(control.Value);
-                    }
-                }
             }
         }
     }

@@ -99,6 +99,8 @@ public static class CharacterPlateDetailedPatcher
         [UsedImplicitly]
         public static void Postfix(CharacterPlateDetailed __instance)
         {
+            UiTextHelpers.FitCharacterPlateRace(__instance);
+
             var creation = __instance.GetComponentInParent<CharacterCreationScreen>();
 
             if (creation != null && creation.commonData.CharacterPlate == __instance &&

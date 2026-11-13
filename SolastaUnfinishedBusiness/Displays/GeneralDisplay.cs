@@ -427,7 +427,8 @@ internal static class ToolsDisplay
         GUI.enabled = guiEnabled && Main.CanImportSettings;
         var intValue = -1;
         var profileStyle = new GUIStyle(GUI.skin.button) { wordWrap = true };
-        if (UI.SelectionGrid(ref intValue, Main.SettingsFiles, 1, profileStyle, UI.ExpandWidth(true)))
+        if (UI.SelectionGrid(ref intValue, Main.SettingsFiles, 4, profileStyle,
+                UI.MaxWidth(180f * Math.Min(4, Main.SettingsFiles.Length))))
         {
             Main.LoadSettings(Main.SettingsFiles[intValue]);
         }

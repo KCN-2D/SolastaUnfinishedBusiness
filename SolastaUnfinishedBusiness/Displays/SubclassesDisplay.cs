@@ -288,6 +288,21 @@ internal static class SubclassesDisplay
 
         UI.Label();
 
+        var strictTabletop = Main.Settings.EnableStrictTabletopClassSelection;
+        if (UI.Toggle(Gui.Localize("ModUi/&EnableStrictTabletopClassSelection"), ref strictTabletop, UI.AutoWidth()))
+        {
+            Main.Settings.EnableStrictTabletopClassSelection = strictTabletop;
+            SubclassesContext.RefreshSubclassVisibility();
+        }
+
+        if (strictTabletop)
+        {
+            UI.Label(Gui.Localize("ModUi/&EnableStrictTabletopClassSelectionHelp"),
+                new GUIStyle(GUI.skin.label) { wordWrap = true }, UI.ExpandWidth(true));
+        }
+
+        UI.Label();
+
         DisplaySubclassesGeneral();
 
         UI.Label();

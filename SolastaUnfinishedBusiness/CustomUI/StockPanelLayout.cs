@@ -6,9 +6,28 @@ namespace SolastaUnfinishedBusiness.CustomUI;
 
 internal sealed class StockPanelLayout : MonoBehaviour
 {
+    [System.ThreadStatic] private static StockPanel resettingForShow;
     private StockPanel panel;
     private bool tableActive;
     private bool gridActive;
+
+    internal static bool IsResettingForShow(StockPanel owner) => ReferenceEquals(owner, resettingForShow);
+
+    internal static void ResetForShow(StockPanel owner)
+    {
+        var previous = resettingForShow;
+        resettingForShow = owner;
+        try
+        {
+            // The merchant screen refreshes every child immediately after Reset.
+            // Initialize filters here and let that final pass build the stock once.
+            owner.Reset();
+        }
+        finally
+        {
+            resettingForShow = previous;
+        }
+    }
 
     internal static void Refresh(StockPanel owner, float multiplier)
     {
@@ -68,11 +87,11 @@ internal sealed class StockPanelLayout : MonoBehaviour
             for (var currency = 0; currency < panel.scaledItemCosts.Length; currency++)
                 panel.scaledItemCosts[currency] *= stack;
             EquipmentDefinitions.SimplifyCosts(panel.scaledItemCosts);
-            child.gameObject.SetActive(true);
             row.Bind(panel.Buyer, unit, selected, panel.scaledItemCosts,
                 treasury.CanAfford(panel.scaledItemCosts), panel.RectTransform, panel.anchorMode);
             row.Tooltip.SecondaryTooltip = ContainerPanel.BuildCompareasonTooltip(
                 unit.UserItem?.ItemDefinition ?? unit.ItemDefinition, panel.InventoryPanel.CompareasonSlots);
+            child.gameObject.SetActive(true);
         }
 
         if (active) LayoutRebuilder.ForceRebuildLayoutImmediate(parent);
