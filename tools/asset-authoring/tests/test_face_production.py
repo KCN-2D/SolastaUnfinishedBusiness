@@ -2,6 +2,7 @@
 import contextlib
 import copy
 import gzip
+import hashlib
 import importlib.util
 import io
 import json
@@ -25,6 +26,375 @@ spec.loader.exec_module(build)
 
 
 class FaceProductionContracts(unittest.TestCase):
+    def test_skin_resume_compares_complete_selected_declarations_and_keeps_other_sources_independent(self):
+        with tempfile.TemporaryDirectory()as folder:
+            source=Path(folder)/'plans.json.source'
+            plans={'A':dict(profile=dict(futureParameter=1),renderers=[dict(path='Surface',slots=[0],shader='Skin')]),'B':dict(profile={})}
+            source.write_text(json.dumps(dict(surfaces=plans)),encoding='utf-8')
+            pin=dict(path=str(source),sha256=build.sha(source));current=copy.deepcopy(plans);current['B']['profile']['unrelated']=2
+            build.validate_skin_plan_snapshot(current,{'A'},pin)
+            current['A']['renderers'][0]['slots']=[1]
+            with self.assertRaisesRegex(ValueError,'declarations changed'):build.validate_skin_plan_snapshot(current,{'A'},pin)
+            current=copy.deepcopy(plans);current['A']['profile']['futureParameter']=2
+            with self.assertRaisesRegex(ValueError,'declarations changed'):build.validate_skin_plan_snapshot(current,{'A'},pin)
+            source.write_text('{}',encoding='utf-8')
+            with self.assertRaisesRegex(ValueError,'retained source'):build.validate_skin_plan_snapshot(plans,{'A'},pin)
+
+    def test_observed_skin_interface_requires_the_actual_visible_body_and_clothing(self):
+        with tempfile.TemporaryDirectory()as folder:
+            path=Path(folder)/'display.json'
+            actor=dict(fixture=dict(id='A'),completed=True,nativeNpc={},nativeClothingRetained=True,
+                parts=[dict(slot='Head',key='UB/CharacterResources/Head.prefab',present=True),dict(slot='Body',key='',present=False)])
+            def context():
+                path.write_text(json.dumps(dict(actors=[actor])),encoding='utf-8')
+                return dict(kind='actual-npc-presentation',fixture='A',head='Head.prefab',body='Body.prefab',display=dict(path=str(path),sha256=build.sha(path)))
+            row=context();self.assertFalse(build.observed_skin_interface(row,{}))
+            actor['parts'][1].update(key='UB/CharacterResources/Body.prefab',present=True)
+            row=context();self.assertTrue(build.observed_skin_interface(row,{}))
+            row['body']='Other.prefab'
+            with self.assertRaisesRegex(ValueError,'visible body'):build.observed_skin_interface(row,{})
+            actor['nativeClothingRetained']=False
+            with self.assertRaisesRegex(ValueError,'actual native clothing'):build.observed_skin_interface(context(),{})
+            with self.assertRaisesRegex(ValueError,'clothing observation'):build.observed_skin_interface(dict(kind='actual-npc-presentation'),{})
+
+    def test_attachment_roots_fit_every_support_and_retain_native_channels(self):
+        production,_=build.source_owner()
+        count=8;angle=np.arange(count)*2*np.pi/count
+        ring=np.column_stack((np.cos(angle),np.sin(angle),np.zeros(count)))
+        positions=np.concatenate((ring*.02+[0,0,.002],ring*.02+[0,0,.012],ring*.005+[0,0,.05],[[0,0,.05]]))
+        triangles=[]
+        for level in range(2):
+            for i in range(count):
+                a=level*count+i;b=level*count+(i+1)%count
+                triangles.extend((a,b,a+count,b,b+count,a+count))
+        for i in range(count):triangles.extend((count*2+i,count*2+(i+1)%count,count*3))
+        total=len(positions);normals=np.concatenate((ring,ring,ring,[[0.,0.,1.]]))
+        packet=dict(name='Attachment',nativeReadable=True,indexFormat=0,vertexCount=total,vertices=positions.ravel().tolist(),normals=normals.ravel().tolist(),
+            tangents=np.tile([0.,0.,1.,1.],(total,1)).ravel().tolist(),weights=[1.,0.,0.,0.]*total,boneIndices=[0,0,0,0]*total,
+            bindPoses=np.eye(4).ravel().tolist(),subMeshes=[triangles],uv=[dict(channel=0,dimension=2,values=[0.,0.,0.,0.]*total)],colors=[],
+            shapes=[dict(index=0,name='NativeFit',frames=[dict(weight=100.,vertices=[1e-7,0.,0.]*total,normals=[0.,0.,0.]*total,tangents=[0.,0.,0.]*total)])],
+            bounds=[0.,0.,.025,.04,.04,.05])
+        supports=[dict(vertices=[[-1.,-1.,z],[1.,-1.,z],[1.,1.,z],[-1.,1.,z]],normals=[[0.,0.,1.]]*4,triangles=[0,1,2,0,2,3])for z in(0.,-.001)]
+        source=copy.deepcopy(packet)
+        candidate,proof=production.fit_rigid_attachment_roots(packet,np.eye(4),supports,depth_metres=.00035,falloff_radii=.85,maximum_shift_metres=.012)
+        result=np.asarray(candidate['vertices']).reshape(-1,3)
+        np.testing.assert_allclose(result[:count,2],-.00135,atol=1e-8)
+        np.testing.assert_array_equal(result[2*count:],positions[2*count:])
+        self.assertEqual(packet,source)
+        for key in('uv','weights','boneIndices','bindPoses','shapes','subMeshes'):self.assertEqual(candidate[key],source[key])
+        self.assertEqual((proof['rootLoops'],proof['supportSurfaces']),(1,2))
+        self.assertTrue(np.isfinite(candidate['normals']).all());self.assertTrue(np.isfinite(candidate['tangents']).all())
+        trimmed,cut=production.trim_attachment_collar(packet,np.eye(4),.4)
+        self.assertEqual(cut['removedTriangles'],16);self.assertEqual(cut['rootLoops'],1)
+        self.assertTrue(all(index>=count for slot in trimmed['subMeshes']for index in slot))
+        for key in('vertices','normals','tangents','uv','weights','boneIndices','bindPoses','shapes'):
+            self.assertEqual(trimmed[key],source[key])
+        with self.assertRaisesRegex(ValueError,'support envelope'):
+            production.fit_rigid_attachment_roots(packet,np.eye(4),supports,depth_metres=.00035,falloff_radii=.85,maximum_shift_metres=.0001)
+
+
+    def test_dxt1_skin_field_preserves_unowned_blocks_and_transparency(self):
+        import etcpak
+        from PIL import Image
+        build.source_owner();import material_fields as fields
+        source=np.full((8,8,4),128,np.uint8);source[:,:,3]=255
+        original=etcpak.compress_bc1(source.tobytes(),8,8)
+        target=np.asarray(Image.frombytes('RGBA',(8,8),original,'bcn',1)).copy();target[:4,:4,:3]=[148,132,116]
+        owned=np.zeros((8,8),bool);owned[:4,:4]=True
+        payload,proof=fields.native_face_bc1_mip(original,target,owned)
+        self.assertEqual(len(payload),len(original));self.assertEqual(payload[8:],original[8:])
+        self.assertTrue(proof['alphaExact']);self.assertTrue(proof['unownedBlocksExact'])
+        self.assertLessEqual(proof['maximumRgbError'],16)
+        target[0,0,3]=128
+        with self.assertRaisesRegex(ValueError,'native transparency'):fields.native_face_bc1_mip(original,target,owned)
+        target[0,0,3]=255;owned[0,0]=False
+        unchanged,_=fields.native_face_bc1_mip(original,target,owned)
+        self.assertEqual(unchanged,original)
+        target[:,:,3]=255;target[:4,:4,3]=120;owned[:4,:4]=True
+        upgraded,_,upgrade=fields.native_face_bc3_mip(original,10,target,(~owned)[::-1].astype(float))
+        saved=np.asarray(Image.frombytes('RGBA',(8,8),upgraded,'bcn',3))
+        self.assertEqual(len(upgraded),len(original)*2)
+        self.assertEqual(upgrade['nativeSourceFormat'],10)
+        self.assertLessEqual(upgrade['nativeFaceMaximumRgbError'],16)
+        self.assertTrue(np.all(saved[4:,:,3]==255))
+        self.assertTrue(np.all(saved[:4,:4,3]==120))
+        target[4,0,3]=135
+        protected,_,_=fields.native_face_bc3_mip(original,10,target,np.ones((8,8)))
+        self.assertTrue(np.all(np.asarray(Image.frombytes('RGBA',(8,8),protected,'bcn',3))[:,:,3]==255))
+
+    def test_serialized_cut_has_explicit_measured_overlap_tolerance(self):
+        build.source_owner();import material_fields as fields
+        packet=dict(vertices=[0.,0.,0.,1.,0.,0.,1.,1.,0.,0.,1.,0.],normals=[0.,0.,1.]*4,
+            tangents=[1.,0.,0.,1.]*4,subMeshes=[[0,1,2,0,2,3]],bindPoses=np.eye(4).ravel().tolist(),
+            uv=[dict(channel=0,values=[0.,0.,0.,0.,1.,0.,0.,0.,1.,1.,0.,0.,0.,1.,0.,0.])])
+        head=copy.deepcopy(packet);head['vertices'][2::3]=[.00005]*4
+        with self.assertRaisesRegex(ValueError,'complete physical cut'):
+            fields.serialized_skin_context(head,packet,['Head'],['Head'])
+        *_,hc,bc,proof=fields.serialized_skin_context(head,packet,['Head'],['Head'],cut_tolerance_metres=.0001)
+        self.assertEqual((len(hc.edges),len(bc.edges)),(4,4))
+        self.assertEqual(proof['cutToleranceMetres'],.0001)
+        self.assertEqual(head['vertices'][2::3],[.00005]*4)
+        for invalid in (0.,-1.,float('nan'),float('inf')):
+            with self.subTest(tolerance=invalid),self.assertRaisesRegex(ValueError,'finite positive'):
+                fields.serialized_skin_context(head,packet,['Head'],['Head'],cut_tolerance_metres=invalid)
+
+    def test_skin_resource_selects_typed_prefab_among_same_path_subassets(self):
+        import character_resources as resources
+        prefab=SimpleNamespace(type=SimpleNamespace(name='GameObject'))
+        cloth=SimpleNamespace(type=SimpleNamespace(name='MonoBehaviour'))
+        container=[('Assets/Face.prefab',SimpleNamespace(asset=SimpleNamespace(path_id=i,file_id=0)))for i in (1,2)]
+        bundle=SimpleNamespace(type=SimpleNamespace(name='AssetBundle'),read=lambda:SimpleNamespace(m_Container=container))
+        file=SimpleNamespace(name='source',objects={1:prefab,2:cloth,3:bundle})
+        manifest=dict(resources=[dict(source='Face.prefab',asset='Assets/Face.prefab',bundles=[dict(file='face.bundle')])])
+        with mock.patch.object(resources,'prefab_skin_renderers',return_value=[])as renderers:
+            self.assertEqual(build.resource_skin_surfaces(None,manifest,{'face.bundle':dict(newCab='source')},'Face.prefab',lambda _:file),[])
+            self.assertIs(renderers.call_args.args[0],prefab)
+        cloth.type.name='GameObject'
+        with self.assertRaisesRegex(ValueError,'unique prefab root'):
+            build.resource_skin_surfaces(None,manifest,{'face.bundle':dict(newCab='source')},'Face.prefab',lambda _:file)
+
+    def test_metadata_projection_retains_exact_input_identity_and_missing_properties(self):
+        with tempfile.TemporaryDirectory()as folder:
+            path=Path(folder)/'metadata.json'
+            payload=b'\xef\xbb\xbf'+json.dumps(dict(status='complete',details=[dict(value='unchanged')],label='\u539f\u672c'),ensure_ascii=False).encode('utf-8')
+            path.write_bytes(payload)
+            actual=build.resource_metadata_summary(path,['label','status','optional'])
+            self.assertEqual(actual['metadata'],dict(label='\u539f\u672c',status='complete'))
+            self.assertEqual(actual['missingFields'],['optional'])
+            self.assertEqual(actual['source'],dict(path=str(path),bytes=len(payload),sha256=hashlib.sha256(payload).hexdigest()))
+            path.write_text('[]',encoding='utf-8')
+            with self.assertRaisesRegex(ValueError,'JSON object'):build.resource_metadata_summary(path,['status'])
+            with self.assertRaisesRegex(ValueError,'explicit top-level'):build.resource_metadata_summary(path,[])
+
+    def test_guide_ownership_belongs_to_each_resource_and_its_latest_geometry(self):
+        recovered=dict(kind='source-owned-face',facts=[dict(operation='native-neutral-recovery')])
+        guided=dict(kind='source-owned-face',facts=[dict(sourceProfileId='DeclaredGuide')])
+        self.assertFalse(build.resource_has_face_guide(dict(appearanceFinishing=[recovered])))
+        self.assertTrue(build.resource_has_face_guide(dict(appearanceFinishing=[recovered,guided])))
+        self.assertFalse(build.resource_has_face_guide(dict(appearanceFinishing=[guided,recovered])))
+        self.assertTrue(build.resource_has_face_guide(dict(appearanceFinishing=[guided,dict(kind='source-skin-interface')])))
+
+    def test_rebuilt_collar_serialization_keeps_native_uvs_and_appends_complete_streams(self):
+        import character_resources as resources
+        count=3;channels=[dict(stream=0,offset=0,format=0,dimension=0)for _ in range(14)]
+        for channel,stream,offset,fmt,dimension in ((0,0,0,0,3),(1,0,12,0,3),(2,0,24,0,4),(4,1,0,0,2),(12,2,0,0,4),(13,2,16,10,4)):
+            channels[channel]=dict(stream=stream,offset=offset,format=fmt,dimension=dimension)
+        def streams(_channels,n):
+            uv=(n*40+15)//16*16;skin=(uv+n*8+15)//16*16
+            return {0:SimpleNamespace(offset=0,stride=40),1:SimpleNamespace(offset=uv,stride=8),2:SimpleNamespace(offset=skin,stride=32)}
+        raw=bytearray(256);uv=np.array([[0.,0.],[1.,0.],[0.,1.]],dtype='<f4');raw[128:152]=uv.tobytes()
+        original=dict(m_VertexData=dict(m_VertexCount=count,m_Channels=channels,m_DataSize=bytes(raw)),
+            m_BindPose=[{}],m_BoneNameHashes=[],m_BonesAABB=[],m_VariableBoneCountWeights=dict(m_Data=[]),
+            m_SubMeshes=[dict()],m_IndexFormat=0,m_Shapes=dict(vertices=[],shapes=[],channels=[],fullWeights=[]))
+        packet=dict(vertexCount=4,indexFormat=0,vertices=[0.,0.,0.,1.,0.,0.,0.,1.,0.,1.,1.,0.],normals=[0.,0.,1.]*4,
+            tangents=[1.,0.,0.,1.]*4,weights=[1.,0.,0.,0.]*3+[.8,.2,0.,0.],boneIndices=[0]*12+[0,1,0,0],
+            bindPoses=np.eye(4).ravel().tolist()*2,bounds=[.5,.5,0.,1.,1.,0.],subMeshes=[[0,1,3,1,2,3]],colors=[],
+            uv=[dict(channel=0,dimension=2,values=np.c_[np.r_[uv,[[.4,.6]]],np.zeros((4,2))].ravel().tolist())],
+            shapes=[dict(name='Pose',frames=[dict(weight=100.,vertices=[0.]*9+[0.,0.,.2],normals=[0.]*12,tangents=[0.]*12)])])
+        obj=SimpleNamespace(read_typetree=lambda:copy.deepcopy(original),read=lambda:None)
+        helper=SimpleNamespace(process=lambda:None,src=SimpleNamespace(m_VertexData=SimpleNamespace(m_Channels=channels)),get_streams=streams)
+        with mock.patch('UnityPy.helpers.MeshHelper.MeshHandler',return_value=helper):
+            result=resources.write_mesh_frame(obj,packet,source_bones=['Head'],target_bones=['Head','Neck'],collar_topology=True)
+        payload=result['m_VertexData']['m_DataSize'];actual_uv=np.ndarray((4,2),'<f4',buffer=payload,offset=160,strides=(8,4))
+        np.testing.assert_array_equal(actual_uv[:3],uv);np.testing.assert_allclose(actual_uv[3],[.4,.6],rtol=0,atol=3e-8)
+        weights=np.ndarray((4,4),'<f4',buffer=payload,offset=192,strides=(32,4))
+        np.testing.assert_allclose(weights[-1],[.8,.2,0.,0.],rtol=0,atol=2e-8)
+        self.assertEqual(result['m_VertexData']['m_VertexCount'],4)
+        np.testing.assert_array_equal(np.frombuffer(result['m_IndexBuffer'],'<u2'),[0,1,3,1,2,3])
+        self.assertEqual(result['m_Shapes']['vertices'][0]['index'],3)
+        self.assertAlmostEqual(result['m_Shapes']['vertices'][0]['vertex']['z'],.2)
+
+    def test_dxt5_skin_fields_retain_alpha_carriers_and_unowned_blocks(self):
+        import etcpak
+        from PIL import Image
+        _,_=build.source_owner();import material_fields as fields
+        source=np.full((8,8,4),128,np.uint8);source[:,:,0]=255
+        source[:,:,1]=np.arange(8,dtype=np.uint8)[None,:]*3+116
+        payload=etcpak.compress_bc3(source.tobytes(),8,8)
+        original=np.asarray(Image.frombytes('RGBA',(8,8),payload,'bcn',3))
+        owned=np.zeros((8,8),bool);owned[:4,:4]=True
+        normal=original.copy();normal[:4,:4,1]+=8;normal[:4,:4,3]+=4
+        result,proof=fields.fit_bc3_skin_field(payload,8,8,normal,owned,'normal')
+        actual=np.asarray(Image.frombytes('RGBA',(8,8),result,'bcn',3))
+        np.testing.assert_array_equal(actual[:,:,[0,2]],original[:,:,[0,2]])
+        np.testing.assert_array_equal(actual[~owned],original[~owned])
+        self.assertNotEqual(payload,result);self.assertGreater(proof['acceptedBlocks'],0)
+        color=original.copy();color[:4,:4,:3]=np.clip(color[:4,:4,:3].astype(int)-8,0,255)
+        result,_=fields.fit_bc3_skin_field(payload,8,8,color,owned,'color')
+        actual=np.asarray(Image.frombytes('RGBA',(8,8),result,'bcn',3))
+        np.testing.assert_array_equal(actual[:,:,3],original[:,:,3]);np.testing.assert_array_equal(actual[~owned],original[~owned])
+        self.assertNotEqual(payload,result)
+        owned[0,0]=False
+        result,_=fields.fit_bc3_skin_field(payload,8,8,color,owned,'color')
+        self.assertEqual(result,payload)
+
+    def test_private_texture_reuse_requires_all_consumers_and_the_same_source_object(self):
+        import character_resources as resources
+        pointer=lambda identifier:dict(m_FileID=0,m_PathID=identifier)
+        def material():return SimpleNamespace(type=SimpleNamespace(name='Material'),read_typetree=lambda:dict(m_SavedProperties=dict(m_TexEnvs=[('_MainTex',dict(m_Texture=pointer(1)))])))
+        texture=SimpleNamespace(type=SimpleNamespace(name='Texture2D'))
+        file=SimpleNamespace(objects={1:texture,2:material(),3:material()})
+        updates=[dict(pathId=i,property='_MainTex',texture=dict(sha256='a'*64,name='Normal',object=11))for i in (2,3)]
+        self.assertEqual(resources.private_material_texture_targets(file,updates[:1]),set())
+        self.assertEqual(resources.private_material_texture_targets(file,updates),{1})
+        updates[1]['texture']['object']=12
+        self.assertEqual(resources.private_material_texture_targets(file,updates),set())
+        updates[1]['texture']['object']=11
+        file.objects[4]=SimpleNamespace(type=SimpleNamespace(name='MonoBehaviour'),read_typetree=lambda:dict(input=pointer(1)))
+        self.assertEqual(resources.private_material_texture_targets(file,updates),set())
+        del file.objects[4]
+        file.objects[4]=SimpleNamespace(type=SimpleNamespace(name='AssetBundle'),read_typetree=lambda:dict(m_Container=[('field',dict(asset=pointer(1)))]))
+        self.assertEqual(resources.private_material_texture_targets(file,updates),set())
+
+    def test_pixel_workers_execute_the_retained_producer_epoch(self):
+        with tempfile.TemporaryDirectory()as folder:
+            root=Path(folder);producer=root/'build_models.py.source'
+            producer.write_text('def write_source_skin_bundle(job): return {"owner":"saved-skin"}\ndef write_skin_interface_bundle(job): return {"owner":"saved-interface"}\n',encoding='utf-8')
+            paths=[producer]
+            for name in ('production.py','generate.py','material_fields.py','character_resources.py'):
+                path=root/(name+'.source');path.write_text('# immutable producer\n',encoding='utf-8');paths.append(path)
+            job=dict(inputs=[dict(path=str(path),sha256=build.sha(path))for path in paths])
+            with mock.patch.object(build,'write_source_skin_bundle',side_effect=AssertionError('Live skin producer executed')),\
+                    mock.patch.object(build,'write_skin_interface_bundle',side_effect=AssertionError('Live interface producer executed')):
+                self.assertEqual(build.finish_source_skin_bundle(job),dict(owner='saved-skin'))
+                self.assertEqual(build.finish_skin_interface_bundle(job),dict(owner='saved-interface'))
+
+    def test_collar_fade_crosses_uv_aliases_before_transporting_added_curve_vertices(self):
+        production,_=build.source_owner()
+        points=np.array([[-1.,0.,0.],[0.,0.,0.],[1.,0.,0.],[2.,0.,0.],[1.,0.,0.],[2.,1.,0.]])*.01
+        count=len(points);identity=np.eye(4).ravel().tolist()
+        native=dict(name='Face',nativeReadable=True,vertexCount=count,indexFormat=0,vertices=points.ravel().tolist(),
+            normals=[0.,0.,1.]*count,tangents=[1.,0.,0.,1.]*count,weights=[1.,0.,0.,0.]*count,
+            boneIndices=[0]*count*4,bindPoses=identity,subMeshes=[[0,1,5,1,2,5,4,3,5]],uv=[],colors=[],shapes=[])
+        native['sourceFingerprint']=build.fingerprint(native)[0]
+        authored=copy.deepcopy(native);extra=np.array([[.015,.005,0.],[0.,.005,0.]])
+        authored.update(vertexCount=8,vertices=np.r_[points,extra].ravel().tolist(),subMeshes=[[0,1,7,1,2,7,4,3,6,3,5,6]])
+        for field,width in (('normals',3),('tangents',4),('weights',4),('boneIndices',4)):
+            authored[field]+=authored[field][:width]*2
+        authored['sourceFingerprint']=build.fingerprint(authored)[0]
+        target=copy.deepcopy(native);target['vertices']=(points+[0.,0.,.001]).ravel().tolist();target['sourceFingerprint']=build.fingerprint(target)[0]
+        revised,_=production.refine_native_face_contours(native,authored,dict(rendererToPrefab=identity),
+            collar_vertices=[0],refined=target,surface_weight=np.ones(count))
+        actual=np.asarray(revised['vertices']).reshape(-1,3)
+        np.testing.assert_array_equal(actual[2],actual[4]);np.testing.assert_array_equal(actual[0],points.astype(np.float32)[0])
+        self.assertGreater(actual[6,2],0.)
+
+    def test_prepared_curve_vertices_follow_native_controls_and_keep_the_curve_offset(self):
+        production,_=build.source_owner()
+        points=np.array([[-1.,-1.,0.],[1.,-1.,0.],[1.,1.,0.],[-1.,1.,0.],[0.,0.,.1]])
+        faces=np.array([[0,1,4],[1,2,4],[2,3,4],[3,0,4]])
+        target=points.copy();target[2:4,2]+=.002
+        result,proof,graph=production.transport_prepared_surface(points,target,4,faces,np.array([],int))
+        np.testing.assert_array_equal(result[:4],target[:4])
+        self.assertAlmostEqual(result[4,2],.101,places=11)
+        self.assertEqual(proof['transportedAddedVertices'],1)
+        translated=points.copy();translated[:4]+=[.002,.003,-.001]
+        moved,_,_=production.transport_prepared_surface(points,translated,4,faces,np.array([],int),graph)
+        np.testing.assert_allclose(moved-points,np.tile([.002,.003,-.001],(5,1)),rtol=0,atol=1e-11)
+        locked,_,_=production.transport_prepared_surface(points,target,4,faces,np.array([4]))
+        np.testing.assert_array_equal(locked[4],points[4])
+
+    def test_source_contours_share_the_cohort_contract_without_definition_branches(self):
+        plans=dict(columns=['jawIn','chinForward'],cohorts={'Human/Female/Origin_Stone':{'A':[1.,.5]}},
+            surfaces={'Player':dict(contourRenderer='Face_LOD0')},contours={'Source':dict(renderer='Face_LOD0',values=[.8,.4])})
+        fixture=dict(name='Source',race='Elf',sex='Male',origin='Origin_Forest',faceDefinition='FaceShape_NPC_Example')
+        self.assertEqual(build.source_face_contour(plans,fixture),('Face_LOD0',dict(jawIn=.8,chinForward=.4),('source','Source')))
+        fixture.update(name='Player',race='Human',sex='Female',origin='Origin_Stone',faceDefinition='FaceShape_A')
+        self.assertEqual(build.source_face_contour(plans,fixture)[1],dict(jawIn=1.,chinForward=.5))
+        fixture['name']='Unowned';fixture['faceDefinition']='FaceShape_Z'
+        self.assertIsNone(build.source_face_contour(plans,fixture))
+
+    def test_skin_detail_revisions_recover_the_original_input_through_private_bindings(self):
+        with tempfile.TemporaryDirectory()as directory:
+            root=Path(directory);original=root/'original.bundle';original.write_bytes(b'original detail')
+            before=root/'filtered.bundle';before.write_bytes(b'filtered detail')
+            pin=lambda p:dict(path=str(p),sha256=build.sha(p))
+            plan=root/'Plan.json';field=root/'Field.json';binding=root/'Binding.json'
+            profile=dict(normalRetain=.4,normalRadiusMetres=.002)
+            build.write(plan,dict(source=str(original),sha256=build.sha(original),textures=[dict(object=7,channel='normal',profile=profile)]))
+            build.write(field,dict(target=pin(before),sha256=build.sha(before),inputPlan=pin(plan)))
+            build.write(binding,dict(textures=[dict(object=21,source=dict(**pin(before),name='Normal'),sourceObject=7)]))
+            proof=dict(appearanceFinishing=[dict(kind='source-skin-material-bindings',proof=pin(binding),fields=[pin(field)])])
+            result=build.source_skin_detail_authority(proof,21,'normal')
+            self.assertEqual(result,dict(source=dict(**pin(original),object=7),profile=profile))
+            self.assertIsNone(build.source_skin_detail_authority(proof,22,'normal'))
+            # A later private field still points to the same absolute source,
+            # rather than applying another blur to the already-filtered pixels.
+            next_plan=build.read(plan);next_plan.update(source=str(before),sha256=build.sha(before))
+            next_plan['textures'][0]['detailSource']=result['source'];build.write(plan,next_plan)
+            field_value=build.read(field);field_value['inputPlan']=pin(plan);build.write(field,field_value)
+            proof['appearanceFinishing'][0]['fields']=[pin(field)]
+            self.assertEqual(build.source_skin_detail_authority(proof,21,'normal')['source'],result['source'])
+            plan.write_text('{}')
+            with self.assertRaisesRegex(ValueError,'authority changed'):build.source_skin_detail_authority(proof,21,'normal')
+
+    def test_partial_contour_revisions_retain_each_resources_actual_guide(self):
+        with tempfile.TemporaryDirectory()as directory:
+            root=Path(directory);older=root/'Older.json';newer=root/'Newer.json';native=root/'Index.json'
+            build.write(native,dict(bundles=[]))
+            for path,target in ((older,1),(newer,2)):
+                build.write(path,dict(schemaVersion=1,profiles=[dict(id='HeadGuide',parameters=dict(target=target))]))
+            pin=lambda p:dict(path=str(p),sha256=build.sha(p))
+            def receipt(inputs):return dict(kind='source-owned-face',facts=[dict(sourceProfileId='HeadGuide')],authority=dict(inputs=inputs))
+            untouched=dict(appearanceFinishing=[receipt([pin(native),pin(older)])])
+            revised=dict(appearanceFinishing=[receipt([pin(older)]),receipt([pin(native),pin(newer),pin(older)])])
+            self.assertEqual(build.face_resource_profile_authority(untouched),pin(older))
+            self.assertEqual(build.face_resource_profile_authority(revised),pin(newer))
+            explicit=dict(appearanceFinishing=[dict(kind='source-owned-face',authority=dict(sourceProfiles=pin(newer)))])
+            self.assertEqual(build.face_resource_profile_authority(explicit),pin(newer))
+            newer.write_text('{}')
+            with self.assertRaisesRegex(ValueError,'guide changed'):build.face_resource_profile_authority(explicit)
+
+    def test_shared_skin_frame_serialization_transports_palette_and_frames_without_uv_changes(self):
+        import character_resources as resources
+        count=3
+        channels=[dict(stream=0,offset=0,format=0,dimension=0)for _ in range(14)]
+        for channel,stream,offset,fmt,dimension in ((0,0,0,0,3),(1,0,12,0,3),(2,0,24,0,4),(4,1,0,0,2),(12,2,0,0,4),(13,2,16,10,4)):
+            channels[channel]=dict(stream=stream,offset=offset,format=fmt,dimension=dimension)
+        streams={0:SimpleNamespace(offset=0,stride=40),1:SimpleNamespace(offset=120,stride=8),2:SimpleNamespace(offset=144,stride=32)}
+        raw=bytearray(240);raw[120:144]=bytes(range(24))
+        pose=np.eye(4,dtype=np.float32).T.ravel().tolist()
+        original=dict(m_VertexData=dict(m_VertexCount=count,m_Channels=channels,m_DataSize=bytes(raw)),
+            m_BindPose=[{}],m_BoneNameHashes=[],m_BonesAABB=[],m_VariableBoneCountWeights=dict(m_Data=[]),
+            m_Shapes=dict(vertices=[],shapes=[],channels=[],fullWeights=[]))
+        packet=dict(vertexCount=count,vertices=[0.,0.,.1,1.,0.,0.,0.,1.,0.],normals=[0.,0.,1.]*count,
+            tangents=[1.,0.,0.,1.]*count,weights=[.8,.2,0.,0.,1.,0.,0.,0.,1.,0.,0.,0.],
+            boneIndices=[0,1,0,0]+[0]*8,bindPoses=pose*2,bounds=[.5,.5,.05,1.,1.,.1],
+            shapes=[dict(name='Muscular',frames=[dict(weight=100.,vertices=[0.,0.,.2]+[0.]*6,normals=[0.]*9,tangents=[0.]*9)])])
+        obj=SimpleNamespace(read_typetree=lambda:copy.deepcopy(original),read=lambda:None)
+        helper=SimpleNamespace(process=lambda:None,src=SimpleNamespace(m_VertexData=SimpleNamespace(m_Channels=channels)),get_streams=lambda *_:streams)
+        with mock.patch('UnityPy.helpers.MeshHelper.MeshHandler',return_value=helper):
+            result=resources.write_mesh_frame(obj,packet,source_bones=['Neck'],target_bones=['Neck','Chest'])
+            with self.assertRaisesRegex(ValueError,'bone prefix'):
+                resources.write_mesh_frame(obj,packet,source_bones=['Neck'],target_bones=['Chest','Neck'])
+        self.assertEqual(result['m_VertexData']['m_DataSize'][120:144],bytes(range(24)))
+        self.assertEqual(len(result['m_BindPose']),2);self.assertEqual(len(result['m_BonesAABB']),2)
+        weights=np.ndarray((count,4),'<f4',buffer=result['m_VertexData']['m_DataSize'],offset=144,strides=(32,4))
+        indices=np.ndarray((count,4),'<u4',buffer=result['m_VertexData']['m_DataSize'],offset=160,strides=(32,4))
+        np.testing.assert_allclose(weights[0],[.8,.2,0,0]);np.testing.assert_array_equal(indices[0],[0,1,0,0])
+        self.assertEqual(result['m_Shapes']['channels'][0]['name'],'Muscular')
+        self.assertEqual(result['m_Shapes']['vertices'][0]['vertex']['z'],.2)
+        self.assertEqual(original['m_Shapes']['channels'],[])
+
+    def test_publication_validation_checks_both_catalogs_without_replacing_payloads(self):
+        with tempfile.TemporaryDirectory()as folder:
+            root=Path(folder);original=root/'original';candidate=root/'candidate';current=root/'public'
+            for path in(original,candidate,current):path.mkdir()
+            for path in(original,current):(path/'CharacterModels.manifest.json').write_bytes(b'original manifest')
+            for path in(original,current):(path/'actor.bundle').write_bytes(b'original resource')
+            (candidate/'actor.bundle').write_bytes(b'revised resource');receipt=dict(changed=['actor.bundle'])
+            payloads={'actor.bundle':build.sha(candidate/'actor.bundle')};rollback={'actor.bundle':build.sha(original/'actor.bundle')}
+            with mock.patch.object(build,'HERE',root/'Validation'),\
+                    mock.patch.object(build,'checked_catalog_path',side_effect=lambda path,name=None:Path(path)/name if name else Path(path)),\
+                    mock.patch.object(build.os,'link')as link:
+                build.atomic_publish_catalog(candidate,current,original,b'revised manifest',payloads,{'actor.bundle':'actor.bundle'},rollback,receipt,validate_only=True)
+                self.assertEqual(receipt['status'],'PASS_PUBLICATION_VALIDATION');link.assert_not_called()
+                self.assertEqual((current/'CharacterModels.manifest.json').read_bytes(),b'original manifest')
+                self.assertEqual((current/'actor.bundle').read_bytes(),b'original resource')
+                (candidate/'actor.bundle').write_bytes(b'changed')
+                with self.assertRaisesRegex(ValueError,'candidate payload'):
+                    build.atomic_publish_catalog(candidate,current,original,b'revised manifest',payloads,{'actor.bundle':'actor.bundle'},rollback,receipt,validate_only=True)
+
     def test_first_publication_link_failure_preserves_the_original_error_and_catalog(self):
         with tempfile.TemporaryDirectory()as folder:
             root=Path(folder);original=root/'original';candidate=root/'candidate';current=root/'public'
@@ -196,6 +566,39 @@ class FaceProductionContracts(unittest.TestCase):
         np.testing.assert_array_equal(unchanged,normal)
         with self.assertRaisesRegex(ValueError,'decoding contract'):
             production.refine_source_skin_material(normal,mask,metric,profile,'normal',normal_encoding='guessed')
+
+    def test_skin_normal_bands_soften_creases_without_erasing_pores(self):
+        production,_=build.source_owner()
+        x=np.arange(64);crease=np.sin(2*np.pi*x/32);pores=(-1.)**x
+        normal=np.full((64,64,4),255,np.uint8);normal[:,:,2]=173;normal[:,:,3]=128
+        normal[:,:,1]=np.rint((.18*crease+.04*pores+1)*127.5).astype(np.uint8)
+        mask=np.ones((64,64));mask[:4]=0;metric=np.full(mask.shape,.0001)
+        profile=dict(pigmentRetain=1.,normalRetain=.1,normalRadiusMetres=.003,
+            fineSigmaMetres=.0001,grainSigmaMetres=.00075,coherenceSigmaMetres=.001,featherMetres=.003)
+        legacy,_=production.refine_source_skin_material(normal,mask,metric,profile,'normal',normal_encoding='packed-rgorag')
+        split,_=production.refine_source_skin_material(normal,mask,metric,
+            dict(profile,microNormalRetain=1.,microNormalRadiusMetres=.00015),'normal',normal_encoding='packed-rgorag')
+        def amplitude(image,band):return abs(np.mean((image[32,:,1].astype(float)/127.5-1)*band))
+        self.assertLess(amplitude(split,crease),amplitude(normal,crease)*.5)
+        self.assertGreater(amplitude(split,pores),amplitude(normal,pores)*.7)
+        self.assertLess(amplitude(legacy,pores),amplitude(split,pores)*.4)
+        np.testing.assert_array_equal(split[:4],normal[:4])
+        np.testing.assert_array_equal(split[:,:,[0,2]],normal[:,:,[0,2]])
+
+    def test_skin_microdetail_has_independent_retention_and_validated_physical_scale(self):
+        production,_=build.source_owner()
+        normal=np.full((16,16,4),255,np.uint8);normal[:,:,3]=128
+        normal[:,:,1]=np.where(np.arange(16)%2,110,145)
+        mask=np.ones((16,16));metric=np.full(mask.shape,.0001)
+        profile=dict(pigmentRetain=1.,normalRetain=1.,normalRadiusMetres=.003,
+            fineSigmaMetres=.0001,grainSigmaMetres=.00075,coherenceSigmaMetres=.001,featherMetres=.003,
+            microNormalRetain=.2,microNormalRadiusMetres=.00015)
+        result,_=production.refine_source_skin_material(normal,mask,metric,profile,'normal',normal_encoding='packed-rgorag')
+        self.assertLess(np.std(result[:,:,1]),np.std(normal[:,:,1])*.5)
+        for invalid in (dict(profile,microNormalRetain=1.1),dict(profile,microNormalRadiusMetres=.004),
+                {key:value for key,value in profile.items() if key!='microNormalRetain'}):
+            with self.assertRaises(ValueError):
+                production.refine_source_skin_material(normal,mask,metric,invalid,'normal',normal_encoding='packed-rgorag')
 
     def test_source_selection_uses_resource_ownership_without_species_names(self):
         editable=dict(name='PreviouslyUnknownFace',internalId='Assets/Characters/EditableCharacters/NewForm/Head.prefab')
@@ -515,6 +918,7 @@ class FaceProductionContracts(unittest.TestCase):
         removed=np.asarray(head['subMeshes'][0]).reshape(-1,3)[proof['removedTriangles']]
         self.assertLess(np.asarray(head['vertices']).reshape(-1,3)[removed,2].max(),.018)
 
+
     def test_neutral_contact_unit_retains_closed_rim_under_nearby_handles(self):
         production,_=build.source_owner()
         positions=np.array([[-.01,0.,0.],[0.,0.,0.],[.01,0.,0.],[0.,.02,0.],[.01,.03,0.]])
@@ -565,6 +969,27 @@ class FaceProductionContracts(unittest.TestCase):
         self.assertIs(retained,packet);self.assertEqual(none,[])
         with self.assertRaisesRegex(ValueError,'own valid LOD0'):
             production.recover_source_lod_frames(lower,skin,packet,skin)
+        fixed['_sourceFrameReference']=copy.deepcopy(fixed['shapes'])
+        protected=2;lower['shapes'][0]['frames'][0]['vertices'][8]=.002
+        prepared,proof=production.recover_source_lod_frames(lower,lower_skin,fixed,lower_skin,protected_vertices={protected})
+        self.assertEqual(len(proof),1)
+        self.assertAlmostEqual(prepared['shapes'][0]['frames'][0]['vertices'][2],.001,places=8)
+        self.assertAlmostEqual(prepared['shapes'][0]['frames'][0]['vertices'][8],.002,places=8)
+        self.assertEqual(proof[0]['preservedPreparedVertices'],2)
+
+    def test_explicit_lod_guides_keep_independent_geometry_and_share_native_frame_owner(self):
+        production,_=build.source_owner()
+        high=dict(path='Face_LOD0',mesh='Face_LOD0',bones=[],materials=[dict(shader='Lux/Human/Skin')],_faceProfile=dict(operation='source-guide'))
+        low=copy.deepcopy(high);low['path']=low['mesh']='Face_LOD1';profile=low['_faceProfile']
+        packet=dict(sourceFingerprint='1'*64)
+        with mock.patch.object(production,'native_packet',return_value=packet), \
+             mock.patch.object(production,'sculpt_surface',return_value=(None,None,np.ones(1),None)), \
+             mock.patch.object(production,'facial_material_slots',return_value=[0]), \
+             mock.patch.object(production,'material_identity',return_value='same-native-material'):
+            production.bind_source_lod_families(dict(skins=[high,low]))
+        self.assertEqual(low['_nativeLodDonor'],packet['sourceFingerprint'])
+        self.assertIs(low['_faceProfile'],profile)
+        self.assertNotIn('_faceLodDonor',low)
 
     def test_thin_physical_tissue_keeps_contacts_and_local_sculpt(self):
         production,_=build.source_owner()

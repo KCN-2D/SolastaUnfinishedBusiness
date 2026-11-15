@@ -348,13 +348,22 @@ try {
             $candidate
         })
         $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        $payloadRootSet=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        foreach($payloadRoot in $payloadRoots){[void]$payloadRootSet.Add($payloadRoot)}
         $checkedPayloadParents=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
         $extensions=@('.bundle','.bin','.bytes','.gz','.rgba8','.cpu-rgba8','.bc3','.bc7','.mips','.u8','.encoded','.png','.zip')
         foreach ($row in $plan.files) {
             Assert-GtProperties $row @('path','bytes','sha256','lastWriteUtcTicks') @('path','bytes','sha256','lastWriteUtcTicks')
             $path=Get-GtPath $row.path
+            $withinPayloadRoot=$false
+            $payloadParent=[IO.Path]::GetDirectoryName($path)
+            while($payloadParent){
+                if($payloadRootSet.Contains($payloadParent)){$withinPayloadRoot=$true;break}
+                if($payloadParent -eq $root){break}
+                $payloadParent=[IO.Path]::GetDirectoryName($payloadParent)
+            }
             $numericPacket=[IO.Path]::GetFileName($path) -cmatch '^[a-f0-9]{64}\.json$'
-            if ($path -eq $planPath -or -not $seen.Add($path) -or -not @($payloadRoots | Where-Object { Test-GtWithin $path $_ }).Count -or
+            if ($path -eq $planPath -or -not $seen.Add($path) -or -not $withinPayloadRoot -or
                 ($extensions -cnotcontains [IO.Path]::GetExtension($path) -and -not $numericPacket) -or
                 ($row.bytes -isnot [long] -and $row.bytes -isnot [int]) -or $row.bytes -lt 0 -or
                 $row.sha256 -isnot [string] -or $row.sha256 -cnotmatch '^[a-f0-9]{64}$' -or

@@ -29,8 +29,13 @@ try{
     $arguments=@((Join-Path $PSScriptRoot 'asset-authoring/resource_storage.py'),'--output',$operation,'--keep-accepted',"$KeepAcceptedCatalogs")
     if($Apply){$arguments+='--apply'}
     if(Test-Path -LiteralPath $PythonPath -PathType Leaf){
-        & $PythonPath @arguments *> (Join-Path $operation 'ResourceStorage.log')
-        if($LASTEXITCODE -ne 0){throw 'Resource lifecycle planning failed; see ResourceStorage.log.'}
+        $previousErrorPreference=$ErrorActionPreference
+        try{
+            $ErrorActionPreference='Continue'
+            & $PythonPath @arguments *> (Join-Path $operation 'ResourceStorage.log')
+            $lifecycleExitCode=$LASTEXITCODE
+        }finally{$ErrorActionPreference=$previousErrorPreference}
+        if($lifecycleExitCode -ne 0){throw 'Resource lifecycle planning failed; see ResourceStorage.log.'}
         $lifecycle=Read-GtObject (Join-Path $operation 'ResourceLifecycle.json')
     }else{
         $lifecycle=[pscustomobject]@{status='retained-no-authoring-environment';reason='The optional authoring Python environment is not installed.';plans=@()}

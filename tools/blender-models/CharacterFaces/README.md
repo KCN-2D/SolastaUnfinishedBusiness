@@ -10,7 +10,7 @@
 
 造形ガイドには、まぶたの接触面、眼球、まつ毛と首の接続部を保護範囲として宣言します。低LODと表情フレームにも同じガイドを適用し、付属パーツを動かす場合は元の三角形との対応を指定します。変形との境界は周囲の頂点へ滑らかにつなぎます。
 
-`face-designs.json`には、種族・性別・フェイスタイプごとの輪郭、頬、鼻、口、顎の調整量をミリメートルで保存します。`compile-face-designs --census <原本Mesh>/Census.json --reference-index <中立姿勢JSON> --fixtures <対象一覧JSON> --output <新しい出力先>`で、各原本と中立姿勢に対応した`Profiles.json`を作ります。上下の唇が接する範囲は一体として移動し、眼球とまぶたの接触面を保ちます。
+`face-designs.json`には、種族・性別・フェイスタイプと個々の原本の輪郭、頬、鼻、口、顎の調整量をミリメートルで保存します。`compile-face-designs --census <原本Mesh>/Census.json --reference-index <参照姿勢JSON> --fixtures <対象一覧JSON> --output <新しい出力先>`で、各原本と参照姿勢に対応した`Profiles.json`を作ります。参照姿勢にはゲーム内の中立姿勢と原本prefabの姿勢を使い、`coordinateDomain`で座標系を記録します。上下の唇が接する範囲は一体として移動し、眼球とまぶたの接触面を保ちます。
 
 造形用の原本は、元bundleからMeshの数値データを直接取り出します。`extract --native-index <元資源の対応表JSON> --census <元モデル一覧JSON> --output <原本Mesh>`で取得し、以降の`--census`には`<原本Mesh>/Census.json`を指定します。描画部品と骨の対応、元bundleのSHA256とMeshの物理IDを記録します。
 
@@ -22,7 +22,11 @@
 
 採用済みの造形を改めるときは、`--previous-profiles <採用元のProfiles.json>`を加えます。原本に対する新旧ガイドの差分を適用し、制作済みの首の接続、低LOD、付属パーツ、表情の補正を引き継ぎます。
 
+輪郭の変形は、制作済みの曲面に追加された頂点へも連続して伝えます。同じ位置のUV境界は首の保護範囲を共有し、全変形フレームで接続と法線・接線を照合します。LODごとの造形ガイドも、物理フレームの復元元を同じ原本モデルのLOD0に結び付けます。
+
 肌の細部は`face-designs.json`の`surfaces`で指定します。各原本の`sourceContentKey`、renderer、材質slot、shaderのチャンネル形式と骨格の範囲を照合し、色素と法線の残す強さ、処理する細部の物理寸法を宣言します。共有テクスチャには同じチャンネルの指定を揃えます。
+
+法線の細部は`normalRetain`と`normalRadiusMetres`、より細かい肌の粒度は`microNormalRetain`と`microNormalRadiusMetres`で調整します。設定の改訂は記録された元画像から計算し、前回の平滑化を重ねません。制作ソースを保存し、再実行と再検証に使います。
 
 ```text
 --workspace <作業先> refine-skin-surfaces --source <制作済み資源> --census <原本Mesh>/Census.json --plans <face-designs.json> --output <新しい候補>
@@ -30,7 +34,21 @@
 
 制作時に元の画像形式と全mipを扱い、範囲外のブロック、材質アルファ、法線の保持チャンネル、samplerを照合します。`bind-skin-surfaces --source <同じ制作元> --fields <作成した資源> --output <最終候補>`で、画像を対象のrendererが持つ材質へ収めます。共有元の画像は保持します。
 
+NPCの肌色は元の画像を保持し、しわや毛穴は法線画像の強さで調整します。中断した材質の収録は`bind-skin-surfaces --resume`で再開できます。
+
+角などの接合パーツは、`face-designs.json`の`attachments`で支持面、元にするLOD、根元の深さ、曲面補間と材質のfloat値を指定します。`prepare-attachment-inputs --source <原本catalog> --output <制作先>`で、全支持面との接続とLODごとの頂点数を確認したUnity入力を作成します。共通のUnityビルド入口に`Plan.json`の`recipes`を渡し、`bind-attachments --source <同じ原本catalog> --plan <Plan.json> --report <Unityのreport> --output <新しい候補>`で収録します。
+
+根元の余剰面は`trimRootRadii`で除き、接合ループを支持面へ収めます。LOD固有の変形チャンネルを持つ原本は、`sources`の`sourceLods`で参照するLODを指定します。
+
+頭部と身体の接続には、実際の表示から得た`head`と`body`の組を`finish-skin-interfaces --source <制作済み資源> --contexts <組み合わせJSON> --output <新しい候補>`へ渡します。全LODの接合点、骨のウェイト、変形フレームと、肌色・法線・散乱光の画像を合わせます。`pigmentReference`は身体の色に合わせる`body`と、顔固有の色を残す`source`から指定します。同じ画像とsamplerを使うLOD材質は一つの生成結果を共有し、既に専有している画像はその参照先で更新します。
+
+NPCの組には、実際の服装で取得した表示記録を`display`の`path`と`sha256`で指定します。身体が服で隠れる場合は、首と胸元の元の形状を保持します。表示記録の身体が存在する組だけを接合補正へ渡します。
+
+画像は元の保存形式を使い、DXT1で表せない連続したアルファ値が必要な場合はDXT5へ変換します。変更しない領域のRGB・アルファと、全mipの保存後の値・容量を照合します。
+
 作業先には`tools/asset-authoring/workspace/`または`tools/game-test/artifacts/`内の実行フォルダーを指定します。以下の`<作業先>`はすべて同じ場所です。最初に`capture --destination <原本フォルダー>`で元のcatalogを保持し、共通引数`--source-directory <原本フォルダー>`でその原本を指定します。
+
+制作記録の確認には`inspect-resource-metadata --assembly <JSON> --fields <項目名 ...>`を使います。指定した項目と、読み取った原本のSHA256・サイズを返します。
 
 | 工程 | コマンドの引数 |
 | --- | --- |
@@ -150,7 +168,7 @@ HeadはLOD0を先に生成し、その`Coefficient.json`のpath/SHAをLOD1/2の�
   --output <パック出力先> --release-version <年.月.日.連番>
 ```
 
-配布パック一覧をmanifestとともにMODへ同梱し、分割ZIPを一覧のURLへ配置します。モデルbundleは生成物として管理します。ゲーム側は一覧のSHA256を照合して展開し、`Mods/SolastaUnfinishedBusinessContent/CharacterModels/`へ保存します。
+配布パック一覧をmanifestとともにMODへ同梱し、分割ZIPを一覧のURLへ配置します。モデルbundleは生成物として管理します。ゲーム側は最大4パックを並行して取得し、一覧のSHA256を照合して展開します。中断した取得は保存済みの位置から再開し、検証済みの内容を再利用します。保存先は`Mods/SolastaUnfinishedBusinessContent/CharacterModels/`です。
 
 
 ## 採用と保持
@@ -158,6 +176,8 @@ HeadはLOD0を先に生成し、その`Coefficient.json`のpath/SHAをLOD1/2の�
 採用前に同じカメラ・姿勢の比較、共有部品、まばたき、口の表情、髪・ヒゲ・首との接続、外観の選択と復元を実ゲームで確認します。bundleの置換は同じフォルダーに新しいファイルを作り、directory entryを置き換えます。
 
 確認後に`publish --catalog <候補catalog> --expected-current-sha256 <現在のmanifestのSHA256>`で反映します。原本catalogは共通引数`--source-directory`で指定します。採用前の原本と候補を照合し、bundleを置換してからmanifestを更新します。途中で失敗した場合は原本へ戻します。
+
+`publish --validate-only`で採用前の照合を実行し、`PublicationValidation.json`へ結果を保存します。
 
 同じ作業先では、入力・制作コード・保存出力が一致する肌の再計算結果を再利用します。採用済み原本もbundleのSHA256を照合し、変更された資源を検証します。
 
@@ -229,7 +249,7 @@ python .\tools\blender-models\CharacterFaces\build_models.py --workspace <制作
 
 出力の`Preparation.json`にレシピと元データの対応を記録します。レシピのビルドには[資産制作のmesh batch](../../asset-authoring/README.md)を使います。
 
-顔と身体の肌色は同じ補正基準で仕上げます。`finish_resource_pigments`は、各LODの原本と現在のUV・ボーンの順序を使い、顔のRGBを首・胴体の色へ合わせます。眉や唇などの濃淡と、現在の素材アルファを保ちます。
+肌色の基準は各資源の`pigmentReference`で指定します。NPCの固有色は元の画像を全mipで保持し、しわや毛穴の調整は法線画像へ適用します。`finish_resource_pigments`は、各LODの原本と現在のUV・ボーンの順序を使い、眉や唇などの濃淡と、現在の材質アルファを保ちます。
 
 肌色の補正後は、`finish-skin-lods`でLOD0の首の肌模様を低LODの実際の表面へ転写します。共通のbind poseで対応する三角形を求め、各LODのUVへ焼き込みます。顔側のRGBを保持し、対象の圧縮ブロックと全mipを保存後に照合します。
 

@@ -244,7 +244,7 @@ internal static class RacesContext
             if (index >= 0) renderer.SetBlendShapeWeight(index,
                 originallyAvailable ? value : presentation.DefaultMusculature);
         }
-        ApplySupplementalBodyShape(graphics, value, presentation.DefaultMusculature, enabled);
+        ApplySupplementalBodyShape(graphics, value, presentation.DefaultMusculature, enabled || originallyAvailable);
         return false;
     }
 
@@ -564,7 +564,15 @@ internal static class RacesContext
     {
         RestoreCharacterModelLods(graphics);
         if (_characterModelsUnloading || !graphics || !SettingsContext.GuiModManagerInstance.EnableCustomFaces ||
-            _characterModelCatalog?.UsesCompleteParts != true || !UsesBodyShapeAppearance(graphics.RulesetCharacter)) return;
+            _characterModelCatalog?.UsesCompleteParts != true) return;
+        if (!UsesBodyShapeAppearance(graphics.RulesetCharacter))
+        {
+            var shapes = graphics.ShapeObjectPerBodySlot;
+            var head = (int)GraphicsCharacterDefinitions.BodyPart.Head;
+            if (shapes == null || head >= shapes.Length ||
+                !_characterModelCatalog.TryGetResource(shapes[head].Key, out var resource) ||
+                resource.AssetType != typeof(GameObject)) return;
+        }
         var group = AccessTools.Field(typeof(GraphicsCharacter), "sharedLodGroup")?.GetValue(graphics) as LODGroup;
         if (!group) return;
         var lods = group.GetLODs();
@@ -576,8 +584,8 @@ internal static class RacesContext
         // A renderer removed from an LODGroup becomes independently visible.
         // Keep those source renderers hidden until their native levels return.
         foreach (var renderer in hidden.Keys) renderer.forceRenderingOff = true;
-        // Select the complete character at one detail level. Mixing higher-detail
-        // hands or feet with a lower-detail torso separates their shared cuts.
+        // Select the complete actor at one detail level. Native far-distance
+        // body, garments and grooms can lose their shared cuts, including on NPCs.
         for (var index = 2; index < lods.Length; index++) lods[index].renderers = lods[1].renderers;
         group.SetLODs(lods);
     }
@@ -4342,14 +4350,16 @@ internal static class RacesContext
         private UnityEngine.Object[] RetainDerivedData(string key, Func<UnityEngine.Object[]> create) =>
             RetainSourceData(_derivedKeys, key, create, null);
         internal static bool RetainExistingSourceData(HashSet<string> retained, string key)
+            => ExistingSourceData(retained, key) != null;
+        internal static UnityEngine.Object[] ExistingSourceData(HashSet<string> retained, string key)
         {
-            if (!_derivedData.TryGetValue(key, out var entry)) return false;
+            if (!_derivedData.TryGetValue(key, out var entry)) return null;
             if (retained.Add(key)) { RemoveUnusedDerivedData(entry); entry.Owners++; }
-            return true;
+            return entry.Data;
         }
         internal static void RetainPreparedSourceData(HashSet<string> retained, string key, UnityEngine.Object[] data) =>
             _ = RetainSourceData(retained, key, null, data);
-        private static UnityEngine.Object[] RetainSourceData(HashSet<string> retained, string key,
+        internal static UnityEngine.Object[] RetainSourceData(HashSet<string> retained, string key,
             Func<UnityEngine.Object[]> create, UnityEngine.Object[] prepared)
         {
             if (!_derivedData.TryGetValue(key, out var entry))
@@ -6374,15 +6384,20 @@ internal static class RacesContext
             if (blend == 1f) return _parent.Contains(bone) ? _parent.Evaluate(bone, point) : Vector3.zero;
             var result = Vector3.zero;
             var total = 0f;
-            for (var index = 0; index < 4; index++)
+            var radius = Mathf.Sqrt(nearest.FarthestDistance);
+            for (var index = 0; index < 8; index++)
             {
                 var (sampleIndex, distance) = nearest.Get(index);
                 if (sampleIndex == int.MaxValue) break;
-                var weight = samples[sampleIndex].Weight / distance;
+                // The outer neighbour has zero weight and zero derivative when
+                // the neighbourhood changes. Nearby garment layers share a continuous field.
+                var length = Mathf.Sqrt(distance);
+                var kernel = (radius - length) / (radius * length);
+                var weight = samples[sampleIndex].Weight * kernel * kernel;
                 result += samples[sampleIndex].Delta * weight;
                 total += weight;
             }
-            var local = result / total;
+            var local = total > 0f ? result / total : samples[nearest.Get(0).Index].Delta;
             if (_parent == null) return local * confidence * confidence;
             if (blend == 0f) return local;
             return Vector3.Lerp(local, _parent.Contains(bone) ? _parent.Evaluate(bone, point) : Vector3.zero, blend);
@@ -6456,38 +6471,51 @@ internal static class RacesContext
 
             internal struct Neighbours
             {
-                private int _first, _second, _third, _fourth;
-                private float _one, _two, _three, _four;
+                private int _first, _second, _third, _fourth, _fifth, _sixth, _seventh, _eighth;
+                private float _one, _two, _three, _four, _five, _six, _seven, _eight;
                 internal int Exact;
                 internal float FirstDistance => _one;
-                internal float Radius => Exact == int.MaxValue ? _four : 1e-10f;
+                internal float FarthestDistance => _eight < float.MaxValue ? _eight :
+                    _seven < float.MaxValue ? _seven : _six < float.MaxValue ? _six : _five < float.MaxValue ? _five :
+                    _four < float.MaxValue ? _four : _three < float.MaxValue ? _three : _two < float.MaxValue ? _two : _one;
+                internal float Radius => Exact == int.MaxValue ? _eight : 1e-10f;
                 internal void Initialize()
                 {
-                    _first = _second = _third = _fourth = Exact = int.MaxValue;
-                    _one = _two = _three = _four = float.MaxValue;
+                    _first = _second = _third = _fourth = _fifth = _sixth = _seventh = _eighth = Exact = int.MaxValue;
+                    _one = _two = _three = _four = _five = _six = _seven = _eight = float.MaxValue;
                 }
                 private static bool Earlier(float distance, int source, float currentDistance, int current) =>
                     distance < currentDistance || distance == currentDistance && source < current;
                 internal void Offer(int source, float distance)
                 {
                     if (distance < 1e-10f) { Exact = Math.Min(Exact, source); return; }
-                    if (Exact != int.MaxValue || !Earlier(distance, source, _four, _fourth)) return;
-                    if (Earlier(distance, source, _three, _third))
+                    if (Exact != int.MaxValue || !Earlier(distance, source, _eight, _eighth)) return;
+                    for (var index = 0; index < 8; index++)
                     {
-                        _four = _three; _fourth = _third;
-                        if (Earlier(distance, source, _two, _second))
-                        {
-                            _three = _two; _third = _second;
-                            if (Earlier(distance, source, _one, _first))
-                            { _two = _one; _second = _first; _one = distance; _first = source; }
-                            else { _two = distance; _second = source; }
-                        }
-                        else { _three = distance; _third = source; }
+                        var current = Get(index);
+                        if (!Earlier(distance, source, current.Distance, current.Index)) continue;
+                        for (var next = 7; next > index; next--) { var previous = Get(next - 1); Set(next, previous.Index, previous.Distance); }
+                        Set(index, source, distance);
+                        break;
                     }
-                    else { _four = distance; _fourth = source; }
+                }
+                private void Set(int index, int source, float distance)
+                {
+                    switch (index)
+                    {
+                        case 0: _first = source; _one = distance; break;
+                        case 1: _second = source; _two = distance; break;
+                        case 2: _third = source; _three = distance; break;
+                        case 3: _fourth = source; _four = distance; break;
+                        case 4: _fifth = source; _five = distance; break;
+                        case 5: _sixth = source; _six = distance; break;
+                        case 6: _seventh = source; _seven = distance; break;
+                        case 7: _eighth = source; _eight = distance; break;
+                    }
                 }
                 internal (int Index, float Distance) Get(int index) => index switch
                 { 0 => (_first, _one), 1 => (_second, _two), 2 => (_third, _three), 3 => (_fourth, _four),
+                    4 => (_fifth, _five), 5 => (_sixth, _six), 6 => (_seventh, _seven), 7 => (_eighth, _eight),
                     _ => throw new ArgumentOutOfRangeException(nameof(index)) };
             }
         }
@@ -6501,6 +6529,7 @@ internal static class RacesContext
         internal bool PreserveNativeWeight;
         internal bool UseNativeFrame;
         internal bool Identity;
+        internal bool CalibrationSource;
     }
 
     private sealed class BodyShapeSeam(Vector3 point, Vector3 delta, bool native,
@@ -6609,6 +6638,8 @@ internal static class RacesContext
                 if (slots[slot] == null) continue;
                 var protectedPart = IsProtectedBodyPart((GraphicsCharacterDefinitions.BodyPart)slot);
                 var identityPart = IsBodyIdentityPart((GraphicsCharacterDefinitions.BodyPart)slot);
+                var calibrationSource = ReferenceEquals(slots, graphics.ShapeSkinnedMeshRenderersPerBodySlot) &&
+                    slot == (int)GraphicsCharacterDefinitions.BodyPart.Body;
                 foreach (var renderer in slots[slot])
                 {
                     if (!renderer || !renderer.sharedMesh) continue;
@@ -6616,10 +6647,11 @@ internal static class RacesContext
                     {
                         row.PreserveNativeWeight |= protectedPart;
                         row.Identity |= identityPart;
+                        row.CalibrationSource |= calibrationSource;
                     }
                     else result.Add(renderer, new BodyShapeRenderer
                     { Renderer = renderer, PreserveNativeWeight = protectedPart, Identity = identityPart,
-                        UseNativeFrame = useNativeFrame });
+                        UseNativeFrame = useNativeFrame, CalibrationSource = calibrationSource });
                 }
             }
         }
@@ -6675,6 +6707,8 @@ internal static class RacesContext
         private bool _fieldSourcesReady;
         private bool _supplemental;
         private readonly List<BodyShapePiece> _pieces = [];
+        private readonly HashSet<string> _derivedKeys = new(StringComparer.Ordinal);
+        private CustomModels.SkinMeshSource.SourceGraph _sourceGraph;
         private float _value;
         private float _default;
         private bool _busy, _refreshPending;
@@ -6698,9 +6732,11 @@ internal static class RacesContext
             private readonly Transform[] _bones = row.Renderer.bones;
             private readonly bool _preserveNativeWeight = row.PreserveNativeWeight;
             private readonly bool _useNativeFrame = row.UseNativeFrame;
+            private readonly bool _calibrationSource = row.CalibrationSource;
             internal bool Matches(BodyShapeRenderer current) => current.Renderer == _renderer &&
                 current.Original == _original && current.PreserveNativeWeight == _preserveNativeWeight &&
                 current.UseNativeFrame == _useNativeFrame &&
+                current.CalibrationSource == _calibrationSource &&
                 current.Source != null && current.Source.MatchesBones(_bones);
         }
         private bool FieldSourcesCurrent(GraphicsCharacter graphics, BodyShapeField field, List<BodyShapeRenderer> sources, bool supplemental) =>
@@ -6710,6 +6746,32 @@ internal static class RacesContext
         internal bool HasSources => _pieces.Count != 0;
         internal bool IsBodyOverlayOf(SkinnedMeshRenderer renderer, Mesh original, CustomModels.SkinMeshSource source) =>
             _pieces.Any(piece => piece.Renderer == renderer && piece.IsOverlayOf(original, source));
+        private static string GeometryKey(GraphicsCharacter graphics, BodyShapeField field,
+            List<BodyShapeRenderer> rows, bool supplemental)
+        {
+            // Only immutable geometry is shared. The live renderer, cloth graph and
+            // current weights are rebound by each presentation after a cache hit.
+            var declarations = new JArray();
+            foreach (var row in rows)
+            {
+                var native = row.Original.GetBlendShapeIndex("Muscular");
+                var bones = new JArray();
+                foreach (var bone in row.Renderer.bones.Take(row.Original.bindposes.Length))
+                {
+                    var path = new List<string>();
+                    for (var current = bone; current && current != graphics.transform; current = current.parent)
+                        path.Add(current.name);
+                    bones.Add(new JArray(string.Join("/", path), BodyShapeBoneLength(bone)));
+                }
+                declarations.Add(new JArray(CharacterModelFingerprint(row.Original), row.PreserveNativeWeight,
+                    row.UseNativeFrame, row.CalibrationSource,
+                    row.PreserveNativeWeight && native >= 0 ? row.Renderer.GetBlendShapeWeight(native) : 0f, bones));
+            }
+            var declaration = new JArray(Array.IndexOf(BodyShapeFields, field), supplemental, declarations);
+            using var hash = CustomModels.CreateAssetSha256();
+            return "body-volume:1:" + BitConverter.ToString(hash.ComputeHash(
+                System.Text.Encoding.UTF8.GetBytes(declaration.ToString(Formatting.None)))).Replace("-", "");
+        }
         internal void Refresh(GraphicsCharacter graphics, BodyShapeField field, float value, float defaultValue, bool supplemental)
         {
             if (_busy || _bodyShapesUnloading) return;
@@ -6722,43 +6784,45 @@ internal static class RacesContext
                 _value = value;
                 _default = defaultValue;
                 var rows = CaptureBodyShapeRenderers(graphics);
-                var restored = false;
-                foreach (var piece in _pieces.ToArray())
+                if (_pieces.Any(piece => !rows.Any(row => row.Renderer == piece.Renderer && piece.IsCurrent(row))))
                 {
-                    var row = rows.FirstOrDefault(item => item.Renderer == piece.Renderer);
-                    if (row != null && piece.IsCurrent(row)) row.Original = piece.Original;
-                    else
-                    {
-                        if (!piece.Restore(false)) throw new InvalidOperationException("A changed body target has not finished restoring.");
-                        _pieces.Remove(piece);
-                        restored = true;
-                    }
-                }
-                if (restored)
-                {
+                    Release(false);
                     rows = CaptureBodyShapeRenderers(graphics);
-                    foreach (var piece in _pieces)
-                    {
-                        var row = rows.FirstOrDefault(item => item.Renderer == piece.Renderer);
-                        if (row == null || !piece.IsCurrent(row))
-                            throw new InvalidOperationException("A body source changed while restoring a target.");
-                        row.Original = piece.Original;
-                    }
                 }
-                var sources = rows.Where(row => !row.Identity && row.UseNativeFrame && row.Original.GetBlendShapeIndex("Muscular") >= 0).ToList();
-                if (!FieldSourcesCurrent(graphics, field, sources, supplemental))
+                foreach (var piece in _pieces)
+                {
+                    rows.Single(row => row.Renderer == piece.Renderer).Original = piece.Original;
+                }
+                var sources = rows.Where(row => row.CalibrationSource && row.UseNativeFrame && row.Original.GetBlendShapeIndex("Muscular") >= 0).ToList();
+                if (!FieldSourcesCurrent(graphics, field, rows, supplemental))
                 {
                     Release(false);
                     if (_pieces.Count != 0) throw new InvalidOperationException("Native body sources have not finished restoring.");
                     rows = CaptureBodyShapeRenderers(graphics);
-                    sources = rows.Where(row => !row.Identity && row.UseNativeFrame && row.Original.GetBlendShapeIndex("Muscular") >= 0).ToList();
+                    sources = rows.Where(row => row.CalibrationSource && row.UseNativeFrame && row.Original.GetBlendShapeIndex("Muscular") >= 0).ToList();
                     _baseField = field;
                     _supplemental = supplemental;
                     _fieldRig = graphics.Animator;
                     _fieldAvatar = _fieldRig ? _fieldRig.avatar : null;
                     _fieldActor = graphics.RulesetCharacter;
-                    _fieldSources.AddRange(sources.Select(row => new FieldSource(row)));
+                    _fieldSources.AddRange(rows.Select(row => new FieldSource(row)));
                     _fieldSourcesReady = true;
+                }
+                // Hair, horns and other identity parts have no body deformation.
+                // Their replacement does not change the body geometry contract.
+                var bodyRows = rows.Where(row => !row.Identity).ToList();
+                var geometryKey = _pieces.Count == 0 ? GeometryKey(graphics, field, bodyRows, supplemental) : null;
+                var cached = geometryKey == null ? null : CharacterModelPresentation.ExistingSourceData(_derivedKeys, geometryKey);
+                if (cached != null)
+                {
+                    var metadata = JArray.Parse(((TextAsset)cached[0]).text);
+                    if (metadata.Count != cached.Length - 1) throw new InvalidOperationException("A cached body shape lost its mesh mapping.");
+                    for (var index = 0; index < metadata.Count; index++)
+                    {
+                        var piece = new BodyShapePiece(bodyRows[(int)metadata[index][0]], (Mesh)cached[index + 1], (float)metadata[index][1]);
+                        piece.Retained();
+                        _pieces.Add(piece);
+                    }
                 }
                 var fieldAttempted = false;
                 BodyShapeField GetField()
@@ -6804,22 +6868,41 @@ internal static class RacesContext
                     readingSeams = false;
                     return seams;
                 }
-                foreach (var row in rows)
+                var geometryComplete = true;
+                foreach (var row in bodyRows)
                 {
                     if (_pieces.Any(piece => piece.Renderer == row.Renderer)) continue;
                     if (!supplemental)
                     {
                         var native = row.UseNativeFrame ? row.Original.GetBlendShapeIndex("Muscular") : -1;
                         if (native < 0) continue;
-                        var baseline = row.PreserveNativeWeight ? row.Renderer.GetBlendShapeWeight(native) : defaultValue;
-                        if (value == baseline) continue;
                     }
-                    try { BodyShapePiece.Create(graphics, row, GetField, GetSeams, _pieces, supplemental); }
+                    try { BodyShapePiece.Create(row, GetField, GetSeams, _pieces, supplemental); }
                     catch (Exception exception)
                     {
+                        geometryComplete = false;
                         if (readingSeams) throw;
                         ReportBodyShapeError(row.Original.name, exception);
                     }
+                }
+                if (geometryComplete && geometryKey != null && cached == null && _pieces.Count != 0)
+                {
+                    var metadata = new JArray(_pieces.Select(piece => new JArray(
+                        bodyRows.FindIndex(row => row.Renderer == piece.Renderer), piece.Expansion)));
+                    CharacterModelPresentation.RetainPreparedSourceData(_derivedKeys, geometryKey,
+                        new UnityEngine.Object[] { new TextAsset(metadata.ToString(Formatting.None)) }
+                            .Concat(_pieces.Select(piece => (UnityEngine.Object)piece.Owned)).ToArray());
+                    foreach (var piece in _pieces) piece.Retained();
+                }
+                if (_pieces.Count != 0 && _sourceGraph == null)
+                {
+                    // Clothing pieces can share one native virtual mesh and cloth owner.
+                    // Install the complete overlay as one transition, as for authored character skins.
+                    var changes = _pieces.ToDictionary(piece => piece.Renderer, piece => (piece.Source, piece.Owned));
+                    _sourceGraph = CustomModels.SkinMeshSource.PrepareMeshes(graphics, changes, null,
+                        (key, create) => CharacterModelPresentation.RetainSourceData(_derivedKeys, key, create, null));
+                    _sourceGraph.Apply(true);
+                    foreach (var piece in _pieces) piece.Installed(_sourceGraph.Installed[piece.Renderer]);
                 }
                 foreach (var piece in _pieces) piece.SetValue(value, defaultValue);
             }
@@ -6829,11 +6912,15 @@ internal static class RacesContext
         internal void Release(bool destroying)
         {
             _refreshPending = false;
-            foreach (var piece in _pieces.ToArray())
+            try
             {
-                try { if (piece.Restore(destroying)) _pieces.Remove(piece); }
-                catch (Exception exception) { ReportBodyShapeError(piece.Original.name + "-restore", exception); }
+                _sourceGraph?.Restore(!destroying);
+                _sourceGraph = null;
+                foreach (var piece in _pieces) piece.Release();
+                _pieces.Clear();
+                CharacterModelPresentation.ReleaseSourceData(_derivedKeys);
             }
+            catch (Exception exception) { ReportBodyShapeError("presentation-restore", exception); return; }
             _baseField = _field = null;
             _fieldRig = null;
             _fieldAvatar = null;
@@ -6874,24 +6961,25 @@ internal static class RacesContext
     {
         internal readonly SkinnedMeshRenderer Renderer;
         internal readonly Mesh Original;
-        private readonly GraphicsCharacter _graphics;
         private readonly Mesh _owned;
         private readonly Bounds _originalBounds;
         private readonly Bounds _appliedBounds;
         private readonly bool _identity, _preserveNativeWeight, _useNativeFrame;
         private readonly Transform[] _bones;
         private CustomModels.SkinMeshSource _source;
-        private CustomModels.SkinMeshSource.SourceGraph _sourceGraph;
-        private bool _clothSourceInstalled;
+        private bool _installed, _retained;
         private readonly int _positive;
         private readonly int _negative;
         private readonly float? _preservedNativeWeight;
-        private BodyShapePiece(GraphicsCharacter graphics, BodyShapeRenderer row, Mesh owned, float expansion)
+        internal CustomModels.SkinMeshSource Source => _source;
+        internal Mesh Owned => _owned;
+        internal readonly float Expansion;
+        internal BodyShapePiece(BodyShapeRenderer row, Mesh owned, float expansion)
         {
-            _graphics = graphics;
             Renderer = row.Renderer;
             Original = row.Original;
             _owned = owned;
+            Expansion = expansion;
             _source = row.Source;
             _identity = row.Identity;
             _preserveNativeWeight = row.PreserveNativeWeight;
@@ -6906,7 +6994,7 @@ internal static class RacesContext
             bounds.Expand(expansion * 2f);
             _appliedBounds = bounds;
         }
-        internal static void Create(GraphicsCharacter graphics, BodyShapeRenderer row, Func<BodyShapeField> getField, Func<BodyShapeSeams> getSeams,
+        internal static void Create(BodyShapeRenderer row, Func<BodyShapeField> getField, Func<BodyShapeSeams> getSeams,
             List<BodyShapePiece> pieces, bool supplemental)
         {
             var hasNativeFrame = row.UseNativeFrame && row.Original.GetBlendShapeIndex("Muscular") >= 0;
@@ -7006,27 +7094,15 @@ internal static class RacesContext
             if (!changed) return;
             var owned = UnityEngine.Object.Instantiate(row.Original);
             owned.name = row.Original.name;
-            BodyShapePiece piece = null;
             try
             {
                 AddFrame(owned, BodyVolumePositive, rest, delta, protectedVertices, 1f, normalCorrection, tangentCorrection, baseline, seamNormals);
                 AddFrame(owned, BodyVolumeNegative, rest, delta, protectedVertices, -1f, normalCorrection, tangentCorrection, baseline, seamNormals);
-                piece = new BodyShapePiece(graphics, row, owned, maximum);
-                pieces.Add(piece);
-                if (!piece.SwitchSource(row.Source, owned)) throw new InvalidOperationException("The renderer changed before its body morph was installed.");
-                row.Renderer.localBounds = piece._appliedBounds;
+                pieces.Add(new BodyShapePiece(row, owned, maximum));
             }
-            catch (Exception failure)
+            catch
             {
-                try
-                {
-                    if (piece == null) UnityEngine.Object.Destroy(owned);
-                    else if (piece.Restore(false)) pieces.Remove(piece);
-                }
-                catch (Exception restoreFailure)
-                {
-                    throw new AggregateException("Body source installation and restoration failed.", failure, restoreFailure);
-                }
+                UnityEngine.Object.Destroy(owned);
                 throw;
             }
             return;
@@ -7087,12 +7163,12 @@ internal static class RacesContext
             return (targetNormal - normal, targetTangent - tangent);
         }
         internal bool IsOverlayOf(Mesh original, CustomModels.SkinMeshSource source) =>
-            _sourceGraph?.IsApplied == true && Original == original && Renderer && source != null && source.MatchesBones(_bones) &&
+            _installed && Original == original && Renderer && source != null && source.MatchesBones(_bones) &&
             source.Original == _owned && source.OwnerCurrent && source.AcceptsCurrentMesh();
         internal bool IsCurrent(BodyShapeRenderer row)
         {
             var source = row.Source;
-            if (_sourceGraph?.IsApplied != true || row.Renderer != Renderer || row.Identity != _identity || row.PreserveNativeWeight != _preserveNativeWeight ||
+            if (!_installed || row.Renderer != Renderer || row.Identity != _identity || row.PreserveNativeWeight != _preserveNativeWeight ||
                 row.UseNativeFrame != _useNativeFrame ||
                 source == null || !source.MatchesBones(_bones) || source.Original != _owned || !source.AcceptsCurrentMesh()) return false;
             _source = source;
@@ -7100,39 +7176,24 @@ internal static class RacesContext
         }
         internal void SetValue(float value, float defaultValue)
         {
-            if (_sourceGraph?.IsApplied != true || !Renderer || !_owned || !_source.OwnerCurrent || !_source.AcceptsCurrentMesh()) return;
+            if (!_installed || !Renderer || !_owned || !_source.OwnerCurrent || !_source.AcceptsCurrentMesh()) return;
             value -= _preservedNativeWeight ?? defaultValue;
             Renderer.SetBlendShapeWeight(_positive, Mathf.Max(0f, value));
             Renderer.SetBlendShapeWeight(_negative, Mathf.Max(0f, -value));
         }
-        internal bool Restore(bool destroying)
+        internal void Installed(CustomModels.SkinMeshSource source)
         {
-            if (_sourceGraph != null)
-            {
-                _sourceGraph.Restore(!destroying);
-                _sourceGraph = null;
-                _clothSourceInstalled = false;
-            }
-            if (Renderer && _owned)
-            {
-                var sources = CustomModels.SkinMeshSource.Capture(_graphics, new HashSet<SkinnedMeshRenderer> { Renderer });
-                CustomModels.SkinMeshSource source = null;
-                sources?.TryGetValue(Renderer, out source);
-                if (source != null && source.Original == _owned)
-                {
-                    return false;
-                }
-                else if (_clothSourceInstalled && _source.ClothOwner && (source == null || _source.OwnerCurrent)) return false;
-                else if (Renderer.sharedMesh == _owned) Renderer.sharedMesh = Original;
-                if (Renderer.localBounds.Equals(_appliedBounds)) Renderer.localBounds = _originalBounds;
-            }
-            if (_clothSourceInstalled && _source.ClothOwner && _source.OwnerCurrent) return false;
-            if (_owned) UnityEngine.Object.Destroy(_owned);
-            return true;
+            _source = source;
+            _installed = true;
+            Renderer.localBounds = _appliedBounds;
         }
-        private bool SwitchSource(CustomModels.SkinMeshSource source, Mesh replacement, bool restart = true) =>
-            SwitchSkinSource(_graphics, Renderer, source, replacement, restart, replacement == _owned,
-                ref _source, ref _clothSourceInstalled, ref _sourceGraph);
+        internal void Retained() => _retained = true;
+        internal void Release()
+        {
+            _installed = false;
+            if (Renderer && Renderer.localBounds.Equals(_appliedBounds)) Renderer.localBounds = _originalBounds;
+            if (!_retained && _owned) UnityEngine.Object.Destroy(_owned);
+        }
         private static void AddFrame(Mesh owned, string name, BodyShapeRest rest, Vector3[] delta, bool[] protectedVertices, float sign,
             Vector3[] normalCorrection, Vector3[] tangentCorrection, float baseline,
             IReadOnlyDictionary<int, (Vector3 Normal, Vector3 Tangent, Vector3 NegativeNormal, Vector3 NegativeTangent)> seamNormals)

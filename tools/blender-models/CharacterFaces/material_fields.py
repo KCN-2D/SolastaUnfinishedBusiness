@@ -4,6 +4,7 @@ import functools
 import hashlib
 import heapq
 import json
+import math
 import struct
 import time
 from typing import Any, TypedDict, cast
@@ -645,8 +646,10 @@ class Geometry(TypedDict):
 def geometry(p,v,n,t) -> 'Geometry':
     triangles=np.asarray(p['subMeshes'][0],int).reshape(-1,3);return {'vertices':v,'normal':n,'tangent':t,'uv':uv(p),'triangles':triangles,'edges':raw_edges(triangles),'packet':p}
 
-def serialized_skin_context(head_packet,body_packet,head_bones,body_bones):
+def serialized_skin_context(head_packet,body_packet,head_bones,body_bones,*,cut_tolerance_metres=1e-5):
     """Measure the saved surfaces without transporting a preceding source mesh."""
+    if not math.isfinite(cut_tolerance_metres)or cut_tolerance_metres<=0:
+        raise ValueError('A serialized skin cut needs a finite positive positional tolerance.')
     frame,_,error=skin_palette_frame(head_packet,body_packet,head_bones,body_bones)
     frame=np.asarray(frame,np.float32)
     n=unit(arr(head_packet,'normals',3)@np.linalg.inv(frame[:3,:3]));t=arr(head_packet,'tangents',4).copy()
@@ -669,15 +672,17 @@ def serialized_skin_context(head_packet,body_packet,head_bones,body_bones):
         if np.any(square<=1e-24):raise ValueError('A serialized skin boundary has a collapsed physical edge.')
         t=np.clip(np.sum((q[:,None]-a)*d,axis=2)/square,0,1)
         distance=np.linalg.norm(q[:,None]-a-t[:,:,None]*d,axis=2).min(axis=1)
-        return edges[np.all(distance.reshape(-1,3)<=1e-5,axis=1)]
+        return edges[np.all(distance.reshape(-1,3)<=cut_tolerance_metres,axis=1)]
     head_edges,body_edges=he,be;he=matching(head,head_edges,body,body_edges);be=matching(body,body_edges,head,head_edges)
     if min(len(he),len(be))<3:raise ValueError('Serialized skin surfaces do not share a complete physical cut.')
     hc=BoundaryAtlas(head['vertices'],head['uv'],head['normal'],head['tangent'],he)
     bc=BoundaryAtlas(body['vertices'],body['uv'],body['normal'],body['tangent'],be)
-    return head,body,he,be,hc,bc,dict(source='saved-serialized-skin-surfaces',sourceVertexChannelsUnchanged=True,commonHeadToBody=frame.T.ravel().tolist(),allSharedBindMaximumAbs=error)
+    return head,body,he,be,hc,bc,dict(source='saved-serialized-skin-surfaces',sourceVertexChannelsUnchanged=True,commonHeadToBody=frame.T.ravel().tolist(),allSharedBindMaximumAbs=error,cutToleranceMetres=cut_tolerance_metres)
 
 
 def source_context(row,head_packet,body_packet):
+    if row['headSource'].get('geometrySource')=='saved-serialized-skin-surfaces':
+        return serialized_skin_context(head_packet,body_packet,row['headNativeBonePaths'],row['bodyNativeBonePaths'])
     h=head_packet;b=body_packet;hp=arr(h,'vertices',3).copy();hn=arr(h,'normals',3).copy();ht=arr(h,'tangents',4).copy();bp=arr(b,'vertices',3);bn=arr(b,'normals',3);bt=arr(b,'tangents',4);proof={};body_members={int(v) for aliases in row['bodyCut']['vertexAliases'] for v in aliases}
     if row['bodyCut'].get('expandExactNativePositionAliases'):
         selected={tuple(bp[i]) for i in body_members};body_members={i for i,p in enumerate(bp) if tuple(p) in selected}
@@ -1290,6 +1295,29 @@ def preserve_head_pigment_mip(native,authored,fraction,*,native_alpha=False):
         calibratedNeckTexels=proof['collarTexels'],transitionTexels=proof['transitionTexels'],anatomicalWeightSha256=proof['anatomicalWeightSha256'])
 
 
+def native_face_bc1_mip(native_payload,target,editable):
+    """Update owned opaque DXT1 blocks at their original runtime storage size."""
+    import etcpak
+    from PIL import Image
+    target=np.asarray(target,np.uint8);height,width=target.shape[:2];rows,columns=(height+3)//4,(width+3)//4
+    if target.shape!=(height,width,4)or np.asarray(editable).shape!=(height,width)or len(native_payload)!=rows*columns*8:
+        raise ValueError('A DXT1 skin field needs complete source blocks and pixel ownership.')
+    owned,_=whole_block_pixels(editable)
+    baseline=np.asarray(Image.frombytes('RGBA',(width,height),native_payload,'bcn',1))
+    pixels=np.repeat(np.repeat(owned.reshape(rows,columns),4,axis=0),4,axis=1)[:height,:width]
+    if np.any(target[:,:,3][pixels]!=255)or np.any(baseline[:,:,3][pixels]!=255):
+        raise ValueError('An opaque DXT1 skin field cannot replace native transparency.')
+    padded=np.pad(target,((0,(-height)%4),(0,(-width)%4),(0,0)),mode='edge')
+    payload=bytearray(native_payload);blocks=np.frombuffer(payload,np.uint8).reshape(-1,8)
+    encoded=np.frombuffer(etcpak.compress_bc1(padded.tobytes(),columns*4,rows*4),np.uint8).reshape(-1,8)
+    blocks[owned]=encoded[owned]
+    saved=np.asarray(Image.frombytes('RGBA',(width,height),bytes(payload),'bcn',1))
+    if not np.array_equal(saved[:,:,3],baseline[:,:,3]):raise ValueError('A DXT1 skin field changed native transparency.')
+    error=np.abs(saved[:,:,:3].astype(int)-target[:,:,:3].astype(int))[pixels]
+    return bytes(payload),dict(format=10,ownedBlocks=int(owned.sum()),unownedBlocksExact=True,alphaExact=True,
+        maximumRgbError=int(error.max(initial=0)),sourceDimensionsAndMipCountRetained=True)
+
+
 def native_face_bc3_mip(native_payload,native_format,target,fraction):
     """Retain whole native face blocks; compress the calibrated skin in DXT5."""
     import etcpak
@@ -1308,11 +1336,30 @@ def native_face_bc3_mip(native_payload,native_format,target,fraction):
     if native_format==12:
         native_blocks=np.frombuffer(native_payload,np.uint8).reshape(rows,columns,16);blocks[face]=native_blocks[face]
         if not np.array_equal(blocks[face],native_blocks[face]):raise ValueError('A native face DXT5 block changed.')
+    elif face.any():
+        source=np.asarray(Image.frombytes('RGBA',(width,height),native_payload,'bcn',1))
+        padded_source=np.pad(source,((0,(-height)%4),(0,(-width)%4),(0,0)),mode='edge')
+        converted=bytearray(etcpak.compress_bc3(padded_source.tobytes(),columns*4,rows*4))
+        preserved_blocks=np.frombuffer(converted,np.uint8).reshape(rows,columns,16)
+        native_blocks=np.frombuffer(native_payload,np.uint8).reshape(rows,columns,8)
+        endpoints=native_blocks[:,:,:4].copy().view('<u2').reshape(rows,columns,2)
+        exact=endpoints[:,:,0]>=endpoints[:,:,1]
+        preserved_blocks[:,:,8:][exact]=native_blocks[exact]
+        blocks[face]=preserved_blocks[face]
     decoded=np.asarray(Image.frombytes('RGBA',(width,height),bytes(payload),'bcn',3))
+    native_rgb_error=0
+    if native_format==10 and face.any():
+        source=np.asarray(Image.frombytes('RGBA',(width,height),native_payload,'bcn',1))
+        preserved=np.repeat(np.repeat(face,4,axis=0),4,axis=1)[:height,:width]
+        native_rgb_error=int(np.abs(decoded[:,:,:3].astype(int)-source[:,:,:3].astype(int))[preserved].max(initial=0))
+        if native_rgb_error>16 or not np.array_equal(decoded[:,:,3][preserved],source[:,:,3][preserved]):
+            raise ValueError('A DXT1 alpha upgrade changed protected skin RGB or material alpha.')
     error=decoded.astype(float)-target
     return bytes(payload),face,dict(format=12,bytes=len(payload),nativeSourceFormat=native_format,nativeFaceBlocksExact=int(face.sum())if native_format==12 else 0,
+        nativeFaceMaximumRgbError=native_rgb_error,
         nativeFaceBlockOwnershipSha256=digest(face),rgbRms=float(np.sqrt(np.mean(error[:,:,:3]**2))),maximumRgbError=int(np.abs(error[:,:,:3]).max()),
         alphaRms=float(np.sqrt(np.mean(error[:,:,3]**2))),maximumAlphaError=int(np.abs(error[:,:,3]).max()),sourceDimensionsAndMipCountRetained=True)
+
 
 
 def bc7_rgba_mode4_blocks(target):
@@ -1834,6 +1881,65 @@ def reencode_bc7_rgb_block(block,target):
     return encoded
 
 
+def packed_normal_directions(value):
+    value=value.astype(float)/255;x=value[:,:,0]*value[:,:,3]*2-1;y=value[:,:,1]*2-1
+    return normalize(np.dstack((x,y,np.sqrt(np.maximum(0,1-x*x-y*y)))))
+
+
+def fit_bc3_skin_field(payload,width,height,target,editable,channel,maximum_rgb_error=16,maximum_error_degrees=3):
+    """Fit DXT5 skin fields without changing alpha or packed-normal carriers."""
+    import etcpak
+    from PIL import Image
+    if target.shape!=(height,width,4)or target.dtype!=np.uint8 or editable.shape!=(height,width)or editable.dtype!=bool:
+        raise ValueError('Invalid DXT5 skin field or ownership.')
+    if channel not in ('color','normal')or not 0<maximum_error_degrees<=10 or maximum_rgb_error<0:
+        raise ValueError('Invalid DXT5 skin channel or error budget.')
+    active,_=whole_block_pixels(editable);rows,columns=(height+3)//4,(width+3)//4
+    before=np.frombuffer(payload,np.uint8).reshape(rows*columns,16)
+    padded=np.pad(target,((0,(-height)%4),(0,(-width)%4),(0,0)),mode='edge')
+    candidate=np.frombuffer(etcpak.compress_bc3(padded.tobytes(),columns*4,rows*4),np.uint8).reshape(-1,16).copy()
+    if channel=='color':candidate[:,:8]=before[:,:8]
+    else:
+        # BC3 uses an independent alpha codebook and RGB565 endpoints. Keep
+        # RGB indices and red/blue endpoint bits; fit only green endpoints.
+        # https://learn.microsoft.com/windows/win32/direct3d10/d3d10-graphics-programming-guide-resources-block-compression
+        candidate[:,8:]=before[:,8:]
+        e0=before[:,8].astype(np.uint32)|(before[:,9].astype(np.uint32)<<8)
+        e1=before[:,10].astype(np.uint32)|(before[:,11].astype(np.uint32)<<8)
+        codes=before[:,12:].copy().view('<u4').ravel()
+        indices=((codes[:,None]>>(np.arange(16,dtype=np.uint32)*2))&3).astype(int)
+        blend=np.array([1.,0.,2/3,1/3])[indices];other=1-blend
+        desired=padded.reshape(rows,4,columns,4,4).transpose(0,2,1,3,4).reshape(-1,16,4)[:,:,1].astype(float)
+        a=(blend*blend).sum(1)+1e-6;b=(blend*other).sum(1);c=(other*other).sum(1)+1e-6
+        old0=((e0>>5)&63);old1=((e1>>5)&63)
+        expand=lambda value:(value<<2)|(value>>4)
+        d=(blend*desired).sum(1)+1e-6*expand(old0);e=(other*desired).sum(1)+1e-6*expand(old1)
+        determinant=a*c-b*b
+        guess0=np.rint(np.clip((d*c-b*e)/determinant,0,255)*63/255).astype(int)
+        guess1=np.rint(np.clip((a*e-b*d)/determinant,0,255)*63/255).astype(int)
+        best=np.full(len(before),np.inf);g0=old0.copy();g1=old1.copy()
+        for da in (-1,0,1):
+            for db in (-1,0,1):
+                p=np.clip(guess0+da,0,63);q=np.clip(guess1+db,0,63);u=expand(p);v=expand(q)
+                palette=np.stack((u,v,(2*u+v)//3,(u+2*v)//3),axis=1)
+                decoded=np.take_along_axis(palette,indices,axis=1);score=np.mean((decoded-desired)**2,axis=1)
+                better=score<best;best[better]=score[better];g0[better]=p[better];g1[better]=q[better]
+        for column,endpoint,green in ((8,e0,g0),(10,e1,g1)):
+            bits=(endpoint&0xf81f)|(green.astype(np.uint32)<<5)
+            candidate[:,column]=(bits&255).astype(np.uint8);candidate[:,column+1]=(bits>>8).astype(np.uint8)
+    original=np.asarray(Image.frombytes('RGBA',(width,height),payload,'bcn',3))
+    actual=np.asarray(Image.frombytes('RGBA',(width,height),candidate.tobytes(),'bcn',3))
+    if channel=='color':reject=(np.abs(actual[:,:,:3].astype(int)-target[:,:,:3]).max(axis=2)>maximum_rgb_error)|np.any(actual[:,:,3:]!=original[:,:,3:],axis=2)
+    else:
+        angles=np.degrees(np.arccos(np.clip((packed_normal_directions(actual)*packed_normal_directions(target)).sum(axis=2),-1,1)))
+        reject=(angles>maximum_error_degrees)|np.any(actual[:,:,[0,2]]!=original[:,:,[0,2]],axis=2)
+    reject=np.pad(reject,((0,(-height)%4),(0,(-width)%4)),mode='edge').reshape(rows,4,columns,4).any(axis=(1,3)).ravel()
+    kept=active&~reject;candidate[~kept]=before[~kept]
+    return candidate.tobytes(),dict(storage='DXT5',unownedBlocksExact=True,sourceAlphaExact=channel=='color',sourceCarriersExact=channel=='normal',
+        acceptedBlocks=int(kept.sum()),retainedCodecBlocks=int((active&reject).sum()),maximumRgbError=maximum_rgb_error if channel=='color'else None,
+        maximumAcceptedNormalErrorDegrees=maximum_error_degrees if channel=='normal'else None)
+
+
 def fit_bc7_normal_field(payload,width,height,target,editable,maximum_error_degrees=3):
     """Refine packed RG-or-AG normals while retaining carriers and unowned blocks."""
     from PIL import Image
@@ -1849,10 +1955,7 @@ def fit_bc7_normal_field(payload,width,height,target,editable,maximum_error_degr
         if len(selected):words[selected]=np.frombuffer(bc7_rgba_separate_blocks(blocks[selected],5),np.uint8).reshape(-1,16)
     original=np.asarray(Image.frombytes('RGBA',(width,height),payload,'bcn',7))
     actual=np.asarray(Image.frombytes('RGBA',(width,height),words.tobytes(),'bcn',7))
-    def normals(value):
-        value=value.astype(float)/255;x=value[:,:,0]*value[:,:,3]*2-1;y=value[:,:,1]*2-1
-        return normalize(np.dstack((x,y,np.sqrt(np.maximum(0,1-x*x-y*y)))))
-    angles=np.degrees(np.arccos(np.clip((normals(actual)*normals(target)).sum(axis=2),-1,1)))
+    angles=np.degrees(np.arccos(np.clip((packed_normal_directions(actual)*packed_normal_directions(target)).sum(axis=2),-1,1)))
     reject=(angles>maximum_error_degrees)|np.any(actual[:,:,[0,2]]!=original[:,:,[0,2]],axis=2)
     reject=np.pad(reject,((0,(-height)%4),(0,(-width)%4)),mode='constant').reshape((height+3)//4,4,(width+3)//4,4).any(axis=(1,3)).ravel()
     words[reject]=before[reject]

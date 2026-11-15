@@ -47,6 +47,24 @@ def sha(path):
         return hashlib.file_digest(stream,'sha256').hexdigest()
 
 
+def resource_metadata_summary(path,fields):
+    """Read selected catalog metadata and its exact byte identity in one pass."""
+    path=checked_source_path(path)
+    if not fields or any(not isinstance(field,str)or not field for field in fields):
+        raise ValueError('Choose explicit top-level metadata properties.')
+    payload=path.read_bytes();document=json.loads(payload.decode('utf-8-sig'))
+    if not isinstance(document,dict):raise ValueError('Resource metadata must be a JSON object.')
+    return dict(source=dict(path=str(path),sha256=hashlib.sha256(payload).hexdigest(),bytes=len(payload)),
+        metadata={field:document[field]for field in fields if field in document},
+        missingFields=[field for field in fields if field not in document])
+
+
+def inspect_resource_metadata():
+    parser=argparse.ArgumentParser();parser.add_argument('--assembly',type=Path,required=True)
+    parser.add_argument('--fields',nargs='+',required=True)
+    args=parser.parse_args();print(json.dumps(resource_metadata_summary(args.assembly,args.fields),ensure_ascii=False))
+
+
 def write(path,value):
     path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
     temporary=path.with_name(path.name+'.writing')
@@ -1232,6 +1250,7 @@ def public_texture_owner_label(owner,consumers,authorities):
 def publish_catalog():
     parser=argparse.ArgumentParser();parser.add_argument('--catalog',type=Path,required=True)
     parser.add_argument('--expected-current-sha256',required=True)
+    parser.add_argument('--validate-only',action='store_true')
     parser.add_argument('--name-sources',type=Path)
     parser.add_argument('--name-source-metadata',type=Path,action='append');args=parser.parse_args()
     if args.name_sources and args.name_source_metadata:raise ValueError('Select pinned naming sources or their native metadata inputs.')
@@ -1248,7 +1267,7 @@ def publish_catalog():
     if sha(manifest_path)!=quality['sourceManifestSha256']:
         raise ValueError('The current public catalog differs from the retained rollback source.')
     if manifest.get('schemaVersion')==3:
-        publish_resource_catalog(candidate,current,source,manifest,quality)
+        publish_resource_catalog(candidate,current,source,manifest,quality,validate_only=args.validate_only)
         return
     wanted=catalog_payloads(manifest)
     original=read(source/'CharacterModels.manifest.json')
@@ -1315,11 +1334,11 @@ def publish_catalog():
     if texture_closure is not None:
         receipt.update(inverseTypedTextureClosureExact=True,texturePayloadClosure=quality['texturePayloadClosure'],
             textureUpdates=[dict(row,afterPublicBundle=names[row['after']['bundleFile']])for row in texture_closure['textureUpdates']])
-    atomic_publish_catalog(candidate,current,source,manifest_bytes,published_payloads,inverse,original_hashes,receipt)
+    atomic_publish_catalog(candidate,current,source,manifest_bytes,published_payloads,inverse,original_hashes,receipt,validate_only=args.validate_only)
     print(json.dumps(receipt))
 
 
-def atomic_publish_catalog(candidate,current,source,manifest_bytes,payloads,candidate_files,original_hashes,receipt):
+def atomic_publish_catalog(candidate,current,source,manifest_bytes,payloads,candidate_files,original_hashes,receipt,*,validate_only=False):
     """One rollback-preserving publication path for generated catalog formats."""
     manifest_path=current/'CharacterModels.manifest.json'
     published_sha=hashlib.sha256(manifest_bytes).hexdigest()
@@ -1329,6 +1348,13 @@ def atomic_publish_catalog(candidate,current,source,manifest_bytes,payloads,cand
         raise ValueError('The public catalog changed before the atomic publication.')
     if any(sha(checked_catalog_path(source,file))!=digest for file,digest in original_hashes.items()):
         raise ValueError('An immutable rollback source changed before publication.')
+    if validate_only:
+        if any(sha(checked_catalog_path(candidate,candidate_files[file]))!=payloads[file]for file in changed):
+            raise ValueError('A candidate payload changed before publication validation.')
+        receipt.update(status='PASS_PUBLICATION_VALIDATION',plannedWrites=len(changed)+1,plannedRetirements=obsolete,
+            written=0,retired=[],sourceBytesPreserved=True)
+        write(require_workspace()/'PublicationValidation.json',receipt)
+        return
     try:
         for file in changed+['CharacterModels.manifest.json']:
             temporary=current/(file+'.new-'+uuid.uuid4().hex)
@@ -2061,7 +2087,7 @@ def validate_prepared_resource(row,assembly,verified):
         if operations[:len(original_operations)]!=original_operations:
             raise ValueError('A resource refinement lost its preceding operation chain.')
         added_objects=sum(len(document(operation['proof'])['objectsAdded'])for operation in operations[len(original_operations):]
-                          if operation.get('kind')in('compiled-material-texture-bindings','source-skin-material-bindings'))
+                          if operation.get('kind')in('compiled-material-texture-bindings','source-skin-material-bindings','source-skin-interface'))
         expected_objects=original.get('objects')
         if added_objects:
             if type(expected_objects)is not int:raise ValueError('A material texture refinement has no source object count.')
@@ -2136,6 +2162,12 @@ def validate_prepared_resource(row,assembly,verified):
                 if operation['beforeSha256']!=expected:raise ValueError('A skin LOD pigment lost its preceding resource owner.')
                 validate_skin_lod_pigment_resource(operation)
                 expected=operation['sha256']
+            elif kind=='source-skin-interface':
+                receipt=document(operation['proof'])
+                if operation['beforeSha256']!=expected or receipt['beforeSha256']!=expected or receipt['sha256']!=operation['sha256']:
+                    raise ValueError('A skin interface lost its preceding resource owner.')
+                validate_skin_interface_finish(receipt)
+                expected=operation['sha256']
             elif kind=='source-skin-detail':
                 if operation['beforeSha256']!=expected:raise ValueError('A source skin detail lost its preceding resource owner.')
                 job=document(operation['inputPlan'])
@@ -2146,6 +2178,7 @@ def validate_prepared_resource(row,assembly,verified):
                 receipt=document(operation['proof'])
                 if operation['beforeSha256']!=expected or receipt['beforeSha256']!=expected or receipt['sha256']!=operation['sha256']:
                     raise ValueError('A source skin material lost its preceding resource owner.')
+                for pin in operation.get('pigmentInputs',[]):pinned(pin)
                 for reference in operation['fields']:
                     field=document(reference);key=('validated-source-skin-field',reference['sha256'])
                     if key not in verified:
@@ -2173,6 +2206,15 @@ def validate_prepared_resource(row,assembly,verified):
                 if operation.get('beforeSha256')!=expected or receipt['source']['sha256']!=expected or receipt['target']['sha256']!=operation.get('sha256')or receipt.get('file')!=row['file']:
                     raise ValueError('A groom surface lost its preceding resource ownership.')
                 validate_owned_groom_surface(receipt,operation['authority']['inputs'],verified)
+                expected=operation['sha256']
+            elif kind=='source-owned-attachment-surface':
+                receipt=document(operation['proof'])
+                if operation.get('beforeSha256')!=expected or receipt['source']['sha256']!=expected or receipt['target']['sha256']!=operation.get('sha256')or receipt.get('file')!=row['file']:
+                    raise ValueError('An attachment surface lost its preceding resource owner.')
+                for reference in operation['authority']['inputs']:pinned(reference)
+                key=('validated-attachment-surface',operation['proof']['sha256'])
+                if key not in verified:
+                    validate_attachment_surface(receipt,operation['authority']['inputs']);verified[key]=True
                 expected=operation['sha256']
             elif kind=='compiled-groom-strand-atlas':
                 if operation.get('sourceSha256')!=expected or operation.get('file')!=row['file']:
@@ -2397,7 +2439,7 @@ def validate_prepared_resource(row,assembly,verified):
     if any(proof.get(flag)is not True for flag in flags):raise ValueError('Prepared resource ownership proof is incomplete.')
 
 
-def publish_resource_catalog(candidate,current,source,manifest,quality):
+def publish_resource_catalog(candidate,current,source,manifest,quality,*,validate_only=False):
     """Publish the complete prepared-resource closure, retaining authoring inputs."""
     proof=publication_json_proof(quality['resourceAssembly'])
     if proof.get('status')!='PASS_STANDALONE_CHARACTER_RESOURCES' or proof.get('originalModelDependenciesInherited')is not False:
@@ -2461,7 +2503,7 @@ def publish_resource_catalog(candidate,current,source,manifest,quality):
                  originalCandidateManifestSha256=quality['candidateManifestSha256'],publishedManifestSha256=hashlib.sha256(manifest_bytes).hexdigest(),
                  resourceAssembly=quality['resourceAssembly'],standaloneResources=len(sources),runtimeReplacementDeclarations=0,
                  payloadShaUnchangedByNaming=True)
-    atomic_publish_catalog(candidate,current,source,manifest_bytes,payloads,{file:file for file in payloads},original_hashes,receipt)
+    atomic_publish_catalog(candidate,current,source,manifest_bytes,payloads,{file:file for file in payloads},original_hashes,receipt,validate_only=validate_only)
     print(json.dumps(receipt))
 
 
@@ -3901,6 +3943,34 @@ def package_resources():
     print(json.dumps(dict(status='PASS_RESOURCE_PACKS',packs=len(result['packs']),bytes=sum(row['bytes']for row in result['packs']))))
 
 
+def completed_resource_payloads(directory,assembly=None,manifest=None):
+    """Resolve final and intermediate payloads through their completed producer owner."""
+    directory=checked_catalog_path(directory)
+    assembly=read(checked_source_path(directory/'ResourceAssembly.json'))if assembly is None else assembly
+    manifest_path=checked_source_path(directory/'Catalog/CharacterModels.manifest.json')
+    if assembly.get('status')!='PASS_STANDALONE_CHARACTER_RESOURCES'or assembly.get('catalogSha256')!=sha(manifest_path):
+        raise ValueError('A retired catalog has no unchanged completed resource owner.')
+    manifest=read(manifest_path)if manifest is None else manifest
+    payloads={directory/'Catalog'/name:digest for name,digest in catalog_payloads(manifest).items()}
+    checkpoint=directory/'GeometryPreparation.json'
+    if checkpoint.is_file():
+        checked_source_path(checkpoint)
+        geometry=read(checkpoint);declaration=assembly.get('nativeFaceContours',{})
+        retained=assembly.get('faceFinishing',{}).get('geometryPreparation')
+        pinned=retained and Path(retained['path']).resolve()==checkpoint.resolve()and retained['sha256']==sha(checkpoint)
+        declared=bool(declaration.get('owner'))and declaration.get('owner')==geometry.get('owner')and all(
+            declaration.get(key)==geometry.get(key)for key in ('coverage','rows','humanStyleFiles'))
+        if geometry.get('status')!='PREPARED_GEOMETRY'or not(pinned or declared):
+            raise ValueError('An intermediate geometry catalog has no matching completed producer owner.')
+        expected=catalog_payloads(geometry['manifest']);proofs=geometry['assembly']['proofs']
+        if {row['file']:row['sha256']for row in proofs}!=expected or len(proofs)!=len(expected)or \
+                set(expected)!=set(catalog_payloads(manifest)):
+            raise ValueError('An intermediate geometry catalog differs from its declared resource closure.')
+        folder=checked_catalog_path(directory/'GeometryCatalog')
+        payloads.update({folder/name:digest for name,digest in expected.items()})
+    return payloads
+
+
 def create_resource_retirement_plan(directories,reference_path,output,storage_root=None) -> dict[str, Any]:
     """Select declared old catalog payloads; retain every current input path."""
     artifacts=ROOT/'tools/game-test/artifacts'
@@ -3924,22 +3994,22 @@ def create_resource_retirement_plan(directories,reference_path,output,storage_ro
     for directory in directories:
         directory=checked_catalog_path(directory)
         if directory==storage_root or not directory.is_relative_to(storage_root):raise ValueError('Retired resource catalogs must be below the declared workspace.')
-        owner=checked_source_path(directory/'ResourceAssembly.json');assembly=read(owner)
-        catalog=directory/'Catalog';manifest=checked_source_path(catalog/'CharacterModels.manifest.json')
-        if assembly.get('status')!='PASS_STANDALONE_CHARACTER_RESOURCES'or assembly.get('catalogSha256')!=sha(manifest):
-            raise ValueError('A retired catalog has no unchanged completed resource owner.')
+        payloads=completed_resource_payloads(directory)
         # Validate the shared directory ancestry once. Scandir supplies each leaf's
         # own no-follow metadata; deletion performs a second full path/hash check.
-        checked_catalog_path(catalog)
-        with os.scandir(catalog)as entries:
-            leaves={entry.name:entry.stat(follow_symlinks=False)for entry in entries if entry.is_file(follow_symlinks=False)}
-        for name,digest in catalog_payloads(read(manifest)).items():
-            if Path(name).suffix!='.bundle':continue
-            path=catalog/name;key=str(path).casefold();info=leaves.get(name)
+        leaves={}
+        for catalog in {path.parent for path in payloads}:
+            checked_catalog_path(catalog)
+            if not catalog.exists():continue
+            with os.scandir(catalog)as entries:
+                leaves.update({catalog/entry.name:entry.stat(follow_symlinks=False)for entry in entries if entry.is_file(follow_symlinks=False)})
+        for path,digest in payloads.items():
+            if path.suffix!='.bundle':continue
+            key=str(path).casefold();info=leaves.get(path)
             if info is None or key in protected or any(key.startswith(prefix)for prefix in protected_directories):continue
             if getattr(info,'st_file_attributes',0)&0x400:raise ValueError('A retired payload contains a reparse point.')
             rows[key]=dict(path=str(path),bytes=info.st_size,lastWriteUtcTicks=info.st_mtime_ns//100+621355968000000000,sha256=digest)
-            roots.add(str(catalog.relative_to(storage_root)))
+            roots.add(str(path.parent.relative_to(storage_root)))
     if sha(reference_path)!=reference_sha:raise ValueError('Retained inputs changed during planning.')
     plan=dict(schemaVersion=1,artifactRoot=str(storage_root),reference=dict(path=str(reference_path),sha256=reference_sha),
         scope='Unreferenced declared payloads of completed old resource catalogs.',roots=sorted(roots),files=sorted(rows.values(),key=lambda row:row['path']),
@@ -4316,6 +4386,40 @@ def finish_resource_skin_cuts(catalog,assembly,material_contexts,output):
     return report
 
 
+def resource_has_face_guide(proof):
+    operations=[row for row in proof.get('appearanceFinishing',[])if row['kind']=='source-owned-face']
+    if not operations:return False
+    operation=operations[-1]
+    return bool(operation.get('authority',{}).get('sourceProfiles')or any(
+        isinstance(row,dict)and row.get('sourceProfileId')for row in operation.get('facts',[])))
+
+
+def face_resource_profile_authority(proof,documents=None):
+    """Resolve the guide actually applied to this resource, including partial revisions."""
+    operations=[row for row in proof.get('appearanceFinishing',[])if row['kind']=='source-owned-face']
+    if not operations:raise ValueError('A face resource has no completed source guide.')
+    operation=operations[-1];authority=operation.get('authority',{})
+    if 'sourceProfiles'in authority:
+        pin=authority['sourceProfiles']
+        if sha(pin['path'])!=pin['sha256']:raise ValueError('A resource source guide changed.')
+        return pin
+    identifiers={row['sourceProfileId']for row in operation['facts']if row.get('sourceProfileId')}
+    # Earlier receipts retain producer inputs in declaration order: next guide,
+    # then previous guide. Resolve the first complete declaration for this resource.
+    documents={}if documents is None else documents
+    for pin in authority.get('inputs',[]):
+        path=Path(pin['path'])
+        if path.suffix!='.json':continue
+        key=(str(path),pin['sha256'])
+        if key not in documents:
+            if sha(path)!=pin['sha256']:raise ValueError('A retained face guide input changed.')
+            document=read(path);documents[key]=document.get('profiles')if isinstance(document,dict)else None
+        profiles=documents[key]
+        if identifiers and isinstance(profiles,list)and identifiers<={p['id']for p in profiles}:
+            return pin
+    raise ValueError('A face resource has no retained guide declaration.')
+
+
 def prepare_resource_faces(source,index_path,output,census_path,*,selected_assets=(),profiles_path=None,restore_native_only=False,previous_profiles_path=None):
     """Finish all native face resources and their shared Main fields in one catalog."""
     from functools import lru_cache
@@ -4328,6 +4432,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
     if (profiles_path is None)==(not restore_native_only):
         raise ValueError('Select source face profiles or explicit native anatomy recovery.')
     guide_assets={};guide_owners={};previous_assets={}
+    same_profiles=profiles_path is not None and previous_profiles_path is not None and sha(profiles_path)==sha(previous_profiles_path)
     if profiles_path is not None:
         shape.art.SOURCE=Path(census_path).resolve().parent
         guided=shape.load_profiles(census,profiles_path,resource_owners=True)['assets']
@@ -4337,9 +4442,11 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
         shape.require_selected_guides(guided)
         guide_assets={asset['sourceContentKey']:shape.bind_source_lod_families(asset)for asset in guided}
         if previous_profiles_path is not None:
-            previous=shape.load_profiles(census,previous_profiles_path,resource_owners=True)['assets']
-            previous_assets={asset['sourceContentKey']:shape.bind_source_lod_families(asset) for asset in previous
-                if asset['sourceContentKey']in guide_assets}
+            if same_profiles:previous_assets=guide_assets
+            else:
+                previous=shape.load_profiles(census,previous_profiles_path,resource_owners=True)['assets']
+                previous_assets={asset['sourceContentKey']:shape.bind_source_lod_families(asset) for asset in previous
+                    if asset['sourceContentKey']in guide_assets}
             shape.require_selected_guides(list(previous_assets.values()))
         for key,asset in guide_assets.items():
             for skin in asset['skins']:
@@ -4352,6 +4459,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
         return {row['native']['sourceFingerprint']:row for row in shape.refine_source_asset(guide_assets[source_key])}
     @lru_cache(maxsize=2)
     def previous_targets(source_key):
+        if same_profiles:return guide_targets(source_key)
         return {row['native']['sourceFingerprint']:row for row in shape.refine_source_asset(previous_assets[source_key])}
     coverage=[dict(asset=a['internalId'],name=a['name'],kind='editable'if '/EditableCharacters/'in a['internalId']else'npc'if '/Monsters/NPC/'in a['internalId']else'creature',
         file=parts.get(a['internalId'].casefold()))for a in census['assets']]
@@ -4382,15 +4490,20 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
         if not archive.exists():archive.write_bytes(Path(original['path']).read_bytes())
         pins[index]=dict(path=str(archive.resolve()),sha256=sha(archive))
         assembly.setdefault('retainedSourceInputs',[]).append(dict(original=original,archive=pins[index]))
-    prior=assembly.get('nativeFaceContours')
     if previous_profiles_path is not None:
-        if prior is None or prior['owner']['faceMode'] not in ('source-guide','source-guide-revision'):
-            raise ValueError('A guide revision requires the completed previous source guide.')
-        authority=prior['owner'].get('sourceProfiles',prior['owner']['inputs'][-1])
-        if sha(previous_profiles_path)!=authority['sha256']:
-            raise ValueError('The previous guide differs from the completed catalog authority.')
-    elif prior:
-        raise ValueError('Regenerate facial contours from their original assembled source, before contour finishing.')
+        proofs={row['file']:row for row in assembly['proofs']}
+        supplied=read(previous_profiles_path)['profiles'];retained={};documents={}
+        for key,asset in guide_assets.items():
+            authority=face_resource_profile_authority(proofs[parts[asset['internalId'].casefold()]],documents)
+            if authority not in pins:pins.append(authority)
+            if authority['sha256']not in retained:retained[authority['sha256']]=read(authority['path'])['profiles']
+            def owned(rows):return {p['source']['rendererPath']:p for p in rows if p['source']['assetSourceContentKey']==key}
+            if not owned(supplied)or owned(supplied)!=owned(retained[authority['sha256']]):
+                raise ValueError('The previous guide differs from its completed resource authority: '+asset['name'])
+    else:
+        proofs={row['file']:row for row in assembly['proofs']}
+        if any(resource_has_face_guide(proofs[name])for name in styled):
+            raise ValueError('An already sculpted source requires its completed previous face profiles.')
     target=output/'Catalog';target.mkdir(exist_ok=True)
     checkpoint=output/'GeometryPreparation.json';geometry_catalog=output/'GeometryCatalog'
     face_code=inspect.getsource(prepare_resource_faces)
@@ -4494,7 +4607,9 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
         temp.replace(target/file_name)
         proof=old_proofs[file_name];before_sha=proof['sha256'];proof['sha256']=sha(target/file_name);proof['bytes']=(target/file_name).stat().st_size
         proof['allRetainedObjectFieldsExactAfterReferenceRebasing']=False
-        proof.setdefault('appearanceFinishing',[]).append(dict(kind=kind,objects=list(objects),facts=facts,beforeSha256=before_sha,sha256=proof['sha256'],authority=dict(inputs=pins),
+        authority=dict(inputs=pins)
+        if kind=='source-owned-face'and profiles_path is not None:authority['sourceProfiles']=geometry_owner['sourceProfiles']
+        proof.setdefault('appearanceFinishing',[]).append(dict(kind=kind,objects=list(objects),facts=facts,beforeSha256=before_sha,sha256=proof['sha256'],authority=authority,
             unrelatedObjectBytesExact=True,savedObjectBytesExact=True,cabAndExternalReferencesUnchanged=True))
     completed={};texture_jobs={};reports=[];failures=[]
     for file_name in names:
@@ -4595,8 +4710,20 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
             completed[key]=npacket['sourceFingerprint']
             mesh=None if packet['sourceFingerprint']==cpacket['sourceFingerprint']else resources.write_mesh_frame(cobj,packet)
             if mesh is not None:
-                if key[0]==file_name:edits[key[1]]=mesh;facts.append(dict(name=skin['mesh'],**proof))
-                else:save(key[0],{key[1]:mesh},'source-owned-face',dict(name=skin['mesh'],**proof))
+                changes={key[1]:mesh}
+                if not companion:
+                    resolve_owned=lambda file,pointer:required_resolve(file,pointer,False)
+                    bounds=[]
+                    for renderer in cf.objects.values():
+                        if renderer.type.name!='SkinnedMeshRenderer':continue
+                        tree=renderer.read_typetree()
+                        if tree['m_Mesh']!=dict(m_FileID=0,m_PathID=cobj.path_id):continue
+                        bones=resources.skin_bone_paths(cf,tree,resolve_owned)
+                        changes[renderer.path_id],bound=resources.extend_skin_bone_palette(cf,tree,bones,bones,packet=packet)
+                        bounds.append(dict(renderer=renderer.path_id,**bound))
+                    proof['rendererBounds']=bounds
+                if key[0]==file_name:edits.update(changes);facts.append(dict(name=skin['mesh'],**proof))
+                else:save(key[0],changes,'source-owned-face',dict(name=skin['mesh'],**proof))
             if not companion:
                 for material_index,pointer in enumerate(cr['m_Materials']):
                     if not pointer['m_PathID']:continue
@@ -5231,6 +5358,384 @@ def finish_skin_lods():
     print('Prepared saved skin LODs:',len(by_owner),'heads,',surfaces,'textures; native review pending.',flush=True)
 
 
+def resource_prefab_skins(manifest,proofs,address,load):
+    """Resolve typed prefab roots and their real serialized skin renderers."""
+    import character_resources as resources
+    by_cab={row['newCab']:row for row in proofs.values()}
+    matches=[row for row in manifest['resources']if row['source']==address.removeprefix('UB/CharacterResources/')]
+    if len(matches)!=1:raise ValueError('A skin interface needs one declared prefab resource: '+address)
+    resource=matches[0];file=load(proofs[resource['bundles'][0]['file']]['newCab'])
+    def resolve(file,pointer):
+        target=load(file.name if not pointer['m_FileID']else file.externals[pointer['m_FileID']-1].name)
+        return target,target.objects[pointer['m_PathID']]
+    container=next(obj for obj in file.objects.values()if obj.type.name=='AssetBundle').read().m_Container
+    roots=[obj for name,value in container if name.casefold()==resource['asset'].casefold()
+        for _,obj in [resolve(file,dict(m_FileID=value.asset.file_id,m_PathID=value.asset.path_id))]
+        if obj.type.name=='GameObject']
+    if len(roots)!=1:raise ValueError('A skin interface has no unique prefab root.')
+    return list(resources.prefab_skin_renderers(roots[0],resolve)),resolve
+
+
+def resource_skin_surfaces(source,manifest,proofs,address,load):
+    """Read the actual prefab, renderer, material slot and sampler ownership."""
+    import character_resources as resources
+    renderers,resolve=resource_prefab_skins(manifest,proofs,address,load);result=[]
+    for path,renderer in renderers:
+        tree=renderer.read_typetree();mesh_file,mesh=resolve(renderer.assets_file,tree['m_Mesh'])
+        for slot,pointer in enumerate(tree['m_Materials']):
+            mf,material=resolve(renderer.assets_file,pointer);mt=material.read_typetree();_,shader=resolve(mf,mt['m_Shader'])
+            if shader.read_typetree()['m_ParsedForm']['m_Name']!='Lux/Human/Skin':continue
+            props=dict(mt['m_SavedProperties']['m_TexEnvs']);textures={}
+            for prop in ('_MainTex','_BumpMap','_SpecTex'):
+                tf,texture=resolve(mf,props[prop]['m_Texture']);data=texture.read()
+                textures[prop]=dict(cab=tf.name,object=texture.path_id,name=data.m_Name,width=data.m_Width,height=data.m_Height,
+                    mips=data.m_MipCount,colorSpace=data.m_ColorSpace,scale=[props[prop]['m_Scale'][axis]for axis in 'xy'],
+                    offset=[props[prop]['m_Offset'][axis]for axis in 'xy'])
+            result.append(dict(path=path,renderer=renderer.path_id,cab=renderer.assets_file.name,meshCab=mesh_file.name,mesh=mesh.path_id,
+                packet=export_current_mesh(mesh),bones=resources.skin_bone_paths(renderer.assets_file,tree,resolve),slot=slot,
+                material=material.path_id,materialCab=mf.name,textures=textures,floats=dict(mt['m_SavedProperties']['m_Floats'])))
+    return result
+
+
+def skin_interface_geometry(job):
+    """Transport the physical cut in every LOD; keep original UVs and facial tissue."""
+    import character_resources as resources
+    import numpy as np
+    source=Path(job['catalog']);manifest=read(source/'Catalog/CharacterModels.manifest.json')
+    proofs={row['file']:row for row in read(source/'ResourceAssembly.json')['proofs']};by_cab={row['newCab']:row for row in proofs.values()}
+    @lru_cache(maxsize=12)
+    def load(cab):
+        pin=by_cab[cab];path=source/'Catalog'/pin['file']
+        if sha(path)!=pin['sha256']:raise ValueError('A skin-interface source changed.')
+        return resources.load_serialized_bundle(path,in_memory=True)[1]
+    heads=resource_skin_surfaces(source,manifest,proofs,job['head'],load)
+    bodies=resource_skin_surfaces(source,manifest,proofs,job['body'],load)
+    import material_fields as fields
+    _,art=source_owner();trees={};facts=[];surfaces=[];done={}
+    for head in heads:
+        lod=re.search(r'LOD(\d+)$',head['path'])
+        if lod is None:raise ValueError('A skin interface has no explicit renderer LOD.')
+        matches=[]
+        for body in bodies:
+            if not body['path'].endswith('LOD'+lod[1]):continue
+            h=dict(head['packet'],subMeshes=[head['packet']['subMeshes'][head['slot']]])
+            b=dict(body['packet'],subMeshes=[body['packet']['subMeshes'][body['slot']]])
+            pairs=art.shared_skin_boundary_pairs(h,b,head['bones'],body['bones'],.001)
+            if len(pairs)>=3:matches.append((body,pairs))
+        if not matches:
+            facts.append(dict(renderer=head['path'],slot=head['slot'],status='NO_SHARED_PHYSICAL_CUT'));continue
+        if len(matches)!=1:raise ValueError('A physical skin cut has conflicting body material owners.')
+        body,pairs=matches[0];key=(head['meshCab'],head['mesh']);identity=(body['meshCab'],body['mesh'],tuple(pairs))
+        if key in done:
+            if done[key][0]!=identity:raise ValueError('A shared receiver mesh has conflicting skin-cut owners.')
+            candidate,bones=done[key][1:]
+        else:
+            candidate,proof=art.conform_skin_boundary(head['packet'],body['packet'],head['bones'],body['bones'],pairs,
+                maximum_source_gap=.001,shading_frame_owner='donor')
+            bones=[*head['bones'],*[row['path']for row in proof['appendedBones']]]
+            rebuild=False
+            try:fields.serialized_skin_context(dict(candidate,subMeshes=[candidate['subMeshes'][head['slot']]]),
+                dict(body['packet'],subMeshes=[body['packet']['subMeshes'][body['slot']]]),bones,body['bones'])
+            except ValueError as error:
+                if str(error)not in ('The actual physical cut is not a degree-two closed boundary.','Serialized skin surfaces do not share a complete physical cut.'):raise
+                candidate,proof=art.rebuild_skin_boundary(dict(head['packet'],subMeshes=[head['packet']['subMeshes'][head['slot']]]),
+                    dict(body['packet'],subMeshes=[body['packet']['subMeshes'][body['slot']]]),head['bones'],body['bones'],repeat_uv=True)
+                span=min(float(np.linalg.norm(np.ptp(np.asarray(surface['packet']['vertices']).reshape(-1,3)[proof[key]],axis=0)))
+                    for surface,key in ((head,'sourceCut'),(body,'bodyCut')))
+                if proof['maximumNativeCutGap']>span*.15:raise ValueError('The matched native skin cuts exceed their physical aperture scale.')
+                proof['apertureScaleMetres']=span
+                slots=copy.deepcopy(head['packet']['subMeshes']);slots[head['slot']]=candidate['subMeshes'][0];candidate['subMeshes']=slots
+                bones=[*head['bones'],*[row['path']for row in proof['appendedBones']]];rebuild=True
+                fields.serialized_skin_context(dict(candidate,subMeshes=[candidate['subMeshes'][head['slot']]]),
+                    dict(body['packet'],subMeshes=[body['packet']['subMeshes'][body['slot']]]),bones,body['bones'])
+            if any(by_cab[cab]['file']!=job['file']for cab in (head['meshCab'],head['cab'],head['materialCab'])):
+                raise ValueError('A skin-cut mutation must belong to its complete prefab resource.')
+            trees[head['mesh']]=resources.write_mesh_frame(load(head['meshCab']).objects[head['mesh']],candidate,
+                source_bones=head['bones'],target_bones=bones,collar_topology=rebuild)
+            facts.append(dict(renderer=head['path'],slot=head['slot'],geometry=proof));done[key]=(identity,candidate,bones)
+        tree=load(head['cab']).objects[head['renderer']].read_typetree()
+        tree,palette=resources.extend_skin_bone_palette(load(head['cab']),tree,head['bones'],bones,packet=candidate)
+        trees[head['renderer']]=tree
+        surfaces.append((dict(head,packet=candidate,bones=bones),body,int(lod[1])))
+    surfaces.sort(key=lambda value:value[2])
+    return trees,facts,surfaces,load,by_cab
+
+
+def skin_interface_fields(surfaces,load,*,pigment_reference='body'):
+    """Compose Main, tangent normals and scattering from their saved physical cut."""
+    import numpy as np
+    import character_resources as resources
+    import material_fields as fields
+    if pigment_reference not in ('body','source'):raise ValueError('Unknown skin pigment reference.')
+    packets={};family=[];owners=[];epoch=dict(fieldSha256=sha(fields.__file__),domainSha256=sha(fields.__file__))
+    for index,(head,body,lod)in enumerate(surfaces):
+        def packet(surface,prop):
+            p=copy.deepcopy(surface['packet']);p['subMeshes']=[p['subMeshes'][surface['slot']]]
+            for channel in p['uv']:
+                if channel['channel']==0:
+                    coords=np.asarray(channel['values']).reshape(-1,4);ref=surface['textures'][prop]
+                    coords[:,:2]=coords[:,:2]*ref['scale']+ref['offset'];channel['values']=coords.ravel().tolist()
+            return p
+        hp=packet(head,'_MainTex');bp=packet(body,'_MainTex');hk='Head'+str(index);bk='Body'+str(index);packets.update({hk:hp,bk:bp})
+        row=dict(head=head['path'],lod=lod,headNativeBonePaths=head['bones'],bodyNativeBonePaths=body['bones'],
+            headCanonical=dict(path=hk),bodyCanonical=dict(path=bk),headSource=dict(geometrySource='saved-serialized-skin-surfaces',initialCanonical=dict(path=hk)),
+            sampler=dict(textureInputs=dict(headMain=head['textures']['_MainTex'],bodyMain=body['textures']['_MainTex']),
+                capturedNativeMainST=dict(headMainScale=[1,1],headMainOffset=[0,0],bodyMainScale=[1,1],bodyMainOffset=[0,0])))
+        family.append(row);owners.append((head,body,row,packet))
+    def field_key(head,body,prop):
+        scales=(head['floats'].get('_BumpScale',1.),body['floats'].get('_BumpScale',1.))if prop=='_BumpMap'else()
+        return prop,json.dumps(head['textures'][prop],sort_keys=True),json.dumps(body['textures'][prop],sort_keys=True),scales
+    emitted={}
+    for head,body,row,packet in owners:
+        for prop in ('_MainTex','_BumpMap','_SpecTex'):
+            ref=head['textures'][prop];other=body['textures'][prop];key=field_key(head,body,prop)
+            # Private LOD materials can still sample one common texture. Own
+            # that sampler/reference pair once across its complete LOD family.
+            if key in emitted:continue
+            images=resources.texture_mip_images(load(ref['cab']).objects[ref['object']]);other_images=resources.texture_mip_images(load(other['cab']).objects[other['object']])
+            hp=packet(head,prop);bp=packet(body,prop);current=copy.deepcopy(row)
+            current['sampler']['textureInputs']=dict(headMain=ref,bodyMain=other)
+            role_family=[];role_packets={}
+            for h,b,r,make_packet in owners:
+                if field_key(h,b,prop)!=key:continue
+                role_family.append(r);role_packets[r['headCanonical']['path']]=make_packet(h,prop);role_packets[r['bodyCanonical']['path']]=make_packet(b,prop)
+            try:h,b,he,be,hc,bc,context=fields.source_context(current,hp,bp)
+            except ValueError as error:raise ValueError(head['path']+'/'+prop+': '+str(error))from error
+            memo=fields.RasterMemo()
+            decode=lambda a,r:fields.linear_rgba(a)if r['colorSpace']==1 else a.astype(float)/255
+            original=decode(images[0],ref);donor=decode(other_images[0],other)
+            alignment=None
+            if prop=='_MainTex':
+                if ref['colorSpace']!=1 or other['colorSpace']!=1:raise ValueError('A skin Main field needs its native sRGB contract.')
+                if pigment_reference=='body':_,alignment=fields.align_head_main(original,donor,hc,bc)
+                values,domain,proof=fields.prepare_head_main(current,hp,bp,role_family,role_packets,original,donor,epoch,memo,pigment_alignment=alignment)
+                encoded_levels=list(fields.head_main_mips(values,domain,images,fields.lookup,np.arange(256,dtype=np.uint8)))
+            else:
+                domain=fields.domain_buffers(current,hp,bp,role_family,role_packets,epoch)
+                if prop=='_BumpMap':
+                    if ref['colorSpace'] or other['colorSpace']:raise ValueError('A skin normal field needs its native linear contract.')
+                    values,proof=fields.c1_normal(h,hc,bc,original,donor,memo,domain,
+                        head['floats'].get('_BumpScale',1.),body['floats'].get('_BumpScale',1.))
+                else:values,_,proof=fields.c1_main(current,h,hc,bc,original,donor,memo,domain)
+                owned=(domain['weight']>0)[::-1];protected=domain['protected'][::-1];encoded_levels=[]
+                for level,baseline in enumerate(images):
+                    if level:
+                        values=fields.downsample(values).mean(axis=(1,3));owned=fields.downsample(owned).any(axis=(1,3));protected=fields.downsample(protected).any(axis=(1,3))
+                    encoded=values.copy()
+                    if ref['colorSpace']==1:encoded[:,:,:3]=np.where(encoded[:,:,:3]<=.0031308,encoded[:,:,:3]*12.92,1.055*np.maximum(encoded[:,:,:3],0)**(1/2.4)-.055)
+                    encoded=np.rint(np.clip(encoded,0,1)*255).astype(np.uint8);mask=owned&~protected;result=baseline.copy();result[mask]=encoded[mask]
+                    encoded_levels.append((result,owned.copy(),protected.copy()))
+            source_object=load(ref['cab']).objects[ref['object']];format,original_mips=resources.texture_mip_payloads(source_object)
+            if format not in (4,10,12,25):raise ValueError('A skin interface needs its declared RGBA32, DXT1, DXT5 or BC7 source storage.')
+            source_format=format
+            if format==10 and any(np.any(value[:,:,3]!=baseline[:,:,3])for (value,_,_),baseline in zip(encoded_levels,images,strict=True)):
+                format=12
+            encoded=[];codecs=[]
+            for level,((value,_,_),baseline,original_bits)in enumerate(zip(encoded_levels,images,original_mips,strict=True)):
+                h,w=value.shape[:2];changed=np.any(value!=baseline,axis=2);_,pixel_mask=fields.whole_block_pixels(changed)
+                if not changed.any()and format==source_format:bits=original_bits;codec=dict(unownedBlocksExact=True,unchanged=True)
+                elif format==4:bits=value.tobytes();codec=dict(unownedPixelsExact=True)
+                elif format==10:bits,codec=fields.native_face_bc1_mip(original_bits,value,pixel_mask)
+                elif format==12:
+                    bits,_,codec=fields.native_face_bc3_mip(original_bits,source_format,value,(~pixel_mask)[::-1].astype(float))
+                elif prop=='_BumpMap':bits,codec=fields.fit_bc7_normal_field(original_bits,w,h,value,pixel_mask)
+                else:bits,_,_,codec=fields.native_face_bc7_mip(original_bits,value,pixel_mask[::-1].astype(float))
+                expected=len(original_bits)*(2 if source_format==10 and format==12 else 1)
+                if len(bits)!=expected:raise ValueError('A skin interface differs from its declared runtime texture storage.')
+                encoded.append(bits);codecs.append(dict(level=level,**codec))
+            payload=b''.join(encoded)
+            material_ids=sorted({h['material']for h,b,_,_ in owners if field_key(h,b,prop)==key})
+            emitted[key]=dict(materials=material_ids,property=prop,reference=ref,payload=payload,storageFormat=format,
+                report=dict(renderer=head['path'],slot=head['slot'],property=prop,context=context,composition=proof,
+                    codecs=codecs,sourceRuntimeBytes=sum(map(len,original_mips)),outputRuntimeBytes=len(payload),
+                    levels=[dict(level=i,ownedTexels=int(o.sum()),protectedTexels=int(p.sum()))for i,(_,o,p)in enumerate(encoded_levels)]))
+    return list(emitted.values())
+
+
+def finish_skin_interface_bundle(job):
+    with retained_skin_producer(job['inputs'])as owner:
+        worker=getattr(owner,'write_skin_interface_bundle',None)or owner.finish_skin_interface_bundle
+        return worker(job)
+
+
+def write_skin_interface_bundle(job):
+    import character_resources as resources
+    target=Path(job['target']);receipt_path=Path(job['receipt']);work=receipt_path.parent.parent/'Fields'/target.stem
+    if receipt_path.exists():
+        receipt=read(receipt_path)
+        if receipt['inputPlan']!=job['inputPlan']:raise ValueError('A skin-interface checkpoint has another plan.')
+        validate_skin_interface_finish(receipt);return receipt
+    work.mkdir(parents=True,exist_ok=True);trees,facts,surfaces,load,by_cab=skin_interface_geometry(job)
+    env,file=resources.load_serialized_bundle(job['source'],in_memory=True)
+    original={i:resources.serialized_object_bytes(obj)for i,obj in file.objects.items()}
+    for i,tree in trees.items():file.objects[i].save_typetree(tree)
+    expected={i:resources.serialized_object_bytes(obj)for i,obj in file.objects.items()}
+    geometry=work/'Geometry.bundle';geometry.write_bytes(env.file.save(packer='lz4'))
+    _,saved=resources.load_serialized_bundle(geometry,in_memory=True)
+    if any(resources.serialized_object_bytes(obj)!=expected[i]for i,obj in saved.objects.items()):raise ValueError('A skin-interface geometry failed its saved-object comparison.')
+    textures=[];updates=[];reports=[]
+    for index,value in enumerate(skin_interface_fields(surfaces,load,pigment_reference=job.get('pigmentReference','body'))):
+        ref=value['reference'];source=Path(job['catalog'])/'Catalog'/by_cab[ref['cab']]['file'];raw=work/(str(index)+'.rgba8');raw.write_bytes(value['payload'])
+        donor=work/(str(index)+'.bundle');replacement=dict(object=ref['object'],name=ref['name'],cab=ref['cab'],dimensions=[ref['width'],ref['height']],
+            mipCount=ref['mips'],storageFormat=value['storageFormat'],raw=dict(path=str(raw.resolve()),sha256=sha(raw)))
+        field=resources.replace_owned_texture_mips(source,by_cab[ref['cab']]['sha256'],donor,[replacement]);textures.append(field);reports.append(value['report'])
+        for identifier in value['materials']:
+            material=file.objects[identifier].read_typetree();before=dict(material['m_SavedProperties']['m_TexEnvs'])[value['property']]['m_Texture']
+            updates.append(dict(pathId=identifier,property=value['property'],before=before,texture=dict(path=str(donor.resolve()),sha256=field['sha256'],name=ref['name'],object=ref['object'])))
+    if updates:binding=resources.replace_owned_material_textures(geometry,sha(geometry),target,updates)
+    else:target.hardlink_to(geometry);binding=None
+    pin=lambda p:dict(path=str(Path(p).resolve()),sha256=sha(p))
+    receipt=dict(file=target.name,beforeSha256=job['sha256'],sha256=sha(target),bytes=target.stat().st_size,inputPlan=job['inputPlan'],
+        geometry=dict(source=pin(job['source']),target=pin(geometry),objects=sorted(trees),unrelatedObjectBytesExact=all(expected[i]==original[i]for i in original if i not in trees)),
+        binding=binding,fields=textures,reports=reports,facts=facts,objectsAdded=binding['objectsAdded']if binding else[])
+    write(receipt_path,receipt);print('Closed skin interface:',job['file'],len(surfaces),'surfaces',flush=True);return receipt
+
+
+def validate_skin_interface_finish(receipt):
+    """Recheck saved topology/palettes, private fields and their immutable producer."""
+    import character_resources as resources
+    plan=receipt['inputPlan']
+    if sha(plan['path'])!=plan['sha256']:raise ValueError('The skin-interface plan changed.')
+    job=read(plan['path']);geometry=receipt['geometry']
+    for pin in (geometry['source'],geometry['target'],*job['inputs']):
+        if sha(pin['path'])!=pin['sha256']:raise ValueError('A skin-interface input or saved geometry changed.')
+    if geometry['source']['sha256']!=job['sha256']or not geometry['unrelatedObjectBytesExact']:raise ValueError('A skin interface lost its source ownership.')
+    before=resources.load_serialized_bundle(geometry['source']['path'],in_memory=True)[1];after=resources.load_serialized_bundle(geometry['target']['path'],in_memory=True)[1]
+    if before.name!=after.name or set(before.objects)!=set(after.objects)or [v.name for v in before.externals]!=[v.name for v in after.externals]:raise ValueError('A skin interface changed resource references.')
+    if any(resources.serialized_object_bytes(after.objects[i])!=resources.serialized_object_bytes(obj)for i,obj in before.objects.items()if i not in geometry['objects']):raise ValueError('A skin interface changed an unrelated object.')
+    for field in receipt['fields']:resources.validate_owned_texture_mips(field)
+    if receipt['binding']:
+        if receipt['binding']['beforeSha256']!=geometry['target']['sha256']or receipt['binding']['sha256']!=receipt['sha256']:raise ValueError('A skin-interface material lost its geometry source.')
+        resources.validate_owned_material_textures(receipt['binding'])
+    elif geometry['target']['sha256']!=receipt['sha256']:raise ValueError('An unchanged skin interface has another payload.')
+    if job['file']!=receipt['file']or str(Path(job['source']).resolve())!=geometry['source']['path']:
+        raise ValueError('The skin-interface receipt belongs to another prefab resource.')
+    identity=source_skin_replay_key(receipt,job['inputs']);cache=HERE/'SourceSkinValidation'/(identity+'.json')if HERE is not None else None
+    if cache is not None and cache.exists()and read(cache)==dict(status='PASS_SKIN_INTERFACE_REPLAY',identity=identity):return
+    with retained_skin_producer(job['inputs'])as owner:
+        trees,_,surfaces,load,_=owner.skin_interface_geometry(job)
+        if sorted(trees)!=geometry['objects']:raise ValueError('A skin interface omits an owned mesh or renderer.')
+        for i,tree in trees.items():
+            before.objects[i].save_typetree(tree)
+            if resources.serialized_object_bytes(before.objects[i])!=resources.serialized_object_bytes(after.objects[i]):
+                raise ValueError('The saved skin interface differs from its physical source calculation.')
+        fields=owner.skin_interface_fields(surfaces,load,**({'pigment_reference':job['pigmentReference']}if 'pigmentReference'in job else{}))
+        if len(fields)!=len(receipt['fields']):raise ValueError('A skin interface omits a material channel.')
+        for expected,field in zip(fields,receipt['fields']):
+            textures=field['textures']
+            if len(textures)!=1 or Path(textures[0]['raw']['path']).read_bytes()!=expected['payload']:
+                raise ValueError('A skin-interface field differs from its source-owned calculation.')
+    if cache is not None:write(cache,dict(status='PASS_SKIN_INTERFACE_REPLAY',identity=identity))
+
+
+def observed_skin_interface(context,documents):
+    """Use a displayed body owner; covered and absent bodies are not cut donors."""
+    reference=context.get('display')
+    if reference is None:
+        if context.get('kind')=='actual-npc-presentation':raise ValueError('An actual NPC interface requires its native clothing observation.')
+        return True
+    key=(reference['path'],reference['sha256'])
+    if key not in documents:
+        if sha(reference['path'])!=reference['sha256']:raise ValueError('The skin-interface display observation changed.')
+        documents[key]=read(reference['path'])
+    actors=[row for row in documents[key]['actors']if row['fixture']['id']==context['fixture']]
+    if len(actors)!=1 or not actors[0].get('completed'):raise ValueError('A skin interface has no completed display context.')
+    actor=actors[0]
+    if 'nativeNpc'in actor and actor.get('nativeClothingRetained')is not True:
+        raise ValueError('An NPC cut donor must retain its actual native clothing.')
+    parts={row['slot']:row for row in actor['parts']}
+    same=lambda a,b:a.removeprefix('UB/CharacterResources/')==b.removeprefix('UB/CharacterResources/')
+    if parts['Head'].get('present')is not True or not same(parts['Head']['key'],context['head']):
+        raise ValueError('The observed skin interface belongs to another head.')
+    if parts['Body'].get('present')is False:return False
+    if parts['Body'].get('present')is not True or not same(parts['Body']['key'],context['body']):
+        raise ValueError('The observed skin interface has no matching visible body.')
+    return True
+
+
+def prepare_skin_interfaces():
+    """Process source/reference pairs obtained from actual character presentations."""
+    from concurrent.futures import ProcessPoolExecutor,as_completed
+    parser=argparse.ArgumentParser();parser.add_argument('--source',type=Path,required=True);parser.add_argument('--contexts',type=Path,required=True)
+    parser.add_argument('--output',type=Path,required=True);parser.add_argument('--workers',type=int,choices=range(1,9),default=4);parser.add_argument('--resume',action='store_true')
+    args=parser.parse_args();source=checked_catalog_path(args.source);output=checked_catalog_path(args.output)
+    if output==source or not output.is_relative_to(ROOT/'tools'):raise ValueError('Skin interfaces need an independent tools workspace.')
+    if output.exists()and not args.resume:raise ValueError('The skin-interface workspace already exists.')
+    if (output/'ResourceAssembly.json').exists():raise ValueError('The skin-interface candidate is already complete.')
+    manifest=read(source/'Catalog/CharacterModels.manifest.json');assembly=read(source/'ResourceAssembly.json');proofs={p['file']:p for p in assembly['proofs']}
+    pin=lambda p:dict(path=str(Path(p).resolve()),sha256=sha(p));pins=[pin(source/'ResourceAssembly.json'),pin(source/'Catalog/CharacterModels.manifest.json'),pin(args.contexts)]
+    import character_resources as resources,material_fields
+    production,art=source_owner()
+    for path in map(Path,(__file__,resources.__file__,material_fields.__file__,production.__file__,art.__file__)):
+        archive=output/'ProducerSources'/(path.name+'.source');archive.parent.mkdir(parents=True,exist_ok=True)
+        if archive.exists()and sha(archive)!=sha(path):raise ValueError('A skin-interface producer changed; start a new workspace.')
+        if not archive.exists():archive.write_bytes(path.read_bytes())
+        pins.append(pin(archive))
+    by_source={r['source']:r for r in manifest['resources']};tasks=[];unique={};catalog=output/'Catalog';catalog.mkdir(exist_ok=True)
+    contexts=read(args.contexts)['rows'];documents={};visible=[];covered=[]
+    for context in contexts:
+        if observed_skin_interface(context,documents):visible.append(context)
+        else:covered.append(dict(fixture=context['fixture'],head=context['head']))
+        if context.get('display')and context['display']not in pins:pins.append(context['display'])
+    for context in visible:
+        head=context['head'].removeprefix('UB/CharacterResources/');body=context['body'].removeprefix('UB/CharacterResources/')
+        resource=by_source[head];name=resource['bundles'][0]['file']
+        pigment=context.get('pigmentReference','body')
+        if pigment not in ('body','source'):raise ValueError('A skin interface has an unknown pigment reference.')
+        if head in unique:
+            if unique[head]!=(body,pigment):raise ValueError('One saved head requires incompatible body or pigment references.')
+            continue
+        unique[head]=(body,pigment);job=dict(catalog=str(source.resolve()),head=head,body=body,pigmentReference=pigment,file=name,source=str((source/'Catalog'/name).resolve()),sha256=proofs[name]['sha256'],
+            target=str((catalog/name).resolve()),receipt=str((output/'Receipts'/(name+'.json')).resolve()),inputs=pins)
+        path=output/'Inputs'/(name+'.json')
+        if path.exists()and read(path)!=job:raise ValueError('A skin-interface plan changed.')
+        if not path.exists():write(path,job)
+        job['inputPlan']=pin(path);tasks.append(job)
+    selected={job['file']for job in tasks}
+    for row in manifest['bundles']:
+        if row['file']not in selected and not(catalog/row['file']).exists():(catalog/row['file']).hardlink_to(source/'Catalog'/row['file'])
+    failures=[]
+    with ProcessPoolExecutor(max_workers=args.workers,max_tasks_per_child=4)as pool:
+        for future in as_completed([pool.submit(finish_skin_interface_bundle,job)for job in tasks]):
+            try:result=future.result()
+            except Exception as error:failures.append(str(error));print('Skin interface failed:',str(error),flush=True);continue
+            proof=proofs[result['file']];proof.update(sha256=result['sha256'],bytes=result['bytes'],objects=proof['objects']+len(result['objectsAdded']),allRetainedObjectFieldsExactAfterReferenceRebasing=False)
+            path=output/'Receipts'/(result['file']+'.json');proof.setdefault('appearanceFinishing',[]).append(dict(kind='source-skin-interface',beforeSha256=result['beforeSha256'],sha256=result['sha256'],proof=pin(path)))
+    if failures:write(output/'Failures.json',dict(failures=failures));raise ValueError('Skin interfaces have rejected sources; completed jobs can be resumed.')
+    for row in manifest['bundles']:row['sha256']=proofs[row['file']]['sha256']
+    write(catalog/'CharacterModels.manifest.json',manifest)
+    assembly.update(catalogSha256=sha(catalog/'CharacterModels.manifest.json'),bytes=sum(p['bytes']for p in proofs.values()),artAccepted=False,
+        preparedSource=dict(assembly=pin(source/'ResourceAssembly.json'),catalog=pin(source/'Catalog/CharacterModels.manifest.json')),
+        skinInterfaces=dict(contexts=pin(args.contexts),resources=len(tasks),coveredBodyContexts=covered,review='pending'))
+    write(output/'ResourceAssembly.json',assembly);print('Prepared skin interfaces:',len(tasks),flush=True)
+
+
+def source_skin_detail_authority(proof,identifier,channel):
+    """Recover the absolute detail source through the actual private texture owner."""
+    def document(pin):
+        if sha(pin['path'])!=pin['sha256']:raise ValueError('A preceding skin-detail authority changed.')
+        return read(pin['path'])
+    for operation in reversed(proof.get('appearanceFinishing',[])):
+        if operation['kind']=='source-skin-detail':
+            job=document(operation['inputPlan']);matches=[t for t in job['textures']if t['object']==identifier]
+            if not matches:continue
+        elif operation['kind']=='source-skin-material-bindings':
+            binding=document(operation['proof']);textures=[row for row in binding['textures']if row['object']==identifier]
+            if not textures:continue
+            if len(textures)!=1:raise ValueError('A private skin texture has conflicting detail owners.')
+            texture=textures[0];receipts=[document(pin)for pin in operation['fields']]
+            receipts=[row for row in receipts if row['target']['path']==texture['source']['path']and row['sha256']==texture['source']['sha256']]
+            if len(receipts)!=1:raise ValueError('A private skin texture has no unique detail calculation.')
+            job=document(receipts[0]['inputPlan']);matches=[row for row in job['textures']if row['object']==texture['sourceObject']]
+        else:continue
+        if len(matches)!=1 or matches[0]['channel']!=channel:raise ValueError('The preceding skin detail has another channel owner.')
+        row=matches[0]
+        source=row.get('detailSource',dict(path=job['source'],sha256=job['sha256'],object=row['object']))
+        if sha(source['path'])!=source['sha256']:raise ValueError('The original skin-detail source changed.')
+        return dict(source=source,profile=row['profile'])
+    return None
+
+
 def source_skin_payloads(job):
     """Bake declared source domains while retaining the saved texture format and mips."""
     import numpy as np
@@ -5242,12 +5747,19 @@ def source_skin_payloads(job):
     file=resources.load_serialized_bundle(job['source'],in_memory=True)[1];results=[]
     for texture in job['textures']:
         obj=file.objects[texture['object']];data=obj.read();images=resources.texture_mip_images(obj)
-        if data.m_TextureFormat not in(4,25):raise ValueError('Unsupported source skin storage: '+str(data.m_TextureFormat))
+        storage,original_mips=resources.texture_mip_payloads(obj)
+        if storage not in(4,12,25):raise ValueError('Unsupported source skin storage: '+str(data.m_TextureFormat))
         if data.m_ColorSpace!=(1 if texture['channel']=='color'else 0):raise ValueError('A skin channel has another sampled color space.')
-        payload=data.get_image_data();offset=0;encoded=[];levels=[]
-        for level,pixels in enumerate(images):
-            h,w=pixels.shape[:2];length=w*h*4 if data.m_TextureFormat==4 else((w+3)//4)*((h+3)//4)*16
-            original=payload[offset:offset+length];offset+=length
+        detail=texture.get('detailSource');reference_images=images
+        if detail is not None:
+            if sha(detail['path'])!=detail['sha256']:raise ValueError('The absolute skin-detail source changed.')
+            reference=resources.load_serialized_bundle(detail['path'],in_memory=True)[1].objects[detail['object']];reference_data=reference.read()
+            if (reference_data.m_Width,reference_data.m_Height,reference_data.m_MipCount,reference_data.m_ColorSpace)!=(data.m_Width,data.m_Height,data.m_MipCount,data.m_ColorSpace):
+                raise ValueError('The absolute skin detail has another texture sampling contract.')
+            reference_images=resources.texture_mip_images(reference)
+        encoded=[];levels=[]
+        for level,(pixels,reference_pixels,original)in enumerate(zip(images,reference_images,original_mips,strict=True)):
+            h,w=pixels.shape[:2]
             if min(h,w)<4:encoded.append(original);continue
             ownership=np.ones((h,w));metric=np.zeros((h,w));covered=np.zeros((h,w),bool);geometry=[]
             for surface in texture['surfaces']:
@@ -5263,29 +5775,37 @@ def source_skin_payloads(job):
                 texture['profile']['coherenceSigmaMetres'],texture['profile']['featherMetres']/3)
             unresolved=(ownership>0)&(metric<scale/128)
             ownership[unresolved]=0
-            desired,proof=production.refine_source_skin_material(pixels[::-1],ownership,metric,texture['profile'],texture['channel'],normal_encoding=texture['normalEncoding'])
+            desired,proof=production.refine_source_skin_material(reference_pixels[::-1],ownership,metric,texture['profile'],texture['channel'],normal_encoding=texture['normalEncoding'])
             proof.update(retainedSubpixelSurfaceSamples=int(unresolved.sum()),maximumFilterRadiusTexels=128)
             desired=desired[::-1].copy();_,pixel_mask=fields.whole_block_pixels((ownership>0)[::-1])
-            if data.m_TextureFormat==4:
+            desired[~pixel_mask]=pixels[~pixel_mask]
+            if storage==4:
                 desired[~pixel_mask]=pixels[~pixel_mask];target=desired.tobytes()
                 codec=dict(storage='RGBA32',unownedPixelsExact=True,additionalCompression=False)
+            elif storage==12:
+                target,codec=fields.fit_bc3_skin_field(original,w,h,desired,pixel_mask,texture['channel'])
             elif texture['channel']=='color':
                 target,codec=fields.fit_bc7_rgb_field(original,w,h,desired,pixel_mask,maximum_rgb_error=16)
             else:
                 target,codec=fields.fit_bc7_normal_field(original,w,h,desired,pixel_mask)
-            actual=np.frombuffer(target,np.uint8).reshape(h,w,4)if data.m_TextureFormat==4 else np.asarray(Image.frombytes('RGBA',(w,h),target,'bcn',7))
+            actual=np.frombuffer(target,np.uint8).reshape(h,w,4)if storage==4 else np.asarray(Image.frombytes('RGBA',(w,h),target,'bcn',3 if storage==12 else 7))
             if texture['channel']=='color'and not np.array_equal(actual[:,:,3],pixels[:,:,3]):raise ValueError('Skin finishing changed native material alpha.')
             if texture['channel']=='normal'and not np.array_equal(actual[:,:,[0,2]],pixels[:,:,[0,2]]):raise ValueError('Skin finishing changed normal carrier channels.')
             if not np.array_equal(actual[~pixel_mask],pixels[~pixel_mask]):raise ValueError('Skin finishing changed an unowned texture pixel.')
             encoded.append(target);levels.append(dict(level=level,proof=proof,codec=codec,geometry=geometry))
             print('Finished skin mip:',data.m_Name,level,flush=True)
-        if offset!=len(payload):raise ValueError('A skin finish omitted source mip bytes.')
         results.append(dict(object=obj.path_id,name=data.m_Name,cab=file.name,dimensions=[data.m_Width,data.m_Height],mipCount=data.m_MipCount,
-            storageFormat=data.m_TextureFormat,payload=b''.join(encoded),mips=levels))
+            storageFormat=storage,payload=b''.join(encoded),mips=levels))
     return results
 
 
 def finish_source_skin_bundle(job):
+    with retained_skin_producer(job.get('computationInputs',job['inputs']))as owner:
+        worker=getattr(owner,'write_source_skin_bundle',None)or owner.finish_source_skin_bundle
+        return worker(job)
+
+
+def write_source_skin_bundle(job):
     import character_resources as resources
     receipt=Path(job['receipt']);target=Path(job['target']);replacements=[];reports=[]
     if receipt.exists():
@@ -5309,9 +5829,36 @@ def source_skin_replay_key(operation,pins):
     return hashlib.sha256(json.dumps(identity,sort_keys=True,separators=(',',':')).encode()).hexdigest()
 
 
-def validate_source_skin_finish(operation):
+def retained_skin_producer(pins):
+    """Load the retained geometry and material epoch for a deterministic replay."""
+    from contextlib import contextmanager
     import importlib.util
     from importlib.machinery import SourceFileLoader
+    @contextmanager
+    def epoch():
+        producers={Path(pin['path']).name.removesuffix('.source'):pin for pin in pins if Path(pin['path']).name.endswith(('.py','.py.source'))}
+        for pin in producers.values():
+            if sha(pin['path'])!=pin['sha256']:raise ValueError('A retained skin producer changed.')
+        def module(name,pin):
+            loader=SourceFileLoader(name,pin['path']);spec=importlib.util.spec_from_loader(name,loader)
+            if spec is None:raise ValueError('A retained skin computation module is unavailable.')
+            value=importlib.util.module_from_spec(spec);loader.exec_module(value);return value
+        producer=producers['build_models.py'];owner=module('retained_skin_'+producer['sha256'][:12],producer)
+        owner.__dict__['source_owner']=lambda:source_owner(production_path=producers['production.py']['path'],art_path=producers['generate.py']['path'])
+        module_names=['material_fields','character_resources']
+        if 'mesh_recipe_codec.py'in producers:module_names.insert(0,'mesh_recipe_codec')
+        previous={name:sys.modules.get(name)for name in module_names}
+        try:
+            for name in previous:sys.modules[name]=module(name,producers[name+'.py'])
+            yield owner
+        finally:
+            for name,value in previous.items():
+                if value is None:sys.modules.pop(name,None)
+                else:sys.modules[name]=value
+    return epoch()
+
+
+def validate_source_skin_finish(operation):
     import character_resources as resources
     resources.validate_owned_texture_mips(operation);pin=operation['inputPlan']
     if sha(pin['path'])!=pin['sha256']:raise ValueError('The source skin plan changed.')
@@ -5325,23 +5872,8 @@ def validate_source_skin_finish(operation):
     if cache is not None and cache.is_file():
         saved=read(cache)
         if saved.get('status')=='PASS_SOURCE_SKIN_REPLAY'and saved.get('identity')==key:return
-    producer=producers['build_models.py'];name='source_skin_'+producer['sha256'][:12]
-    loader=SourceFileLoader(name,producer['path']);spec=importlib.util.spec_from_loader(name,loader)
-    if spec is None:raise ValueError('The retained skin producer is unavailable.')
-    owner=importlib.util.module_from_spec(spec);loader.exec_module(owner)
-    owner.__dict__['source_owner']=lambda:source_owner(production_path=producers['production.py']['path'],art_path=producers['generate.py']['path'])
-    previous={name:sys.modules.get(name)for name in ('material_fields','character_resources')}
-    try:
-        for module_name in previous:
-            producer=producers[module_name+'.py'];loader=SourceFileLoader(module_name,producer['path'])
-            spec=importlib.util.spec_from_loader(module_name,loader)
-            if spec is None:raise ValueError('A retained skin computation module is unavailable.')
-            module=importlib.util.module_from_spec(spec);sys.modules[module_name]=module;loader.exec_module(module)
+    with retained_skin_producer(pins)as owner:
         expected={row['object']:row['payload']for row in owner.source_skin_payloads(job)}
-    finally:
-        for module_name,module in previous.items():
-            if module is None:sys.modules.pop(module_name,None)
-            else:sys.modules[module_name]=module
     if set(expected)!={row['object']for row in operation['textures']}:raise ValueError('A skin finish omits an owned texture.')
     for row in operation['textures']:
         if Path(row['raw']['path']).read_bytes()!=expected[row['object']]:raise ValueError('The encoded skin finish differs from its source-owned calculation.')
@@ -5351,7 +5883,7 @@ def validate_source_skin_finish(operation):
 def complete_source_skin_jobs(source,output,assembly,manifest,tasks,pins,coverage,workers):
     from concurrent.futures import ProcessPoolExecutor,as_completed
     proofs={row['file']:row for row in assembly['proofs']};failures=[]
-    with ProcessPoolExecutor(max_workers=workers)as pool:
+    with ProcessPoolExecutor(max_workers=workers,max_tasks_per_child=8)as pool:
         for future in as_completed([pool.submit(finish_source_skin_bundle,job)for job in tasks]):
             try:result=future.result()
             except Exception as error:
@@ -5371,14 +5903,19 @@ def complete_source_skin_jobs(source,output,assembly,manifest,tasks,pins,coverag
     print(json.dumps(dict(status='PREPARED_SOURCE_SKIN_REVIEW_PENDING',sources=len(coverage),bundles=len(tasks))))
 
 
+
+
+
+
 def bind_source_skin_materials():
     """Embed finished fields only in the material owners declared by their renderers."""
     import character_resources as resources
     parser=argparse.ArgumentParser();parser.add_argument('--source',type=Path,required=True);parser.add_argument('--fields',type=Path,required=True)
-    parser.add_argument('--output',type=Path,required=True);args=parser.parse_args()
+    parser.add_argument('--output',type=Path,required=True);parser.add_argument('--resume',action='store_true');args=parser.parse_args()
     source=checked_catalog_path(args.source);fields=checked_catalog_path(args.fields);output=checked_catalog_path(args.output)
-    if output.exists()or not any(output.is_relative_to(ROOT/p)for p in('tools/asset-authoring/workspace','tools/game-test/artifacts')):
+    if (output.exists()and not args.resume)or not any(output.is_relative_to(ROOT/p)for p in('tools/asset-authoring/workspace','tools/game-test/artifacts')):
         raise ValueError('Skin material binding requires a new authoring workspace.')
+    if (output/'ResourceAssembly.json').exists():raise ValueError('The skin material candidate is already complete.')
     prepared=read(fields/'ResourceAssembly.json');original=prepared['preparedSource']
     if original['assembly']['sha256']!=sha(source/'ResourceAssembly.json')or original['catalog']['sha256']!=sha(source/'Catalog/CharacterModels.manifest.json'):
         raise ValueError('The skin fields belong to another source material catalog.')
@@ -5401,16 +5938,32 @@ def bind_source_skin_materials():
                 material=material_owner(name).objects[surface['material']].read_typetree()
                 before=dict(material['m_SavedProperties']['m_TexEnvs'])[surface['property']]['m_Texture']
                 update=dict(pathId=surface['material'],property=surface['property'],before=before,
-                    texture=dict(path=receipt['target']['path'],sha256=receipt['sha256'],name=field['name']))
+                    texture=dict(path=receipt['target']['path'],sha256=receipt['sha256'],name=field['name'],object=field['object']))
                 key=(surface['material'],surface['property']);group=groups.setdefault(name,{})
                 if key in group and group[key]!=update:raise ValueError('A native material has conflicting source fields.')
                 group[key]=update;references.setdefault(name,{})[str(receipt_path.resolve())]=dict(path=str(receipt_path.resolve()),sha256=sha(receipt_path))
-    catalog=output/'Catalog';catalog.mkdir(parents=True)
+    catalog=output/'Catalog';catalog.mkdir(parents=True,exist_ok=args.resume)
     for bundle in manifest['bundles']:
         name=bundle['file'];target=catalog/name
-        if name not in groups:target.hardlink_to(source/'Catalog'/name);continue
-        receipt=resources.replace_owned_material_textures(source/'Catalog'/name,bundle['sha256'],target,list(groups[name].values()))
-        path=output/'Receipts'/(name+'.json');write(path,receipt);proof=proofs[name]
+        if name not in groups:
+            if target.exists():
+                if sha(target)!=bundle['sha256']:raise ValueError('An unselected resumed skin resource changed.')
+            else:target.hardlink_to(source/'Catalog'/name)
+            continue
+        path=output/'Receipts'/(name+'.json')
+        if args.resume and path.exists():
+            receipt=read(path);resources.validate_owned_material_textures(receipt)
+            clones={row['object']:row for row in receipt['textures']}
+            recovered={(row['pathId'],row['property']):dict(pathId=row['pathId'],property=row['property'],before=row['before'],
+                texture=clones[row['after']['m_PathID']]['source'])for row in receipt['materialUpdates']}
+            if receipt['source']!=dict(path=str((source/'Catalog'/name).resolve()),sha256=bundle['sha256'])or \
+                    receipt['target']['path']!=str(target.resolve())or recovered!=groups[name]:
+                raise ValueError('A resumed skin binding belongs to another source or field plan.')
+        else:
+            if target.exists():raise ValueError('A skin output without its completed binding receipt already exists.')
+            receipt=resources.replace_owned_material_textures(source/'Catalog'/name,bundle['sha256'],target,list(groups[name].values()))
+            write(path,receipt)
+        proof=proofs[name]
         before_sha=proof['sha256'];proof.update(sha256=receipt['sha256'],bytes=receipt['bytes'],allRetainedObjectFieldsExactAfterReferenceRebasing=False,
             objects=proof['objects']+len(receipt['objectsAdded']))
         proof.setdefault('appearanceFinishing',[]).append(dict(kind='source-skin-material-bindings',beforeSha256=before_sha,sha256=receipt['sha256'],
@@ -5424,6 +5977,14 @@ def bind_source_skin_materials():
             localMaterials=True,bundles=len(groups),unselectedResourcesUnchanged=True))
     write(output/'ResourceAssembly.json',assembly)
     print(json.dumps(dict(status='PREPARED_LOCAL_SKIN_MATERIALS_REVIEW_PENDING',bundles=len(groups))))
+
+
+def validate_skin_plan_snapshot(plans,names,reference):
+    """A resumed calculation keeps the complete selected source declarations."""
+    if sha(reference['path'])!=reference['sha256']:raise ValueError('The retained source skin declarations changed.')
+    retained=read(reference['path'])['surfaces']
+    if any(name not in retained or plans[name]!=retained[name]for name in names):
+        raise ValueError('The selected source skin declarations changed; use a new output.')
 
 
 def prepare_skin_surface_resources():
@@ -5448,6 +6009,9 @@ def prepare_skin_surface_resources():
         if (output/'ResourceAssembly.json').exists():raise ValueError('The source skin candidate is already complete.')
         paths=sorted((output/'Inputs').glob('*.json'))
         if not paths:raise ValueError('There is no complete source skin job snapshot to resume.')
+        declarations=[pin for pin in read(paths[0])['inputs']if Path(pin['path']).name==args.plans.name+'.source']
+        if len(declarations)!=1:raise ValueError('The resumed skin calculation has no original declaration owner.')
+        validate_skin_plan_snapshot(plans,names,declarations[0])
         tasks=[];expected={row['file']:row['sha256']for row in manifest['bundles']};computation=[]
         live=[Path(__file__),Path(resources.__file__),Path(__file__).with_name('production.py'),Path(__file__).with_name('generate.py'),Path(__file__).with_name('material_fields.py')]
         epoch=hashlib.sha256(''.join(sha(path)for path in live).encode()).hexdigest()[:12]
@@ -5462,9 +6026,9 @@ def prepare_skin_surface_resources():
                 raise ValueError('A resumed skin job belongs to another catalog.')
             for texture in job['textures']:
                 for owner in texture['sourceNames']:
-                    settings=('pigmentRetain','fineSigmaMetres','grainSigmaMetres','coherenceSigmaMetres','featherMetres')if texture['channel']=='color'else('normalRetain','normalRadiusMetres')
+                    settings=('pigmentRetain','fineSigmaMetres','grainSigmaMetres','coherenceSigmaMetres','featherMetres')if texture['channel']=='color'else('normalRetain','normalRadiusMetres','microNormalRetain','microNormalRadiusMetres')
                     if owner not in names or plans[owner]['domain']!=texture['domain']or any(
-                            plans[owner]['profile'][key]!=texture['profile'][key]for key in settings):raise ValueError('The source skin recipe changed; use a new output.')
+                            plans[owner]['profile'].get(key)!=texture['profile'].get(key)for key in settings):raise ValueError('The source skin recipe changed; use a new output.')
             for producer_pin in job['inputs']:
                 if Path(producer_pin['path']).suffix=='.source'and sha(producer_pin['path'])!=producer_pin['sha256']:raise ValueError('A skin producer snapshot changed.')
             job['inputPlan']=dict(path=str(path.resolve()),sha256=sha(path));job['computationInputs']=computation;tasks.append(job)
@@ -5482,7 +6046,7 @@ def prepare_skin_surface_resources():
         pins.append(dict(path=str(archive.resolve()),sha256=sha(archive)))
         assembly.setdefault('retainedSourceInputs',[]).append(dict(original=dict(path=str(original.resolve()),sha256=sha(original)),archive=pins[-1]))
     if args.retained_inputs:assembly.setdefault('retainedSourceInputs',[]).extend(read(args.retained_inputs))
-    pins.extend(dict(path=str(path.resolve()),sha256=sha(path))for path in(args.census,args.plans))
+    pins.append(dict(path=str(args.census.resolve()),sha256=sha(args.census)))
     @lru_cache(maxsize=12)
     def load(cab):
         path=source/'Catalog'/by_cab[cab]['file']
@@ -5510,15 +6074,20 @@ def prepare_skin_surface_resources():
                 if shader.read_typetree()['m_ParsedForm']['m_Name']!=surface['shader']:raise ValueError('A skin slot has another shader contract.')
                 textures=dict(mt['m_SavedProperties']['m_TexEnvs'])
                 for prop,channel in(('_MainTex','color'),('_BumpMap','normal')):
-                    if declaration['profile']['pigmentRetain'if channel=='color'else'normalRetain']==1:continue
+                    if declaration['profile']['pigmentRetain'if channel=='color'else'normalRetain']==1 and (
+                            channel=='color' or declaration['profile'].get('microNormalRetain',1)==1):continue
                     texture_file,texture=resolve(material_file,textures[prop]['m_Texture']);key=(by_cab[texture_file.name]['file'],texture.path_id)
+                    settings=('pigmentRetain','fineSigmaMetres','grainSigmaMetres','coherenceSigmaMetres','featherMetres')if channel=='color'else('normalRetain','normalRadiusMetres','microNormalRetain','microNormalRadiusMetres')
+                    authority=source_skin_detail_authority(by_cab[texture_file.name],texture.path_id,channel)
+                    if authority is not None and all(authority['profile'].get(field)==declaration['profile'].get(field)for field in settings):continue
                     reference=dict(resource=pin(file),renderer=renderer_id,meshResource=pin(mesh_file),mesh=mesh.path_id,
                         materialResource=pin(material_file),material=material.path_id,materialSlot=slot,bones=bones,property=prop,rendererToPrefab=native['rendererToPrefab'])
                     entry=dict(object=texture.path_id,channel=channel,profile=declaration['profile'],domain=declaration['domain'],normalEncoding=surface['normalEncoding'])
+                    if authority is not None:entry['detailSource']=authority['source']
                     if key in jobs:
-                        previous=jobs[key];settings=('pigmentRetain','fineSigmaMetres','grainSigmaMetres','coherenceSigmaMetres','featherMetres')if channel=='color'else('normalRetain','normalRadiusMetres')
+                        previous=jobs[key];settings=('pigmentRetain','fineSigmaMetres','grainSigmaMetres','coherenceSigmaMetres','featherMetres')if channel=='color'else('normalRetain','normalRadiusMetres','microNormalRetain','microNormalRadiusMetres')
                         if any(previous[field]!=entry[field]for field in('object','channel','domain','normalEncoding'))or any(
-                                previous['profile'][field]!=entry['profile'][field]for field in settings):
+                                previous['profile'].get(field)!=entry['profile'].get(field)for field in settings):
                             raise ValueError('A shared skin texture has conflicting source declarations: '+str(previous['sourceNames'])+' / '+name+' '+str(key))
                     if key not in jobs:jobs[key]=dict(entry,surfaces=[],sourceNames=[])
                     if name not in jobs[key]['sourceNames']:jobs[key]['sourceNames'].append(name)
@@ -5533,6 +6102,20 @@ def prepare_skin_surface_resources():
             receipt=str((output/'Receipts'/(name+'.json')).resolve()),textures=textures,inputs=pins)
         path=output/'Inputs'/(name+'.json');write(path,job);job['inputPlan']=dict(path=str(path.resolve()),sha256=sha(path));tasks.append(job)
     complete_source_skin_jobs(source,output,assembly,manifest,tasks,pins,coverage,args.workers)
+
+
+def source_face_contour(plans,fixture):
+    """Individual source declarations and cohort variants use one sculpt contract."""
+    name=fixture['name'];individual=plans.get('contours',{}).get(name)
+    if individual is not None:
+        renderer=individual.get('renderer')or plans['surfaces'][name]['contourRenderer']
+        return renderer,dict(zip(plans['columns'],individual['values'],strict=True)),('source',name)
+    cohort='/'.join(fixture[k]for k in ('race','sex','origin'))
+    suffix=fixture['faceDefinition'].removeprefix('FaceShape_')
+    if not suffix.startswith('NPC_'):suffix=suffix.rsplit('_',1)[-1]
+    values=plans['cohorts'].get(cohort,{}).get(suffix)
+    if values is None:return None
+    return plans['surfaces'][name]['contourRenderer'],dict(zip(plans['columns'],values,strict=True)),(cohort,suffix)
 
 
 def compile_face_designs():
@@ -5570,14 +6153,12 @@ def compile_face_designs():
         if requested and capture['name'] not in requested:continue
         name=capture['name'];asset=assets[name];fixture=fixtures[name]
         cohort='/'.join(fixture[k]for k in ('race','sex','origin'))
-        suffix=fixture['faceDefinition'].removeprefix('FaceShape_')
-        if not suffix.startswith('NPC_'):suffix=suffix.rsplit('_',1)[-1]
-        if suffix not in plans['cohorts'].get(cohort,{}):
+        contour=source_face_contour(plans,fixture)
+        if contour is None:
             separate.append(dict(name=name,reason='Source retained without a contour declaration.'));continue
-        primary=plans['surfaces'][name]['contourRenderer']
+        primary,plan,identity=contour;used.add(identity)
         skins=[skin for skin in asset['skins']if skin['path']==primary]
         if len(skins)!=1:raise ValueError('A contour declaration has no unique native renderer: '+name)
-        values=plans['cohorts'][cohort][suffix];used.add((cohort,suffix));plan=dict(zip(plans['columns'],values,strict=True))
         skin=skins[0];packet=production.native_packet(skin)
         reference=output/'References'/(name+'.json')
         write(reference,capture)
@@ -5605,15 +6186,26 @@ def compile_face_designs():
                 index=int(candidates[np.argmax(sign*(points[candidates,0]-mid))])
                 handle('UpperCheek_'+suffix,points[index],[-sign*plan['zygomaIn'],plan['zygomaBack'],.1],.030,.001,normals[index])
                 anchors.append(dict(region='UpperCheek_'+suffix,vertex=index,point=points[index].tolist()))
-                handle('LowerCheek_'+suffix,bones['b_cheek_lower_'+suffix],[sign*plan['lowerCheekOut'],-.1,.2],.030,.015)
+                handle('LowerCheek_'+suffix,bones['b_cheek_lower_'+suffix],
+                    [sign*plan['lowerCheekOut'],-.1-plan.get('lowerCheekForward',0),.2],.030,.015)
+                if plan.get('midCheekForward',0):
+                    handle('MidCheek_'+suffix,(bones['b_cheek_upper_'+suffix]+bones['b_cheek_lower_'+suffix])*.5,
+                        [0.,-plan['midCheekForward'],.1],.028,.025)
                 handle('JawAngle_'+suffix,mouth+[sign*gap*1.05,gap*1.2,-.010*scale],[-sign*plan['jawIn'],0.,.2],.045,normal=(sign,0.,0.))
                 handle('NasalWing_'+suffix,bones['b_nostril_'+suffix],[-sign*plan['nasalWingIn'],.1,.1],.018,.012)
-                handle('BrowPlane_'+suffix,bones['b_eyebrow_'+suffix+'_01'],[0.,plan['browBack'],.1],.020,.014)
+                handle('BrowPlane_'+suffix,bones['b_eyebrow_'+suffix+'_01'],[0.,plan['browBack'],.1+plan.get('browLift',0)],.020,.014)
                 handle('LipCorner_'+suffix,bones['b_lip_corner_'+suffix],[0.,plan['lipBack'],.1],.021,.012)
-            handle('Chin',mouth+[0.,.013*scale,-.036*scale],[0.,.2,plan['chinUp']],.030)
+            handle('Chin',mouth+[0.,.013*scale,-.036*scale],[0.,.2-plan.get('chinForward',0),plan['chinUp']],.030)
             handle('LipSealCentre',mouth,[0.,plan['lipBack'],.1],.025,.012)
-            handle('NasalTip',nose+[0.,-.018*scale,.012*scale],[0.,plan['nasalTipBack'],.1],.020,.014)
-            design=dict(asset=name,rendererPath=skin['path'],coordinateDomain='native-neutral-prefab-dcc',
+            nasal=selected&(np.abs(points[:,0]-nose[0])<gap*.22)
+            nasal&=(points[:,2]>nose[2]-.005*scale)&(points[:,2]<nose[2]+.028*scale)&(normals[:,1]<-.2)
+            candidates=np.flatnonzero(nasal)
+            if not len(candidates):raise ValueError('The explicitly owned nasal surface is absent.')
+            tip=int(candidates[np.argmin(points[candidates,1])])
+            handle('NasalTip',points[tip],[0.,plan['nasalTipBack'],.1],.020,.001,normals[tip])
+            domain=capture.get('coordinateDomain','native-neutral-prefab-dcc')
+            if domain not in ('native-neutral-prefab-dcc','source-prefab-reference-dcc'):raise ValueError('A facial reference has another declared coordinate domain.')
+            design=dict(asset=name,rendererPath=skin['path'],coordinateDomain=domain,
                 collarProtectionZ=[float(mouth[2]-.070*scale),float(mouth[2]-.045*scale)],handles=handles,
                 followContactComponents=True,contactUnits=[dict(handle='LipSealCentre',bonePrefixes=['b_lip_'])],referencePose=dict(path=str(reference.resolve()),sha256=sha(reference)))
             design_path=output/(name+'-Design.json');target_path=output/(name+'-Profiles.json');write(design_path,design)
@@ -5625,6 +6217,7 @@ def compile_face_designs():
         except (ValueError,np.linalg.LinAlgError)as error:
             failures.append(dict(name=name,error=str(error)));print('REJECTED individual source:',name,str(error),flush=True)
     declared={(cohort,face)for cohort,faces in plans['cohorts'].items()for face in faces}
+    declared|={('source',name)for name in plans.get('contours',{})}
     if not requested and declared!=used:raise ValueError('Individual plans and the complete editable humanoid scope differ: '+str(declared^used))
     for pin in pins:
         if sha(pin['original'])!=pin['sha256']:raise ValueError('An individual source producer changed during compilation.')
@@ -5862,6 +6455,217 @@ def save_compiled_groom_shader(source,catalog,proofs,shader_name,shader_path,sha
     proofs[shader_name].setdefault('appearanceFinishing',[]).append(shader_proof)
     validate_compiled_shader_proof(shader_proof,read(validation_path))
     return shader_proof
+
+
+def prepare_attachment_inputs():
+    """Prepare rigid source attachments against every declared support surface."""
+    import numpy as np
+    import character_resources as resources
+    from mesh_recipe_codec import encode_recipe
+    parser=argparse.ArgumentParser();parser.add_argument('--source',type=Path,required=True);parser.add_argument('--output',type=Path,required=True)
+    parser.add_argument('--designs',type=Path,default=Path(__file__).with_name('face-designs.json'));parser.add_argument('--assets',nargs='*',default=[])
+    args=parser.parse_args();source=checked_catalog_path(args.source);output=checked_catalog_path(args.output)
+    if output.exists()or not any(output.is_relative_to(ROOT/p)for p in('tools/asset-authoring/workspace','tools/game-test/artifacts')):
+        raise ValueError('Attachment authoring requires a new independent workspace.')
+    manifest=read(source/'Catalog/CharacterModels.manifest.json');assembly=read(source/'ResourceAssembly.json')
+    if assembly['catalogSha256']!=sha(source/'Catalog/CharacterModels.manifest.json'):raise ValueError('The attachment source catalog changed.')
+    designs=read(args.designs)['attachments'];names=set(args.assets)if args.assets else set(designs['sources'])
+    if not names or names-set(designs['sources']):raise ValueError('Select declared native attachment sources.')
+    output.mkdir(parents=True);pin=lambda path:dict(path=str(Path(path).resolve()),sha256=sha(path));inputs=[];retained=[]
+    for path in map(Path,(__file__,Path(__file__).with_name('production.py'),Path(__file__).with_name('generate.py'),
+            Path(__file__).with_name('material_fields.py'),resources.__file__,Path(resources.__file__).with_name('mesh_recipe_codec.py'),args.designs)):
+        archived=output/'ProducerSources'/(path.name+'.source');archived.parent.mkdir(exist_ok=True);archived.write_bytes(path.read_bytes())
+        inputs.append(pin(archived));retained.append(dict(original=pin(path),archive=pin(archived)))
+    inputs.extend(pin(path)for path in(source/'ResourceAssembly.json',source/'Catalog/CharacterModels.manifest.json'))
+    proofs={row['file']:row for row in assembly['proofs']};by_cab={row['newCab']:row for row in assembly['proofs']};source_pins={}
+    @lru_cache(maxsize=12)
+    def load(cab):
+        proof=by_cab[cab];path=source/'Catalog'/proof['file']
+        if sha(path)!=proof['sha256']:raise ValueError('An attachment or support resource changed.')
+        source_pins[str(path.resolve())]=pin(path);return resources.load_serialized_bundle(path,in_memory=True)[1]
+    prefabs={}
+    for resource in manifest['resources']:
+        if resource['type']=='GameObject':prefabs.setdefault(resource['source'].split('/')[0],[]).append(resource)
+    def prefab(name):
+        rows=prefabs.get(name,[])
+        if len(rows)!=1:raise ValueError('An attachment declaration needs one actual prefab: '+name)
+        return rows[0]
+    support_cache={};rows=[];recipes=[];material_updates={};production,_=source_owner()
+    for name in sorted(names):
+        declaration=designs['sources'][name];profile=dict(designs['profiles'][declaration['profile']])
+        if 'sourceLods'in declaration:profile['sourceLods']=declaration['sourceLods']
+        support_key=(declaration['support'],profile['supportBone'],profile['supportRenderer'])
+        if support_key not in support_cache:
+            witnesses=[]
+            for support_name in designs['supports'][declaration['support']]:
+                resource=prefab(support_name);surfaces=resource_skin_surfaces(source,manifest,proofs,resource['source'],load)
+                matches=[row for row in surfaces if row['path']==profile['supportRenderer']]
+                if len(matches)!=1:raise ValueError('A support declaration needs one real skin slot: '+support_name)
+                surface=matches[0];packet=surface['packet'];slots=[i for i,bone in enumerate(surface['bones'])if bone.split('/')[-1]==profile['supportBone']]
+                if len(slots)!=1:raise ValueError('An attachment support has no unique declared native bone.')
+                frame=np.asarray(packet['bindPoses']).reshape(-1,4,4)[slots[0]].T
+                vertices=np.asarray(packet['vertices']).reshape(-1,3)@frame[:3,:3].T+frame[:3,3]
+                normals=np.asarray(packet['normals']).reshape(-1,3)@np.linalg.inv(frame[:3,:3]);normals=production.normalise(normals)
+                witness=dict(name=support_name,vertices=vertices.tolist(),normals=normals.tolist(),triangles=packet['subMeshes'][surface['slot']],
+                    source=pin(source/'Catalog'/by_cab[surface['meshCab']]['file']),mesh=surface['mesh'],slot=surface['slot'],fingerprint=packet['sourceFingerprint'],frame=frame.ravel().tolist())
+                path=output/'Supports'/(support_name+'.json');write(path,witness);witnesses.append(pin(path))
+            if not witnesses:raise ValueError('An attachment has no declared support surfaces.')
+            support_cache[support_key]=witnesses
+        witnesses=support_cache[support_key];supports=[read(row['path'])for row in witnesses]
+        resource=prefab(name);renderers,resolve=resource_prefab_skins(manifest,proofs,resource['source'],load)
+        folder=output/name;folder.mkdir();meshes=[];levels=[];lod_sources={}
+        for path,renderer in renderers:
+            match=re.search(r'LOD([0-2])$',path)
+            if not match:raise ValueError('An attachment renderer has no explicit native detail level: '+path)
+            tree=renderer.read_typetree();mesh_file,mesh=resolve(renderer.assets_file,tree['m_Mesh'])
+            lod_sources[int(match[1])]=dict(mesh=mesh.path_id,packet=export_current_mesh(mesh),bones=resources.skin_bone_paths(renderer.assets_file,tree,resolve))
+        for path,renderer in renderers:
+            tree=renderer.read_typetree();mesh_file,mesh=resolve(renderer.assets_file,tree['m_Mesh']);packet=export_current_mesh(mesh)
+            if mesh_file is not renderer.assets_file:raise ValueError('Attachment topology requires its own prefab mesh owner.')
+            match=re.search(r'LOD([0-2])$',path)
+            if not match:raise ValueError('An attachment renderer has no explicit native detail level: '+path)
+            lod=int(match[1]);levels.append(lod);bones=resources.skin_bone_paths(renderer.assets_file,tree,resolve)
+            slots=[i for i,bone in enumerate(bones)if bone.split('/')[-1]==profile['supportBone']]
+            indices=np.asarray(packet['boneIndices']).reshape(-1,4);weights=np.asarray(packet['weights']).reshape(-1,4)
+            if len(slots)!=1 or set(indices[weights>0])!={slots[0]}:raise ValueError('An attachment is not rigidly owned by its declared support bone.')
+            frame=np.asarray(packet['bindPoses']).reshape(-1,4,4)[slots[0]].T
+            basis=lod_sources[profile['sourceLods'][lod]];basis_packet=basis['packet']
+            frame_identity=lambda packet:[(shape['name'],[frame['weight']for frame in shape['frames']])for shape in packet['shapes']]
+            if basis['bones']!=bones or basis_packet['bindPoses']!=packet['bindPoses']or frame_identity(basis_packet)!=frame_identity(packet):
+                raise ValueError('An attachment detail reference has another native rig or physical-frame identity.')
+            candidate,details=production.refine_attachment_surface(basis_packet,frame,supports,profile,lod)
+            tag=name+'_LOD'+str(lod);compiled_name=tag+'_SourceSurface';meshes.append(recipe_mesh(dict(candidate,name=compiled_name)))
+            packet_path=folder/(tag+'.json.gz');native_path=folder/(tag+'-Native.json.gz');basis_path=folder/(tag+'-Basis.json.gz')
+            for target,value in((packet_path,candidate),(native_path,packet),(basis_path,basis_packet)):
+                target.write_bytes(gzip.compress(json.dumps(value,separators=(',',':')).encode(),mtime=0))
+            rows.append(dict(asset=name,lod=lod,path=path,mesh=mesh.path_id,source=pin(source/'Catalog'/by_cab[mesh_file.name]['file']),
+                packet=pin(packet_path),nativePacket=pin(native_path),basisPacket=pin(basis_path),basisMesh=basis['mesh'],bones=bones,frame=frame.ravel().tolist(),supports=witnesses,
+                profile=profile,root=details['root'],passes=details['passes'],compiledName=compiled_name))
+            for pointer in tree['m_Materials']:
+                mf,material=resolve(renderer.assets_file,pointer);mt=material.read_typetree();_,shader=resolve(mf,mt['m_Shader'])
+                if shader.read_typetree()['m_ParsedForm']['m_Name']!=profile['sourceShader']:raise ValueError('An attachment surface has another material shader.')
+                values=dict(mt['m_SavedProperties']['m_Floats']);updates={}
+                for key,value in profile['materialFloats'].items():
+                    if key not in values or type(value)not in(int,float)or not math.isfinite(value):raise ValueError('An attachment finish requires actual finite shader float properties.')
+                    if values[key]!=value:updates[key]=dict(before=values[key],after=value)
+                key=(by_cab[mf.name]['file'],material.path_id);change=dict(pathId=material.path_id,values=updates)
+                if key in material_updates and material_updates[key]!=change:raise ValueError('A shared attachment material has conflicting profiles.')
+                material_updates[key]=change
+        if sorted(levels)!=[0,1,2]:raise ValueError('An attachment source must own every native detail level exactly once.')
+        recipe=folder/'MeshRecipe.json';encode_recipe(dict(schemaVersion=1,bundleName=name.lower()+'_source_surface.bundle',meshes=meshes),recipe,'Data/m.bin')
+        recipes.append(str(recipe.resolve()));print('Prepared source attachment:',name,flush=True)
+    inputs.extend(source_pins.values());inputs.extend(row for witnesses in support_cache.values()for row in witnesses)
+    for reference in inputs:
+        if sha(reference['path'])!=reference['sha256']:raise ValueError('An attachment input changed during authoring.')
+    write(output/'Plan.json',dict(source=pin(source/'ResourceAssembly.json'),catalog=pin(source/'Catalog/CharacterModels.manifest.json'),
+        inputs=inputs,retainedSourceInputs=retained,rows=rows,recipes=recipes,
+        materials=[dict(file=key[0],update=value)for key,value in sorted(material_updates.items())if value['values']],review='pending'))
+
+
+def validate_attachment_surface(receipt,producer_inputs):
+    """Replay attachment geometry and verify its exact mesh, rig and material owners."""
+    import numpy as np
+    import character_resources as resources
+    for reference in(receipt['source'],receipt['target'],*producer_inputs):
+        if sha(reference['path'])!=reference['sha256']:raise ValueError('An attachment surface input or output changed.')
+    before=resources.load_serialized_bundle(receipt['source']['path'],in_memory=True)[1]
+    after=resources.load_serialized_bundle(receipt['target']['path'],in_memory=True)[1]
+    if before.name!=after.name or set(before.objects)!=set(after.objects)or [v.path for v in before.externals]!=[v.path for v in after.externals]:
+        raise ValueError('An attachment surface changed serialized object or external ownership.')
+    allowed=set();packets={};cache={}
+    def packet(reference):
+        if sha(reference['path'])!=reference['sha256']:raise ValueError('An attachment packet changed.')
+        return json.loads(gzip.decompress(Path(reference['path']).read_bytes()))
+    for row in receipt['rows']:
+        native=packet(row['nativePacket']);basis=packet(row['basisPacket']);authored=packet(row['packet']);key=row['mesh'];allowed.add(key);packets[key]=authored
+        if export_current_mesh(before.objects[key])['sourceFingerprint']!=native['sourceFingerprint']or export_current_mesh(after.objects[key])['sourceFingerprint']!=authored['sourceFingerprint']:
+            raise ValueError('A saved attachment differs from its actual source or authored packet.')
+        if export_current_mesh(before.objects[row['basisMesh']])['sourceFingerprint']!=basis['sourceFingerprint']:
+            raise ValueError('An attachment detail reference differs from its actual source mesh.')
+        supports=[]
+        for reference in row['supports']:
+            if sha(reference['path'])!=reference['sha256']:raise ValueError('An attachment support surface changed.')
+            witness=read(reference['path']);identity=(witness['source']['sha256'],witness['mesh'])
+            if identity not in cache:
+                source=witness['source']
+                if sha(source['path'])!=source['sha256']:raise ValueError('An original attachment support changed.')
+                source_mesh=export_current_mesh(resources.load_serialized_bundle(source['path'],in_memory=True)[1].objects[witness['mesh']])
+                frame=np.asarray(witness['frame']).reshape(4,4)
+                positions=np.asarray(source_mesh['vertices']).reshape(-1,3)@frame[:3,:3].T+frame[:3,3]
+                normals=np.asarray(source_mesh['normals']).reshape(-1,3)@np.linalg.inv(frame[:3,:3]);normals/=np.maximum(np.linalg.norm(normals,axis=1,keepdims=True),1e-12)
+                if source_mesh['sourceFingerprint']!=witness['fingerprint']or source_mesh['subMeshes'][witness['slot']]!=witness['triangles']or \
+                        not np.array_equal(positions,witness['vertices'])or not np.allclose(normals,witness['normals'],atol=1e-14,rtol=0):
+                    raise ValueError('An attachment witness differs from its real native support mesh.')
+                cache[identity]=True
+            supports.append(witness)
+        with retained_skin_producer(producer_inputs)as owner:
+            production,_=owner.source_owner()
+            replay,details=production.refine_attachment_surface(basis,np.asarray(row['frame']).reshape(4,4),supports,row['profile'],row['lod'])
+        if replay['sourceFingerprint']!=authored['sourceFingerprint']or details!=dict(root=row['root'],passes=row['passes']):
+            raise ValueError('An attachment surface differs from its retained source producer.')
+    for update in receipt['rendererBoneUpdates']:
+        key=update['renderer'];allowed.add(key)
+        expected,_=resources.extend_skin_bone_palette(before,before.objects[key].read_typetree(),update['sourceBonePaths'],update['targetBonePaths'],packet=packets[update['mesh']])
+        expected['m_AABB']={field:{axis:float(np.float32(value))for axis,value in values.items()}for field,values in expected['m_AABB'].items()}
+        if expected!=after.objects[key].read_typetree():raise ValueError('An attachment changed an unowned rig or culling field.')
+    for update in receipt['materialFloatUpdates']:
+        key=update['pathId'];allowed.add(key);expected=before.objects[key].read_typetree();entries=expected['m_SavedProperties']['m_Floats']
+        values=dict(entries)
+        if any(values.get(name)!=row['before']for name,row in update['values'].items()):raise ValueError('An attachment finish lost its original shader float.')
+        expected['m_SavedProperties']['m_Floats']=[(name,float(np.float32(update['values'][name]['after']))if name in update['values']else value)for name,value in entries]
+        if expected!=after.objects[key].read_typetree():raise ValueError('An attachment material changed an unowned property.')
+    changed={key for key in before.objects if resources.serialized_object_bytes(before.objects[key])!=resources.serialized_object_bytes(after.objects[key])}
+    if not changed<=allowed or changed!=set(receipt['changedObjects']):raise ValueError('An attachment changed an unrelated serialized object.')
+
+
+def bind_attachment_surfaces():
+    """Bind compiled native attachments and their declared material finishes."""
+    import character_resources as resources
+    parser=argparse.ArgumentParser();parser.add_argument('--source',type=Path,required=True);parser.add_argument('--plan',type=Path,required=True)
+    parser.add_argument('--report',type=Path,required=True);parser.add_argument('--output',type=Path,required=True);args=parser.parse_args()
+    source=checked_catalog_path(args.source);output=checked_catalog_path(args.output)
+    if output.exists()or not any(output.is_relative_to(ROOT/p)for p in('tools/asset-authoring/workspace','tools/game-test/artifacts')):
+        raise ValueError('Attachment binding requires a new independent workspace.')
+    plan=read(args.plan);report=read(args.report);pin=lambda path:dict(path=str(Path(path).resolve()),sha256=sha(path))
+    if plan['source']!=pin(source/'ResourceAssembly.json')or plan['catalog']!=pin(source/'Catalog/CharacterModels.manifest.json')or not report.get('success'):
+        raise ValueError('The attachment plan or compilation belongs to another source.')
+    for reference in plan['inputs']:
+        if sha(reference['path'])!=reference['sha256']:raise ValueError('An attachment input changed before binding.')
+    compiled={Path(row['bundlePath']).name:row for row in report.get('bundles')or[report]};groups=collections.defaultdict(list);materials=collections.defaultdict(list)
+    for row in plan['rows']:groups[Path(row['source']['path']).name].append(row)
+    for row in plan['materials']:materials[row['file']].append(row['update'])
+    assembly=read(source/'ResourceAssembly.json');manifest=read(source/'Catalog/CharacterModels.manifest.json');proofs={row['file']:row for row in assembly['proofs']}
+    output.mkdir(parents=True);catalog=output/'Catalog';catalog.mkdir();count=0
+    for bundle in manifest['bundles']:
+        name=bundle['file'];target=catalog/name
+        if name not in groups and name not in materials:target.hardlink_to(source/'Catalog'/name);continue
+        replacements=[];entries=groups.get(name,[]);authorities=[]
+        if entries:
+            asset=entries[0]['asset'];child=compiled[asset.lower()+'_source_surface.bundle'];path=Path(child['bundlePath'])
+            if not child.get('success')or sha(path)!=child['bundleSha256']:raise ValueError('A compiled attachment resource changed.')
+            file=resources.load_serialized_bundle(path,in_memory=True)[1];meshes={obj.peek_name():obj for obj in file.objects.values()if obj.type.name=='Mesh'}
+            for row in entries:
+                packet=json.loads(gzip.decompress(Path(row['packet']['path']).read_bytes()));native=json.loads(gzip.decompress(Path(row['nativePacket']['path']).read_bytes()))
+                mesh=meshes[row['compiledName']]
+                if export_current_mesh(mesh)['sourceFingerprint']!=packet['sourceFingerprint']:raise ValueError('Unity changed an authored attachment mesh.')
+                replacements.append(dict(sourceFingerprint=native['sourceFingerprint'],sourcePathIds=[row['mesh']],packet=packet,binding=None,
+                    compiledTree=mesh.read_typetree(),sourceBonePaths=row['bones'],bonePaths=row['bones']))
+                authorities.append(dict(row,compiledBundle=pin(path)))
+        receipt=resources.prepare_standalone_part(source/'Catalog'/name,bundle['sha256'],target,replacements,
+            export_mesh=export_current_mesh,material_updates=materials.get(name,[]))
+        receipt.update(file=name,rows=authorities,plan=pin(args.plan),engineReport=pin(args.report))
+        validate_attachment_surface(receipt,plan['inputs'])
+        path=output/'Receipts'/(name+'.json');write(path,receipt);proof=proofs[name];before=proof['sha256']
+        proof.update(sha256=receipt['target']['sha256'],bytes=target.stat().st_size,allRetainedObjectFieldsExactAfterReferenceRebasing=False)
+        proof.setdefault('appearanceFinishing',[]).append(dict(kind='source-owned-attachment-surface',beforeSha256=before,sha256=proof['sha256'],
+            proof=pin(path),authority=dict(inputs=plan['inputs'])))
+        bundle['sha256']=proof['sha256'];count+=len(entries);print('Bound source attachment:',name,flush=True)
+    write(catalog/'CharacterModels.manifest.json',manifest)
+    assembly.setdefault('retainedSourceInputs',[]).extend(plan['retainedSourceInputs'])
+    assembly.update(catalogSha256=sha(catalog/'CharacterModels.manifest.json'),bytes=sum(row['bytes']for row in assembly['proofs']),artAccepted=False,
+        preparedSource=dict(assembly=pin(source/'ResourceAssembly.json'),catalog=pin(source/'Catalog/CharacterModels.manifest.json')),
+        attachmentSurfaces=dict(plan=pin(args.plan),meshes=count,materials=len(plan['materials']),review='pending'))
+    write(output/'ResourceAssembly.json',assembly)
 
 
 def prepare_native_groom_inputs():
@@ -6360,7 +7164,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__,allow_abbrev=False)
     parser.add_argument('--workspace',type=Path,required=True)
     parser.add_argument('--source-directory',type=Path)
-    parser.add_argument('command',choices=('scope','capture','extract','generate','generate-npc','generate-extremities','generate-skin-boundaries','generate-materials','compile-face-designs','finish-skin-lods','bind-skin-surfaces','refine-skin-surfaces','complete-groom-frames','retone-materials','prepare-material-codec','verify-material-codec','prepare-resource-spans','prepare','finalize','assemble-resources','repair-resource-bone-orders','prepare-appearance-resources','refine-native-faces','prepare-groom-designs','prepare-groom-composition','bind-groom-designs','prepare-groom-inputs','refine-groom-frames','package-resources','plan-resource-retirement','publish'))
+    parser.add_argument('command',choices=('inspect-resource-metadata','scope','capture','extract','generate','generate-npc','generate-extremities','generate-skin-boundaries','generate-materials','compile-face-designs','finish-skin-lods','finish-skin-interfaces','bind-skin-surfaces','refine-skin-surfaces','complete-groom-frames','retone-materials','prepare-material-codec','verify-material-codec','prepare-resource-spans','prepare','finalize','assemble-resources','repair-resource-bone-orders','prepare-appearance-resources','refine-native-faces','prepare-groom-designs','prepare-groom-composition','bind-groom-designs','prepare-groom-inputs','refine-groom-frames','prepare-attachment-inputs','bind-attachments','package-resources','plan-resource-retirement','publish'))
     args,remaining=parser.parse_known_args();HERE=checked_catalog_path(args.workspace)
     if not HERE.is_relative_to(ROOT/'tools'):
         raise ValueError('Model work data must be in the repository tools workspace.')
@@ -6375,8 +7179,8 @@ def main():
     if args.command in ('generate','generate-npc','generate-extremities','generate-skin-boundaries'):
         import numpy as np
         p,art=source_owner()
-    {'scope':select_scope,'capture':capture_source_catalog,'extract':extract_current,'generate':generate_humanoids,'generate-npc':generate_npcs,'generate-extremities':generate_extremities,'generate-skin-boundaries':generate_skin_boundaries,
-        'generate-materials':generate_materials,'compile-face-designs':compile_face_designs,'finish-skin-lods':finish_skin_lods,'bind-skin-surfaces':bind_source_skin_materials,'refine-skin-surfaces':prepare_skin_surface_resources,'complete-groom-frames':complete_groom_frames,'retone-materials':retone_materials,'prepare-material-codec':prepare_material_codec,'verify-material-codec':verify_material_codec,'prepare-resource-spans':prepare_resource_span_catalog,'prepare':prepare_bundles,'finalize':finalize_catalog,'assemble-resources':assemble_resources,'repair-resource-bone-orders':repair_resource_bone_orders,'prepare-appearance-resources':prepare_appearance_resources,'refine-native-faces':prepare_native_face_resources,'prepare-groom-designs':prepare_groom_designs,'prepare-groom-composition':prepare_groom_composition,'bind-groom-designs':bind_groom_designs,'prepare-groom-inputs':prepare_native_groom_inputs,'refine-groom-frames':prepare_groom_frame_resources,'package-resources':package_resources,'plan-resource-retirement':plan_resource_retirement,'publish':publish_catalog}[args.command]()
+    {'inspect-resource-metadata':inspect_resource_metadata,'scope':select_scope,'capture':capture_source_catalog,'extract':extract_current,'generate':generate_humanoids,'generate-npc':generate_npcs,'generate-extremities':generate_extremities,'generate-skin-boundaries':generate_skin_boundaries,
+        'generate-materials':generate_materials,'compile-face-designs':compile_face_designs,'finish-skin-lods':finish_skin_lods,'finish-skin-interfaces':prepare_skin_interfaces,'bind-skin-surfaces':bind_source_skin_materials,'refine-skin-surfaces':prepare_skin_surface_resources,'complete-groom-frames':complete_groom_frames,'retone-materials':retone_materials,'prepare-material-codec':prepare_material_codec,'verify-material-codec':verify_material_codec,'prepare-resource-spans':prepare_resource_span_catalog,'prepare':prepare_bundles,'finalize':finalize_catalog,'assemble-resources':assemble_resources,'repair-resource-bone-orders':repair_resource_bone_orders,'prepare-appearance-resources':prepare_appearance_resources,'refine-native-faces':prepare_native_face_resources,'prepare-groom-designs':prepare_groom_designs,'prepare-groom-composition':prepare_groom_composition,'bind-groom-designs':bind_groom_designs,'prepare-groom-inputs':prepare_native_groom_inputs,'refine-groom-frames':prepare_groom_frame_resources,'prepare-attachment-inputs':prepare_attachment_inputs,'bind-attachments':bind_attachment_surfaces,'package-resources':package_resources,'plan-resource-retirement':plan_resource_retirement,'publish':publish_catalog}[args.command]()
 
 
 if __name__=='__main__':main()

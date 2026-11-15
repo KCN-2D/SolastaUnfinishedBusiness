@@ -64,7 +64,7 @@ def texture_mip_tail(tree: dict[str, Any], payload: bytes, maximum: int) -> tupl
 
 def texture_main_storage(tree: dict[str, Any], payload: bytes, offset: int, texture_format: int) -> dict[str, Any]:
     """Replace complete skin mips, retaining sampler, dimensions and colour space."""
-    if tree['m_TextureFormat']not in (4,10,12,25,28,29)or texture_format not in (4,12,25)or tree['m_ImageCount']!=1 or tree['m_TextureDimension']!=2:
+    if tree['m_TextureFormat']not in (4,10,12,25,28,29)or texture_format not in (4,10,12,25)or tree['m_ImageCount']!=1 or tree['m_TextureDimension']!=2:
         raise ValueError('Skin storage requires one supported source 2D texture.')
     width,height,levels=tree['m_Width'],tree['m_Height'],tree['m_MipCount']
     if min(width,height,levels)<1 or levels>max(width,height).bit_length() or offset<0 or offset%16:
@@ -126,8 +126,8 @@ def replace_owned_texture_mips(source_path, source_sha256, target_path, replacem
             raise ValueError('A complete source mip payload changed.')
         payload = raw.read_bytes()
         storage_format = row.get('storageFormat', 4)
-        if type(storage_format) is not int or storage_format not in (4, 12, 25):
-            raise ValueError('An owned skin field requires explicit RGBA32, DXT5 or BC7 storage.')
+        if type(storage_format) is not int or storage_format not in (4, 10, 12, 25):
+            raise ValueError('An owned skin field requires explicit RGBA32, DXT1, DXT5 or BC7 storage.')
         tree = obj.read_typetree()
         if [tree['m_Width'], tree['m_Height']] != row['dimensions'] or tree['m_MipCount'] != row['mipCount']:
             raise ValueError('A source-owned mip payload has different runtime dimensions.')
@@ -284,25 +284,23 @@ def validate_owned_texture_mips(receipt):
                 hashlib.sha256(original).hexdigest()!=row['sourcePayloadSha256']or \
                 hashlib.sha256(actual).hexdigest()!=row['payloadSha256']or \
                 row['bytes']!=len(actual)or row['beforeFormat']!=first['m_TextureFormat']or \
-                row['format']!=last['m_TextureFormat']or row['format']not in (4,12,25)or \
+                row['format']!=last['m_TextureFormat']or row['format']not in (4,10,12,25)or \
                 (row['name'],row['width'],row['height'],row['mipCount'])!= \
                 (last['m_Name'],last['m_Width'],last['m_Height'],last['m_MipCount']):
             raise ValueError('An owned skin field differs from its complete measured mip payload.')
 
 
 
-def texture_mip_images(obj: Any) -> list[Any]:
-    """Decode complete Unity mip chains in their serialized row orientation."""
-    import numpy as np
+def texture_mip_payloads(obj: Any) -> tuple[int,list[bytes]]:
+    """Read complete saved blocks, including each independently crunched mip."""
     import texture2ddecoder
-    from UnityPy.export import Texture2DConverter
     texture=obj.read();payload=texture.get_image_data();format=texture.m_TextureFormat
     crunched=format in (28,29)
     if crunched:format={28:10,29:12}[format]
     if format not in (4,10,12,25):raise ValueError('Unsupported source texture mip storage.')
     width,height,levels=texture.m_Width,texture.m_Height,texture.m_MipCount
     if min(width,height,levels)<1 or levels>max(width,height).bit_length():raise ValueError('Invalid source texture mip layout.')
-    images=[];offset=0
+    mips=[];offset=0
     for level in range(levels):
         w,h=max(1,width>>level),max(1,height>>level)
         length=w*h*4 if format==4 else ((w+3)//4)*((h+3)//4)*(8 if format==10 else 16)
@@ -315,9 +313,20 @@ def texture_mip_images(obj: Any) -> list[Any]:
         else:
             if offset+length>len(payload):raise ValueError('Incomplete source texture mip chain.')
             data=payload[offset:offset+length];offset+=length
+        mips.append(bytes(data))
+    if not crunched and offset!=len(payload):raise ValueError('Unexpected bytes after the source texture mip chain.')
+    return format,mips
+
+
+def texture_mip_images(obj: Any) -> list[Any]:
+    """Decode complete Unity mip chains in their serialized row orientation."""
+    import numpy as np
+    from UnityPy.export import Texture2DConverter
+    texture=obj.read();format,mips=texture_mip_payloads(obj);images=[]
+    for level,data in enumerate(mips):
+        w,h=max(1,texture.m_Width>>level),max(1,texture.m_Height>>level)
         image=Texture2DConverter.parse_image_data(data,w,h,format,obj.version,obj.platform,flip=False)
         images.append(np.asarray(image.convert('RGBA'),dtype=np.uint8))
-    if not crunched and offset!=len(payload):raise ValueError('Unexpected bytes after the source texture mip chain.')
     return images
 
 
@@ -886,24 +895,130 @@ def refine_groom_resource_frames(job: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def write_mesh_frame(obj: Any,packet: dict[str, Any]) -> dict[str, Any]:
+def write_mesh_frame(obj: Any,packet: dict[str, Any],*,source_bones=None,target_bones=None,collar_topology=False) -> dict[str, Any]:
     """Replace the declared mesh frame while retaining all other vertex streams."""
     import numpy as np
     from UnityPy.helpers.MeshHelper import MeshHandler
     tree=obj.read_typetree();helper=MeshHandler(obj.read());helper.process()
-    count=packet['vertexCount'];raw=bytearray(tree['m_VertexData']['m_DataSize'])
-    if count!=tree['m_VertexData']['m_VertexCount']:
+    count=packet['vertexCount'];raw=bytearray(tree['m_VertexData']['m_DataSize']);original_count=tree['m_VertexData']['m_VertexCount']
+    if count!=original_count and not collar_topology:
         raise ValueError('A prepared mesh frame has different vertex correspondence.')
     vertex_data=helper.src.m_VertexData
     if vertex_data is None or vertex_data.m_Channels is None:raise ValueError('A prepared mesh has no vertex-channel layout.')
     streams=helper.get_streams(vertex_data.m_Channels,count)
+    if not isinstance(streams,dict):streams=dict(enumerate(streams))
+    if collar_topology:
+        if count<=original_count or source_bones is None or target_bones is None:
+            raise ValueError('A rebuilt skin collar must append vertices and retain its original palette prefix.')
+        if tree.get('m_MeshCompression',0)or tree.get('m_StreamData',{}).get('size',0):
+            raise ValueError('A rebuilt skin collar requires its explicit uncompressed inline vertex streams.')
+        old_streams=helper.get_streams(vertex_data.m_Channels,original_count)
+        if not isinstance(old_streams,dict):old_streams=dict(enumerate(old_streams))
+        rebuilt=bytearray((max(stream.offset+stream.stride*count for stream in streams.values())+15)//16*16)
+        channels=tree['m_VertexData']['m_Channels']
+        for number,layout in enumerate(channels):
+            width=layout['dimension']
+            if not width:continue
+            if number>13:raise ValueError('A rebuilt skin collar has an undeclared vertex channel.')
+        # Keep every original attribute byte, including packed UVs/colors.
+        for number,stream in streams.items():
+            old=old_streams[number]
+            if old.stride!=stream.stride:raise ValueError('A rebuilt skin collar changed its native stream layout.')
+            for index in range(original_count):
+                a=old.offset+old.stride*index;b=stream.offset+stream.stride*index
+                rebuilt[b:b+old.stride]=raw[a:a+old.stride]
+        for number,key in [(3,'colors'),*[(4+i,'uv')for i in range(8)]]:
+            if number>=len(channels)or not channels[number]['dimension']:continue
+            layout=channels[number];width=layout['dimension'];fmt=layout['format']
+            if key=='uv':
+                matches=[row for row in packet['uv']if row['channel']==number-4]
+                if len(matches)!=1:raise ValueError('A rebuilt skin collar is missing an original UV channel.')
+                values=np.asarray(matches[0]['values']).reshape(count,-1)[:,:width]
+            else:values=np.asarray(packet[key]).reshape(count,width)
+            if not np.isfinite(values).all():raise ValueError('A rebuilt skin collar contains a nonfinite attribute.')
+            if fmt==0:encoded=values.astype('<f4');dtype='<f4'
+            elif fmt==1:encoded=values.astype('<f2');dtype='<f2'
+            elif fmt==2:encoded=np.rint(np.clip(values,0,1)*255).astype('u1');dtype='u1'
+            else:raise ValueError('A rebuilt skin collar has an unsupported UV/color encoding.')
+            stream=streams[layout['stream']];size=np.dtype(dtype).itemsize
+            view=np.ndarray((count,width),dtype=dtype,buffer=rebuilt,offset=stream.offset+layout['offset'],strides=(stream.stride,size))
+            if not np.array_equal(view[:original_count],encoded[:original_count]):raise ValueError('A rebuilt skin collar changed a native UV/color prefix.')
+            view[original_count:]=encoded[original_count:]
+        if len(packet['subMeshes'])!=len(tree['m_SubMeshes']):raise ValueError('A rebuilt skin collar changed material-slot ownership.')
+        index_width=4 if count>65535 or packet['indexFormat']in(1,'UInt32')else 2;offset=0;indices=[]
+        for sub,triangles in zip(tree['m_SubMeshes'],packet['subMeshes']):
+            ids=np.asarray(triangles)
+            if ids.ndim!=1 or len(ids)%3 or not len(ids)or np.any(ids!=np.floor(ids))or np.any(ids<0)or np.any(ids>=count):raise ValueError('A rebuilt skin collar has invalid triangle indices.')
+            sub.update(firstByte=offset,indexCount=len(ids),baseVertex=0,firstVertex=int(ids.min()),vertexCount=int(ids.max()-ids.min()+1))
+            sub['localAABB']=dict(m_Center=dict(zip('xyz',packet['bounds'][:3])),m_Extent=dict(zip('xyz',(v/2 for v in packet['bounds'][3:]))))
+            indices.append(ids.astype('<u4'if index_width==4 else'<u2').tobytes());offset+=len(ids)*index_width
+        tree['m_IndexBuffer']=b''.join(indices);tree['m_IndexFormat']=int(index_width==4)
+        tree['m_VertexData']['m_VertexCount']=count;raw=rebuilt
     for channel,key,width in [(0,'vertices',3),(1,'normals',3),(2,'tangents',4)]:
         layout=tree['m_VertexData']['m_Channels'][channel]
         if layout['format']!=0 or layout['dimension']!=width:raise ValueError('Expected a complete prepared float32 facial frame.')
         stream=streams[layout['stream']];view=np.ndarray((count,width),dtype='<f4',buffer=raw,
             offset=stream.offset+layout['offset'],strides=(stream.stride,4))
         view[:]=np.asarray(packet[key],np.float32).reshape(count,width)
+    transport_skin=source_bones is not None or target_bones is not None
+    if transport_skin:
+        if not source_bones or not target_bones or target_bones[:len(source_bones)]!=source_bones:
+            raise ValueError('A transported skin must retain its source bone prefix.')
+        if len(tree['m_BindPose'])!=len(source_bones)or len(packet['bindPoses'])!=len(target_bones)*16:
+            raise ValueError('A transported skin has another bind-pose palette.')
+        if tree['m_VariableBoneCountWeights']['m_Data']:
+            raise ValueError('A transported skin requires its declared four-slot vertex influences.')
+        for channel,key,dtype in ((12,'weights','<f4'),(13,'boneIndices','<u4')):
+            layout=tree['m_VertexData']['m_Channels'][channel]
+            if layout['dimension']!=4 or layout['format']!=(0 if channel==12 else 10):
+                raise ValueError('A transported skin requires float32 weights and uint32 bone slots.')
+            values=np.asarray(packet[key]).reshape(count,4)
+            if not np.isfinite(values).all()or np.any(values<0):raise ValueError('Invalid transported skin influences.')
+            if channel==13 and (np.any(values!=np.floor(values))or np.any(values>=len(target_bones))):
+                raise ValueError('A transported skin references an absent bone slot.')
+            stream=streams[layout['stream']]
+            view=np.ndarray((count,4),dtype=dtype,buffer=raw,offset=stream.offset+layout['offset'],strides=(stream.stride,4))
+            view[:]=values
+        weights=np.asarray(packet['weights']).reshape(count,4);indices=np.asarray(packet['boneIndices'],int).reshape(count,4)
+        if not np.allclose(weights.sum(axis=1),1,rtol=0,atol=1e-5):raise ValueError('Transported skin weights are not normalized.')
+        poses=np.asarray(packet['bindPoses']).reshape(-1,4,4).transpose(0,2,1)
+        tree['m_BindPose']=[{'e%d%d'%(r,c):float(pose[r,c])for r in range(4)for c in range(4)}for pose in poses]
+        if tree['m_BoneNameHashes']:
+            import zlib
+            if skin_bone_order(source_bones,tree['m_BoneNameHashes'])!=list(range(len(source_bones))):
+                raise ValueError('A transported skin has another native bone order.')
+            candidates=[prefix for prefix in range(min(len(p.split('/'))for p in source_bones))if
+                [zlib.crc32('/'.join(p.split('/')[prefix:]).encode('utf8'))for p in source_bones]==tree['m_BoneNameHashes']]
+            if len(candidates)!=1:raise ValueError('A transported bone hash has no unique source path domain.')
+            tree['m_BoneNameHashes']=[zlib.crc32('/'.join(p.split('/')[candidates[0]:]).encode('utf8'))for p in target_bones]
+        positions=np.asarray(packet['vertices']).reshape(count,3)
+        posed=[positions]+[positions+np.asarray(f['vertices']).reshape(count,3)for s in packet['shapes']for f in s['frames']]
+        bounds=[]
+        for index,pose in enumerate(poses):
+            selected=(weights*(indices==index)).sum(axis=1)>0
+            points=np.concatenate([p[selected]@pose[:3,:3].T+pose[:3,3]for p in posed])
+            low=points.min(axis=0)if len(points)else np.zeros(3);high=points.max(axis=0)if len(points)else np.zeros(3)
+            bounds.append(dict(m_Min=dict(zip('xyz',map(float,low))),m_Max=dict(zip('xyz',map(float,high)))))
+        tree['m_BonesAABB']=bounds
     tree['m_VertexData']['m_DataSize']=bytes(raw)
+    if transport_skin:
+        import zlib
+        shapes=dict(vertices=[],shapes=[],channels=[],fullWeights=[])
+        existing={row['name']:row for row in tree['m_Shapes']['channels']}
+        for shape in packet['shapes']:
+            channel=dict(existing.get(shape['name'],dict(name=shape['name'],nameHash=zlib.crc32(shape['name'].encode('utf8')))))
+            channel.update(frameIndex=len(shapes['shapes']),frameCount=len(shape['frames']));shapes['channels'].append(channel)
+            for frame in shape['frames']:
+                values=np.stack([np.asarray(frame[k]).reshape(count,3)for k in ('vertices','normals','tangents')],axis=1)
+                selected=np.flatnonzero(np.any(values!=0,axis=(1,2)))
+                shapes['shapes'].append(dict(firstVertex=len(shapes['vertices']),vertexCount=len(selected),
+                    hasNormals=bool(np.any(values[:,1]!=0)),hasTangents=bool(np.any(values[:,2]!=0))))
+                for index in selected:shapes['vertices'].append(dict(index=int(index),**{
+                    k:dict(zip('xyz',map(float,v)))for k,v in zip(('vertex','normal','tangent'),values[index])}))
+                shapes['fullWeights'].append(frame['weight'])
+        tree['m_Shapes']=shapes
+        tree['m_LocalAABB']=dict(m_Center=dict(zip('xyz',packet['bounds'][:3])),m_Extent=dict(zip('xyz',(v/2 for v in packet['bounds'][3:]))))
+        return tree
     records=[];ordinal=0
     for channel in packet['shapes']:
         for frame in channel['frames']:
@@ -1091,8 +1206,8 @@ def audit_native_bone_orders(index: dict[str,Any],assets: set[str]) -> dict[str,
         assets=len(assets),rows=rows,errors=errors,absentAssets=absent,inputs=list(verified.values()))
 
 
-def extend_skin_bone_palette(file: Any,renderer: dict[str, Any],source_paths: list[str],target_paths: list[str]) -> tuple[dict[str, Any],dict[str, Any]]:
-    """Append existing rig transforms without changing the native bone prefix."""
+def extend_skin_bone_palette(file: Any,renderer: dict[str, Any],source_paths: list[str],target_paths: list[str],*,packet=None) -> tuple[dict[str, Any],dict[str, Any]]:
+    """Retain native rig slots and expand culling bounds in root-bone space."""
     import copy
     def canonical(path):
         parts=path.split('/')
@@ -1126,7 +1241,28 @@ def extend_skin_bone_palette(file: Any,renderer: dict[str, Any],source_paths: li
     result=copy.deepcopy(renderer)
     result['m_Bones']=[*renderer['m_Bones'],*[transforms[path]for path in target[len(source):]]]
     if skin_bone_paths(file,result,resolve)!=target:raise ValueError('The prepared skin bone palette failed its typed hierarchy check.')
-    return result,dict(sourceBonePaths=source,targetBonePaths=target,sourceBones=renderer['m_Bones'],targetBones=result['m_Bones'],nativeBonePrefixExact=True)
+    proof=dict(sourceBonePaths=source,targetBonePaths=target,sourceBones=renderer['m_Bones'],targetBones=result['m_Bones'],nativeBonePrefixExact=True)
+    if packet is not None:
+        import numpy as np
+        # SkinnedMeshRenderer.localBounds uses its root bone's frame, whereas
+        # Mesh.bounds and the saved positions use the mesh's bind coordinates.
+        if renderer['m_RootBone'] not in result['m_Bones']:
+            raise ValueError('The skin culling root has no declared bind-pose slot.')
+        root_slot=result['m_Bones'].index(renderer['m_RootBone'])
+        bind=np.asarray(packet['bindPoses']).reshape(-1,4,4).transpose(0,2,1)[root_slot]
+        positions=np.asarray(packet['vertices']).reshape(-1,3)
+        poses=[positions]+[positions+np.asarray(frame['vertices']).reshape(-1,3)for shape in packet['shapes']for frame in shape['frames']]
+        points=np.concatenate(poses)@bind[:3,:3].T+bind[:3,3]
+        if not np.isfinite(points).all():raise ValueError('The skin culling bounds contain nonfinite posed points.')
+        bounds=renderer['m_AABB'];center=np.array([bounds['m_Center'][a]for a in 'xyz']);extent=np.array([bounds['m_Extent'][a]for a in 'xyz'])
+        native_envelope=np.r_[center-extent,center+extent]
+        retained=np.isfinite(native_envelope).all()and float(np.abs(native_envelope).max())<=1024*max(1e-4,float(np.abs(points).max()))
+        low=points.min(axis=0);high=points.max(axis=0)
+        if retained:low=np.minimum(center-extent,low);high=np.maximum(center+extent,high)
+        guard=np.finfo(np.float32).eps*max(1.,float(np.max(np.abs(np.r_[low,high]))))*2
+        result['m_AABB']=dict(m_Center=dict(zip('xyz',map(float,(low+high)*.5))),m_Extent=dict(zip('xyz',map(float,(high-low)*.5+guard))))
+        proof['boundsRootBoneSlot']=root_slot;proof['nativeCullingEnvelopeRetained']=bool(retained)
+    return result,proof
 
 
 def load_serialized_bundle(path, *, in_memory=False) -> tuple[Any, Any]:
@@ -1770,6 +1906,29 @@ def material_texture_preloads(tree,bindings):
     return result
 
 
+def private_material_texture_targets(file,updates):
+    """Reuse local fields only when their complete material reference set is owned."""
+    requested={(row['pathId'],row['property']):(row['texture']['sha256'],row['texture']['name'],row['texture'].get('object'))for row in updates}
+    uses=defaultdict(set);foreign=set();textures={i for i,obj in file.objects.items()if obj.type.name=='Texture2D'}
+    def references(value):
+        if isinstance(value,dict):
+            if {'m_FileID','m_PathID'}<=value.keys()and value['m_FileID']==0 and value['m_PathID']in textures:yield value['m_PathID']
+            else:
+                for child in value.values():yield from references(child)
+        elif isinstance(value,(list,tuple)):
+            for child in value:yield from references(child)
+    for identifier,obj in file.objects.items():
+        if obj.type.name=='Material':
+            for name,entry in obj.read_typetree()['m_SavedProperties']['m_TexEnvs']:
+                pointer=entry['m_Texture']
+                if pointer['m_FileID']==0 and pointer['m_PathID']in textures:uses[pointer['m_PathID']].add((identifier,name))
+        elif obj.type.name=='AssetBundle':
+            for _,entry in obj.read_typetree()['m_Container']:foreign.update(references(entry['asset']))
+        elif obj.type.name!='Texture2D':foreign.update(references(obj.read_typetree()))
+    return {identifier for identifier,owners in uses.items()if identifier not in foreign and owners<=requested.keys()
+        and len({requested[owner]for owner in owners})==1}
+
+
 def replace_owned_material_textures(source_path,source_sha256,target_path,updates):
     """Embed compiled textures in their material owner without adding runtime dependencies."""
     import copy
@@ -1780,6 +1939,7 @@ def replace_owned_material_textures(source_path,source_sha256,target_path,update
     original={key:serialized_object_bytes(obj)for key,obj in file.objects.items()};before_ids=set(original)
     metadata=[obj for obj in file.objects.values()if obj.type.name=='AssetBundle']
     if len(metadata)!=1:raise ValueError('A material texture refinement has no unique bundle metadata owner.')
+    reusable=private_material_texture_targets(file,updates)
     materials={};clones={};bindings=[];changes=[];owners=set();next_id=1
     for update in updates:
         material_id=update['pathId'];property=update['property'];selector=(material_id,property)
@@ -1789,16 +1949,19 @@ def replace_owned_material_textures(source_path,source_sha256,target_path,update
         entries=tree['m_SavedProperties']['m_TexEnvs'];matches=[entry for name,entry in entries if name==property]
         if len(matches)!=1 or matches[0]['m_Texture']!=update['before']:
             raise ValueError('A material texture source pointer differs from its declared owner.')
-        reference=update['texture'];key=(reference['sha256'],reference['name'])
+        reference=update['texture'];reuse=update['before']['m_PathID']if update['before']['m_FileID']==0 and update['before']['m_PathID']in reusable else None
+        key=(reference['sha256'],reference['name'],reference.get('object'),reuse)
         if key not in clones:
             if digest(reference['path'])!=reference['sha256']:raise ValueError('A compiled material texture source changed.')
             _,compiled=load_serialized_bundle(reference['path'],in_memory=True)
             if compiled.header.version!=file.header.version or compiled.target_platform!=file.target_platform:
                 raise ValueError('A compiled material texture has an incompatible serialized format.')
-            chosen=[obj for obj in compiled.objects.values()if obj.type.name=='Texture2D'and obj.peek_name()==reference['name']]
+            chosen=[obj for obj in compiled.objects.values()if obj.type.name=='Texture2D'and obj.peek_name()==reference['name']and
+                ('object'not in reference or obj.path_id==reference['object'])]
             if len(chosen)!=1:raise ValueError('A compiled material texture is not unique.')
             obj=chosen[0];texture=obj.read_typetree();payload=bytes(obj.read().get_image_data())
             while next_id in file.objects:next_id+=1
+            target_id=next_id if reuse is None else reuse
             type_indices=[i for i,value in enumerate(file.types)if value.class_id==obj.class_id]
             if len(type_indices)>1:raise ValueError('A material texture has ambiguous serialized type ownership.')
             if type_indices:type_index=type_indices[0]
@@ -1806,10 +1969,11 @@ def replace_owned_material_textures(source_path,source_sha256,target_path,update
                 # Type-tree nodes describe the saved schema and remain read-only.
                 # UnityPy's native node objects cannot be deep-copied.
                 type_index=len(file.types);file.types.append(copy.copy(obj.serialized_type))
-            cloned=copy.copy(obj);cloned.assets_file=file;cloned.path_id=next_id;cloned.type_id=type_index;cloned.serialized_type=file.types[type_index]
+            cloned=copy.copy(obj);cloned.assets_file=file;cloned.path_id=target_id;cloned.type_id=type_index;cloned.serialized_type=file.types[type_index]
             texture['m_StreamData']=dict(texture['m_StreamData'],offset=0,size=0,path='');texture['image data']=payload
-            cloned.save_typetree(texture);file.objects[next_id]=cloned
-            clones[key]=dict(object=next_id,source=copy.deepcopy(reference),sourceObject=obj.path_id,payloadSha256=hashlib.sha256(payload).hexdigest())
+            cloned.save_typetree(texture);file.objects[target_id]=cloned
+            clones[key]=dict(object=target_id,source=copy.deepcopy(reference),sourceObject=obj.path_id,payloadSha256=hashlib.sha256(payload).hexdigest())
+            if reuse is not None:clones[key]['replacedExisting']=True
         selected=clones[key]['object'];pointer=dict(m_FileID=0,m_PathID=selected)
         matches[0]['m_Texture']=pointer;bindings.append((material_id,selected))
         changes.append(dict(pathId=material_id,property=property,before=copy.deepcopy(update['before']),after=pointer))
@@ -1836,16 +2000,19 @@ def validate_owned_material_textures(receipt):
     source_env,before=load_serialized_bundle(receipt['source']['path'],in_memory=True)
     target_env,after=load_serialized_bundle(receipt['target']['path'],in_memory=True)
     additions=set(receipt['objectsAdded']);clones={row['object']:row for row in receipt['textures']}
-    if not additions or additions!=set(clones)or additions&before.objects.keys()or set(after.objects)!=set(before.objects)|additions or \
+    replaced={key for key,row in clones.items()if row.get('replacedExisting')is True};owned=additions|replaced
+    if not owned or owned!=set(clones)or additions&replaced or not replaced<=before.objects.keys()or additions&before.objects.keys()or set(after.objects)!=set(before.objects)|additions or \
             before.name!=after.name or [v.path for v in before.externals]!=[v.path for v in after.externals]:
         raise ValueError('A material texture refinement changed unrelated object or external ownership.')
     changes={};bindings=[]
     for row in receipt['materialUpdates']:
         key=row['pathId'];selector=(key,row['property'])
-        if selector in changes or key not in before.objects or before.objects[key].type.name!='Material'or row['after']['m_FileID']!=0 or row['after']['m_PathID']not in additions:
+        if selector in changes or key not in before.objects or before.objects[key].type.name!='Material'or row['after']['m_FileID']!=0 or row['after']['m_PathID']not in owned:
             raise ValueError('A material texture refinement has an invalid or repeated binding.')
         changes[selector]=row;bindings.append((key,row['after']['m_PathID']))
-    if {texture for _,texture in bindings}!=additions:raise ValueError('A cloned material texture has no owning material.')
+    if {texture for _,texture in bindings}!=owned:raise ValueError('A private material texture has no owning material.')
+    updates=[dict(pathId=row['pathId'],property=row['property'],before=row['before'],texture=clones[row['after']['m_PathID']]['source'])for row in receipt['materialUpdates']]
+    if not replaced<=private_material_texture_targets(before,updates):raise ValueError('A replaced material texture has an unowned native consumer.')
     for key,obj in before.objects.items():
         if key==receipt['metadataObject']:
             if obj.type.name!='AssetBundle'or material_texture_preloads(obj.read_typetree(),bindings)!=after.objects[key].read_typetree():
@@ -1858,13 +2025,13 @@ def validate_owned_material_textures(receipt):
                     if entry['m_Texture']!=change['before']:raise ValueError('A cloned material texture lost its source sampler.')
                     entry['m_Texture']=copy.deepcopy(change['after'])
             if expected!=after.objects[key].read_typetree():raise ValueError('A cloned material texture changed another material field.')
-        elif serialized_object_bytes(obj)!=serialized_object_bytes(after.objects[key]):
+        elif key not in replaced and serialized_object_bytes(obj)!=serialized_object_bytes(after.objects[key]):
             raise ValueError('A cloned material texture changed an unowned serialized object.')
     for key,row in clones.items():
         _,compiled=load_serialized_bundle(row['source']['path'],in_memory=True);obj=compiled.objects[row['sourceObject']]
         expected=obj.read_typetree();payload=bytes(obj.read().get_image_data())
         expected['m_StreamData']=dict(expected['m_StreamData'],offset=0,size=0,path='');expected['image data']=payload
-        if obj.type.name!='Texture2D'or obj.peek_name()!=row['source']['name']or expected!=after.objects[key].read_typetree()or hashlib.sha256(payload).hexdigest()!=row['payloadSha256']:
+        if obj.type.name!='Texture2D'or obj.peek_name()!=row['source']['name']or row['source'].get('object',obj.path_id)!=obj.path_id or expected!=after.objects[key].read_typetree()or hashlib.sha256(payload).hexdigest()!=row['payloadSha256']:
             raise ValueError('A cloned material texture differs from its compiled object or complete mips.')
     for name,value in source_env.file.files.items():
         if hasattr(value,'objects'):continue
@@ -1935,8 +2102,8 @@ def prepare_standalone_part(source_path, expected_sha256, target_path, replaceme
     if source_path.resolve()==target_path.resolve() or digest(source_path)!=expected_sha256.lower():
         raise ValueError('The immutable standalone mesh source differs.')
     fingerprints=[row['sourceFingerprint']for row in replacements]
-    if (not fingerprints and not material_updates and not repair_cloth and not bone_order_updates)or len(set(fingerprints))!=len(fingerprints):
-        raise ValueError('A standalone mesh batch requires unique source fingerprints.')
+    if not fingerprints and not material_updates and not repair_cloth and not bone_order_updates:
+        raise ValueError('A standalone mesh batch requires declared source owners.')
     environment,file=load_serialized_bundle(source_path,in_memory=True)
     before={key:serialized_object_bytes(obj)for key,obj in file.objects.items()}
     # Cloth owns its component metadata, not the complete sparse mesh frames.
@@ -1962,7 +2129,7 @@ def prepare_standalone_part(source_path, expected_sha256, target_path, replaceme
         for key in matches:
             if key in selected:raise ValueError('A standalone mesh owner is repeated.')
             packet=row['packet'];binding=row['binding'];tree=dict(row['compiledTree'])
-            if tree.get('m_StreamData',{}).get('size',0)!=0 or len(binding['vertices'])!=packet['vertexCount']:
+            if tree.get('m_StreamData',{}).get('size',0)!=0 or (binding is not None and len(binding['vertices'])!=packet['vertexCount']):
                 raise ValueError('A prepared standalone mesh has a streamed or different attachment layout.')
             tree['m_Name']=file.objects[key].peek_name();mesh_trees[key]=tree
             cloth_replacements[key]=dict(native=native[key],raw=native[key],packet=packet,binding=binding,joint=None,entry=dict(authoredFingerprint=packet['sourceFingerprint']))
@@ -1974,7 +2141,7 @@ def prepare_standalone_part(source_path, expected_sha256, target_path, replaceme
                 if not renderer_ids:raise ValueError('A prepared skin mesh has no owned serialized renderer.')
                 for identifier in renderer_ids:
                     if identifier in bone_updates:raise ValueError('A prepared skin renderer palette is repeated.')
-                    trees[identifier],palette=extend_skin_bone_palette(file,trees[identifier],row['sourceBonePaths'],row['bonePaths'])
+                    trees[identifier],palette=extend_skin_bone_palette(file,trees[identifier],row['sourceBonePaths'],row['bonePaths'],packet=packet)
                     bone_updates[identifier]=dict(palette,renderer=identifier,mesh=key)
     material_ids=set();material_proofs=[]
     for update in material_updates:

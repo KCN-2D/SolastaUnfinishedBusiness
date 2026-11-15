@@ -1545,6 +1545,29 @@ function Get-VerificationProcessState {
         $retainedHash=Get-GtHash $payload.retained
         $applied=Invoke-StorageCleanup $payload.area -Options $options -Apply
         Add-StorageCheck 'generated payload apply retires only selected data and keeps referenced bytes' (-not(Test-Path -LiteralPath $payload.first) -and -not(Test-Path -LiteralPath $payload.second) -and (Get-GtHash $payload.retained) -ceq $retainedHash -and @($applied.actions|Where-Object applied -eq $true).Count -eq 2)
+        $nestedPayload=New-GeneratedPayloadFixture 'many-roots-nested'
+        $nestedDirectory=Join-Path (Split-Path -Parent $nestedPayload.first) 'Nested/Deeper'
+        [void][IO.Directory]::CreateDirectory($nestedDirectory)
+        $nestedPath=Join-Path $nestedDirectory ([IO.Path]::GetFileName($nestedPayload.first))
+        [IO.File]::Move($nestedPayload.first,$nestedPath)
+        $nestedPayload.document.files[0].path=$nestedPath
+        $nestedPayload.document.roots+=@(foreach($index in 0..127){
+            $name='Unrelated'+$index
+            [void][IO.Directory]::CreateDirectory((Join-Path $nestedPayload.area $name))
+            $name
+        })
+        Write-GtJson $nestedPayload.plan $nestedPayload.document
+        $nestedResult=Invoke-StorageCleanup $nestedPayload.area -Options @{GeneratedPayloadPlanPath=$nestedPayload.plan;ReferencePath=@($nestedPayload.reference)} -Apply
+        Add-StorageCheck 'many declared payload roots preserve nested membership and protected siblings' (-not(Test-Path -LiteralPath $nestedPath) -and -not(Test-Path -LiteralPath $nestedPayload.second) -and (Test-Path -LiteralPath $nestedPayload.retained) -and @($nestedResult.actions|Where-Object applied -eq $true).Count -eq 2)
+        $prefixPayload=New-GeneratedPayloadFixture 'root-prefix-sibling'
+        $prefixDirectory=Join-Path $prefixPayload.area 'RetiredElsewhere'
+        [void][IO.Directory]::CreateDirectory($prefixDirectory)
+        $prefixPath=Join-Path $prefixDirectory ([IO.Path]::GetFileName($prefixPayload.second))
+        [IO.File]::Move($prefixPayload.second,$prefixPath)
+        $prefixPayload.document.files[1].path=$prefixPath
+        Write-GtJson $prefixPayload.plan $prefixPayload.document
+        $prefixRejected=Test-StorageRejection {Invoke-StorageCleanup $prefixPayload.area -Options @{GeneratedPayloadPlanPath=$prefixPayload.plan;ReferencePath=@($prefixPayload.reference)} -Apply}
+        Add-StorageCheck 'payload root name prefixes cannot authorize sibling directories or delete earlier valid members' ($prefixRejected -and (Test-Path -LiteralPath $prefixPayload.first) -and (Test-Path -LiteralPath $prefixPath))
         $assetPayload=New-GeneratedPayloadFixture 'asset-workspace' -Root $script:AssetAuthoringWorkspace
         $assetOptions=@{GeneratedPayloadPlanPath=$assetPayload.plan;ReferencePath=@($assetPayload.reference)}
         $assetPreview=Invoke-StorageCleanup $assetPayload.area -Options $assetOptions

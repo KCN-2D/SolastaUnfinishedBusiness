@@ -12,6 +12,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Threading.Tasks;
 using JetBrains.Annotations;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -52,6 +53,7 @@ internal static class UpdateContext
     private static CancellationTokenSource _characterModelDownloadCancellation;
     private static readonly object CharacterModelDownloadGate = new();
     private static readonly SemaphoreSlim CharacterModelContentGate = new(1, 1);
+    private const int CharacterModelDownloadConcurrency = 4;
     private static long _characterModelDownloadBytes, _characterModelDownloadTotal;
     private static volatile bool _characterModelsDownloading;
     internal static bool CharacterModelsDownloading => _characterModelsDownloading;
@@ -151,7 +153,7 @@ internal static class UpdateContext
     private static string ContentSha(string path)
     {
         using var input = File.OpenRead(path);
-        using var hash = SHA256.Create();
+        using var hash = CustomModels.CreateAssetSha256();
         return BitConverter.ToString(hash.ComputeHash(input)).Replace("-", "").ToLowerInvariant();
     }
 
@@ -178,6 +180,12 @@ internal static class UpdateContext
             throw new InvalidDataException("Unknown character content directory.");
         var names = new HashSet<string>(((JArray)marker["files"]).Values<string>(), StringComparer.OrdinalIgnoreCase)
             { "ContentOwner.json", "ContentOwner.writing", "CharacterModels.manifest.json", "CharacterModels.packs.json", "Download.partial" };
+        foreach (var name in (marker["downloads"] as JArray ?? new JArray()).Values<string>())
+        {
+            if (!Regex.IsMatch(name ?? "", "^CharacterModels-[0-9]{2}\\.zip\\.partial$"))
+                throw new InvalidDataException("Invalid character download checkpoint.");
+            names.Add(name);
+        }
         foreach (var name in names) AssertContentLeaf(name);
         var entries = Directory.GetFileSystemEntries(directory);
         foreach (var path in entries)
@@ -203,28 +211,102 @@ internal static class UpdateContext
         else File.Move(temporary, path);
     }
 
-    private static void DownloadCharacterModelPack(Uri uri, string path, long bytes, CancellationToken cancellation)
+    private static void DownloadCharacterModelPack(Uri uri, string path, long bytes, string expectedHash,
+        CancellationToken cancellation)
     {
+        cancellation.ThrowIfCancellationRequested();
+        var offset = File.Exists(path) ? new FileInfo(path).Length : 0;
+        if (offset == bytes && ContentSha(path) == expectedHash)
+        {
+            Interlocked.Add(ref _characterModelDownloadBytes, bytes);
+            return;
+        }
+        if (offset >= bytes)
+        {
+            File.Delete(path);
+            offset = 0;
+        }
         var request = (HttpWebRequest)WebRequest.Create(uri);
         request.UserAgent = "SolastaUnfinishedBusiness";
         request.Timeout = 30000;
         request.ReadWriteTimeout = 30000;
+        request.ServicePoint.ConnectionLimit = Math.Max(request.ServicePoint.ConnectionLimit,
+            CharacterModelDownloadConcurrency);
+        if (offset > 0) request.AddRange(offset);
         using var registration = cancellation.Register(request.Abort);
-        using var response = request.GetResponse();
+        using var response = (HttpWebResponse)request.GetResponse();
+        var servicePoint = ServicePointManager.FindServicePoint(response.ResponseUri);
+        servicePoint.ConnectionLimit = Math.Max(servicePoint.ConnectionLimit, CharacterModelDownloadConcurrency);
+        if (response.StatusCode == HttpStatusCode.OK) offset = 0;
+        else if (response.StatusCode != HttpStatusCode.PartialContent || offset == 0 ||
+                 response.Headers[HttpResponseHeader.ContentRange] != $"bytes {offset}-{bytes - 1}/{bytes}")
+            throw new InvalidDataException("A character pack has an unexpected byte range.");
+        if (response.ContentLength >= 0 && response.ContentLength != bytes - offset)
+            throw new InvalidDataException("A character pack has an unexpected response length.");
         using var input = response.GetResponseStream();
-        using var output = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 131072);
+        using var hash = CustomModels.CreateAssetSha256();
         var buffer = new byte[131072];
-        long total = 0;
         int count;
-        while ((count = input.Read(buffer, 0, buffer.Length)) > 0)
+        if (offset > 0)
         {
-            cancellation.ThrowIfCancellationRequested();
-            total += count;
-            if (total > bytes) throw new InvalidDataException("A character content pack exceeds its declared size.");
-            output.Write(buffer, 0, count);
-            Interlocked.Add(ref _characterModelDownloadBytes, count);
+            using var prefix = File.OpenRead(path);
+            while ((count = prefix.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                hash.TransformBlock(buffer, 0, count, null, 0);
+            }
         }
+        Interlocked.Add(ref _characterModelDownloadBytes, offset);
+        var total = offset;
+        using (var output = new FileStream(path, offset > 0 ? FileMode.Append : FileMode.Create,
+                   FileAccess.Write, FileShare.None, buffer.Length, FileOptions.SequentialScan))
+            while ((count = input.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                total += count;
+                if (total > bytes) throw new InvalidDataException("A character content pack exceeds its declared size.");
+                output.Write(buffer, 0, count);
+                hash.TransformBlock(buffer, 0, count, null, 0);
+                Interlocked.Add(ref _characterModelDownloadBytes, count);
+            }
         if (total != bytes) throw new InvalidDataException("A character content pack is incomplete.");
+        hash.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+        if (BitConverter.ToString(hash.Hash).Replace("-", "").ToLowerInvariant() == expectedHash) return;
+        File.Delete(path);
+        throw new InvalidDataException("Character pack checksum differs.");
+    }
+
+    private static bool CopyCharacterModelFile(Stream input, string destination, long bytes, string expectedHash,
+        CancellationToken cancellation)
+    {
+        var valid = false;
+        var created = false;
+        try
+        {
+            using var hash = CustomModels.CreateAssetSha256();
+            using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+                131072, FileOptions.SequentialScan);
+            created = true;
+            var buffer = new byte[131072];
+            long written = 0;
+            int count;
+            while ((count = input.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                written += count;
+                if (written > bytes) return false;
+                output.Write(buffer, 0, count);
+                hash.TransformBlock(buffer, 0, count, null, 0);
+            }
+            hash.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+            valid = written == bytes &&
+                    BitConverter.ToString(hash.Hash).Replace("-", "").ToLowerInvariant() == expectedHash;
+            return valid;
+        }
+        finally
+        {
+            if (created && !valid && File.Exists(destination)) File.Delete(destination);
+        }
     }
 
     // Runs on the catalog worker. Verified content survives UMM updates beside
@@ -298,10 +380,11 @@ internal static class UpdateContext
             throw new InvalidDataException("Incomplete character content declarations.");
         var packs = ((JArray)specification["packs"]).OfType<JObject>().ToArray();
         var packedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var packNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var pack in packs)
         {
             AssertContentLeaf((string)pack["file"]);
-            if (!Regex.IsMatch((string)pack["file"], "^CharacterModels-[0-9]{2}\\.zip$") ||
+            if (!packNames.Add((string)pack["file"]) || !Regex.IsMatch((string)pack["file"], "^CharacterModels-[0-9]{2}\\.zip$") ||
                 (long?)pack["bytes"] is not > 0 || (long?)pack["bytes"] > 1024L * 1024 * 1024 ||
                 !Regex.IsMatch((string)pack["sha256"] ?? "", "^[a-f0-9]{64}$"))
                 throw new InvalidDataException("Invalid character content pack.");
@@ -322,7 +405,8 @@ internal static class UpdateContext
         var previous = Path.Combine(cacheRoot, "CharacterModels.previous");
         AssertContentPath(cacheRoot);
         var owner = new JObject { ["schemaVersion"] = 1, ["kind"] = "SolastaUnfinishedBusiness.CharacterModels",
-            ["distributionSha256"] = identity, ["files"] = new JArray(files.Keys), ["completed"] = false };
+            ["distributionSha256"] = identity, ["files"] = new JArray(files.Keys), ["completed"] = false,
+            ["downloads"] = new JArray(packs.Select(pack => (string)pack["file"] + ".partial")) };
         bool Complete(string folder)
         {
             var path = Path.Combine(folder, "ContentOwner.json");
@@ -336,7 +420,24 @@ internal static class UpdateContext
         }
         cancellation.ThrowIfCancellationRequested();
         if (Complete(installed)) return installed;
-        if (!Directory.Exists(installed) && Directory.Exists(previous)) Directory.Move(previous, installed);
+        if (!Directory.Exists(installed) && Directory.Exists(previous))
+        {
+            _ = OwnedCharacterContentEntries(previous);
+            Directory.Move(previous, installed);
+            if (Complete(installed)) return installed;
+        }
+        Dictionary<string, string> installedHashes = null;
+        if (Directory.Exists(installed))
+        {
+            _ = OwnedCharacterContentEntries(installed);
+            var state = JObject.Parse(File.ReadAllText(Path.Combine(installed, "ContentOwner.json")));
+            var installedMetadata = Path.Combine(installed, metadataName);
+            if ((bool?)state["completed"] == true && File.Exists(installedMetadata) &&
+                ContentSha(installedMetadata) == (string)state["distributionSha256"])
+                installedHashes = ((JArray)JObject.Parse(File.ReadAllText(installedMetadata))["files"])
+                    .OfType<JObject>().ToDictionary(row => (string)row["file"], row => (string)row["sha256"],
+                        StringComparer.OrdinalIgnoreCase);
+        }
         if (Directory.Exists(staging))
         {
             _ = OwnedCharacterContentEntries(staging);
@@ -345,95 +446,114 @@ internal static class UpdateContext
         }
         Directory.CreateDirectory(staging);
         WriteCharacterContentOwner(staging, owner);
+        var legacyDownload = Path.Combine(staging, "Download.partial");
+        if (File.Exists(legacyDownload)) File.Delete(legacyDownload);
         File.Copy(Path.Combine(directory, catalogName), Path.Combine(staging, catalogName), true);
         File.Copy(metadataPath, Path.Combine(staging, metadataName), true);
         bool Valid(string folder, string name) => File.Exists(Path.Combine(folder, name)) &&
             new FileInfo(Path.Combine(folder, name)).Length == (long)files[name]["bytes"] &&
             ContentSha(Path.Combine(folder, name)) == (string)files[name]["sha256"];
-        foreach (var pair in files)
-        {
-            cancellation.ThrowIfCancellationRequested();
-            var destination = Path.Combine(staging, pair.Key);
-            AssertContentPath(destination);
-            if (Valid(staging, pair.Key)) continue;
-            if (File.Exists(destination)) File.Delete(destination);
-            foreach (var seed in new[] { directory, installed })
-            {
-                AssertContentPath(Path.Combine(seed, pair.Key));
-                if (!Valid(seed, pair.Key)) continue;
-                File.Copy(Path.Combine(seed, pair.Key), destination);
-                break;
-            }
-        }
         _characterModelsDownloading = true;
         Interlocked.Exchange(ref _characterModelDownloadBytes, 0);
         Interlocked.Exchange(ref _characterModelDownloadTotal, packs.Sum(pack => (long)pack["bytes"]));
-        var download = Path.Combine(staging, "Download.partial");
-        try
+        using (var workers = CancellationTokenSource.CreateLinkedTokenSource(cancellation))
         {
-            foreach (var pack in packs)
+            Parallel.ForEach(packs, new ParallelOptions
             {
-                cancellation.ThrowIfCancellationRequested();
-                var expected = new HashSet<string>(((JArray)pack["files"]).Values<string>(), StringComparer.OrdinalIgnoreCase);
-                if (expected.All(name => Valid(staging, name)))
+                MaxDegreeOfParallelism = CharacterModelDownloadConcurrency,
+                CancellationToken = workers.Token
+            }, pack =>
+            {
+                var token = workers.Token;
+                try
                 {
-                    Interlocked.Add(ref _characterModelDownloadBytes, (long)pack["bytes"]);
-                    continue;
-                }
-                DownloadCharacterModelPack(new Uri(baseUri, (string)pack["file"]), download, (long)pack["bytes"], cancellation);
-                if (ContentSha(download) != (string)pack["sha256"]) throw new InvalidDataException("Character pack checksum differs.");
-                using (var archive = ZipFile.OpenRead(download))
-                {
-                    var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var entry in archive.Entries)
+                    token.ThrowIfCancellationRequested();
+                    var expected = new HashSet<string>(((JArray)pack["files"]).Values<string>(), StringComparer.OrdinalIgnoreCase);
+                    var verified = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var name in expected)
                     {
-                        cancellation.ThrowIfCancellationRequested();
-                        AssertContentLeaf(entry.FullName);
-                        if (!expected.Contains(entry.FullName) || !seen.Add(entry.FullName) ||
-                            entry.Length != (long)files[entry.FullName]["bytes"])
-                            throw new InvalidDataException("Unexpected character pack entry.");
-                        if (Valid(staging, entry.FullName)) continue;
-                        var destination = Path.Combine(staging, entry.FullName);
-                        if (File.Exists(destination)) File.Delete(destination);
-                        using var input = entry.Open();
-                        using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-                        var buffer = new byte[131072];
-                        long written = 0;
-                        int count;
-                        while ((count = input.Read(buffer, 0, buffer.Length)) > 0)
+                        token.ThrowIfCancellationRequested();
+                        var destination = Path.Combine(staging, name);
+                        AssertContentPath(destination);
+                        if (Valid(staging, name))
                         {
-                            cancellation.ThrowIfCancellationRequested();
-                            written += count;
-                            if (written > entry.Length) throw new InvalidDataException("Oversized character pack entry.");
-                            output.Write(buffer, 0, count);
+                            verified.Add(name);
+                            continue;
+                        }
+                        if (File.Exists(destination)) File.Delete(destination);
+                        foreach (var seed in new[] { directory, installed })
+                        {
+                            if (seed == installed && installedHashes != null &&
+                                (!installedHashes.TryGetValue(name, out var hash) || hash != (string)files[name]["sha256"])) continue;
+                            var candidate = Path.Combine(seed, name);
+                            AssertContentPath(candidate);
+                            if (!File.Exists(candidate) || new FileInfo(candidate).Length != (long)files[name]["bytes"]) continue;
+                            using var input = File.OpenRead(candidate);
+                            if (!CopyCharacterModelFile(input, destination, (long)files[name]["bytes"],
+                                    (string)files[name]["sha256"], token)) continue;
+                            verified.Add(name);
+                            break;
                         }
                     }
-                    if (!seen.SetEquals(expected)) throw new InvalidDataException("A character pack omits declared files.");
+                    var download = Path.Combine(staging, (string)pack["file"] + ".partial");
+                    AssertContentPath(download);
+                    if (verified.SetEquals(expected))
+                    {
+                        Interlocked.Add(ref _characterModelDownloadBytes, (long)pack["bytes"]);
+                        if (File.Exists(download)) File.Delete(download);
+                        return;
+                    }
+                    DownloadCharacterModelPack(new Uri(baseUri, (string)pack["file"]), download, (long)pack["bytes"],
+                        (string)pack["sha256"], token);
+                    using (var archive = ZipFile.OpenRead(download))
+                    {
+                        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var entry in archive.Entries)
+                        {
+                            token.ThrowIfCancellationRequested();
+                            AssertContentLeaf(entry.FullName);
+                            if (!expected.Contains(entry.FullName) || !seen.Add(entry.FullName) ||
+                                entry.Length != (long)files[entry.FullName]["bytes"])
+                                throw new InvalidDataException("Unexpected character pack entry.");
+                            if (verified.Contains(entry.FullName)) continue;
+                            var destination = Path.Combine(staging, entry.FullName);
+                            if (File.Exists(destination)) File.Delete(destination);
+                            using var input = entry.Open();
+                            if (!CopyCharacterModelFile(input, destination, entry.Length, (string)files[entry.FullName]["sha256"], token))
+                                throw new InvalidDataException("Extracted character checksums differ.");
+                            verified.Add(entry.FullName);
+                        }
+                        if (!seen.SetEquals(expected)) throw new InvalidDataException("A character pack omits declared files.");
+                    }
+                    if (!verified.SetEquals(expected)) throw new InvalidDataException("Extracted character checksums differ.");
+                    File.Delete(download);
                 }
-                if (!expected.All(name => Valid(staging, name))) throw new InvalidDataException("Extracted character checksums differ.");
-                File.Delete(download);
-            }
-            cancellation.ThrowIfCancellationRequested();
-            owner["completed"] = true;
-            WriteCharacterContentOwner(staging, owner);
-            RemoveOwnedCharacterContent(previous);
-            if (Directory.Exists(installed)) Directory.Move(installed, previous);
-            try { Directory.Move(staging, installed); }
-            catch
-            {
-                if (Directory.Exists(previous) && !Directory.Exists(installed)) Directory.Move(previous, installed);
-                throw;
-            }
-            RemoveOwnedCharacterContent(previous);
-            foreach (var name in files.Keys)
-            {
-                var legacy = Path.Combine(directory, name);
-                AssertContentPath(legacy);
-                if (File.Exists(legacy)) File.Delete(legacy);
-            }
-            return installed;
+                catch
+                {
+                    workers.Cancel();
+                    throw;
+                }
+            });
         }
-        finally { if (File.Exists(download)) File.Delete(download); }
+        cancellation.ThrowIfCancellationRequested();
+        owner["completed"] = true;
+        WriteCharacterContentOwner(staging, owner);
+        RemoveOwnedCharacterContent(previous);
+        if (Directory.Exists(installed)) Directory.Move(installed, previous);
+        try { Directory.Move(staging, installed); }
+        catch
+        {
+            if (Directory.Exists(previous) && !Directory.Exists(installed)) Directory.Move(previous, installed);
+            throw;
+        }
+        RemoveOwnedCharacterContent(previous);
+        foreach (var name in files.Keys)
+        {
+            var legacy = Path.Combine(directory, name);
+            AssertContentPath(legacy);
+            if (File.Exists(legacy)) File.Delete(legacy);
+        }
+        return installed;
     }
 
     internal static void Load()

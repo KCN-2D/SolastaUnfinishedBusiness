@@ -113,6 +113,64 @@ setattr(publisher,'asset_names',names)
 
 
 class CharacterPublicNameContracts(unittest.TestCase):
+    def geometry_retirement_fixture(self,root):
+        artifacts=root/'tools/game-test/artifacts';folder=artifacts/'Candidate'
+        for name in ('Catalog','GeometryCatalog'):(folder/name).mkdir(parents=True)
+        final=folder/'Catalog/hero.bundle';final.write_bytes(b'finished')
+        intermediate=folder/'GeometryCatalog/hero.bundle';intermediate.write_bytes(b'geometry')
+        (folder/'GeometryCatalog/unrelated.bundle').write_bytes(b'keep')
+        manifest=dict(bundles=[dict(file=final.name,sha256=publisher.sha(final))],meshes=[])
+        publisher.write(folder/'Catalog/CharacterModels.manifest.json',manifest)
+        declaration=dict(owner=dict(codeSignature='a'*64),coverage=[],rows=[],humanStyleFiles=[])
+        publisher.write(folder/'ResourceAssembly.json',dict(status='PASS_STANDALONE_CHARACTER_RESOURCES',
+            catalogSha256=publisher.sha(folder/'Catalog/CharacterModels.manifest.json'),nativeFaceContours=declaration))
+        payload=dict(file=intermediate.name,sha256=publisher.sha(intermediate))
+        checkpoint=dict(status='PREPARED_GEOMETRY',**declaration,manifest=dict(bundles=[payload],meshes=[]),assembly=dict(proofs=[payload]))
+        publisher.write(folder/'GeometryPreparation.json',checkpoint)
+        reference=artifacts/'References.json';publisher.write(reference,dict(schemaVersion=1,paths=[]))
+        return folder,reference,artifacts/'Retirement.json',checkpoint
+
+    def test_retirement_includes_declared_intermediate_catalog_and_keeps_other_files(self):
+        with tempfile.TemporaryDirectory()as temporary:
+            root=Path(temporary).resolve();folder,reference,output,_=self.geometry_retirement_fixture(root)
+            with mock.patch.object(publisher,'ROOT',root):
+                plan=publisher.create_resource_retirement_plan([folder],reference,output)
+            self.assertEqual({Path(r['path'])for r in plan['files']},{folder/'Catalog/hero.bundle',folder/'GeometryCatalog/hero.bundle'})
+            self.assertEqual({Path(p)for p in plan['roots']},{Path('Candidate/Catalog'),Path('Candidate/GeometryCatalog')})
+            self.assertTrue((folder/'GeometryCatalog/unrelated.bundle').is_file())
+
+    def test_retirement_preserves_referenced_intermediate_payloads(self):
+        with tempfile.TemporaryDirectory()as temporary:
+            root=Path(temporary).resolve();folder,reference,output,_=self.geometry_retirement_fixture(root)
+            publisher.write(reference,dict(schemaVersion=1,paths=[str(folder/'GeometryCatalog')]))
+            with mock.patch.object(publisher,'ROOT',root):
+                plan=publisher.create_resource_retirement_plan([folder],reference,output)
+            self.assertEqual([Path(r['path'])for r in plan['files']],[folder/'Catalog/hero.bundle'])
+
+    def test_retirement_resumes_after_intermediate_catalog_was_removed(self):
+        with tempfile.TemporaryDirectory()as temporary:
+            root=Path(temporary).resolve();folder,reference,output,_=self.geometry_retirement_fixture(root)
+            for path in (folder/'GeometryCatalog').iterdir():path.unlink()
+            (folder/'GeometryCatalog').rmdir()
+            with mock.patch.object(publisher,'ROOT',root):
+                plan=publisher.create_resource_retirement_plan([folder],reference,output)
+                self.assertEqual([Path(r['path'])for r in plan['files']],[folder/'Catalog/hero.bundle'])
+                (folder/'Catalog/hero.bundle').unlink()
+                self.assertEqual(publisher.create_resource_retirement_plan([folder],reference,output)['files'],[])
+
+    def test_retirement_rejects_foreign_or_changed_intermediate_ownership(self):
+        with tempfile.TemporaryDirectory()as temporary:
+            root=Path(temporary).resolve();folder,reference,output,checkpoint=self.geometry_retirement_fixture(root)
+            with mock.patch.object(publisher,'ROOT',root):
+                changed=copy.deepcopy(checkpoint);changed['owner']['codeSignature']='b'*64
+                publisher.write(folder/'GeometryPreparation.json',changed)
+                with self.assertRaisesRegex(ValueError,'completed producer owner'):
+                    publisher.create_resource_retirement_plan([folder],reference,output)
+                changed=copy.deepcopy(checkpoint);changed['assembly']['proofs']=[]
+                publisher.write(folder/'GeometryPreparation.json',changed)
+                with self.assertRaisesRegex(ValueError,'declared resource closure'):
+                    publisher.create_resource_retirement_plan([folder],reference,output)
+
     def test_resource_retirement_plan_keeps_referenced_and_current_catalog_data(self):
         with tempfile.TemporaryDirectory()as temporary:
             root=Path(temporary).resolve();artifacts=root/'tools/game-test/artifacts';old=artifacts/'Old';catalog=old/'Catalog'
@@ -135,7 +193,7 @@ class CharacterPublicNameContracts(unittest.TestCase):
                 reference.write_text(json.dumps(dict(schemaVersion=1,paths=[str(catalog)])),encoding='utf8')
                 plan=publisher.create_resource_retirement_plan([old],reference,output)
                 self.assertEqual(plan['files'],[])
-                with self.assertRaisesRegex(ValueError,'below artifacts'):
+                with self.assertRaisesRegex(ValueError,'below the declared workspace'):
                     publisher.create_resource_retirement_plan([root],reference,output)
                 (old/'ResourceAssembly.json').write_text(json.dumps(dict(status='INCOMPLETE',catalogSha256=publisher.sha(manifest))),encoding='utf8')
                 with self.assertRaisesRegex(ValueError,'completed resource owner'):
@@ -584,6 +642,9 @@ class CharacterResourceContracts(unittest.TestCase):
         compressed=api.texture_main_storage(result,bytes(112),480,25)
         self.assertEqual(compressed['m_TextureFormat'],25)
         self.assertEqual(compressed['m_CompleteImageSize'],112)
+        opaque=api.texture_main_storage(result,bytes(56),480,10)
+        self.assertEqual(opaque['m_TextureFormat'],10)
+        self.assertEqual(opaque['m_CompleteImageSize'],56)
         for key in texture.keys()-{'m_TextureFormat','m_CompleteImageSize','m_StreamData'}:self.assertEqual(compressed[key],texture[key])
         with self.assertRaises(ValueError):api.texture_main_storage(result,bytes(111),480,25)
         with self.assertRaises(ValueError):api.texture_main_storage(dict(result,m_CompleteImageSize=339),bytes(112),480,25)
@@ -732,7 +793,11 @@ class CharacterResourceContracts(unittest.TestCase):
                 dict(object=1,name='Normal',width=4,height=4,mipCount=1,beforeFormat=4,format=25,bytes=16,raw=pin(raw),
                     sourcePayloadSha256=hashlib.sha256(bytes(64)).hexdigest(),payloadSha256=api.digest(raw))])
             with mock.patch.object(api,'load_serialized_bundle',side_effect=lambda path,**kwargs:(None,first if Path(path)==source else second)):
-                api.validate_owned_texture_mips(receipt)
+                for format,size in ((4,64),(10,8),(12,16),(25,16)):
+                    raw.write_bytes(bytes(size));second.objects[1].payload=raw.read_bytes()
+                    new.update(m_TextureFormat=format,m_CompleteImageSize=size,m_StreamData=dict(path='skin.resS',offset=0,size=size))
+                    receipt['textures'][0].update(format=format,bytes=size,raw=pin(raw),payloadSha256=api.digest(raw))
+                    api.validate_owned_texture_mips(receipt)
                 new['m_ColorSpace']=1
                 with self.assertRaisesRegex(ValueError,'colour space'):api.validate_owned_texture_mips(receipt)
                 new['m_ColorSpace']=0
@@ -747,6 +812,7 @@ class CharacterResourceContracts(unittest.TestCase):
         self.assertEqual(api.groom_material_identifiers(file),{11})
 
     def test_skin_palette_extension_uses_the_renderers_own_rig(self):
+        import numpy as np
         api=self.resource_module();pointer=lambda value:dict(m_FileID=0,m_PathID=value)
         objects={}
         def game(identifier,name):
@@ -764,6 +830,19 @@ class CharacterResourceContracts(unittest.TestCase):
         self.assertEqual(result['m_Bones'],[pointer(6),pointer(4)])
         self.assertEqual(renderer['m_Bones'],[pointer(6)])
         self.assertTrue(proof['nativeBonePrefixExact'])
+        root_bind=np.array([[0.,0.,-1.,1.],[0.,1.,0.,0.],[1.,0.,0.,0.],[0.,0.,0.,1.]])
+        bounded=dict(renderer,m_RootBone=pointer(6),m_AABB=dict(m_Center=dict(x=0.,y=0.,z=0.),m_Extent=dict(x=.2,y=.3,z=.4)))
+        packet=dict(vertices=[0.,0.,1.5],bindPoses=root_bind.T.ravel().tolist()*2,
+            shapes=[dict(frames=[dict(vertices=[0.,.5,0.])])])
+        framed,bound_proof=api.extend_skin_bone_palette(file,bounded,source,target,packet=packet)
+        bounds=framed['m_AABB'];low=np.array([bounds['m_Center'][a]-bounds['m_Extent'][a]for a in 'xyz']);high=np.array([bounds['m_Center'][a]+bounds['m_Extent'][a]for a in 'xyz'])
+        self.assertLessEqual(low[0],-.5);self.assertGreaterEqual(high[1],.5)
+        self.assertGreaterEqual(high[2],.4);self.assertLess(high[2],.41)
+        self.assertTrue(bound_proof['nativeCullingEnvelopeRetained'])
+        corrupt=copy.deepcopy(bounded);corrupt['m_AABB']['m_Center']['x']=1e20
+        fixed,fixed_proof=api.extend_skin_bone_palette(file,corrupt,source,target,packet=packet)
+        self.assertFalse(fixed_proof['nativeCullingEnvelopeRetained'])
+        self.assertLess(max(abs(v)for v in fixed['m_AABB']['m_Center'].values()),2.)
         repeated=dict(renderer,m_Bones=[pointer(6),pointer(6)])
         slots=[source[0],source[0]]
         extended,alias_proof=api.extend_skin_bone_palette(file,repeated,slots,[*slots,target[-1],source[0]])

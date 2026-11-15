@@ -31,6 +31,8 @@ shader/includeを変更したら、`materials.json`の`assets[].sha256`を更新
 
 描画passはForwardBase、ForwardAdd、ShadowCasterです。実ゲームで髪とヒゲの見た目、金具、色選択、表示負荷を比較します。
 
+細い毛の描画幅は`_FineAlphaCutoff`で調整し、その幅に断面の法線を合わせます。毛流れ、毛の本数、揺れの頂点は保持します。元の土台と金具の透過には、それぞれの材質の設定を使います。
+
 schema 3の資源では、`CharacterFaces/build_models.py`の`refine-groom-frames --shader-only`で、共有shaderだけを更新します。`--source`に採用元の資源ディレクトリ、`--output`に比較用の出力先、`--shader-report`と`--shader-validation`に生成・検査結果を指定します。CAB名とobject IDを保ち、既存の髪型、材質、画像の参照を引き継ぎます。
 
 同条件の旧版と画像・性能を比較してから採用版へ反映します。旧形式の材質profileには`adopt_material.py`を使います。

@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools/blender-models/CharacterFaces"))
-from build_models import catalog_payloads, create_resource_retirement_plan
+from build_models import catalog_payloads, checked_source_path, completed_resource_payloads, create_resource_retirement_plan
 
 ARTIFACTS = ROOT / "tools/game-test/artifacts"
 WORKSPACE = ROOT / "tools/asset-authoring/workspace"
@@ -41,6 +41,21 @@ def walk(root):
         yield Path(folder), names
 
 
+def has_payloads(directory):
+    """Avoid reparsing large producer receipts once all their payloads were retired."""
+    for name in ("Catalog", "GeometryCatalog"):
+        folder = directory / name
+        if folder.is_symlink() or folder.is_junction():
+            return True  # Keep linked paths on the full ownership-validation route.
+        if not folder.is_dir():
+            continue
+        with os.scandir(folder) as entries:
+            if any(entry.name.lower().endswith(".bundle") and entry.is_file(follow_symlinks=False)
+                   for entry in entries):
+                return True
+    return False
+
+
 def discover(roots):
     catalogs, retained = [], []
     for root in roots:
@@ -49,7 +64,7 @@ def discover(roots):
                 continue
             owner = folder / "ResourceAssembly.json"
             manifest = folder / "Catalog/CharacterModels.manifest.json"
-            if not manifest.is_file():
+            if not manifest.is_file() or not has_payloads(folder):
                 continue
             print("Inspecting resource owner: " + str(folder), flush=True)
             try:
@@ -60,9 +75,10 @@ def discover(roots):
                 if fingerprint != assembly.get("catalogSha256"):
                     raise ValueError("Completed owner does not match its catalog")
                 payloads = catalog_payloads(read(manifest))
+                owned_payloads = completed_resource_payloads(folder, assembly)
                 catalogs.append(dict(root=root, directory=folder, owner=owner, manifest=manifest,
                     sha256=fingerprint, accepted=assembly.get("artAccepted") is True,
-                    modified=owner.stat().st_mtime_ns, payloads=payloads))
+                    modified=owner.stat().st_mtime_ns, payloads=payloads, owned_payloads=owned_payloads))
             except (ValueError, KeyError, OSError) as error:
                 retained.append(dict(path=str(folder), reason=str(error)))
     return catalogs, retained
@@ -103,7 +119,7 @@ def compact_references(paths, retired):
     return sorted(result, key=str.casefold)
 
 
-def select_retired(catalogs, public_sha, keep_accepted):
+def select_retired(catalogs, public_sha, keep_accepted, source_hashes=()):
     adopted = [row for row in catalogs if row["sha256"] == public_sha and row["accepted"]]
     if not adopted:
         raise ValueError("No accepted local catalog matches the adopted product manifest")
@@ -112,8 +128,26 @@ def select_retired(catalogs, public_sha, keep_accepted):
                       key=lambda row: row["modified"], reverse=True)
     keep = {public_sha}
     keep.update(row["sha256"] for row in previous[:max(0, keep_accepted - 1)])
+    keep.update(source_hashes)
     old = [row for row in catalogs if row["sha256"] not in keep and row["modified"] < current["modified"]]
     return current, keep, old
+
+
+def adopted_source_hashes(current):
+    """The immutable adopted source is an input, independent of review timestamps."""
+    quality_path = current["directory"] / "Catalog/CatalogQuality.json"
+    if not quality_path.is_file():
+        return set()
+    quality = read(checked_source_path(quality_path))
+    if quality.get("candidateManifestSha256") != current["sha256"]:
+        raise ValueError("The adopted quality receipt does not match its catalog")
+    source = checked_source_path(Path(quality["sourceCatalog"]) / "CharacterModels.manifest.json")
+    if not any(source.is_relative_to(root) for root in (ARTIFACTS, WORKSPACE)):
+        raise ValueError("The adopted source is outside the owned tool workspaces")
+    fingerprint = sha(source)
+    if fingerprint != quality["sourceManifestSha256"]:
+        raise ValueError("The immutable adopted source catalog changed")
+    return {fingerprint}
 
 
 def plan(output, apply=False, keep_accepted=2):
@@ -131,8 +165,9 @@ def plan(output, apply=False, keep_accepted=2):
         write(output / "ResourceLifecycle.json", record)
         print(json.dumps(record))
         return record
-    obsolete = {row["directory"] / "Catalog" / name for row in old for name in row["payloads"]
-                if Path(name).suffix == ".bundle"}
+    source_hashes = adopted_source_hashes(current)
+    current, keep, old = select_retired(catalogs, public_sha, keep_accepted, source_hashes)
+    obsolete = {path for row in old for path in row["owned_payloads"] if path.suffix == ".bundle"}
     references_path = ARTIFACTS / "StorageReferences.json"
     before = read(references_path) if references_path.is_file() else {"schemaVersion": 1, "paths": []}
     if set(before) != {"schemaVersion", "paths"} or before["schemaVersion"] != 1:
@@ -155,6 +190,7 @@ def plan(output, apply=False, keep_accepted=2):
     record = {"schemaVersion": 1, "status": "planned", "adopted": str(current["directory"]),
               "adoptedManifestSha256": public_sha, "keepAcceptedCatalogs": keep_accepted,
               "retainedCatalogHashes": sorted(keep), "completedCatalogs": len(catalogs),
+              "retainedSourceCatalogHashes": sorted(source_hashes),
               "retiredCatalogs": [str(row["directory"]) for row in old], "unverifiedRetained": retained,
               "referencesBeforeSha256": original_sha, "referencesBeforeCount": len(before["paths"]),
               "referencesAfterCount": len(after["paths"]), "plans": plans,

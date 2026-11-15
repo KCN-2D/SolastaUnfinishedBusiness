@@ -77,7 +77,8 @@ def profile_anchor(anchor: 'dict[str, Any]', packet: 'dict[str, Any]', skin: 'di
         weights = np.asarray(anchor['barycentric'], dtype=np.float64)
         require(weights.shape == (3,) and np.all(np.isfinite(weights)) and np.all(weights >= 0) and abs(float(weights.sum())-1) < 1e-7, 'Invalid source barycentric weights.')
         indices = packet['subMeshes'][slot][ordinal*3:ordinal*3+3]
-        return np.sum(np.asarray(packet['vertices']).reshape(-1, 3)[indices]*weights[:, None], axis=0)
+        vertices=packet['vertices']
+        return np.sum(np.asarray([vertices[i*3:i*3+3]for i in indices])*weights[:, None], axis=0)
     require(set(anchor) == {'type', 'boneIndex', 'expectedBonePath', 'localPoint'}, 'Unknown bind-bone anchor fields.')
     require(type(anchor['localPoint']) is list and len(anchor['localPoint']) == 3 and all(type(x) in (int, float) for x in anchor['localPoint']), 'Bone-local coordinates must be numeric.')
     index = anchor['boneIndex']; point = np.asarray(anchor['localPoint'], dtype=np.float64)
@@ -88,9 +89,13 @@ def profile_anchor(anchor: 'dict[str, Any]', packet: 'dict[str, Any]', skin: 'di
 
 
 def load_profiles(census: 'dict[str, Any]', path, *, resource_owners=False):
+    from functools import lru_cache
     document = art.read_json(path)
     if not (type(document) is dict and set(document) == {'schemaVersion', 'profiles'} and document['schemaVersion'] == 1 and type(document['profiles']) is list): raise ValueError('Invalid face profile document.')
     by_source = {(a['sourceContentKey'], s['path']): (a, s) for a in census['assets'] for s in a['skins']}
+    by_path={skin['meshFile']:skin for _,skin in by_source.values()}
+    @lru_cache(maxsize=16)
+    def read_packet(path):return native_packet(by_path[path])
     resolved = {}; shared = {}; identifiers = set()
     profiles: list[dict[str, Any]] = document['profiles']
     for profile in profiles:
@@ -101,7 +106,8 @@ def load_profiles(census: 'dict[str, Any]', path, *, resource_owners=False):
         if not (type(source) is dict and set(source) == {'assetSourceContentKey', 'rendererPath', 'nativeFingerprint', 'vertexCount', 'bonePathsOrdered', 'rendererToPrefab'}): raise ValueError('Invalid source profile identity.')
         key = (source['assetSourceContentKey'], source['rendererPath'])
         if not (key in by_source and key not in resolved): raise ValueError('Unknown or duplicate source profile binding.')
-        _, skin = by_source[key]; packet = native_packet(skin)
+        _, skin = by_source[key]; packet = read_packet(skin['meshFile'])
+        positions=np.asarray(packet['vertices']).reshape(-1,3)
         if not (source['nativeFingerprint'] == packet['sourceFingerprint'] and source['vertexCount'] == packet['vertexCount'] and source['bonePathsOrdered'] == skin['bones'] and source['rendererToPrefab'] == skin['rendererToPrefab']): raise ValueError('Source profile native geometry/mapping/transform changed.')
         if not (profile['operation'] in ('surface-fairing', 'native-features', 'source-lod-transfer', 'source-guide', 'source-guide-follow')): raise ValueError('Unknown face profile operation.')
         mask = np.zeros(packet['vertexCount'])
@@ -136,7 +142,7 @@ def load_profiles(census: 'dict[str, Any]', path, *, resource_owners=False):
                 target = np.asarray(control['target'], dtype=np.float64)
                 radius = control['radiusMetres']
                 if not (weight > 0 and target.shape == (3,) and np.all(np.isfinite(target)) and type(radius) in (int, float) and math.isfinite(radius) and radius > 0): raise ValueError('Invalid source guide target or unowned anchor.')
-                guide_controls.append(dict(id=control['id'], source=point.tolist(), target=target.tolist(), sourceWeight=weight, radiusMetres=radius,sourceTriangleVertices=np.asarray(packet['vertices']).reshape(-1,3)[triangle].tolist(),sourceTriangleWeights=mask[triangle].tolist(),sourceTriangleBarycentric=anchor['barycentric']))
+                guide_controls.append(dict(id=control['id'], source=point.tolist(), target=target.tolist(), sourceWeight=weight, radiusMetres=radius,sourceTriangleVertices=positions[triangle].tolist(),sourceTriangleWeights=mask[triangle].tolist(),sourceTriangleBarycentric=anchor['barycentric']))
             if 'compiledField' in parameters:
                 field: dict[str, Any]=parameters['compiledField']
                 if not (type(field) is dict and set(field)=={'sourceFingerprint','coordinateDomain','centers','radii','coefficients'} and field['sourceFingerprint']==packet['sourceFingerprint'] and field['coordinateDomain']=='prefab-metres-after-native-rendererToPrefab-and-DCC-conversion'): raise ValueError('Invalid constrained guide field identity.')
@@ -147,7 +153,7 @@ def load_profiles(census: 'dict[str, Any]', path, *, resource_owners=False):
             if not (set(parameters)=={'anchors'} and type(parameters['anchors']) is list and len(parameters['anchors'])==packet['vertexCount'] and np.all(mask==1) and not landmarks): raise ValueError('An attached source requires complete source-triangle ownership.')
             donors=[s for a,s in by_source.values() if a['sourceContentKey']==source['assetSourceContentKey'] and s['sourceFingerprint']==profile['donorSourceFingerprint']]
             if not (len(donors)==1): raise ValueError('An attached source has no unique native donor in the same asset.')
-            donor=donors[0];donor_packet=native_packet(donor)
+            donor=donors[0];donor_packet=read_packet(donor['meshFile'])
             for anchor in parameters['anchors']:
                 profile_anchor(anchor,donor_packet,donor)
                 if not (anchor['type']=='sourceTriangle'): raise ValueError('An attached source requires actual source-triangle correspondences.')
@@ -939,8 +945,8 @@ def prepare_source_triangle_anchors(packet: 'dict[str, Any]', skin: 'dict[str, A
     return anchors,dict(sourceVertices=len(positions),nativeDonorTriangles=len(triangles),largestNativeAttachmentOffsetMetres=largest_distance)
 
 
-def recover_source_lod_frames(packet, skin, donor_packet, donor_skin):
-    """Recover impossible native LOD morphs from their same-source LOD0."""
+def recover_source_lod_frames(packet, skin, donor_packet, donor_skin, *, protected_vertices=()):
+    """Recover impossible morphs from the same source's validated LOD field."""
     diagonal = float(np.linalg.norm(np.ptp(np.asarray(packet['vertices']).reshape(-1, 3), axis=0)))
     invalid = []
     for si, shape in enumerate(packet['shapes']):
@@ -949,7 +955,8 @@ def recover_source_lod_frames(packet, skin, donor_packet, donor_skin):
             if not np.isfinite(delta).all() or float(np.linalg.norm(delta, axis=1).max()) > diagonal:
                 invalid.append((si, fi))
     if not invalid: return packet, []
-    require(lod_index(skin) > 0 and lod_index(donor_skin) == 0,
+    prepared_reference=donor_packet.get('_sourceFrameReference')is not None and lod_index(donor_skin)==lod_index(skin)
+    require(lod_index(skin) > 0 and (lod_index(donor_skin) == 0 or prepared_reference),
             'An impossible native physical frame requires its own valid LOD0 source.')
     anchors, projection = prepare_source_triangle_anchors(packet, skin, donor_packet, donor_skin)
     triangles = np.asarray([donor_packet['subMeshes'][a['subMesh']][a['triangleOrdinal']*3:a['triangleOrdinal']*3+3]
@@ -984,8 +991,24 @@ def recover_source_lod_frames(packet, skin, donor_packet, donor_skin):
         new_t = normalise(new_t - np.sum(new_t * new_n, axis=1)[:, None] * new_n)
         target['normals'] = (new_n - own_normal).astype(np.float32).ravel().tolist()
         target['tangents'] = (new_t - own_tangent).astype(np.float32).ravel().tolist()
+        protected=np.asarray(sorted(protected_vertices),int)
+        if prepared_reference:
+            limit=max(float(np.linalg.norm(delta,axis=1).max())*4,diagonal*1e-6)
+            retained=np.asarray(frame['vertices']).reshape(-1,3)
+            valid=np.isfinite(retained).all(axis=1)&(np.linalg.norm(retained,axis=1)<=limit)
+            for key in ('normals','tangents'):
+                values=np.asarray(frame[key]).reshape(-1,3)
+                valid&=np.isfinite(values).all(axis=1)&(np.linalg.norm(values,axis=1)<=4)
+            protected=np.union1d(protected,np.flatnonzero(valid))
+        require(np.all((protected>=0)&(protected<packet['vertexCount'])),'A recovered source frame has invalid protected vertices.')
+        for key in ('vertices','normals','tangents'):
+            values=np.asarray(target[key]).reshape(-1,3);original=np.asarray(frame[key]).reshape(-1,3)
+            values[protected]=original[protected];target[key]=values.astype(np.float32).ravel().tolist()
+        require(np.isfinite(target['vertices']).all()and np.linalg.norm(np.asarray(target['vertices']).reshape(-1,3),axis=1).max()<=diagonal,
+            'A protected source collar still contains an impossible physical frame.')
         reports.append(dict(channelIndex=si, name=channel['name'], weight=frame['weight'],
             nativeSourceFingerprint=packet['sourceFingerprint'], donorSourceFingerprint=donor_packet['sourceFingerprint'],
+            preservedPreparedVertices=len(protected)if prepared_reference else 0,
             method='same-source LOD0 triangle barycentric displacement and normal-frame rotation', **projection))
     return result, reports
 
@@ -1041,13 +1064,15 @@ def bind_source_lod_families(asset):
                 require(key not in sources, 'Ambiguous native LOD0 face family.')
                 sources[key] = (skin, packet, facial_material_slots(packet, skin))
     for skin in asset['skins']:
-        if lod_index(skin) == 0 or role(skin) != 'native' or family(skin) not in sources:
+        if lod_index(skin) == 0 or family(skin) not in sources:
             continue
         source, packet, slots = sources[family(skin)]
         matched = [i for i in slots if i < len(skin['materials']) and source['materials'][i] is not None and skin['materials'][i] is not None and material_identity(source['materials'][i]) == material_identity(skin['materials'][i])]
         if matched:
-            skin['_faceLodDonor'] = packet['sourceFingerprint']
-            skin['_faceOwnedSlots'] = matched
+            skin['_nativeLodDonor'] = packet['sourceFingerprint']
+            if role(skin)=='native':
+                skin['_faceLodDonor'] = packet['sourceFingerprint']
+                skin['_faceOwnedSlots'] = matched
     return asset
 
 
@@ -1281,11 +1306,9 @@ def interpolate_source_handles(packet, skin, pose, positions, controls, reports,
                        if pose is not None else endpoint)
         delta = target_rest-rest[index]
         distance=np.linalg.norm(rest-rest[index],axis=1)
-        # A hard handle owns its immediate source tissue, including coarse and
-        # thin triangles. A fixed metric patch alone can pinch a single corner
-        # when the source edge is longer than the patch radius.
-        ring=np.unique(triangles[np.any(groups[triangles]==groups[index],axis=1)])
-        patch=np.union1d(np.flatnonzero(distance<=.003),ring)
+        # Curvature coordinates spread a source anchor continuously. Adjacent
+        # coarse triangles remain free instead of becoming a translated plate.
+        patch=np.flatnonzero(distance<=.003)
         patch=patch[group_allowed[groups[patch]]]
         for vertex in patch:
             group=int(groups[vertex])
@@ -1322,7 +1345,29 @@ def interpolate_source_handles(packet, skin, pose, positions, controls, reports,
     free = np.flatnonzero(~fixed)
     anchored = np.flatnonzero(fixed)
     if len(free):
-        displacement[free] = np.linalg.solve(laplace[np.ix_(free,free)], -laplace[np.ix_(free,anchored)]@displacement[anchored])
+        # Biharmonic coordinates minimize changes in the displacement gradient.
+        # Include the fixed outer tissue in the curvature energy so that the
+        # deformation approaches its protected boundary with a smooth slope.
+        area=np.linalg.norm(np.cross(rest[triangles[:,1]]-rest[triangles[:,0]],
+            rest[triangles[:,2]]-rest[triangles[:,0]]),axis=1)*.5
+        mass=np.zeros(count)
+        for column in range(3):np.add.at(mass,groups[triangles[:,column]],area/3)
+        mass=np.maximum(mass,max(float(mass.max())*1e-9,1e-20))
+        curvature=laplace.T@(laplace/mass[:,None])
+        targets,target_indices=np.unique(displacement[anchored],axis=0,return_inverse=True)
+        boundary=np.eye(len(targets))[target_indices]
+        coordinates=np.linalg.solve(curvature[np.ix_(free,free)],
+            -curvature[np.ix_(free,anchored)]@boundary)
+        if not np.isfinite(coordinates).all():raise ValueError('The source curvature coordinates are not finite.')
+        # A C1 positive partition retains a convex combination of source
+        # displacements, with smooth slopes at fixed tissue and handle patches.
+        coordinates=np.maximum(coordinates,0)
+        coordinates=np.where(coordinates<0.02,coordinates*coordinates/(2*0.02),coordinates-0.02/2)
+        total=coordinates.sum(axis=1,keepdims=True)
+        require(bool(np.all(total>1e-12)),'The source curvature partition has no owned target.')
+        coordinates/=total
+        displacement[free]=coordinates@targets
+        for report in reports:report['surfaceInterpolation']='bounded-c1-curvature-coordinates'
     if not np.isfinite(displacement).all():
         raise ValueError('The source surface edit is not finite.')
     # Every free sample is a positive harmonic combination of explicit handles.
@@ -2232,6 +2277,142 @@ def refine_extremity_packet(packet: 'dict[str, Any]', renderer_to_prefab, lod):
     return refine_skin_packet(packet, renderer_to_prefab, lod)
 
 
+def rigid_attachment_topology(packet,frame):
+    """Resolve real welded root loops and their geodesic distance on a rigid attachment."""
+    import heapq
+    frame=np.asarray(frame,float);require(frame.shape==(4,4)and np.isfinite(frame).all()and abs(np.linalg.det(frame[:3,:3]))>1e-12,
+        'An attachment requires its actual nonsingular support frame.')
+    p=np.asarray(packet['vertices'],float).reshape(-1,3);world=p@frame[:3,:3].T+frame[:3,3]
+    weights=np.asarray(packet['weights']).reshape(-1,4);bones=np.asarray(packet['boneIndices']).reshape(-1,4)
+    require(len(set(bones[weights>0]))==1 and np.allclose(weights.sum(axis=1),1,atol=1e-6),
+        'A rigid attachment root requires one shared native support bone.')
+    signatures=np.concatenate((np.rint(world*1e7),weights,bones),axis=1)
+    _,first,groups=np.unique(signatures,axis=0,return_index=True,return_inverse=True);points=world[first]
+    faces=groups[np.concatenate([np.asarray(slot,int).reshape(-1,3)for slot in packet['subMeshes']])]
+    edges=np.sort(np.concatenate((faces[:,[0,1]],faces[:,[1,2]],faces[:,[2,0]])),axis=1)
+    edges,counts=np.unique(edges,axis=0,return_counts=True);boundary=edges[counts==1]
+    require(len(boundary)>0 and np.all(counts<=2),'An attachment requires manifold triangles and actual open root loops.')
+    graph=[{}for _ in points];cut_graph={}
+    for a,b in edges:
+        length=float(np.linalg.norm(points[a]-points[b]));require(length>0,'An attachment has a zero-length physical edge.')
+        graph[a][b]=length;graph[b][a]=length
+    for a,b in boundary:cut_graph.setdefault(int(a),set()).add(int(b));cut_graph.setdefault(int(b),set()).add(int(a))
+    require(all(len(peers)==2 for peers in cut_graph.values()),'An attachment root must be a closed degree-two boundary.')
+    loops=[];remaining=set(cut_graph)
+    while remaining:
+        seed=remaining.pop();loop={seed};wave={seed}
+        while wave:
+            wave=set().union(*(cut_graph[v]for v in wave))&remaining;remaining-=wave;loop|=wave
+        loops.append(sorted(loop))
+    radius=float(np.median([sum(graph[a][b]for a in loop for b in cut_graph[a])/(4*np.pi)for loop in loops]))
+    roots=np.asarray(sorted(cut_graph),int);distance=np.full(len(points),np.inf);distance[roots]=0
+    queue=[(0.,int(i))for i in roots];heapq.heapify(queue)
+    while queue:
+        value,index=heapq.heappop(queue)
+        if value!=distance[index]:continue
+        for other,length in graph[index].items():
+            candidate=value+length
+            if candidate<distance[other]:distance[other]=candidate;heapq.heappush(queue,(candidate,other))
+    return dict(frame=frame,world=world,points=points,first=first,groups=groups,faces=faces,roots=roots,loops=loops,distance=distance,radius=radius)
+
+
+def fit_rigid_attachment_roots(packet,frame,supports,*,depth_metres,falloff_radii,maximum_shift_metres):
+    """Seat open attachment roots inside the shared envelope of their support surfaces."""
+    from mesh_recipe_codec import closest_triangle
+    require(all(np.isfinite(v)and v>0 for v in(depth_metres,falloff_radii,maximum_shift_metres)),
+        'Attachment root distances and limits must be finite and positive.')
+    topology=rigid_attachment_topology(packet,frame)
+    frame,world,points,first,groups,faces,roots,loops,distance,radius=(topology[key]for key in('frame','world','points','first','groups','faces','roots','loops','distance','radius'))
+    width=radius*falloff_radii;field=np.clip(1-distance/width,0,1);field=field*field*(3-2*field)
+    require(supports,'Attachment root fitting requires every declared support surface.')
+    targets=[];directions=[]
+    for root in roots:
+        samples=[];normals=[]
+        for support in supports:
+            vertices=np.asarray(support['vertices'],float);triangles=np.asarray(support['triangles'],int).reshape(-1,3)
+            index,bary,_=closest_triangle(points[root],vertices[triangles]);ids=triangles[index]
+            samples.append(bary@vertices[ids]);normals.append(normalise(bary@np.asarray(support['normals'],float)[ids]))
+        normal=normalise(np.mean(normals,axis=0));center=np.mean(samples,axis=0)
+        require(np.linalg.norm(normal)>.5,'Attachment support normals have inconsistent orientations.')
+        inset=min((sample-center)@normal for sample in samples)-depth_metres
+        targets.append(center+normal*inset);directions.append(normal)
+    targets=np.asarray(targets);directions=np.asarray(directions);delta=targets-points[roots]
+    for loop in loops:
+        selected=np.searchsorted(roots,loop);normals=directions[selected];axis=normalise(normals.mean(axis=0));cosine=normals@axis
+        require(np.all(cosine>.5),'An attachment root does not share a coherent support hemisphere.')
+        movement=delta[selected].mean(axis=0)
+        correction=min(0.,float(np.min(np.sum((delta[selected]-movement)*normals,axis=1)/cosine)))
+        delta[selected]=movement+axis*correction
+    require(np.linalg.norm(delta,axis=1).max()<=maximum_shift_metres,'An attachment root is outside its declared support envelope.')
+    squared=np.sum((points[:,None]-points[roots][None])**2,axis=2)
+    influence=np.exp(-(squared-squared.min(axis=1,keepdims=True))/max(width**2,1e-12))
+    influence/=influence.sum(axis=1,keepdims=True)
+    offsets=(influence@delta)*field[:,None];offsets[roots]=delta
+    changed=points+offsets
+    before=points[faces];after=changed[faces]
+    original_cross=np.cross(before[:,1]-before[:,0],before[:,2]-before[:,0]);authored_cross=np.cross(after[:,1]-after[:,0],after[:,2]-after[:,0])
+    require(np.all(np.sum(original_cross*authored_cross,axis=1)>1e-20),'Attachment root fitting reversed a native triangle.')
+    for shape in packet['shapes']:
+        for pose in shape['frames']:
+            displacement=np.asarray(pose['vertices'],float).reshape(-1,3)@frame[:3,:3].T
+            original=(world+displacement)[first][faces];authored=(changed+displacement[first])[faces]
+            old_cross=np.cross(original[:,1]-original[:,0],original[:,2]-original[:,0])
+            new_cross=np.cross(authored[:,1]-authored[:,0],authored[:,2]-authored[:,0])
+            require(np.all(np.sum(old_cross*new_cross,axis=1)>1e-20),'Attachment root fitting reversed a stored physical frame.')
+    inverse=np.linalg.inv(frame);local=changed[groups]@inverse[:3,:3].T+inverse[:3,3]
+    normals=normalise(np.asarray(packet['normals']).reshape(-1,3)@np.linalg.inv(frame[:3,:3]))
+    mass=field[groups,None];aligned=normalise(influence@directions)[groups]
+    normals=normalise(normals*(1-mass)+aligned*mass)@frame[:3,:3];normals=normalise(normals)
+    tangents=np.asarray(packet['tangents']).reshape(-1,4).copy();t=tangents[:,:3]-np.sum(tangents[:,:3]*normals,axis=1)[:,None]*normals
+    fallback=np.linalg.norm(t,axis=1)<1e-10
+    if fallback.any():t[fallback]=np.cross(np.eye(3)[np.abs(normals[fallback]).argmin(axis=1)],normals[fallback])
+    tangents[:,:3]=normalise(t)
+    candidate=copy.deepcopy(packet);candidate['vertices']=local.astype(np.float32).ravel().tolist()
+    candidate['normals']=normals.astype(np.float32).ravel().tolist();candidate['tangents']=tangents.astype(np.float32).ravel().tolist()
+    outside=field[groups]==0
+    for key,values in(('vertices',local),('normals',normals),('tangents',tangents)):
+        original=np.asarray(packet[key]).reshape(-1,values.shape[1]);output=np.asarray(candidate[key]).reshape(original.shape)
+        output[outside]=original[outside];candidate[key]=output.ravel().tolist()
+    candidate['bounds']=physical_mesh_bounds(candidate);candidate['sourceFingerprint']=fingerprint(candidate)[0]
+    return candidate,dict(rootLoops=len(loops),rootVertices=len(roots),supportSurfaces=len(supports),rootDepthMetres=depth_metres,
+        falloffMetres=width,maximumRootShiftMm=float(np.linalg.norm(delta,axis=1).max()*1000),
+        originalTopologyUvSkinAndUnownedVerticesExact=True,nativePhysicalFrameChannelsExact=True,rootField=field[groups].tolist())
+
+
+def trim_attachment_collar(packet,frame,radii):
+    """Remove the baked flesh flange while retaining native vertex, UV and pose channels."""
+    require(np.isfinite(radii)and radii>0,'Attachment collar trimming requires a positive native root radius.')
+    topology=rigid_attachment_topology(packet,frame);distance=topology['distance'][topology['groups']]
+    limit=topology['radius']*radii;candidate=copy.deepcopy(packet);removed=0
+    for slot,indices in enumerate(packet['subMeshes']):
+        triangles=np.asarray(indices,int).reshape(-1,3);keep=np.all(distance[triangles]>=limit,axis=1)
+        require(keep.any(),'Attachment collar trimming removed a complete material surface.')
+        candidate['subMeshes'][slot]=triangles[keep].ravel().tolist();removed+=int((~keep).sum())
+    require(removed>0,'The declared attachment collar does not contain source triangles.')
+    retained=rigid_attachment_topology(candidate,frame)
+    require(len(retained['loops'])==len(topology['loops']),'Attachment collar trimming changed the number of actual root loops.')
+    candidate['sourceFingerprint']=fingerprint(candidate)[0]
+    return candidate,dict(removedTriangles=removed,trimDistanceMetres=limit,nativeVertexUvSkinAndPhysicalFrameChannelsExact=True,
+        retainedTriangleOrderExact=True,rootLoops=len(retained['loops']))
+
+
+def refine_attachment_surface(packet,frame,supports,profile,lod):
+    """Use the shared root fit and native curvature transport for an attachment LOD."""
+    counts=profile['passesPerLod']
+    require(type(lod)is int and lod in(0,1,2)and len(counts)==3 and all(type(value)is int and 0<=value<=3 for value in counts),
+        'An attachment requires bounded refinement passes for every native detail level.')
+    trim=None
+    if profile.get('trimRootRadii',0):packet,trim=trim_attachment_collar(packet,frame,profile['trimRootRadii'])
+    candidate,root=fit_rigid_attachment_roots(packet,frame,supports,depth_metres=profile['rootDepthMetres'],
+        falloff_radii=profile['falloffRadii'],maximum_shift_metres=profile['maximumRootShiftMetres'])
+    if trim:root['collarTrim']=trim
+    passes=[]
+    for _ in range(counts[lod]):
+        candidate,_,proof=refine_skin_packet(candidate,np.asarray(frame).T.ravel().tolist(),lod,profile=profile['surface']);passes.append(proof)
+    require(candidate['vertexCount']<=profile['maximumVerticesPerLod'][lod],'An attachment exceeds its declared detail-level vertex budget.')
+    return candidate,dict(root=root,passes=passes)
+
+
 def indexed_surface_uv_metrics(packet: 'dict[str, Any]',skin: 'dict[str, Any]',slot,shape,feather,sampler,vertex_field=None):
     import heapq
     """Actual native slot UV coverage, source seam closure and rest metric."""
@@ -2627,15 +2808,21 @@ def refine_source_skin_material(pixels, ownership, metres_per_texel, profile, ch
     import material_fields as fields
     pixels=np.asarray(pixels,np.uint8);ownership=np.asarray(ownership,float);metric=np.asarray(metres_per_texel,float)
     required={'pigmentRetain','normalRetain','normalRadiusMetres','fineSigmaMetres','grainSigmaMetres','coherenceSigmaMetres','featherMetres'}
-    require(set(profile)==required and all(type(value)in(int,float)and np.isfinite(value)for value in profile.values()),
+    micro={'microNormalRetain','microNormalRadiusMetres'}
+    require(set(profile) in (required,required|micro) and all(type(value)in(int,float)and np.isfinite(value)for value in profile.values()),
             'A source skin finish requires finite declared physical scales and detail retention.')
     require(0<=profile['pigmentRetain']<=1 and 0<=profile['normalRetain']<=1 and profile['normalRadiusMetres']>0,
             'A source skin finish has invalid detail retention or normal radius.')
+    require(not micro<=set(profile) or (0<=profile['microNormalRetain']<=1 and
+            0<profile['microNormalRadiusMetres']<profile['normalRadiusMetres']),
+            'Skin microdetail requires a smaller physical radius and bounded retention.')
     require(pixels.ndim==3 and pixels.shape[2]==4 and pixels.shape[:2]==ownership.shape==metric.shape and
             np.isfinite(ownership).all() and np.isfinite(metric).all() and np.all((ownership>=0)&(ownership<=1)) and
             np.all(metric[ownership>0]>0),'A source skin finish has inconsistent surface ownership or metric.')
     require(channel in('color','normal'),'Unknown source skin channel.')
-    if not np.any(ownership)or min(pixels.shape[:2])<4 or profile['pigmentRetain'if channel=='color'else'normalRetain']==1:
+    retained=profile['pigmentRetain']==1 if channel=='color' else (
+        profile['normalRetain']==1 and profile.get('microNormalRetain',1)==1)
+    if not np.any(ownership)or min(pixels.shape[:2])<4 or retained:
         return pixels.copy(),dict(affectedPixels=0,sourceRetained=True)
     result=pixels.copy();selected=ownership>0
     if channel=='color':
@@ -2655,8 +2842,15 @@ def refine_source_skin_material(pixels, ownership, metres_per_texel, profile, ch
         normal=np.dstack((x,y,np.sqrt(np.maximum(0,1-x*x-y*y))))
         averaged=np.stack([rgb_physical_average(normal[:,:,axis],selected.astype(float),metric,profile['normalRadiusMetres'])for axis in range(3)],axis=2)
         averaged=normalise(averaged)
-        amount=ownership*(1-profile['normalRetain'])
-        desired=normalise(normal+(averaged-normal)*amount[:,:,None])
+        if micro<=set(profile):
+            # Keep pores in their own frequency band while softening larger creases.
+            smooth=np.stack([rgb_physical_average(normal[:,:,axis],selected.astype(float),metric,
+                profile['microNormalRadiusMetres'])for axis in range(3)],axis=2)
+            target=normal+(averaged-normal)*(1-profile['normalRetain'])
+            target+=(normal-normalise(smooth))*(profile['microNormalRetain']-profile['normalRetain'])
+            desired=normalise(normal+(target-normal)*ownership[:,:,None])
+        else:
+            desired=normalise(normal+(averaged-normal)*(ownership*(1-profile['normalRetain']))[:,:,None])
         alpha=np.divide(desired[:,:,0]*.5+.5,raw[:,:,0],out=raw[:,:,3].copy(),where=raw[:,:,0]>0)
         representable=selected&(alpha>=0)&(alpha<=1)&(raw[:,:,0]>0)
         result[:,:,1][representable]=np.rint(np.clip(desired[:,:,1][representable]*.5+.5,0,1)*255).astype(np.uint8)
@@ -3084,6 +3278,59 @@ def humanoid_face_contact_guard(packet: 'dict[str, Any]', skin: 'dict[str, Any]'
 
 
 
+def transport_prepared_surface(reference,target,native_count,triangles,protected,graph=None):
+    """Extend a native control field over the saved curve's actual topology."""
+    if len(reference)==native_count:return target,dict(addedVertices=0),graph
+    if graph is None:
+        groups=art.weld_groups(reference);size=int(groups.max())+1
+        fixed=np.zeros(size,bool);fixed[groups[:native_count]]=True;fixed[groups[protected]]=True
+        edges=np.unique(np.sort(groups[np.concatenate((triangles[:,[0,1]],triangles[:,[1,2]],triangles[:,[2,0]]))],axis=1),axis=0)
+        edges=edges[edges[:,0]!=edges[:,1]];_,representatives=np.unique(groups,return_index=True)
+        lengths=np.linalg.norm(reference[representatives[edges[:,0]]]-reference[representatives[edges[:,1]]],axis=1)
+        conductance=1/np.maximum(lengths,1e-6);diagonal=np.zeros(size)
+        np.add.at(diagonal,edges[:,0],conductance);np.add.at(diagonal,edges[:,1],conductance)
+        free=np.flatnonzero(~fixed);lookup=np.full(size,-1,int);lookup[free]=np.arange(len(free))
+        interior=np.all(~fixed[edges],axis=1);links=lookup[edges[interior]]
+        graph=dict(groups=groups,size=size,fixed=fixed,edges=edges,conductance=conductance,diagonal=diagonal,
+            free=free,links=links,linkConductance=conductance[interior])
+    groups=graph['groups'];size=graph['size'];fixed=graph['fixed'];edges=graph['edges'];free=graph['free']
+    values=np.zeros((size,3));counts=np.zeros(size);delta=target[:native_count]-reference[:native_count]
+    np.add.at(values,groups[:native_count],delta);np.add.at(counts,groups[:native_count],1)
+    values/=np.maximum(counts[:,None],1)
+    require(float(np.max(np.abs(values[groups[:native_count]]-delta),initial=0))<=1e-6,
+        'Coincident native curve controls have conflicting displacements.')
+    values[groups[protected]]=0;iterations=0
+    if len(free):
+        weight=graph['conductance'];rhs=np.zeros_like(values)
+        np.add.at(rhs,edges[:,0],weight[:,None]*values[edges[:,1]])
+        np.add.at(rhs,edges[:,1],weight[:,None]*values[edges[:,0]])
+        rhs=rhs[free];diagonal=np.maximum(graph['diagonal'][free],1e-30)
+        links=graph['links'];conductance=graph['linkConductance']
+        def multiply(x):
+            result=x*diagonal[:,None]
+            for axis in range(3):
+                result[:,axis]-=np.bincount(links[:,0],weights=conductance*x[links[:,1],axis],minlength=len(free))
+                result[:,axis]-=np.bincount(links[:,1],weights=conductance*x[links[:,0],axis],minlength=len(free))
+            return result
+        x=np.zeros_like(rhs);residual=rhs.copy();z=residual/diagonal[:,None];direction=z.copy();rho=np.sum(residual*z,axis=0)
+        for iterations in range(max(64,len(free))+1):
+            if float(np.max(np.abs(residual)/diagonal[:,None],initial=0))<=1e-11:break
+            product=multiply(direction);denominator=np.sum(direction*product,axis=0);active=rho>1e-30
+            require(bool(np.all(denominator[active]>0)),'The prepared curve field has a singular owned component.')
+            step=np.divide(rho,denominator,out=np.zeros(3),where=active)
+            x+=direction*step;residual-=product*step;z=residual/diagonal[:,None];updated=np.sum(residual*z,axis=0)
+            beta=np.divide(updated,rho,out=np.zeros(3),where=active);direction=z+direction*beta;rho=updated
+        else:raise ValueError('The prepared curve field did not converge.')
+        require(np.isfinite(x).all(),'The prepared curve field contains a nonfinite displacement.')
+        require(float(np.linalg.norm(x,axis=1).max(initial=0))<=float(np.linalg.norm(values,axis=1).max(initial=0))+1e-7,
+            'The prepared curve field overshot its native controls.')
+        values[free]=x
+    result=reference+values[groups];result[:native_count]=target[:native_count];result[protected]=reference[protected]
+    return result,dict(addedVertices=len(reference)-native_count,transportedAddedVertices=int(np.count_nonzero(np.linalg.norm(result[native_count:]-reference[native_count:],axis=1)>1e-9)),
+        maximumAddedDisplacementMm=float(np.linalg.norm(result[native_count:]-reference[native_count:],axis=1).max(initial=0))*1000,
+        iterations=iterations,sourceTopologyAndSkinExact=True,protectedCollarExact=True),graph
+
+
 def refine_native_face_contours(native: 'dict[str, Any]', authored: 'dict[str, Any]', skin: 'dict[str, Any]', marks: 'dict[str, Any] | None'=None, collar_vertices=(), *, refined=None, guide_report=None, previous_refined=None, surface_weight=None):
     """Compose an owned face target with the assembled collar and its poses."""
     transform = art.CONVERT @ art.matrix(skin['rendererToPrefab'])
@@ -3102,6 +3349,13 @@ def refine_native_face_contours(native: 'dict[str, Any]', authored: 'dict[str, A
         details = dict(guide_report or {}, operation="source-guide-collar-composition", artisticAcceptance="not-reviewed")
     count = native['vertexCount']
     require(count <= authored['vertexCount'], 'The assembled face lost its native vertex prefix.')
+    frame_reference=previous_refined if previous_refined is not None else refined
+    if frame_reference.get('_sourceFrameReference')is not None:
+        authored,recoveries=recover_source_lod_frames(authored,skin,frame_reference,skin,protected_vertices=collar_vertices)
+        if recoveries:
+            authored['sourceFingerprint']=fingerprint(authored)[0]
+            authored['bounds']=physical_mesh_bounds(authored)
+            details['preparedPhysicalFrameRecovery']=recoveries
     if previous_refined is not None:
         require(refined is not None, 'A source guide revision requires its next absolute target.')
         for key in ('vertexCount','uv','weights','boneIndices','bindPoses','subMeshes','indexFormat'):
@@ -3120,18 +3374,22 @@ def refine_native_face_contours(native: 'dict[str, Any]', authored: 'dict[str, A
     collar = np.asarray(sorted(set(collar_vertices)), dtype=np.int64)
     require(np.all((collar >= 0) & (collar < authored['vertexCount'])), 'A collar constraint is outside its assembled face.')
     if len(collar):
-        protected = np.zeros(authored['vertexCount'], dtype=bool); protected[collar] = True
+        groups=art.weld_groups(np.asarray(authored['vertices']).reshape(-1,3))
+        protected = np.zeros(int(groups.max())+1, dtype=bool); protected[groups[collar]] = True
         face_triangles = np.concatenate([np.asarray(t).reshape(-1, 3) for t in authored['subMeshes']])
-        fade = np.ones(authored['vertexCount']); fade[protected] = 0
+        face_triangles=groups[face_triangles]
+        fade = np.ones(len(protected)); fade[protected] = 0
         for amount in (0., .25, .75):
             neighbours = np.unique(face_triangles[np.any(protected[face_triangles], axis=1)])
             ring = neighbours[~protected[neighbours]]
             fade[ring] = amount; protected[ring] = True
-        weight *= fade[:count]
+        weight *= fade[groups[:count]]
     result = copy.deepcopy(authored)
     triangles = np.concatenate([np.asarray(t).reshape(-1, 3) for t in authored['subMeshes']])
+    curve_graph=None;curve_reports=[]
 
     def compose(current_p, current_n, current_t, source_p, source_n, source_t, reference_p, previous_pose=None):
+        nonlocal curve_graph
         positions, normals, tangents = current_p.copy(), current_n.copy(), current_t.copy()
         if previous_pose is None:
             positions[:count] += (source_p - positions[:count]) * weight[:, None]
@@ -3154,6 +3412,12 @@ def refine_native_face_contours(native: 'dict[str, Any]', authored: 'dict[str, A
             changed |= np.any(source_t != previous_pose[2], axis=1) & (weight > 0)
             tangents[:count, :3][changed] = normalise(tangent[changed] - normals[:count][changed] * np.sum(tangent[changed] * normals[:count][changed], axis=1, keepdims=True))
             reference = current_p
+        positions,curve,curve_graph=transport_prepared_surface(current_p,positions,count,triangles,collar,curve_graph)
+        curve_reports.append(curve)
+        if len(current_p)>count:
+            nn,tt=surface_basis(current_p,positions,current_n,current_t,triangles,transform,np.ones(len(current_p)),False)
+            normals[count:]=nn[count:];tangents[count:]=tt[count:]
+            normals[collar]=current_n[collar];tangents[collar]=current_t[collar]
         positions, orientation = preserve_surface_orientation(reference, positions, triangles, transform)
         require(orientation['surfaceScaleFactor'] == 1, 'Native contour replacement reverses an assembled surface.')
         # Exact source contacts and exact assembled collars also retain their frames.
@@ -3208,6 +3472,7 @@ def refine_native_face_contours(native: 'dict[str, Any]', authored: 'dict[str, A
     result['sourceFingerprint'] = fingerprint(result)[0]
     result['bounds'] = physical_mesh_bounds(result)
     details.update(nativeContourBaseline=native['sourceFingerprint'],
+                   preparedSurfaceTransport=curve_reports,
                    assembledCollarVertices=len(collar), collarFrameMaximumError=collar_frame_error,
                    nativeFaceVertices=int(np.count_nonzero(weight == 1)),
                    collarOnlyInheritedChannels=inherited_channels)
@@ -3251,8 +3516,9 @@ def refine_source_asset(asset: 'dict[str, Any]') -> 'list[dict[str, Any]]':
             require(donor_key in donors, 'Profile lower LOD donor is unavailable in the same source asset.')
         donor = guide_surfaces.get(donor_key) if which == 'attached' else donors.get(donor_key)
         working = packet; recoveries = []
-        if lod_index(skin) > 0 and donor_key in native_donors:
-            working, recoveries = recover_source_lod_frames(packet, skin, *native_donors[donor_key])
+        native_key=skin.get('_nativeLodDonor',donor_key)
+        if lod_index(skin) > 0 and native_key in native_donors:
+            working, recoveries = recover_source_lod_frames(packet, skin, *native_donors[native_key])
         authored, mask, details = refine_packet(working, skin, lod_index(skin), donor)
         if recoveries:
             authored['_sourceFrameReference'] = working['shapes']

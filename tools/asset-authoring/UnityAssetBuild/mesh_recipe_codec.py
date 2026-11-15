@@ -19,6 +19,23 @@ SURFACE_EXPLICIT_SOURCE_MAGIC = b'UBSFB003'
 SURFACE_GEOMETRY_FRAME_MAGIC = b'UBSFB004'
 
 
+def closest_triangle(point,triangles):
+    import numpy as np
+    p=np.asarray(point,float);triangles=np.asarray(triangles,float)
+    if p.shape!=(3,)or triangles.ndim!=3 or triangles.shape[1:]!=(3,3)or not len(triangles)or not np.isfinite(p).all()or not np.isfinite(triangles).all():
+        raise ValueError("Closest surface sampling requires a finite point and nonempty triangle array.")
+    a=triangles[:,0];v=triangles[:,1]-a;w=triangles[:,2]-a;d=p-a
+    vv=np.sum(v*v,axis=1);vw=np.sum(v*w,axis=1);ww=np.sum(w*w,axis=1);dv=np.sum(d*v,axis=1);dw=np.sum(d*w,axis=1);det=vv*ww-vw*vw
+    valid=abs(det)>1e-18;u=np.zeros(len(a));z=np.zeros(len(a));u[valid]=(dv[valid]*ww[valid]-dw[valid]*vw[valid])/det[valid];z[valid]=(dw[valid]*vv[valid]-dv[valid]*vw[valid])/det[valid]
+    bary=np.stack((1-u-z,u,z),axis=1);inside=valid&(bary.min(axis=1)>=0);candidates=[]
+    for ids in [(0,1),(1,2),(2,0)]:
+        start=triangles[:,ids[0]];edge=triangles[:,ids[1]]-start;f=np.clip(np.sum((p-start)*edge,axis=1)/np.maximum(np.sum(edge*edge,axis=1),1e-18),0,1);weights=np.zeros((len(a),3));weights[:,ids[0]]=1-f;weights[:,ids[1]]=f;candidates.append(weights)
+    bary[~inside]=candidates[0][~inside];best=np.sum((np.einsum('ij,ijk->ik',bary,triangles)-p)**2,axis=1)
+    for weights in candidates:
+        dist=np.sum((np.einsum('ij,ijk->ik',weights,triangles)-p)**2,axis=1);use=(~inside)&(dist<best);bary[use]=weights[use];best[use]=dist[use]
+    index=int(np.argmin(best));return index,bary[index],float(math.sqrt(best[index]))
+
+
 def skin_bone_order(bone_paths: list[str], bone_hashes: list[int]) -> list[int]:
     """Resolve serialized mesh slots against full prefab-relative bone paths."""
     if any(not isinstance(path,str)or not path or path.startswith('/')or path.endswith('/')or '//'in path for path in bone_paths):

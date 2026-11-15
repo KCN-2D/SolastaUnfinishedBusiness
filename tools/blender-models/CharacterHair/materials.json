@@ -8,7 +8,7 @@
     },
     {
       "path": "NativeHairSourceGroom.shader",
-      "sha256": "a467c6a8c089a4deced98e74a14ebd95e5d0c5497e1b2268f910737cfede2e04"
+      "sha256": "be794b32837fc2e0fcb453ce6b3ef0992b112df9dbaac11369a9abf05cf35662"
     },
     {
       "path": "SourceGroom.cginc",
@@ -16,7 +16,7 @@
     },
     {
       "path": "SourceGroomProgram.cginc",
-      "sha256": "f074ec34c00a8193e0721183c4477fb89c55b4de9f7be4b2720942ecbbea4682"
+      "sha256": "eb5832525fd0eb38270cd85e3ae57f28ff1096d9168cda1b6e8bc817a595de68"
     }
   ],
   "materials": [
@@ -72,7 +72,7 @@
         {
           "name": "_BakedColorDetail",
           "kind": "float",
-          "value": 0.35
+          "value": 0.2
         },
         {
           "name": "_BakedColorMipBias",
@@ -82,7 +82,7 @@
         {
           "name": "_FiberColorStrength",
           "kind": "float",
-          "value": 0.12
+          "value": 0.08
         },
         {
           "name": "_FiberAlphaCutoff",
@@ -112,12 +112,12 @@
         {
           "name": "_FineAlphaCutoff",
           "kind": "float",
-          "value": 0.35
+          "value": 0.7
         },
         {
           "name": "_CoreReliefStrength",
           "kind": "float",
-          "value": 0.07
+          "value": 0.12
         },
         {
           "name": "_FineReliefStrength",
@@ -158,6 +158,11 @@
           "name": "_CoreSmoothnessScale",
           "kind": "float",
           "value": 0.95
+        },
+        {
+          "name": "_NativeGrooveStrength",
+          "kind": "float",
+          "value": 0.22
         }
       ]
     }

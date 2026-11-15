@@ -109,16 +109,8 @@ def texture_sampler(row):
     return sample
 
 def closest_triangle(point,triangles):
-    p=np.asarray(point);a=triangles[:,0];v=triangles[:,1]-a;w=triangles[:,2]-a;d=p-a
-    vv=np.sum(v*v,axis=1);vw=np.sum(v*w,axis=1);ww=np.sum(w*w,axis=1);dv=np.sum(d*v,axis=1);dw=np.sum(d*w,axis=1);det=vv*ww-vw*vw
-    valid=abs(det)>1e-18;u=np.zeros(len(a));z=np.zeros(len(a));u[valid]=(dv[valid]*ww[valid]-dw[valid]*vw[valid])/det[valid];z[valid]=(dw[valid]*vv[valid]-dv[valid]*vw[valid])/det[valid]
-    bary=np.stack((1-u-z,u,z),axis=1);inside=valid&(bary.min(axis=1)>=0);candidates=[]
-    for ids in [(0,1),(1,2),(2,0)]:
-        start=triangles[:,ids[0]];edge=triangles[:,ids[1]]-start;f=np.clip(np.sum((p-start)*edge,axis=1)/np.maximum(np.sum(edge*edge,axis=1),1e-18),0,1);weights=np.zeros((len(a),3));weights[:,ids[0]]=1-f;weights[:,ids[1]]=f;candidates.append(weights)
-    bary[~inside]=candidates[0][~inside];best=np.sum((np.einsum('ij,ijk->ik',bary,triangles)-p)**2,axis=1)
-    for weights in candidates:
-        dist=np.sum((np.einsum('ij,ijk->ik',weights,triangles)-p)**2,axis=1);use=(~inside)&(dist<best);bary[use]=weights[use];best[use]=dist[use]
-    index=int(np.argmin(best));return index,bary[index],float(math.sqrt(best[index]))
+    from mesh_recipe_codec import closest_triangle as sample
+    return sample(point,triangles)
 
 def native_core_visibility(uv,triangles,slots,samplers):
     """Use each source material's actual alpha and UV transform for crown rays."""

@@ -33,6 +33,8 @@ Windowsで実行するコマンドと絶対パスは `\` を使います。URL�
 
 ゲームと制作ツールを終了して、`Clear-ToolStorage.ps1`で生成物を整理します。引数なしで対象を確認し、`-Apply`で削除します。必須検査の完了時にも自動実行されます。
 
+モデルの中間catalogも、完成した制作記録と宣言されたbundleの一覧を照合して整理します。最終catalogと同じ保持・参照の判定を使い、採用元の原本catalogも保持します。資源が残っていない制作フォルダーでは、制作記録の再読込を省きます。
+
 ```powershell
 .\tools\Clear-ToolStorage.ps1
 .\tools\Clear-ToolStorage.ps1 -Apply

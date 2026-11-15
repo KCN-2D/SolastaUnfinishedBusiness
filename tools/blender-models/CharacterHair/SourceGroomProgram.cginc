@@ -13,7 +13,7 @@
         float _BakedColorDetail, _BakedColorMipBias, _FiberColorStrength;
         float _FiberAlphaCutoff, _CoreFineStrength, _CoreResponse, _AiryVisibility, _AiryDensity;
         float _CoreAnisotropyScale, _CoreSmoothnessScale;
-        float _FineAlphaCutoff, _CoreReliefStrength, _FineReliefStrength, _CoreGroomPigmentStrength;
+        float _FineAlphaCutoff, _CoreReliefStrength, _FineReliefStrength, _CoreGroomPigmentStrength, _NativeGrooveStrength;
         float _NativeCoreCull, _CullMode, _NativePigmentMean;
         float _SupportInVertexFrame, _FlowInVertexFrame;
         #ifdef SOURCE_GROOM_ROLE_PROOF
@@ -248,7 +248,8 @@
                 {
                     // One resolvable width cross-section; no microscopic cycle
                     // or optical-model selection is shipped with fine32.
-                    float transverse=clamp(2*i.sourceAndGroom.zw.x-1,-1,1)*_FineReliefStrength;
+                    float visibleHalfWidth=sqrt(max(1-_FineAlphaCutoff,0.001));
+                    float transverse=clamp((2*i.sourceAndGroom.zw.x-1)/visibleHalfWidth,-1,1)*_FineReliefStrength;
                     float3 crossSection=float3(transverse,0,sqrt(saturate(1-transverse*transverse)));
                     fine=SourceGroomFineWidthInRender(crossSection,dPdx,dPdy,dUVdx,dUVdy,renderN,renderT,renderB);
                 }
@@ -258,10 +259,7 @@
             SourceGroomClip(source.a, _Cutoff);
             if(i.groomRoleAndSign.x >= 0.5 && !airy && !atlasCard && mask <= 0.5 && _FiberAlphaCutoff > 0)
             {
-                // Existing clumps and the new surface tufts use measured groom alpha.
-                // Sparse open-edge fibers use one tapered sheet per individual strand.
-                float coverage=edgeFiber ? saturate(4*i.sourceAndGroom.zw.x*(1-i.sourceAndGroom.zw.x)) : groom.a;
-                clip(coverage - _FiberAlphaCutoff);
+                clip(groom.a - _FiberAlphaCutoff);
             }
             if(atlasCard && mask<=0.5)clip(groom.a-_FineAlphaCutoff);
             // New fine32 sheets own measured alpha; native core and legacy scalp
@@ -292,7 +290,7 @@
                 // erased those grooves as well, especially on sparse grooms.
                 float2 nativeUV=i.sourceAndGroom.xy*_BumpMap_ST.xy+_BumpMap_ST.zw;
                 float3 broad=SourceGroomUnpack(tex2Dgrad(_BumpMap,nativeUV,nativeDx*4,nativeDy*4));
-                float3 grooves=SourceGroomSafeNormal(float3((macro.xy-broad.xy)*_CoreResponse,1));
+                float3 grooves=SourceGroomSafeNormal(float3((macro.xy-broad.xy)*(_CoreResponse*_NativeGrooveStrength),1));
                 shadingMacro=SourceGroomWhiteout(SourceGroomNativeIntensity(broad,
                     lerp(_MacroNormalStrength,_MacroNormalStrength*0.5,_CoreResponse)),grooves);
             }
