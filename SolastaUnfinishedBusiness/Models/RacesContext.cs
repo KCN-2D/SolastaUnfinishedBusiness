@@ -240,7 +240,7 @@ internal static class RacesContext
         {
             if (IsProtectedBodyRenderer(graphics, renderer)) continue;
             var mesh = renderer ? renderer.sharedMesh : null;
-            var index = mesh ? mesh.GetBlendShapeIndex("Muscular") : -1;
+            var index = NativeBodyShapeFrame(mesh);
             if (index >= 0) renderer.SetBlendShapeWeight(index,
                 originallyAvailable ? value : presentation.DefaultMusculature);
         }
@@ -260,7 +260,12 @@ internal static class RacesContext
 
     private const string BodyVolumePositive = "UB_BodyVolumePositive";
     private const string BodyVolumeNegative = "UB_BodyVolumeNegative";
+    // The factory registers native body renderers by blend-shape count and drives
+    // their first frame. Asset-qualified frame names use the same native contract.
+    private static int NativeBodyShapeFrame(Mesh mesh) => mesh && mesh.blendShapeCount > 0 &&
+        mesh.GetBlendShapeName(0) is not BodyVolumePositive and not BodyVolumeNegative ? 0 : -1;
     private static readonly ConditionalWeakTable<Mesh, BodyShapeRest> BodyShapeRestCache = new();
+    private static readonly ConditionalWeakTable<Mesh, string> BodyShapeMeshIdentities = new();
     private static readonly BodyShapeField[] BodyShapeFields = new BodyShapeField[2];
     private static readonly HashSet<string> BodyShapeErrors = [];
     private static readonly HashSet<BodyShapePresentation> BodyShapeOwners = [];
@@ -4336,7 +4341,7 @@ internal static class RacesContext
     private sealed class CharacterModelPresentation : MonoBehaviour
     {
         private const long MaximumUnusedDerivedBytes = 64L * 1024 * 1024;
-        private const int MaximumUnusedDerivedEntries = 32;
+        private const int MaximumUnusedDerivedEntries = 256;
         private sealed class DerivedDataEntry(UnityEngine.Object[] data)
         {
             internal readonly UnityEngine.Object[] Data = data;
@@ -5815,7 +5820,7 @@ internal static class RacesContext
     {
         for (var current = bone; current; current = current.parent)
         {
-            if (current.name is "Bip001 Head" or "Bip001 L Hand" or "Bip001 R Hand" or
+            if (current.name is "Bip001 Head" or "Bip001 Neck" or "Bip001 L Hand" or "Bip001 R Hand" or
                 "Bip001 L Foot" or "Bip001 R Foot" || current.name.StartsWith("Bip001 Tail", StringComparison.Ordinal)) return true;
         }
         return false;
@@ -5896,7 +5901,6 @@ internal static class RacesContext
         internal Matrix4x4[] BindPoses;
         internal BoneWeight[] Weights;
         internal int[] WeightedBones;
-        internal bool AllVerticesWeighted;
         internal int[] Triangles;
         internal bool[] Boundary;
         private BodyShapeCut _cut;
@@ -6083,10 +6087,8 @@ internal static class RacesContext
                 result.Triangles.Any(index => index < 0 || index >= mesh.vertexCount))
                 throw new InvalidOperationException("Native rest channels are incomplete: " + mesh.name);
             var weightedBones = new HashSet<int>();
-            result.AllVerticesWeighted = true;
             foreach (var weights in result.Weights)
             {
-                var total = 0f;
                 for (var influence = 0; influence < 4; influence++)
                 {
                     var weight = BodyShapeWeight(weights, influence);
@@ -6095,17 +6097,15 @@ internal static class RacesContext
                         throw new InvalidOperationException("A body skin weight references an invalid bindpose: " + mesh.name);
                     if (weight <= 0f) continue;
                     weightedBones.Add(index);
-                    total += weight;
                 }
-                result.AllVerticesWeighted &= BodyShapeFinite(total) && total > 0f;
             }
             result.WeightedBones = weightedBones.ToArray();
             result.Boundary = BodyShapeBoundary(result.Vertices.Length, result.Triangles);
-            var muscular = mesh.GetBlendShapeIndex("Muscular");
+            var muscular = NativeBodyShapeFrame(mesh);
             if (muscular >= 0)
             {
                 if (mesh.GetBlendShapeFrameCount(muscular) != 1 || mesh.GetBlendShapeFrameWeight(muscular, 0) <= 0f)
-                    throw new InvalidOperationException("The native Muscular frame range is unsupported: " + mesh.name);
+                    throw new InvalidOperationException("The native body frame range is unsupported: " + mesh.name);
                 result.Muscular = new Vector3[mesh.vertexCount];
                 result.MuscularNormals = new Vector3[mesh.vertexCount];
                 result.MuscularTangents = new Vector3[mesh.vertexCount];
@@ -6335,7 +6335,7 @@ internal static class RacesContext
             foreach (var row in rows)
             {
                 if (row.Identity || !row.UseNativeFrame || !row.Original.name.EndsWith("LOD0", StringComparison.Ordinal) ||
-                    row.Original.GetBlendShapeIndex("Muscular") < 0) continue;
+                    NativeBodyShapeFrame(row.Original) < 0) continue;
                 if (row.Original.GetBlendShapeIndex(BodyVolumePositive) >= 0 ||
                     row.Original.GetBlendShapeIndex(BodyVolumeNegative) >= 0)
                     throw new InvalidOperationException("A native muscle source still contains an owned body frame.");
@@ -6346,8 +6346,6 @@ internal static class RacesContext
                 if (bones.Length < rest.BindPoses.Length || rest.Muscular == null)
                     throw new InvalidOperationException("An actor's native muscle source is incomplete.");
                 seen.Add((row.Original, sourceBones));
-                var eligible = bones.Select(bone => !IsProtectedBodyBone(bone)).ToArray();
-                if (!eligible.Any(value => value)) continue;
                 var lengths = bones.Select(BodyShapeBoneLength).ToArray();
                 for (var vertex = 0; vertex < rest.Vertices.Length; vertex++)
                 {
@@ -6357,7 +6355,6 @@ internal static class RacesContext
                         var weight = BodyShapeWeight(weights, influence);
                         if (weight <= 0f) continue;
                         var index = BodyShapeWeightIndex(weights, influence);
-                        if (!eligible[index]) continue;
                         var name = bones[index].name;
                         if (!samples.TryGetValue(name, out var list)) samples.Add(name, list = []);
                         list.Add(new BodyShapeSample(rest.BindPoses[index].MultiplyPoint3x4(rest.Vertices[vertex]) / lengths[index],
@@ -6526,7 +6523,6 @@ internal static class RacesContext
         internal SkinnedMeshRenderer Renderer;
         internal CustomModels.SkinMeshSource Source;
         internal Mesh Original;
-        internal bool PreserveNativeWeight;
         internal bool UseNativeFrame;
         internal bool Identity;
         internal bool CalibrationSource;
@@ -6603,12 +6599,10 @@ internal static class RacesContext
     }
 
     private static bool IsBodyIdentityPart(GraphicsCharacterDefinitions.BodyPart part) => part is
-        GraphicsCharacterDefinitions.BodyPart.Helmet or GraphicsCharacterDefinitions.BodyPart.Hair or
+        GraphicsCharacterDefinitions.BodyPart.Head or GraphicsCharacterDefinitions.BodyPart.Helmet or
+        GraphicsCharacterDefinitions.BodyPart.Hair or
         GraphicsCharacterDefinitions.BodyPart.Beard or
         GraphicsCharacterDefinitions.BodyPart.Horns or GraphicsCharacterDefinitions.BodyPart.Tail;
-
-    private static bool IsProtectedBodyPart(GraphicsCharacterDefinitions.BodyPart part) =>
-        part == GraphicsCharacterDefinitions.BodyPart.Head || IsBodyIdentityPart(part);
 
     private static bool IsProtectedBodyRenderer(GraphicsCharacter graphics, SkinnedMeshRenderer renderer)
     {
@@ -6617,7 +6611,7 @@ internal static class RacesContext
             if (slots == null) continue;
             for (var slot = 0; slot < slots.Length; slot++)
             {
-                if (IsProtectedBodyPart((GraphicsCharacterDefinitions.BodyPart)slot) &&
+                if (IsBodyIdentityPart((GraphicsCharacterDefinitions.BodyPart)slot) &&
                     slots[slot] != null && slots[slot].Contains(renderer)) return true;
             }
         }
@@ -6636,7 +6630,6 @@ internal static class RacesContext
             for (var slot = 0; slot < slots.Length; slot++)
             {
                 if (slots[slot] == null) continue;
-                var protectedPart = IsProtectedBodyPart((GraphicsCharacterDefinitions.BodyPart)slot);
                 var identityPart = IsBodyIdentityPart((GraphicsCharacterDefinitions.BodyPart)slot);
                 var calibrationSource = ReferenceEquals(slots, graphics.ShapeSkinnedMeshRenderersPerBodySlot) &&
                     slot == (int)GraphicsCharacterDefinitions.BodyPart.Body;
@@ -6645,12 +6638,11 @@ internal static class RacesContext
                     if (!renderer || !renderer.sharedMesh) continue;
                     if (result.TryGetValue(renderer, out var row))
                     {
-                        row.PreserveNativeWeight |= protectedPart;
                         row.Identity |= identityPart;
                         row.CalibrationSource |= calibrationSource;
                     }
                     else result.Add(renderer, new BodyShapeRenderer
-                    { Renderer = renderer, PreserveNativeWeight = protectedPart, Identity = identityPart,
+                    { Renderer = renderer, Identity = identityPart,
                         UseNativeFrame = useNativeFrame, CalibrationSource = calibrationSource });
                 }
             }
@@ -6730,11 +6722,11 @@ internal static class RacesContext
             private readonly SkinnedMeshRenderer _renderer = row.Renderer;
             private readonly Mesh _original = row.Original;
             private readonly Transform[] _bones = row.Renderer.bones;
-            private readonly bool _preserveNativeWeight = row.PreserveNativeWeight;
+            private readonly bool _identity = row.Identity;
             private readonly bool _useNativeFrame = row.UseNativeFrame;
             private readonly bool _calibrationSource = row.CalibrationSource;
             internal bool Matches(BodyShapeRenderer current) => current.Renderer == _renderer &&
-                current.Original == _original && current.PreserveNativeWeight == _preserveNativeWeight &&
+                current.Original == _original && current.Identity == _identity &&
                 current.UseNativeFrame == _useNativeFrame &&
                 current.CalibrationSource == _calibrationSource &&
                 current.Source != null && current.Source.MatchesBones(_bones);
@@ -6754,7 +6746,7 @@ internal static class RacesContext
             var declarations = new JArray();
             foreach (var row in rows)
             {
-                var native = row.Original.GetBlendShapeIndex("Muscular");
+                var native = NativeBodyShapeFrame(row.Original);
                 var bones = new JArray();
                 foreach (var bone in row.Renderer.bones.Take(row.Original.bindposes.Length))
                 {
@@ -6763,13 +6755,16 @@ internal static class RacesContext
                         path.Add(current.name);
                     bones.Add(new JArray(string.Join("/", path), BodyShapeBoneLength(bone)));
                 }
-                declarations.Add(new JArray(CharacterModelFingerprint(row.Original), row.PreserveNativeWeight,
+                // This cache lives in the process and owns its derived meshes. A source's
+                // weak identity avoids reading source vertex buffers on UI callbacks and
+                // cannot alias a later mesh when Unity recycles an instance ID.
+                declarations.Add(new JArray(BodyShapeMeshIdentities.GetValue(row.Original, _ => Guid.NewGuid().ToString("N")),
                     row.UseNativeFrame, row.CalibrationSource,
-                    row.PreserveNativeWeight && native >= 0 ? row.Renderer.GetBlendShapeWeight(native) : 0f, bones));
+                    !row.UseNativeFrame && native >= 0 ? row.Renderer.GetBlendShapeWeight(native) : 0f, bones));
             }
             var declaration = new JArray(Array.IndexOf(BodyShapeFields, field), supplemental, declarations);
             using var hash = CustomModels.CreateAssetSha256();
-            return "body-volume:1:" + BitConverter.ToString(hash.ComputeHash(
+            return "body-volume:2:" + BitConverter.ToString(hash.ComputeHash(
                 System.Text.Encoding.UTF8.GetBytes(declaration.ToString(Formatting.None)))).Replace("-", "");
         }
         internal void Refresh(GraphicsCharacter graphics, BodyShapeField field, float value, float defaultValue, bool supplemental)
@@ -6793,13 +6788,13 @@ internal static class RacesContext
                 {
                     rows.Single(row => row.Renderer == piece.Renderer).Original = piece.Original;
                 }
-                var sources = rows.Where(row => row.CalibrationSource && row.UseNativeFrame && row.Original.GetBlendShapeIndex("Muscular") >= 0).ToList();
+                var sources = rows.Where(row => row.CalibrationSource && row.UseNativeFrame && NativeBodyShapeFrame(row.Original) >= 0).ToList();
                 if (!FieldSourcesCurrent(graphics, field, rows, supplemental))
                 {
                     Release(false);
                     if (_pieces.Count != 0) throw new InvalidOperationException("Native body sources have not finished restoring.");
                     rows = CaptureBodyShapeRenderers(graphics);
-                    sources = rows.Where(row => row.CalibrationSource && row.UseNativeFrame && row.Original.GetBlendShapeIndex("Muscular") >= 0).ToList();
+                    sources = rows.Where(row => row.CalibrationSource && row.UseNativeFrame && NativeBodyShapeFrame(row.Original) >= 0).ToList();
                     _baseField = field;
                     _supplemental = supplemental;
                     _fieldRig = graphics.Animator;
@@ -6808,22 +6803,11 @@ internal static class RacesContext
                     _fieldSources.AddRange(rows.Select(row => new FieldSource(row)));
                     _fieldSourcesReady = true;
                 }
-                // Hair, horns and other identity parts have no body deformation.
+                // The face, hair, horns and other identity parts have no body deformation.
                 // Their replacement does not change the body geometry contract.
-                var bodyRows = rows.Where(row => !row.Identity).ToList();
-                var geometryKey = _pieces.Count == 0 ? GeometryKey(graphics, field, bodyRows, supplemental) : null;
-                var cached = geometryKey == null ? null : CharacterModelPresentation.ExistingSourceData(_derivedKeys, geometryKey);
-                if (cached != null)
-                {
-                    var metadata = JArray.Parse(((TextAsset)cached[0]).text);
-                    if (metadata.Count != cached.Length - 1) throw new InvalidOperationException("A cached body shape lost its mesh mapping.");
-                    for (var index = 0; index < metadata.Count; index++)
-                    {
-                        var piece = new BodyShapePiece(bodyRows[(int)metadata[index][0]], (Mesh)cached[index + 1], (float)metadata[index][1]);
-                        piece.Retained();
-                        _pieces.Add(piece);
-                    }
-                }
+                var bodyRows = rows.Where(row => !row.Identity && supplemental &&
+                    (!row.UseNativeFrame || NativeBodyShapeFrame(row.Original) < 0)).ToList();
+                var calibrationKey = bodyRows.Count == 0 ? null : GeometryKey(graphics, field, sources, supplemental);
                 var fieldAttempted = false;
                 BodyShapeField GetField()
                 {
@@ -6846,53 +6830,62 @@ internal static class RacesContext
                     seams = new BodyShapeSeams();
                     foreach (var row in rows)
                     {
-                        if (row.Identity || !row.UseNativeFrame || row.Original.GetBlendShapeIndex("Muscular") < 0) continue;
+                        if (row.Identity || !row.UseNativeFrame || NativeBodyShapeFrame(row.Original) < 0) continue;
                         var bones = row.Renderer.bones;
                         var rest = ReadBodyShapeRest(row.Original);
-                        var protectedBones = bones.Select(IsProtectedBodyBone).ToArray();
                         for (var vertex = 0; vertex < rest.Vertices.Length; vertex++)
                         {
                             if (!rest.Boundary[vertex]) continue;
                             var dominant = BodyShapeDominantBone(rest.Weights[vertex], bones);
                             if (dominant < 0) continue;
-                            var body = BodyShapeBodyWeight(rest.Weights[vertex], protectedBones, out _);
                             var basis = rest.BindPoses[dominant];
                             seams.AddNative(bones[dominant].name, basis.MultiplyPoint3x4(rest.Vertices[vertex]),
-                                rest.BindPoses[dominant].MultiplyVector(rest.Muscular[vertex] * body),
+                                rest.BindPoses[dominant].MultiplyVector(rest.Muscular[vertex]),
                                 basis.inverse.transpose.MultiplyVector(rest.Normals[vertex]),
                                 rest.Tangents.Length == rest.Vertices.Length ? basis.MultiplyVector((Vector3)rest.Tangents[vertex]) : null,
-                                basis.inverse.transpose.MultiplyVector(rest.MuscularNormals[vertex] * body),
-                                basis.MultiplyVector(rest.MuscularTangents[vertex] * body));
+                                basis.inverse.transpose.MultiplyVector(rest.MuscularNormals[vertex]),
+                                basis.MultiplyVector(rest.MuscularTangents[vertex]));
                         }
                     }
                     readingSeams = false;
                     return seams;
                 }
-                var geometryComplete = true;
                 foreach (var row in bodyRows)
                 {
                     if (_pieces.Any(piece => piece.Renderer == row.Renderer)) continue;
-                    if (!supplemental)
+                    try
                     {
-                        var native = row.UseNativeFrame ? row.Original.GetBlendShapeIndex("Muscular") : -1;
-                        if (native < 0) continue;
+                        // Native face refresh recreates the actor's parts. Geometry is
+                        // cached per part and calibration, so a new face does not evict
+                        // unchanged body and garment calculations. Live cloth ownership
+                        // is still installed as one complete transition below.
+                        var key = calibrationKey + ":" + GeometryKey(graphics, field, [row], supplemental);
+                        var cached = CharacterModelPresentation.ExistingSourceData(_derivedKeys, key);
+                        if (cached != null)
+                        {
+                            if (cached.Length == 1) continue;
+                            var piece = new BodyShapePiece(row, (Mesh)cached[1], (float)JToken.Parse(((TextAsset)cached[0]).text));
+                            piece.Retained();
+                            _pieces.Add(piece);
+                            continue;
+                        }
+                        var count = _pieces.Count;
+                        BodyShapePiece.Create(row, GetField, GetSeams, _pieces, supplemental);
+                        if (_pieces.Count == count)
+                        {
+                            CharacterModelPresentation.RetainPreparedSourceData(_derivedKeys, key, [new TextAsset("null")]);
+                            continue;
+                        }
+                        var created = _pieces[_pieces.Count - 1];
+                        CharacterModelPresentation.RetainPreparedSourceData(_derivedKeys, key,
+                            [new TextAsset(new JValue(created.Expansion).ToString(Formatting.None)), created.Owned]);
+                        created.Retained();
                     }
-                    try { BodyShapePiece.Create(row, GetField, GetSeams, _pieces, supplemental); }
                     catch (Exception exception)
                     {
-                        geometryComplete = false;
                         if (readingSeams) throw;
                         ReportBodyShapeError(row.Original.name, exception);
                     }
-                }
-                if (geometryComplete && geometryKey != null && cached == null && _pieces.Count != 0)
-                {
-                    var metadata = new JArray(_pieces.Select(piece => new JArray(
-                        bodyRows.FindIndex(row => row.Renderer == piece.Renderer), piece.Expansion)));
-                    CharacterModelPresentation.RetainPreparedSourceData(_derivedKeys, geometryKey,
-                        new UnityEngine.Object[] { new TextAsset(metadata.ToString(Formatting.None)) }
-                            .Concat(_pieces.Select(piece => (UnityEngine.Object)piece.Owned)).ToArray());
-                    foreach (var piece in _pieces) piece.Retained();
                 }
                 if (_pieces.Count != 0 && _sourceGraph == null)
                 {
@@ -6964,13 +6957,12 @@ internal static class RacesContext
         private readonly Mesh _owned;
         private readonly Bounds _originalBounds;
         private readonly Bounds _appliedBounds;
-        private readonly bool _identity, _preserveNativeWeight, _useNativeFrame;
+        private readonly bool _identity, _useNativeFrame;
         private readonly Transform[] _bones;
         private CustomModels.SkinMeshSource _source;
         private bool _installed, _retained;
         private readonly int _positive;
         private readonly int _negative;
-        private readonly float? _preservedNativeWeight;
         internal CustomModels.SkinMeshSource Source => _source;
         internal Mesh Owned => _owned;
         internal readonly float Expansion;
@@ -6982,13 +6974,10 @@ internal static class RacesContext
             Expansion = expansion;
             _source = row.Source;
             _identity = row.Identity;
-            _preserveNativeWeight = row.PreserveNativeWeight;
             _useNativeFrame = row.UseNativeFrame;
             _bones = row.Renderer.bones;
             _positive = owned.GetBlendShapeIndex(BodyVolumePositive);
             _negative = owned.GetBlendShapeIndex(BodyVolumeNegative);
-            var native = Original.GetBlendShapeIndex("Muscular");
-            if (row.PreserveNativeWeight && native >= 0) _preservedNativeWeight = Renderer.GetBlendShapeWeight(native);
             _originalBounds = Renderer.localBounds;
             var bounds = _originalBounds;
             bounds.Expand(expansion * 2f);
@@ -6997,32 +6986,28 @@ internal static class RacesContext
         internal static void Create(BodyShapeRenderer row, Func<BodyShapeField> getField, Func<BodyShapeSeams> getSeams,
             List<BodyShapePiece> pieces, bool supplemental)
         {
-            var hasNativeFrame = row.UseNativeFrame && row.Original.GetBlendShapeIndex("Muscular") >= 0;
-            if ((row.Identity || !supplemental) && !hasNativeFrame) return;
-            if ((row.PreserveNativeWeight || !hasNativeFrame) &&
-                row.Renderer.bones.All(IsProtectedBodyBone)) return;
+            var hasNativeFrame = row.UseNativeFrame && NativeBodyShapeFrame(row.Original) >= 0;
+            // A native frame already fits this asset's skin and clothing. Supplemental
+            // fields fill missing deformation; they do not mask authored native motion.
+            if (row.Identity || !supplemental || hasNativeFrame) return;
             var rest = ReadBodyShapeRest(row.Original);
             var bones = row.Renderer.bones.Take(rest.BindPoses.Length).ToArray();
             if (bones.Length < rest.BindPoses.Length) throw new InvalidOperationException("The body's original bone mapping is incomplete.");
-            var protectedBones = bones.Select(IsProtectedBodyBone).ToArray();
-            // With no protected positive influences, native correction has body / total = 1 everywhere.
-            if (hasNativeFrame && !row.PreserveNativeWeight && rest.AllVerticesWeighted &&
-                rest.WeightedBones is { } usedBones && usedBones.All(index => !protectedBones[index])) return;
-            if (!hasNativeFrame && rest.WeightedBones.All(index => protectedBones[index])) return;
-            var field = hasNativeFrame ? null : getField();
-            if (!hasNativeFrame && field == null) return;
-            var lengths = !hasNativeFrame ? bones.Select(BodyShapeBoneLength).ToArray() : null;
-            var inverse = !hasNativeFrame ? rest.BindPoses.Select(matrix => matrix.inverse).ToArray() : null;
-            var anchors = !hasNativeFrame ? Enumerable.Repeat(-1, bones.Length).ToArray() : null;
+            var protectedBones = bones.Select(bone => !row.UseNativeFrame && IsProtectedBodyBone(bone)).ToArray();
+            if (rest.WeightedBones.All(index => protectedBones[index])) return;
+            var field = getField();
+            if (field == null) return;
+            var lengths = bones.Select(BodyShapeBoneLength).ToArray();
+            var inverse = rest.BindPoses.Select(matrix => matrix.inverse).ToArray();
+            var anchors = Enumerable.Repeat(-1, bones.Length).ToArray();
             var delta = new Vector3[rest.Vertices.Length];
             var protectedVertices = new bool[rest.Vertices.Length];
-            var nativeCorrection = hasNativeFrame && !row.PreserveNativeWeight;
-            var normalCorrection = hasNativeFrame ? new Vector3[delta.Length] : null;
-            var tangentCorrection = hasNativeFrame ? new Vector3[delta.Length] : null;
-            var seamNormals = !hasNativeFrame ? new Dictionary<int,
-                (Vector3 Normal, Vector3 Tangent, Vector3 NegativeNormal, Vector3 NegativeTangent)>() : null;
-            var baseline = row.PreserveNativeWeight && rest.Muscular != null
-                ? row.Renderer.GetBlendShapeWeight(row.Original.GetBlendShapeIndex("Muscular")) / 100f : 0f;
+            var seamNormals = new Dictionary<int,
+                (Vector3 Normal, Vector3 Tangent, Vector3 NegativeNormal, Vector3 NegativeTangent)>();
+            // A fixed native frame is part of the input surface. Sampling a garment's
+            // unweighted vertices while the body uses its default frame separates layers.
+            var baseline = rest.Muscular != null
+                ? row.Renderer.GetBlendShapeWeight(NativeBodyShapeFrame(row.Original)) / 100f : 0f;
             var maximum = 0f;
             var changed = false;
             for (var vertex = 0; vertex < delta.Length; vertex++)
@@ -7030,26 +7015,19 @@ internal static class RacesContext
                 var weights = rest.Weights[vertex];
                 var body = BodyShapeBodyWeight(weights, protectedBones, out var total);
                 protectedVertices[vertex] = body == 0f;
-                if (hasNativeFrame)
+                if (body > 0f)
                 {
-                    // Keep native frames intact; mask their contribution through an owned additive frame.
-                    var factor = nativeCorrection ? body - 1f : body;
-                    delta[vertex] = rest.Muscular[vertex] * factor;
-                    normalCorrection[vertex] = rest.MuscularNormals[vertex] * factor;
-                    tangentCorrection[vertex] = rest.MuscularTangents[vertex] * factor;
-                    changed |= normalCorrection[vertex].sqrMagnitude > 0f || tangentCorrection[vertex].sqrMagnitude > 0f;
+                    var point = rest.Vertices[vertex] + (baseline == 0f ? Vector3.zero : rest.Muscular[vertex] * baseline);
+                    delta[vertex] = Evaluate(point, weights, total);
                 }
-                else if (body > 0f)
-                {
-                    delta[vertex] = Evaluate(rest.Vertices[vertex], weights, total);
-                }
-                if (!hasNativeFrame && body > 0f && rest.Boundary[vertex])
+                if (body > 0f && rest.Boundary[vertex])
                 {
                     var dominant = BodyShapeDominantBone(weights, bones);
                     if (dominant >= 0)
                     {
                         var basis = rest.BindPoses[dominant];
-                        var point = basis.MultiplyPoint3x4(rest.Vertices[vertex]);
+                        var point = basis.MultiplyPoint3x4(rest.Vertices[vertex] +
+                            (baseline == 0f ? Vector3.zero : rest.Muscular[vertex] * baseline));
                         var seams = getSeams();
                         if (!seams.TryGet(bones[dominant].name, point, out var seam))
                         {
@@ -7096,8 +7074,8 @@ internal static class RacesContext
             owned.name = row.Original.name;
             try
             {
-                AddFrame(owned, BodyVolumePositive, rest, delta, protectedVertices, 1f, normalCorrection, tangentCorrection, baseline, seamNormals);
-                AddFrame(owned, BodyVolumeNegative, rest, delta, protectedVertices, -1f, normalCorrection, tangentCorrection, baseline, seamNormals);
+                AddFrame(owned, BodyVolumePositive, rest, delta, protectedVertices, 1f, baseline, seamNormals);
+                AddFrame(owned, BodyVolumeNegative, rest, delta, protectedVertices, -1f, baseline, seamNormals);
                 pieces.Add(new BodyShapePiece(row, owned, maximum));
             }
             catch
@@ -7168,7 +7146,7 @@ internal static class RacesContext
         internal bool IsCurrent(BodyShapeRenderer row)
         {
             var source = row.Source;
-            if (!_installed || row.Renderer != Renderer || row.Identity != _identity || row.PreserveNativeWeight != _preserveNativeWeight ||
+            if (!_installed || row.Renderer != Renderer || row.Identity != _identity ||
                 row.UseNativeFrame != _useNativeFrame ||
                 source == null || !source.MatchesBones(_bones) || source.Original != _owned || !source.AcceptsCurrentMesh()) return false;
             _source = source;
@@ -7177,7 +7155,7 @@ internal static class RacesContext
         internal void SetValue(float value, float defaultValue)
         {
             if (!_installed || !Renderer || !_owned || !_source.OwnerCurrent || !_source.AcceptsCurrentMesh()) return;
-            value -= _preservedNativeWeight ?? defaultValue;
+            value -= defaultValue;
             Renderer.SetBlendShapeWeight(_positive, Mathf.Max(0f, value));
             Renderer.SetBlendShapeWeight(_negative, Mathf.Max(0f, -value));
         }
@@ -7195,7 +7173,7 @@ internal static class RacesContext
             if (!_retained && _owned) UnityEngine.Object.Destroy(_owned);
         }
         private static void AddFrame(Mesh owned, string name, BodyShapeRest rest, Vector3[] delta, bool[] protectedVertices, float sign,
-            Vector3[] normalCorrection, Vector3[] tangentCorrection, float baseline,
+            float baseline,
             IReadOnlyDictionary<int, (Vector3 Normal, Vector3 Tangent, Vector3 NegativeNormal, Vector3 NegativeTangent)> seamNormals)
         {
             var source = rest.Vertices;
@@ -7207,18 +7185,12 @@ internal static class RacesContext
             var positions = new Vector3[delta.Length];
             var changes = new Vector3[delta.Length];
             for (var index = 0; index < delta.Length; index++) { changes[index] = delta[index] * sign; positions[index] = source[index] + changes[index]; }
-            var before = normalCorrection == null ? BodyShapeNormals(source, rest.Triangles) : null;
-            var after = normalCorrection == null ? BodyShapeNormals(positions, rest.Triangles) : null;
+            var before = BodyShapeNormals(source, rest.Triangles);
+            var after = BodyShapeNormals(positions, rest.Triangles);
             var normals = new Vector3[delta.Length];
             var tangents = rest.Tangents.Length == delta.Length ? new Vector3[delta.Length] : null;
             for (var index = 0; index < delta.Length; index++)
             {
-                if (normalCorrection != null)
-                {
-                    normals[index] = normalCorrection[index] * sign;
-                    if (tangents != null) tangents[index] = tangentCorrection[index] * sign;
-                    continue;
-                }
                 if (seamNormals != null && seamNormals.TryGetValue(index, out var seam))
                 {
                     normals[index] = sign > 0f ? seam.Normal : seam.NegativeNormal;

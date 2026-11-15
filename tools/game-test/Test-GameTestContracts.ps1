@@ -1545,6 +1545,23 @@ function Get-VerificationProcessState {
         $retainedHash=Get-GtHash $payload.retained
         $applied=Invoke-StorageCleanup $payload.area -Options $options -Apply
         Add-StorageCheck 'generated payload apply retires only selected data and keeps referenced bytes' (-not(Test-Path -LiteralPath $payload.first) -and -not(Test-Path -LiteralPath $payload.second) -and (Get-GtHash $payload.retained) -ceq $retainedHash -and @($applied.actions|Where-Object applied -eq $true).Count -eq 2)
+        foreach($guardCase in @('changed-input','selected-input','preview-only','valid-input')){
+            $guardPayload=New-GeneratedPayloadFixture ('guard-'+$guardCase)
+            $guardPath=if($guardCase -eq 'selected-input'){$guardPayload.second}else{Join-Path $guardPayload.area 'Producer.json'}
+            if($guardCase -ne 'selected-input'){[IO.File]::WriteAllText($guardPath,'producer identity')}
+            $guardPayload.document.guardInputs=@(@{path=$guardPath;sha256=(Get-GtHash $guardPath).ToLowerInvariant()})
+            if($guardCase -eq 'changed-input'){$guardPayload.document.guardInputs[0].sha256='0'*64}
+            if($guardCase -eq 'preview-only'){$guardPayload.document.previewOnly=$true}
+            Write-GtJson $guardPayload.plan $guardPayload.document
+            $guardOptions=@{GeneratedPayloadPlanPath=$guardPayload.plan;ReferencePath=@($guardPayload.reference)}
+            if($guardCase -eq 'valid-input'){
+                [void](Invoke-StorageCleanup $guardPayload.area -Options $guardOptions -Apply)
+                Add-StorageCheck 'unchanged producer inputs authorize declared payload retirement and remain intact' (-not(Test-Path -LiteralPath $guardPayload.first) -and (Test-Path -LiteralPath $guardPath) -and (Test-Path -LiteralPath $guardPayload.retained))
+            }else{
+                $guardRejected=Test-StorageRejection {Invoke-StorageCleanup $guardPayload.area -Options $guardOptions -Apply}
+                Add-StorageCheck ('producer guard rejects before deleting any payload: '+$guardCase) ($guardRejected -and (Test-Path -LiteralPath $guardPayload.first) -and (Test-Path -LiteralPath $guardPayload.second))
+            }
+        }
         $nestedPayload=New-GeneratedPayloadFixture 'many-roots-nested'
         $nestedDirectory=Join-Path (Split-Path -Parent $nestedPayload.first) 'Nested/Deeper'
         [void][IO.Directory]::CreateDirectory($nestedDirectory)

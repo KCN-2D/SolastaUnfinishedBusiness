@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "files": {
+    "manifest": "CharacterModels.manifest.json",
+    "packs": "CharacterModels.packs.json",
+    "release": "CharacterModels.release.json",
+    "packageInputs": "PackageInputs.json"
+  },
+  "archiveName": "CharacterModels-{ordinal:02}.zip",
+  "maximumPacks": 99,
+  "versionPattern": "\\d{4}\\.\\d{2}\\.\\d{2}\\.[1-9]\\d*",
+  "tagName": "character-models-{version}",
+  "downloadBaseUrl": "https://github.com/KCN-2D/SolastaUnfinishedBusiness/releases/download/{tag}/",
+  "releaseMetadata": {
+    "name": "カスタムキャラクターモデル",
+    "body": "カスタムキャラクターモデルのオプションを有効にすると、リソースが自動でダウンロードされ、ゲームに適用されます。",
+    "generate_release_notes": false
+  }
+}

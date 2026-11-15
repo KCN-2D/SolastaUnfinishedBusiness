@@ -49,9 +49,9 @@ try{
     . (Join-Path $PSScriptRoot 'asset-authoring/UnityAssetBuild/BackgroundEditor.ps1')
     $unityRoot=Join-Path $script:AssetAuthoringWorkspace 'UnityWorkspace'
     $projects=@(if(Test-Path -LiteralPath $unityRoot -PathType Container){
-        Get-ChildItem -LiteralPath $unityRoot -Recurse -File -Filter storage-owner.json | ForEach-Object {
-            $owner=Read-GtObject $_.FullName
-            if($owner.project -and (Test-GtWithin $owner.project $unityRoot)){ $owner.project }
+        Get-ChildItem -LiteralPath $unityRoot -Recurse -File -Filter .solasta-asset-authoring-project | ForEach-Object {
+            $projectPath=Split-Path -Parent $_.FullName
+            if((Test-GtWithin $projectPath $unityRoot) -and [IO.File]::ReadAllText($_.FullName).Trim() -ceq 'SolastaUBAssetAuthoring:UnityProject:1'){ $projectPath }
         } | Sort-Object -Unique
     })
     $authoringReferences=@(if(Test-Path -LiteralPath (Join-Path $script:GameTestArtifactRoot 'StorageReferences.json')){Join-Path $script:GameTestArtifactRoot 'StorageReferences.json'})
@@ -61,6 +61,16 @@ try{
     })
     $report.testCleanup=& $cleanup -ArtifactRoot $script:GameTestArtifactRoot -PruneSuperseded -MaxRetainedBytes $MaxTestBytes -KeepLatestPerCase 2 -PreserveDirectory (@($operation)+$PreserveDirectory) -Apply:$Apply
     & $cleanup -ArtifactRoot $script:GameTestArtifactRoot -PruneReports -PruneLooseFiles -PreserveDirectory (@($operation)+$PreserveDirectory) -Apply:$Apply | Out-Null
+    if(Test-Path -LiteralPath $PythonPath -PathType Leaf){
+        $previousErrorPreference=$ErrorActionPreference
+        try{
+            $ErrorActionPreference='Continue'
+            & $PythonPath (Join-Path $PSScriptRoot 'asset-authoring/resource_storage.py') --output $operation --inventory-only *> (Join-Path $operation 'StorageInventory.log')
+            $inventoryExitCode=$LASTEXITCODE
+        }finally{$ErrorActionPreference=$previousErrorPreference}
+        if($inventoryExitCode -ne 0){throw 'Tool storage inventory failed; see StorageInventory.log.'}
+        $report['toolInventory']=Join-Path $operation 'StorageInventory.json'
+    }
     $report.status='PASS'
 }catch{
     $report.status='ERROR';$report.reason=$_.Exception.Message

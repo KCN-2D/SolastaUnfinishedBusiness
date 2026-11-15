@@ -325,7 +325,8 @@ try {
         Assert-GtFile $planPath
         $planHash=Get-GtHash $planPath
         $plan=Read-GtObject $planPath
-        Assert-GtProperties $plan @('schemaVersion','artifactRoot','scope','utc','reference','roots','files','logicalBytes','estimatedReclaimableFileBytes','retainedReferencedFiles') @('schemaVersion','artifactRoot','reference','roots','files')
+        Assert-GtProperties $plan @('schemaVersion','artifactRoot','scope','utc','reference','roots','files','logicalBytes','estimatedReclaimableFileBytes','retainedReferencedFiles','guardInputs','previewOnly') @('schemaVersion','artifactRoot','reference','roots','files')
+        if($Apply -and $plan.PSObject.Properties['previewOnly'] -and $plan.previewOnly){throw 'Unregistered producer outputs require a new applied storage plan.'}
         if ($plan.schemaVersion -ne 1 -or (Get-GtPath $plan.artifactRoot) -ne $root -or $plan.roots -isnot [array] -or $plan.files -isnot [array]) {
             throw 'Generated payload plan does not identify this artifact root.'
         }
@@ -335,6 +336,18 @@ try {
         # Read leases prevent source-plan/reference replacement during the batch.
         foreach ($inputPath in @($planPath)+@($referenceInputs | ForEach-Object path)) {
             $payloadInputLeases.Add([IO.File]::Open($inputPath,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read))
+        }
+        $producerInputs=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        if($plan.PSObject.Properties['guardInputs']){
+            if($plan.guardInputs -isnot [array]){throw 'Retirement producer inputs must be a list.'}
+            foreach($producerInput in $plan.guardInputs){
+                Assert-GtProperties $producerInput @('path','sha256') @('path','sha256')
+                $inputPath=Get-GtPath $producerInput.path
+                if(-not(Test-GtWithin $inputPath $script:GameTestRepo) -or $producerInput.sha256 -cnotmatch '^[a-f0-9]{64}$' -or -not $producerInputs.Add($inputPath)){throw 'Invalid retirement producer input.'}
+                Assert-GtFile $inputPath
+                $payloadInputLeases.Add([IO.File]::Open($inputPath,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read))
+                if((Get-GtHash $inputPath) -ine $producerInput.sha256){throw 'A retirement producer input changed.'}
+            }
         }
         Assert-ReferencesCurrent
         if ((Get-GtHash $planPath) -ne $planHash) { throw 'Generated payload plan changed before validation.' }
@@ -363,7 +376,7 @@ try {
                 $payloadParent=[IO.Path]::GetDirectoryName($payloadParent)
             }
             $numericPacket=[IO.Path]::GetFileName($path) -cmatch '^[a-f0-9]{64}\.json$'
-            if ($path -eq $planPath -or -not $seen.Add($path) -or -not $withinPayloadRoot -or
+            if ($path -eq $planPath -or $producerInputs.Contains($path) -or -not $seen.Add($path) -or -not $withinPayloadRoot -or
                 ($extensions -cnotcontains [IO.Path]::GetExtension($path) -and -not $numericPacket) -or
                 ($row.bytes -isnot [long] -and $row.bytes -isnot [int]) -or $row.bytes -lt 0 -or
                 $row.sha256 -isnot [string] -or $row.sha256 -cnotmatch '^[a-f0-9]{64}$' -or

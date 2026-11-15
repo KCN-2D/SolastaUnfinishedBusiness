@@ -36,12 +36,35 @@ def require_workspace() -> Path:
     if HERE is None:
         raise ValueError('Initialize the model workspace before running this operation.')
     return HERE
-PUBLIC=ROOT/'SolastaUnfinishedBusiness/BlenderModels/CharacterModels'
+PUBLIC_RELATIVE_PATH=Path('SolastaUnfinishedBusiness/BlenderModels/CharacterModels')
+PUBLIC=ROOT/PUBLIC_RELATIVE_PATH
 EXACT_MAIN_TEXTURE_MAX_BYTES=8*1024**2
 EXACT_MAIN_CATALOG_MAX_BYTES=256*1024**2
 MAIN_RGB_BLOCK_REFINEMENT_ERROR=16
 MAIN_RGB_RMS_LIMIT=2.
 read=lambda path:json.loads(Path(path).read_text(encoding='utf-8-sig'))
+
+
+def resource_package_configuration(path=None):
+    """The package owner declares public names, release copy and distribution URLs."""
+    configuration=read(path or Path(__file__).with_name('resource-package.json'))
+    if configuration.get('schemaVersion')!=1:raise ValueError('Unsupported resource package configuration.')
+    files=configuration['files'];names=list(files.values())
+    if any(not isinstance(name,str)or not name or Path(name).name!=name or '/'in name or '\\'in name for name in names)or len({name.casefold()for name in names})!=len(names):
+        raise ValueError('Resource package files require distinct leaf names.')
+    if type(configuration['maximumPacks'])is not int or configuration['maximumPacks']<1:raise ValueError('A positive resource pack count is required.')
+    archive_names=[configuration['archiveName'].format(ordinal=ordinal)for ordinal in range(1,configuration['maximumPacks']+1)]
+    if len({name.casefold()for name in archive_names})!=len(archive_names)or any(Path(name).name!=name or '/'in name or '\\'in name or Path(name).suffix.lower()!='.zip'for name in archive_names):
+        raise ValueError('Resource archives require distinct ZIP leaf names.')
+    re.compile(configuration['versionPattern'])
+    metadata=configuration['releaseMetadata']
+    if not isinstance(metadata,dict)or any(not isinstance(metadata.get(key),str)or not metadata[key].strip()for key in ('name','body'))or metadata.get('generate_release_notes')is not False:
+        raise ValueError('Resource releases require declared title and description without generated notes.')
+    return configuration
+
+
+RESOURCE_PACKAGE=resource_package_configuration()
+RESOURCE_FILES=RESOURCE_PACKAGE['files']
 def sha(path):
     with Path(path).open('rb') as stream:
         return hashlib.file_digest(stream,'sha256').hexdigest()
@@ -70,6 +93,17 @@ def write(path,value):
     temporary=path.with_name(path.name+'.writing')
     temporary.write_text(json.dumps(value,ensure_ascii=False,separators=(',',':'),allow_nan=False)+'\n',encoding='utf8')
     temporary.replace(path)
+
+
+def resource_art_acceptance(assembly,catalog_sha):
+    """Review authority belongs to the exact catalog, rather than its copied flag."""
+    if assembly.get('artAccepted')is not True:return False
+    try:
+        proof=assembly['artAcceptance'];path=checked_source_path(proof['path'])
+        if sha(path)!=proof['sha256']:return False
+        review=read(path);candidate=review.get('candidate',review.get('candidateManifest',{}))
+        return str(review.get('status','')).startswith('PASS_')and candidate.get('sha256')==catalog_sha
+    except (KeyError,ValueError,OSError,TypeError):return False
 
 
 def catalog_payloads(manifest):
@@ -600,7 +634,7 @@ def extract_current():
         write(checked_catalog_path(args.output,'NativeBc3.json'),result)
         print(json.dumps(dict(status=result['status'],sources=len(result['rows']))));return
     public = PUBLIC
-    manifest = read(public / 'CharacterModels.manifest.json')
+    manifest = read(public / RESOURCE_FILES['manifest'])
     census = read(ROOT / 'tools/asset-authoring/workspace/FaceRefinement/NativeSources/Census.json')
     humanoids = [a for a in census['assets'] if '/EditableCharacters/' in a['internalId'] and a['name'].split('_')[0] in ('Human', 'Elf', 'Dwarf', 'Halfling', 'Gnome', 'Tiefling')]
     if args.selection:
@@ -639,7 +673,7 @@ def extract_current():
                 bundleFile=file, asset=asset, path=str(path.resolve()), sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
         print(json.dumps(dict(bundle=file, meshes=len(group))), flush=True)
     (args.output / 'Index.json').write_text(json.dumps(dict(status='PASS_CURRENT_CATALOG_MESH_EXPORT',
-        manifestSha256=hashlib.sha256((public / 'CharacterModels.manifest.json').read_bytes()).hexdigest(),
+        manifestSha256=hashlib.sha256((public / RESOURCE_FILES['manifest']).read_bytes()).hexdigest(),
         sourceDirectory=str(public),sourceRecipeVersion=manifest['recipeVersion'],
         humanoidAssets=[dict(name=a['name'], sourceContentKey=a['sourceContentKey']) for a in humanoids],
         meshes=records), separators=(',', ':')), encoding='utf8')
@@ -718,7 +752,7 @@ def prepare_bundles():
     parser.add_argument('--destination',type=Path,default=require_workspace() /'UnityInput');args=parser.parse_args()
     generated=read(args.generation)
     public=Path(generated.get('sourceDirectory',str(PUBLIC)))
-    manifest_path=public/'CharacterModels.manifest.json';manifest=read(manifest_path)
+    manifest_path=public/RESOURCE_FILES['manifest'];manifest=read(manifest_path)
     if generated['status']!='PASS_GENERATED_HUMANOID_SOURCES' or sha(manifest_path)!=generated['currentManifestSha256']:
         raise ValueError('The current catalog or humanoid generation is unresolved.')
     source_entries={m['sourceFingerprint']:m for m in manifest['meshes']}
@@ -824,17 +858,17 @@ def capture_source_catalog():
         raise ValueError('Source catalog output must be a separate tools workspace directory.')
     if destination.exists() and any(destination.iterdir()):raise ValueError('The source catalog output is not empty.')
     destination.mkdir(parents=True,exist_ok=True)
-    manifest=read(PUBLIC/'CharacterModels.manifest.json')
+    manifest=read(PUBLIC/RESOURCE_FILES['manifest'])
     inputs=catalog_payloads(manifest)
-    name_sources=(read_name_sources(args.name_sources,PUBLIC/'CharacterModels.manifest.json') if args.name_sources else
-        make_name_sources(manifest,sha(PUBLIC/'CharacterModels.manifest.json'),args.name_source_metadata) if args.name_source_metadata else None)
+    name_sources=(read_name_sources(args.name_sources,PUBLIC/RESOURCE_FILES['manifest']) if args.name_sources else
+        make_name_sources(manifest,sha(PUBLIC/RESOURCE_FILES['manifest']),args.name_source_metadata) if args.name_source_metadata else None)
     for file,expected in inputs.items():
         source=checked_catalog_path(PUBLIC,file)
         if sha(source)!=expected:raise ValueError('Source catalog data hash differs: '+file)
         os.link(source,destination/file)
-    (destination/'CharacterModels.manifest.json').write_bytes((PUBLIC/'CharacterModels.manifest.json').read_bytes())
+    (destination/RESOURCE_FILES['manifest']).write_bytes((PUBLIC/RESOURCE_FILES['manifest']).read_bytes())
     write(destination/'SourceCatalog.json',dict(status='PASS_IMMUTABLE_SOURCE_CATALOG_CAPTURE',
-        manifestSha256=sha(destination/'CharacterModels.manifest.json'),source=str(PUBLIC),files=inputs,
+        manifestSha256=sha(destination/RESOURCE_FILES['manifest']),source=str(PUBLIC),files=inputs,
         publicNameSources=name_sources,
         ownership='Hard links are immutable inputs. Public replacements use new files and directory-entry replacement.'))
     print(json.dumps(dict(status='PASS_IMMUTABLE_SOURCE_CATALOG_CAPTURE',files=len(inputs),destination=str(destination))))
@@ -844,8 +878,8 @@ def finalize_catalog():
     parser=argparse.ArgumentParser();parser.add_argument('--plan',type=Path,action='append',required=True)
     parser.add_argument('--results',type=Path,required=True);parser.add_argument('--destination',type=Path,required=True)
     args=parser.parse_args();plans=[read(path) for path in args.plan]
-    source=PUBLIC;manifest=read(source/'CharacterModels.manifest.json');source_hash=sha(source/'CharacterModels.manifest.json')
-    if source==ROOT/'SolastaUnfinishedBusiness/BlenderModels/CharacterModels':
+    source=PUBLIC;manifest=read(source/RESOURCE_FILES['manifest']);source_hash=sha(source/RESOURCE_FILES['manifest'])
+    if source==ROOT/PUBLIC_RELATIVE_PATH:
         raise ValueError('Finalize against the retained source catalog, using --source-directory.')
     if any(plan['baseManifest']['sha256']!=source_hash for plan in plans):raise ValueError('The plans use different source catalogs.')
     result_document=read(args.results);results=result_document.get('results') if isinstance(result_document,dict) else result_document
@@ -930,7 +964,7 @@ def finalize_catalog():
         return result
     if material_semantics(original['materials'])!=material_semantics(manifest['materials']):
         raise ValueError('A native material parameter or appearance declaration changed.')
-    target=destination/'CharacterModels.manifest.json'
+    target=destination/RESOURCE_FILES['manifest']
     target.write_text(json.dumps(manifest,indent=2,ensure_ascii=False)+'\n',encoding='utf8')
     census=read(ROOT/'tools/asset-authoring/workspace/FaceRefinement/NativeSources/Census.json')
     expected_sources={a['sourceContentKey'] for a in humanoid_sources(census)}
@@ -1254,15 +1288,15 @@ def publish_catalog():
     parser.add_argument('--name-sources',type=Path)
     parser.add_argument('--name-source-metadata',type=Path,action='append');args=parser.parse_args()
     if args.name_sources and args.name_source_metadata:raise ValueError('Select pinned naming sources or their native metadata inputs.')
-    candidate=checked_catalog_path(args.catalog);candidate_manifest=checked_catalog_path(candidate,'CharacterModels.manifest.json')
-    current=ROOT/'SolastaUnfinishedBusiness/BlenderModels/CharacterModels';manifest_path=current/'CharacterModels.manifest.json'
+    candidate=checked_catalog_path(args.catalog);candidate_manifest=checked_catalog_path(candidate,RESOURCE_FILES['manifest'])
+    current=ROOT/PUBLIC_RELATIVE_PATH;manifest_path=current/RESOURCE_FILES['manifest']
     checked_catalog_path(current)
     if sha(manifest_path)!=args.expected_current_sha256:raise ValueError('The public catalog changed before publication.')
     quality=read(candidate/'CatalogQuality.json')
     if quality['status']!='PASS_COMPLETE_HUMANOID_CATALOG' or not quality.get('completeHumanlikeScope') or sha(candidate_manifest)!=quality['candidateManifestSha256']:
         raise ValueError('The candidate catalog has no matching complete verification receipt.')
     manifest=read(candidate_manifest);source=checked_catalog_path(Path(quality['sourceCatalog']))
-    if source==current or sha(source/'CharacterModels.manifest.json')!=quality['sourceManifestSha256']:
+    if source==current or sha(source/RESOURCE_FILES['manifest'])!=quality['sourceManifestSha256']:
         raise ValueError('The immutable original catalog is missing or changed.')
     if sha(manifest_path)!=quality['sourceManifestSha256']:
         raise ValueError('The current public catalog differs from the retained rollback source.')
@@ -1270,7 +1304,7 @@ def publish_catalog():
         publish_resource_catalog(candidate,current,source,manifest,quality,validate_only=args.validate_only)
         return
     wanted=catalog_payloads(manifest)
-    original=read(source/'CharacterModels.manifest.json')
+    original=read(source/RESOURCE_FILES['manifest'])
     original_hashes=catalog_payloads(original)
     texture_closure=None
     if quality.get('texturePayloadClosure'):
@@ -1340,11 +1374,11 @@ def publish_catalog():
 
 def atomic_publish_catalog(candidate,current,source,manifest_bytes,payloads,candidate_files,original_hashes,receipt,*,validate_only=False):
     """One rollback-preserving publication path for generated catalog formats."""
-    manifest_path=current/'CharacterModels.manifest.json'
+    manifest_path=current/RESOURCE_FILES['manifest']
     published_sha=hashlib.sha256(manifest_bytes).hexdigest()
     changed=receipt['changed'];written=[];removed=[]
     obsolete=sorted(set(original_hashes)-set(payloads))
-    if sha(manifest_path)!=sha(source/'CharacterModels.manifest.json'):
+    if sha(manifest_path)!=sha(source/RESOURCE_FILES['manifest']):
         raise ValueError('The public catalog changed before the atomic publication.')
     if any(sha(checked_catalog_path(source,file))!=digest for file,digest in original_hashes.items()):
         raise ValueError('An immutable rollback source changed before publication.')
@@ -1356,11 +1390,11 @@ def atomic_publish_catalog(candidate,current,source,manifest_bytes,payloads,cand
         write(require_workspace()/'PublicationValidation.json',receipt)
         return
     try:
-        for file in changed+['CharacterModels.manifest.json']:
+        for file in changed+[RESOURCE_FILES['manifest']]:
             temporary=current/(file+'.new-'+uuid.uuid4().hex)
             try:
                 checked_catalog_path(current,temporary.name)
-                if file=='CharacterModels.manifest.json':temporary.write_bytes(manifest_bytes)
+                if file==RESOURCE_FILES['manifest']:temporary.write_bytes(manifest_bytes)
                 else:os.link(checked_catalog_path(candidate,candidate_files[file]),temporary)
                 os.replace(temporary,current/file)
                 written.append(file)
@@ -1385,10 +1419,10 @@ def atomic_publish_catalog(candidate,current,source,manifest_bytes,payloads,cand
             if file not in original_hashes:continue
             temporary=current/(file+'.rollback-'+uuid.uuid4().hex)
             os.link(checked_catalog_path(source,file),temporary);os.replace(temporary,current/file)
-        temporary=current/('CharacterModels.manifest.json.rollback-'+uuid.uuid4().hex)
-        os.link(checked_catalog_path(source,'CharacterModels.manifest.json'),temporary);os.replace(temporary,manifest_path)
+        temporary=current/(manifest_path.name+'.rollback-'+uuid.uuid4().hex)
+        os.link(checked_catalog_path(source,RESOURCE_FILES['manifest']),temporary);os.replace(temporary,manifest_path)
         for file in written:
-            if file not in original_hashes and file!='CharacterModels.manifest.json':checked_catalog_path(current,file).unlink()
+            if file not in original_hashes and file!=RESOURCE_FILES['manifest']:checked_catalog_path(current,file).unlink()
         receipt.update(status='FAIL_ROLLED_BACK',error=str(error))
         raise
     finally:write(require_workspace() /'Publication.json',receipt)
@@ -1610,9 +1644,9 @@ def complete_groom_frames():
     parser=argparse.ArgumentParser();parser.add_argument('--source',type=Path,required=True);args=parser.parse_args()
     source=args.source.resolve();output=require_workspace();catalog=output/'Catalog';catalog.mkdir(exist_ok=True)
     if source==output or(output/'ResourceAssembly.json').exists():raise ValueError('Groom completion needs an independent unfinished output.')
-    assembly=read(source/'ResourceAssembly.json');manifest=read(source/'Catalog/CharacterModels.manifest.json');proofs={row['file']:row for row in assembly['proofs']}
+    assembly=read(source/'ResourceAssembly.json');manifest=read(source/(Path('Catalog')/RESOURCE_FILES['manifest']));proofs={row['file']:row for row in assembly['proofs']}
     pin=lambda path:dict(path=str(Path(path).resolve()),sha256=sha(path))
-    pins=[pin(source/'ResourceAssembly.json'),pin(source/'Catalog/CharacterModels.manifest.json')]
+    pins=[pin(source/'ResourceAssembly.json'),pin(source/(Path('Catalog')/RESOURCE_FILES['manifest']))]
     for original in(Path(__file__),Path(resources.__file__),Path(__file__).with_name('material_fields.py'),ROOT/'tools/blender-models/CharacterHair/GenerateFlowCoverageSweptProfile.py'):
         archive=output/'ProducerSources'/original.name;archive.parent.mkdir(exist_ok=True);archive.write_bytes(original.read_bytes());pins.append(pin(archive))
     changed=[];total=0;parameter_updates=[];scanned=0
@@ -1654,8 +1688,8 @@ def complete_groom_frames():
         elif not target.exists():target.hardlink_to(original)
         total+=resources.validate_groom_frame_coverage(file)['meshes']
     for row in manifest['bundles']:row['sha256']=proofs[row['file']]['sha256']
-    write(catalog/'CharacterModels.manifest.json',manifest);assembly.update(catalogSha256=sha(catalog/'CharacterModels.manifest.json'),bytes=sum(r['bytes']for r in assembly['proofs']),artAccepted=False,preparedSource=dict(assembly=pin(source/'ResourceAssembly.json'),catalog=pin(source/'Catalog/CharacterModels.manifest.json')),groomFrameCompletion=dict(inputs=pins,resources=len(changed),meshes=sum(len(r['meshes'])for r in changed),allGroomMeshes=total,parameterUpdates=parameter_updates,review='pending'))
-    write(output/'ResourceAssembly.json',assembly);write(output/'GroomFrameCoverage.json',dict(status='PASS_SAVED_GROOM_FRAME_COVERAGE',meshes=total,resources=len(changed),completedMeshes=sum(len(r['meshes'])for r in changed),catalog=pin(catalog/'CharacterModels.manifest.json')))
+    write(catalog/RESOURCE_FILES['manifest'],manifest);assembly.update(catalogSha256=sha(catalog/RESOURCE_FILES['manifest']),bytes=sum(r['bytes']for r in assembly['proofs']),artAccepted=False,preparedSource=dict(assembly=pin(source/'ResourceAssembly.json'),catalog=pin(source/(Path('Catalog')/RESOURCE_FILES['manifest']))),groomFrameCompletion=dict(inputs=pins,resources=len(changed),meshes=sum(len(r['meshes'])for r in changed),allGroomMeshes=total,parameterUpdates=parameter_updates,review='pending'))
+    write(output/'ResourceAssembly.json',assembly);write(output/'GroomFrameCoverage.json',dict(status='PASS_SAVED_GROOM_FRAME_COVERAGE',meshes=total,resources=len(changed),completedMeshes=sum(len(r['meshes'])for r in changed),catalog=pin(catalog/RESOURCE_FILES['manifest'])))
     print('Complete groom renderer coverage:',total,'meshes;',len(changed),'resources completed.',flush=True)
 
 
@@ -2331,7 +2365,7 @@ def validate_prepared_resource(row,assembly,verified):
             if exact_main_storage_bytes(finishing.get('colorCorrections',[]))>EXACT_MAIN_CATALOG_MAX_BYTES:
                 raise ValueError('Exact Main storage exceeds its catalog-wide budget.')
             for reference in finishing['inputs']:pinned(reference)
-            pinned(dict(path=str(Path(finishing['source'])/'Catalog/CharacterModels.manifest.json'),sha256=finishing['sourceCatalogSha256']))
+            pinned(dict(path=str(Path(finishing['source'])/(Path('Catalog')/RESOURCE_FILES['manifest'])),sha256=finishing['sourceCatalogSha256']))
             geometry=document(finishing['geometryPreparation'])
             if geometry.get('status')!='PREPARED_GEOMETRY':raise ValueError('The face geometry checkpoint is incomplete.')
             key=('geometry-files',id(geometry))
@@ -2465,8 +2499,8 @@ def publish_resource_catalog(candidate,current,source,manifest,quality,*,validat
     verified={};accepted_rows={}
     accepted_path=source.parent/'ResourceAssembly.json'
     if accepted_path.is_file():
-        accepted=read(accepted_path);source_payloads=catalog_payloads(read(source/'CharacterModels.manifest.json'))
-        if accepted.get('artAccepted')is True:
+        accepted=read(accepted_path);source_payloads=catalog_payloads(read(source/RESOURCE_FILES['manifest']))
+        if resource_art_acceptance(accepted,quality['sourceManifestSha256']):
             if accepted.get('status')!='PASS_STANDALONE_CHARACTER_RESOURCES'or accepted.get('originalModelDependenciesInherited')is not False or accepted.get('catalogSha256')!=quality['sourceManifestSha256']:
                 raise ValueError('The accepted source proof has no matching closed catalog.')
             accepted_rows={row['file']:row for row in accepted['proofs']}
@@ -2490,13 +2524,13 @@ def publish_resource_catalog(candidate,current,source,manifest,quality,*,validat
             validate_prepared_resource(row,proof,verified)
     for input in proof['inputs']:
         if sha(Path(input['path']))!=input['sha256']:raise ValueError('A standalone preparation authority changed.')
-    original_hashes=catalog_payloads(read(source/'CharacterModels.manifest.json'))
+    original_hashes=catalog_payloads(read(source/RESOURCE_FILES['manifest']))
     changed=[]
     for file,digest in payloads.items():
         target=checked_catalog_path(current,file)
         if target.exists()and file not in original_hashes:raise ValueError('An unowned public payload would be overwritten: '+file)
         if not target.exists()or sha(target)!=digest:changed.append(file)
-    manifest_bytes=(candidate/'CharacterModels.manifest.json').read_bytes()
+    manifest_bytes=(candidate/RESOURCE_FILES['manifest']).read_bytes()
     if hashlib.sha256(manifest_bytes).hexdigest()!=quality['candidateManifestSha256']:
         raise ValueError('The verified resource manifest changed before publication.')
     receipt=dict(status='RUNNING_ATOMIC_PUBLICATION',sourceCatalog=str(source),candidate=str(candidate),changed=changed,
@@ -3672,8 +3706,8 @@ def prepare_resource_span_catalog():
         if sha(src)!=digest:raise ValueError('An original payload differs before snapshot: '+file)
         if not reuse_snapshot:os.link(src,checked_catalog_path(snapshot,file))
         if file not in by_file:os.link(src,checked_catalog_path(catalog,file))
-    if not reuse_snapshot:(snapshot/'CharacterModels.manifest.json').write_bytes(manifest_path.read_bytes())
-    if sha(snapshot/'CharacterModels.manifest.json')!=source_sha:raise ValueError('The snapshot manifest changed.')
+    if not reuse_snapshot:(snapshot/RESOURCE_FILES['manifest']).write_bytes(manifest_path.read_bytes())
+    if sha(snapshot/RESOURCE_FILES['manifest'])!=source_sha:raise ValueError('The snapshot manifest changed.')
     updates=[];container_pins=[];watch=time.perf_counter();snapshot_seconds=watch-started;ordinal=0
     for file in sorted(by_file):
         if hold.exists():raise ValueError('Resource span preparation stopped at a closed bundle boundary; retain the partial private output.')
@@ -3718,7 +3752,7 @@ def prepare_resource_span_catalog():
             a=proofs/('%04d-before.json'%ordinal);b=proofs/('%04d-after.json'%ordinal);ordinal+=1;write(a,before);write(b,after)
             updates.append(dict(key=list(key),policy=policy,before=dict(bundleFile=file,asset=asset,proof=pin(a)),after=dict(bundleFile=file,asset=asset,proof=pin(b))))
         print(json.dumps(dict(stage='RESOURCE_SPAN_BUNDLE_CLOSED',file=file,changedMain=len(patches),typedConsumers=sum(1 for k,v in selectors.items()if v[1]==file),elapsedSeconds=time.perf_counter()-watch)),flush=True)
-    manifest=catalog/'CharacterModels.manifest.json';write(manifest,candidate)
+    manifest=catalog/RESOURCE_FILES['manifest'];write(manifest,candidate)
     closure=dict(schemaVersion=1,status='PASS_TYPED_TEXTURE_PAYLOAD_CLOSURE',resourceSpanPublication=True,sourceManifestSha256=source_sha,candidateManifestSha256=sha(manifest),updates=updates)
     typed_path=destination/'TexturePayloadClosure.json';write(typed_path,closure)
     checked=typed_texture_payload_closure(original,candidate,closure,source_sha,sha(manifest))
@@ -3854,11 +3888,26 @@ def assemble_resources():
 
 
 
-def create_resource_packs(manifest_path,output_directory,release_version,maximum_bytes=256*1024*1024) -> dict[str, Any]:
+def resource_release_metadata(version,configuration=None):
+    configuration=RESOURCE_PACKAGE if configuration is None else configuration
+    if not isinstance(version,str)or not re.fullmatch(configuration['versionPattern'],version):raise ValueError('A resource version matching the package configuration is required.')
+    return dict(copy.deepcopy(configuration['releaseMetadata']),tag_name=configuration['tagName'].format(version=version),
+        draft=True,prerelease=False,make_latest='false')
+
+
+def validate_resource_release(metadata,version,configuration=None):
+    configuration=RESOURCE_PACKAGE if configuration is None else configuration
+    expected=resource_release_metadata(version,configuration)
+    if not isinstance(metadata,dict)or any(metadata.get(key)!=expected[key]for key in (*configuration['releaseMetadata'],'tag_name')):
+        raise ValueError('Resource release metadata differs from the package configuration.')
+
+
+def create_resource_packs(manifest_path,output_directory,release_version,maximum_bytes=256*1024*1024,*,configuration=None) -> dict[str, Any]:
     """Stream independent generated resources into bounded release archives."""
     import zipfile
-    if not re.fullmatch(r'\d{4}\.\d{2}\.\d{2}\.[1-9]\d*',release_version)or not 0<maximum_bytes<=1024*1024*1024:
-        raise ValueError('A dated content version and a positive pack limit are required.')
+    configuration=RESOURCE_PACKAGE if configuration is None else configuration
+    release=resource_release_metadata(release_version,configuration);validate_resource_release(release,release_version,configuration)
+    if not 0<maximum_bytes<=1024*1024*1024:raise ValueError('A positive pack limit is required.')
     manifest_path=Path(manifest_path).resolve();output=checked_catalog_path(output_directory)
     manifest=read(manifest_path)
     assembly_path=manifest_path.parent.parent/'ResourceAssembly.json'
@@ -3883,15 +3932,21 @@ def create_resource_packs(manifest_path,output_directory,release_version,maximum
     if not files:raise ValueError('An empty resource catalog cannot be packaged.')
     owner=dict(schemaVersion=1,kind='CharacterResourcePacks',source=str(manifest_path),
         sourceSha256=sha(manifest_path),version=release_version,maximumBytes=maximum_bytes)
-    output.mkdir(parents=True,exist_ok=True);marker=output/'PackageInputs.json';metadata=output/'CharacterModels.packs.json'
+    files_configuration=configuration['files']
+    output.mkdir(parents=True,exist_ok=True);marker=output/files_configuration['packageInputs'];metadata=output/files_configuration['packs']
+    release_path=output/files_configuration['release']
+    base_url=configuration['downloadBaseUrl'].format(tag=release['tag_name'])
     if marker.exists():
         if read(marker)!=owner:raise ValueError('The pack directory belongs to other inputs.')
         if metadata.exists():
             prior=read(metadata)
             if prior['files']!=files:raise ValueError('Resource lengths changed after packaging.')
-            for pack in prior['packs']:
+            if prior['baseUrl']!=base_url:raise ValueError('The resource distribution configuration changed.')
+            for ordinal,pack in enumerate(prior['packs'],1):
+                if pack['file']!=configuration['archiveName'].format(ordinal=ordinal):raise ValueError('The resource archive naming configuration changed.')
                 if (output/pack['file']).stat().st_size>maximum_bytes or sha(output/pack['file'])!=pack['sha256']:
                     raise ValueError('A completed resource pack changed.')
+            write(release_path,release)
             return prior
     elif any(output.iterdir()):raise ValueError('Resource packs need an empty or matching owned directory.')
     else:write(marker,owner)
@@ -3905,10 +3960,10 @@ def create_resource_packs(manifest_path,output_directory,release_version,maximum
         if group and size+packed_size>maximum_bytes:groups.append(group);group=[];size=22
         group.append(row);size+=packed_size
     if group:groups.append(group)
-    if len(groups)>99:raise ValueError('The content set exceeds its supported pack count.')
+    if len(groups)>configuration['maximumPacks']:raise ValueError('The content set exceeds its declared pack count.')
     packs=[]
     for ordinal,group in enumerate(groups,1):
-        name=f'CharacterModels-{ordinal:02}.zip';path=output/name;temporary=output/(name+'.writing')
+        name=configuration['archiveName'].format(ordinal=ordinal);path=checked_catalog_path(output,name);temporary=output/(name+'.writing')
         try:
             with zipfile.ZipFile(temporary,'w',compression=zipfile.ZIP_STORED,allowZip64=True)as archive:
                 for row in group:
@@ -3931,8 +3986,9 @@ def create_resource_packs(manifest_path,output_directory,release_version,maximum
         print('Packaged character resources:',ordinal,'/',len(groups),flush=True)
     if sha(manifest_path)!=owner['sourceSha256']:raise ValueError('The resource catalog changed during packaging.')
     result=dict(schemaVersion=1,version=release_version,catalogSha256=owner['sourceSha256'],
-        baseUrl=f'https://github.com/KCN-2D/SolastaUnfinishedBusiness/releases/download/character-models-{release_version}/',files=files,packs=packs)
+        baseUrl=base_url,files=files,packs=packs)
     write(metadata,result)
+    write(release_path,release)
     return result
 
 
@@ -3947,7 +4003,7 @@ def completed_resource_payloads(directory,assembly=None,manifest=None):
     """Resolve final and intermediate payloads through their completed producer owner."""
     directory=checked_catalog_path(directory)
     assembly=read(checked_source_path(directory/'ResourceAssembly.json'))if assembly is None else assembly
-    manifest_path=checked_source_path(directory/'Catalog/CharacterModels.manifest.json')
+    manifest_path=checked_source_path(directory/(Path('Catalog')/RESOURCE_FILES['manifest']))
     if assembly.get('status')!='PASS_STANDALONE_CHARACTER_RESOURCES'or assembly.get('catalogSha256')!=sha(manifest_path):
         raise ValueError('A retired catalog has no unchanged completed resource owner.')
     manifest=read(manifest_path)if manifest is None else manifest
@@ -3973,6 +4029,18 @@ def completed_resource_payloads(directory,assembly=None,manifest=None):
 
 def create_resource_retirement_plan(directories,reference_path,output,storage_root=None) -> dict[str, Any]:
     """Select declared old catalog payloads; retain every current input path."""
+    storage_root=(storage_root or ROOT/'tools/game-test/artifacts').resolve()
+    payloads={};guards=[]
+    for directory in directories:
+        directory=checked_catalog_path(directory)
+        if directory==storage_root or not directory.is_relative_to(storage_root):raise ValueError('Retired resource catalogs must be below the declared workspace.')
+        payloads.update({path:digest for path,digest in completed_resource_payloads(directory).items()if path.suffix=='.bundle'})
+        path=directory/'ResourceAssembly.json';guards.append(dict(path=str(path),sha256=sha(path)))
+    return create_declared_payload_plan(payloads,reference_path,output,storage_root,guards)
+
+
+def create_declared_payload_plan(payloads,reference_path,output,storage_root=None,guard_inputs=()) -> dict[str,Any]:
+    """Build the common retirement contract from validated producer declarations."""
     artifacts=ROOT/'tools/game-test/artifacts'
     owned_roots=(artifacts,ROOT/'tools/asset-authoring/workspace')
     storage_root=(storage_root or artifacts).resolve()
@@ -3991,29 +4059,31 @@ def create_resource_retirement_plan(directories,reference_path,output,storage_ro
         protected.add(str(path).casefold())
         if path.is_dir():protected_directories.append(str(path).casefold()+os.sep)
     rows={};roots=set()
-    for directory in directories:
-        directory=checked_catalog_path(directory)
-        if directory==storage_root or not directory.is_relative_to(storage_root):raise ValueError('Retired resource catalogs must be below the declared workspace.')
-        payloads=completed_resource_payloads(directory)
-        # Validate the shared directory ancestry once. Scandir supplies each leaf's
-        # own no-follow metadata; deletion performs a second full path/hash check.
-        leaves={}
-        for catalog in {path.parent for path in payloads}:
-            checked_catalog_path(catalog)
-            if not catalog.exists():continue
-            with os.scandir(catalog)as entries:
-                leaves.update({catalog/entry.name:entry.stat(follow_symlinks=False)for entry in entries if entry.is_file(follow_symlinks=False)})
-        for path,digest in payloads.items():
-            if path.suffix!='.bundle':continue
-            key=str(path).casefold();info=leaves.get(path)
-            if info is None or key in protected or any(key.startswith(prefix)for prefix in protected_directories):continue
-            if getattr(info,'st_file_attributes',0)&0x400:raise ValueError('A retired payload contains a reparse point.')
-            rows[key]=dict(path=str(path),bytes=info.st_size,lastWriteUtcTicks=info.st_mtime_ns//100+621355968000000000,sha256=digest)
-            roots.add(str(path.parent.relative_to(storage_root)))
+    # Scandir supplies each leaf's own no-follow metadata. Deletion repeats the
+    # path, content and producer-input checks while its input leases remain held.
+    leaves={}
+    for catalog in {Path(path).parent for path in payloads}:
+        checked_catalog_path(catalog)
+        if catalog==storage_root or not catalog.is_relative_to(storage_root):raise ValueError('Retired resource catalogs must be below the declared workspace.')
+        if not catalog.exists():continue
+        with os.scandir(catalog)as entries:
+            leaves.update({catalog/entry.name:entry.stat(follow_symlinks=False)for entry in entries if entry.is_file(follow_symlinks=False)})
+    guards={}
+    for pin in guard_inputs:
+        path=checked_source_path(pin['path'])
+        if not path.is_relative_to(ROOT)or sha(path)!=pin['sha256']:raise ValueError('A retirement producer input changed.')
+        guards[str(path).casefold()]=dict(path=str(path),sha256=pin['sha256'])
+    for path,digest in payloads.items():
+        path=Path(path);key=str(path).casefold();info=leaves.get(path)
+        if info is None or key in protected or any(key.startswith(prefix)for prefix in protected_directories):continue
+        if key in guards:raise ValueError('A retirement producer input cannot be selected as payload.')
+        if getattr(info,'st_file_attributes',0)&0x400:raise ValueError('A retired payload contains a reparse point.')
+        rows[key]=dict(path=str(path),bytes=info.st_size,lastWriteUtcTicks=info.st_mtime_ns//100+621355968000000000,sha256=digest)
+        roots.add(str(path.parent.relative_to(storage_root)))
     if sha(reference_path)!=reference_sha:raise ValueError('Retained inputs changed during planning.')
     plan=dict(schemaVersion=1,artifactRoot=str(storage_root),reference=dict(path=str(reference_path),sha256=reference_sha),
         scope='Unreferenced declared payloads of completed old resource catalogs.',roots=sorted(roots),files=sorted(rows.values(),key=lambda row:row['path']),
-        logicalBytes=sum(row['bytes']for row in rows.values()))
+        logicalBytes=sum(row['bytes']for row in rows.values()),guardInputs=list(guards.values()))
     output=checked_catalog_path(output)
     if not output.is_relative_to(artifacts):raise ValueError('A resource retirement plan must be saved below artifacts.')
     write(output,plan)
@@ -4253,7 +4323,7 @@ def finish_resource_skin_cuts(catalog,assembly,material_contexts,output):
     import character_resources as resources
     shape,geometry=source_owner()
     catalog=Path(catalog);output=Path(output);output.mkdir(parents=True,exist_ok=True)
-    manifest=read(catalog/'CharacterModels.manifest.json')
+    manifest=read(catalog/RESOURCE_FILES['manifest'])
     proofs={row['file']:row for row in assembly['proofs']}
     current_cabs={row['newCab']:row['file']for row in assembly['proofs']}
     resources_by_source={row['asset']:row for row in manifest['resources']}
@@ -4379,8 +4449,8 @@ def finish_resource_skin_cuts(catalog,assembly,material_contexts,output):
     for row in manifest['bundles']:row['sha256']=proofs[row['file']]['sha256']
     for pin in inputs:
         if sha(pin['path'])!=pin['sha256']:raise ValueError('A skin-cut input changed during preparation.')
-    write(catalog/'CharacterModels.manifest.json',manifest)
-    assembly['catalogSha256']=sha(catalog/'CharacterModels.manifest.json');assembly['bytes']=sum(r['bytes']for r in assembly['proofs'])
+    write(catalog/RESOURCE_FILES['manifest'],manifest)
+    assembly['catalogSha256']=sha(catalog/RESOURCE_FILES['manifest']);assembly['bytes']=sum(r['bytes']for r in assembly['proofs'])
     report=dict(status='PREPARED_SHARED_SKIN_CUTS_NOT_RENDERED',meshes=len(completed),bundles=len(edits),unsharedParts=audited,inputs=inputs)
     write(output/'Preparation.json',report)
     return report
@@ -4481,7 +4551,9 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
     source=checked_catalog_path(source);output=checked_catalog_path(output)
     if not output.is_relative_to(ROOT/'tools')or output==source:raise ValueError('Appearance output must be an independent tools workspace.')
     output.mkdir(parents=True,exist_ok=True)
-    catalog=source/'Catalog';manifest=read(catalog/'CharacterModels.manifest.json');assembly=read(source/'ResourceAssembly.json')
+    catalog=source/'Catalog';manifest=read(catalog/RESOURCE_FILES['manifest']);assembly=read(source/'ResourceAssembly.json')
+    assembly['artAccepted']=False
+    assembly.pop('artAcceptance',None)
     register_groom_shading_proofs(assembly)
     for index in(2,3):
         original=pins[index];archive=output/'ProducerSources'/(Path(original['path']).name+'.source')
@@ -4510,7 +4582,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
     shape_code=face_code[:face_code.index('\n    source=checked_catalog_path(source)')]+face_code[face_code.index('\n    @lru_cache'):face_code.index("\n    for row in manifest['bundles']:row['sha256']=old_proofs")]
     functions=(export_current_mesh,source_owner,resources.write_mesh_frame)
     signature=hashlib.sha256('\n'.join([shape_code,*[inspect.getsource(function)for function in functions]]).encode('utf8')).hexdigest()
-    geometry_owner: dict[str,Any]=dict(sourceCatalogSha256=sha(catalog/'CharacterModels.manifest.json'),sourceAssemblySha256=sha(source/'ResourceAssembly.json'),inputs=pins,codeSignature=signature,nativeContours=True,selectedAssets=sorted(selected_assets),faceMode='native-recovery'if restore_native_only else'source-guide')
+    geometry_owner: dict[str,Any]=dict(sourceCatalogSha256=sha(catalog/RESOURCE_FILES['manifest']),sourceAssemblySha256=sha(source/'ResourceAssembly.json'),inputs=pins,codeSignature=signature,nativeContours=True,selectedAssets=sorted(selected_assets),faceMode='native-recovery'if restore_native_only else'source-guide')
     if profiles_path is not None:geometry_owner['sourceProfiles']=dict(path=str(Path(profiles_path).resolve()),sha256=sha(profiles_path))
     if previous_profiles_path is not None:geometry_owner['faceMode']='source-guide-revision'
     if checkpoint.exists():
@@ -4528,7 +4600,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
         return saved
     if(output/'ResourceAssembly.json').exists():raise ValueError('A completed candidate already owns this directory.')
     marker=output/'WorkingDirectory.json'
-    expected: dict[str, Any]=dict(kind='OwnedFacePreparation',source=str(source),catalogSha256=sha(catalog/'CharacterModels.manifest.json'))
+    expected: dict[str, Any]=dict(kind='OwnedFacePreparation',source=str(source),catalogSha256=sha(catalog/RESOURCE_FILES['manifest']))
     expected['inputs']=pins
     if marker.exists():
         if read(marker)!=expected:raise ValueError('A working directory belongs to other inputs.')
@@ -5294,7 +5366,7 @@ def finish_skin_lods():
     parser=argparse.ArgumentParser();parser.add_argument('--source',type=Path,required=True);parser.add_argument('--geometry',type=Path,required=True);parser.add_argument('--workers',type=int,default=4)
     args=parser.parse_args();source=args.source.resolve();output=require_workspace();catalog=output/'Catalog'
     if source==output or not 1<=args.workers<=8:raise ValueError('Skin LOD finishing requires an independent workspace and bounded workers.')
-    source_manifest=source/'Catalog/CharacterModels.manifest.json';assembly=read(source/'ResourceAssembly.json');manifest=read(source_manifest)
+    source_manifest=source/(Path('Catalog')/RESOURCE_FILES['manifest']);assembly=read(source/'ResourceAssembly.json');manifest=read(source_manifest)
     if assembly['catalogSha256']!=sha(source_manifest):raise ValueError('The skin LOD catalog source changed.')
     geometry=read(args.geometry);catalog.mkdir(exist_ok=True);proofs={r['file']:r for r in assembly['proofs']}
     pin=lambda p:dict(path=str(Path(p).resolve()),sha256=sha(p))
@@ -5352,8 +5424,8 @@ def finish_skin_lods():
     precision_extra=sum(texture['bytes']-sum(((max(1,texture['width']>>level)+3)//4)*((max(1,texture['height']>>level)+3)//4)*16 for level in range(texture['mipCount']))for result in reports for texture in result['textures']if texture['format']==4)
     if precision_extra>256*1024**2:raise ValueError('Precise skin LODs exceed the complete catalog storage allowance.')
     for row in manifest['bundles']:row['sha256']=proofs[row['file']]['sha256']
-    write(catalog/'CharacterModels.manifest.json',manifest)
-    assembly.update(catalogSha256=sha(catalog/'CharacterModels.manifest.json'),bytes=sum(r['bytes']for r in assembly['proofs']),artAccepted=False,preparedSource=dict(assembly=pin(source/'ResourceAssembly.json'),catalog=pin(source_manifest)),skinLodPigment=dict(policy='saved-lod0-skin-surface-v1',inputs=inputs,heads=len(by_owner),textures=surfaces,files=len(reports),rgbaPrecisionExtraBytes=precision_extra,review='pending'))
+    write(catalog/RESOURCE_FILES['manifest'],manifest)
+    assembly.update(catalogSha256=sha(catalog/RESOURCE_FILES['manifest']),bytes=sum(r['bytes']for r in assembly['proofs']),artAccepted=False,preparedSource=dict(assembly=pin(source/'ResourceAssembly.json'),catalog=pin(source_manifest)),skinLodPigment=dict(policy='saved-lod0-skin-surface-v1',inputs=inputs,heads=len(by_owner),textures=surfaces,files=len(reports),rgbaPrecisionExtraBytes=precision_extra,review='pending'))
     write(output/'ResourceAssembly.json',assembly)
     print('Prepared saved skin LODs:',len(by_owner),'heads,',surfaces,'textures; native review pending.',flush=True)
 
@@ -5401,7 +5473,7 @@ def skin_interface_geometry(job):
     """Transport the physical cut in every LOD; keep original UVs and facial tissue."""
     import character_resources as resources
     import numpy as np
-    source=Path(job['catalog']);manifest=read(source/'Catalog/CharacterModels.manifest.json')
+    source=Path(job['catalog']);manifest=read(source/(Path('Catalog')/RESOURCE_FILES['manifest']))
     proofs={row['file']:row for row in read(source/'ResourceAssembly.json')['proofs']};by_cab={row['newCab']:row for row in proofs.values()}
     @lru_cache(maxsize=12)
     def load(cab):
@@ -5662,8 +5734,8 @@ def prepare_skin_interfaces():
     if output==source or not output.is_relative_to(ROOT/'tools'):raise ValueError('Skin interfaces need an independent tools workspace.')
     if output.exists()and not args.resume:raise ValueError('The skin-interface workspace already exists.')
     if (output/'ResourceAssembly.json').exists():raise ValueError('The skin-interface candidate is already complete.')
-    manifest=read(source/'Catalog/CharacterModels.manifest.json');assembly=read(source/'ResourceAssembly.json');proofs={p['file']:p for p in assembly['proofs']}
-    pin=lambda p:dict(path=str(Path(p).resolve()),sha256=sha(p));pins=[pin(source/'ResourceAssembly.json'),pin(source/'Catalog/CharacterModels.manifest.json'),pin(args.contexts)]
+    manifest=read(source/(Path('Catalog')/RESOURCE_FILES['manifest']));assembly=read(source/'ResourceAssembly.json');proofs={p['file']:p for p in assembly['proofs']}
+    pin=lambda p:dict(path=str(Path(p).resolve()),sha256=sha(p));pins=[pin(source/'ResourceAssembly.json'),pin(source/(Path('Catalog')/RESOURCE_FILES['manifest'])),pin(args.contexts)]
     import character_resources as resources,material_fields
     production,art=source_owner()
     for path in map(Path,(__file__,resources.__file__,material_fields.__file__,production.__file__,art.__file__)):
@@ -5703,9 +5775,9 @@ def prepare_skin_interfaces():
             path=output/'Receipts'/(result['file']+'.json');proof.setdefault('appearanceFinishing',[]).append(dict(kind='source-skin-interface',beforeSha256=result['beforeSha256'],sha256=result['sha256'],proof=pin(path)))
     if failures:write(output/'Failures.json',dict(failures=failures));raise ValueError('Skin interfaces have rejected sources; completed jobs can be resumed.')
     for row in manifest['bundles']:row['sha256']=proofs[row['file']]['sha256']
-    write(catalog/'CharacterModels.manifest.json',manifest)
-    assembly.update(catalogSha256=sha(catalog/'CharacterModels.manifest.json'),bytes=sum(p['bytes']for p in proofs.values()),artAccepted=False,
-        preparedSource=dict(assembly=pin(source/'ResourceAssembly.json'),catalog=pin(source/'Catalog/CharacterModels.manifest.json')),
+    write(catalog/RESOURCE_FILES['manifest'],manifest)
+    assembly.update(catalogSha256=sha(catalog/RESOURCE_FILES['manifest']),bytes=sum(p['bytes']for p in proofs.values()),artAccepted=False,
+        preparedSource=dict(assembly=pin(source/'ResourceAssembly.json'),catalog=pin(source/(Path('Catalog')/RESOURCE_FILES['manifest']))),
         skinInterfaces=dict(contexts=pin(args.contexts),resources=len(tasks),coveredBodyContexts=covered,review='pending'))
     write(output/'ResourceAssembly.json',assembly);print('Prepared skin interfaces:',len(tasks),flush=True)
 
@@ -5894,11 +5966,11 @@ def complete_source_skin_jobs(source,output,assembly,manifest,tasks,pins,coverag
     if failures:
         write(output/'Failures.json',dict(failures=failures));raise ValueError('Source skin preparation failed; completed receipts can be resumed.')
     for row in manifest['bundles']:row['sha256']=proofs[row['file']]['sha256']
-    write(output/'Catalog/CharacterModels.manifest.json',manifest)
-    assembly.update(catalogSha256=sha(output/'Catalog/CharacterModels.manifest.json'),bytes=sum(row['bytes']for row in assembly['proofs']),artAccepted=False,
+    write(output/(Path('Catalog')/RESOURCE_FILES['manifest']),manifest)
+    assembly.update(catalogSha256=sha(output/(Path('Catalog')/RESOURCE_FILES['manifest'])),bytes=sum(row['bytes']for row in assembly['proofs']),artAccepted=False,
         sourceSkinDetails=dict(inputs=pins,coverage=coverage,bundles=len(tasks),review='pending'),
         preparedSource=dict(assembly=dict(path=str((source/'ResourceAssembly.json').resolve()),sha256=sha(source/'ResourceAssembly.json')),
-            catalog=dict(path=str((source/'Catalog/CharacterModels.manifest.json').resolve()),sha256=sha(source/'Catalog/CharacterModels.manifest.json'))))
+            catalog=dict(path=str((source/(Path('Catalog')/RESOURCE_FILES['manifest'])).resolve()),sha256=sha(source/(Path('Catalog')/RESOURCE_FILES['manifest'])))))
     write(output/'ResourceAssembly.json',assembly)
     print(json.dumps(dict(status='PREPARED_SOURCE_SKIN_REVIEW_PENDING',sources=len(coverage),bundles=len(tasks))))
 
@@ -5917,9 +5989,9 @@ def bind_source_skin_materials():
         raise ValueError('Skin material binding requires a new authoring workspace.')
     if (output/'ResourceAssembly.json').exists():raise ValueError('The skin material candidate is already complete.')
     prepared=read(fields/'ResourceAssembly.json');original=prepared['preparedSource']
-    if original['assembly']['sha256']!=sha(source/'ResourceAssembly.json')or original['catalog']['sha256']!=sha(source/'Catalog/CharacterModels.manifest.json'):
+    if original['assembly']['sha256']!=sha(source/'ResourceAssembly.json')or original['catalog']['sha256']!=sha(source/(Path('Catalog')/RESOURCE_FILES['manifest'])):
         raise ValueError('The skin fields belong to another source material catalog.')
-    manifest=read(source/'Catalog/CharacterModels.manifest.json');assembly=read(source/'ResourceAssembly.json');proofs={row['file']:row for row in assembly['proofs']}
+    manifest=read(source/(Path('Catalog')/RESOURCE_FILES['manifest']));assembly=read(source/'ResourceAssembly.json');proofs={row['file']:row for row in assembly['proofs']}
     groups={};references={}
     @lru_cache(maxsize=4)
     def material_owner(name):return resources.load_serialized_bundle(source/'Catalog'/name,in_memory=True)[1]
@@ -5969,9 +6041,9 @@ def bind_source_skin_materials():
         proof.setdefault('appearanceFinishing',[]).append(dict(kind='source-skin-material-bindings',beforeSha256=before_sha,sha256=receipt['sha256'],
             proof=dict(path=str(path.resolve()),sha256=sha(path)),fields=list(references[name].values())))
         bundle['sha256']=proof['sha256'];print('Bound local source skin:',name,flush=True)
-    write(catalog/'CharacterModels.manifest.json',manifest)
+    write(catalog/RESOURCE_FILES['manifest'],manifest)
     assembly.setdefault('retainedSourceInputs',[]).extend(prepared.get('retainedSourceInputs',[]))
-    assembly.update(catalogSha256=sha(catalog/'CharacterModels.manifest.json'),bytes=sum(row['bytes']for row in assembly['proofs']),artAccepted=False,
+    assembly.update(catalogSha256=sha(catalog/RESOURCE_FILES['manifest']),bytes=sum(row['bytes']for row in assembly['proofs']),artAccepted=False,
         preparedSource=dict(assembly=original['assembly'],catalog=original['catalog']),sourceSkinDetails=prepared['sourceSkinDetails'],
         skinMaterialBindings=dict(fields=dict(path=str((fields/'ResourceAssembly.json').resolve()),sha256=sha(fields/'ResourceAssembly.json')),
             localMaterials=True,bundles=len(groups),unselectedResourcesUnchanged=True))
@@ -5999,8 +6071,8 @@ def prepare_skin_surface_resources():
     if (output.exists()and not args.resume)or not any(output.is_relative_to(ROOT/p)for p in('tools/asset-authoring/workspace','tools/game-test/artifacts')):
         raise ValueError('Source skin finishing requires a new authoring workspace.')
     if not 1<=args.workers<=16:raise ValueError('Choose one to sixteen independent skin workers.')
-    assembly=read(source/'ResourceAssembly.json');manifest=read(source/'Catalog/CharacterModels.manifest.json')
-    if assembly['catalogSha256']!=sha(source/'Catalog/CharacterModels.manifest.json'):raise ValueError('The source skin catalog changed.')
+    assembly=read(source/'ResourceAssembly.json');manifest=read(source/(Path('Catalog')/RESOURCE_FILES['manifest']))
+    if assembly['catalogSha256']!=sha(source/(Path('Catalog')/RESOURCE_FILES['manifest'])):raise ValueError('The source skin catalog changed.')
     census=read(args.census);assets={row['name']:row for row in census['assets']};plans=read(args.plans)['surfaces']
     names=set(args.assets)if args.assets else set(plans)
     if names-set(plans)or names-set(assets):raise ValueError('A skin finish has no declared source owner.')
@@ -6408,13 +6480,13 @@ def prepare_native_face_resources():
         profiles_path=args.profiles,restore_native_only=args.restore_native_only,previous_profiles_path=args.previous_profiles)
     if args.previous_profiles is None:finish_resource_pigments(geometry,args.output)
     assembly=geometry['assembly'];manifest=geometry['manifest']
-    write(args.output/'Catalog/CharacterModels.manifest.json',manifest)
-    assembly['catalogSha256']=sha(args.output/'Catalog/CharacterModels.manifest.json')
+    write(args.output/(Path('Catalog')/RESOURCE_FILES['manifest']),manifest)
+    assembly['catalogSha256']=sha(args.output/(Path('Catalog')/RESOURCE_FILES['manifest']))
     assembly['bytes']=sum(row['bytes']for row in assembly['proofs'])
     assembly['nativeFaceContours']=dict(owner=geometry['owner'],coverage=geometry['coverage'],rows=geometry['rows'],
         humanStyleFiles=geometry['humanStyleFiles'],review='pending')
     assembly['preparedSource']=dict(assembly=dict(path=str((args.source/'ResourceAssembly.json').resolve()),sha256=sha(args.source/'ResourceAssembly.json')),
-        catalog=dict(path=str((args.source/'Catalog/CharacterModels.manifest.json').resolve()),sha256=sha(args.source/'Catalog/CharacterModels.manifest.json')))
+        catalog=dict(path=str((args.source/(Path('Catalog')/RESOURCE_FILES['manifest'])).resolve()),sha256=sha(args.source/(Path('Catalog')/RESOURCE_FILES['manifest']))))
     write(args.output/'ResourceAssembly.json',assembly)
     print(json.dumps(dict(status='PREPARED_NATIVE_RECOVERY_REVIEW_PENDING'if args.restore_native_only else'PREPARED_SOURCE_GUIDES_REVIEW_PENDING',meshes=geometry['meshes'],catalog=assembly['catalogSha256'])))
 
@@ -6467,8 +6539,8 @@ def prepare_attachment_inputs():
     args=parser.parse_args();source=checked_catalog_path(args.source);output=checked_catalog_path(args.output)
     if output.exists()or not any(output.is_relative_to(ROOT/p)for p in('tools/asset-authoring/workspace','tools/game-test/artifacts')):
         raise ValueError('Attachment authoring requires a new independent workspace.')
-    manifest=read(source/'Catalog/CharacterModels.manifest.json');assembly=read(source/'ResourceAssembly.json')
-    if assembly['catalogSha256']!=sha(source/'Catalog/CharacterModels.manifest.json'):raise ValueError('The attachment source catalog changed.')
+    manifest=read(source/(Path('Catalog')/RESOURCE_FILES['manifest']));assembly=read(source/'ResourceAssembly.json')
+    if assembly['catalogSha256']!=sha(source/(Path('Catalog')/RESOURCE_FILES['manifest'])):raise ValueError('The attachment source catalog changed.')
     designs=read(args.designs)['attachments'];names=set(args.assets)if args.assets else set(designs['sources'])
     if not names or names-set(designs['sources']):raise ValueError('Select declared native attachment sources.')
     output.mkdir(parents=True);pin=lambda path:dict(path=str(Path(path).resolve()),sha256=sha(path));inputs=[];retained=[]
@@ -6476,7 +6548,7 @@ def prepare_attachment_inputs():
             Path(__file__).with_name('material_fields.py'),resources.__file__,Path(resources.__file__).with_name('mesh_recipe_codec.py'),args.designs)):
         archived=output/'ProducerSources'/(path.name+'.source');archived.parent.mkdir(exist_ok=True);archived.write_bytes(path.read_bytes())
         inputs.append(pin(archived));retained.append(dict(original=pin(path),archive=pin(archived)))
-    inputs.extend(pin(path)for path in(source/'ResourceAssembly.json',source/'Catalog/CharacterModels.manifest.json'))
+    inputs.extend(pin(path)for path in(source/'ResourceAssembly.json',source/(Path('Catalog')/RESOURCE_FILES['manifest'])))
     proofs={row['file']:row for row in assembly['proofs']};by_cab={row['newCab']:row for row in assembly['proofs']};source_pins={}
     @lru_cache(maxsize=12)
     def load(cab):
@@ -6557,7 +6629,7 @@ def prepare_attachment_inputs():
     inputs.extend(source_pins.values());inputs.extend(row for witnesses in support_cache.values()for row in witnesses)
     for reference in inputs:
         if sha(reference['path'])!=reference['sha256']:raise ValueError('An attachment input changed during authoring.')
-    write(output/'Plan.json',dict(source=pin(source/'ResourceAssembly.json'),catalog=pin(source/'Catalog/CharacterModels.manifest.json'),
+    write(output/'Plan.json',dict(source=pin(source/'ResourceAssembly.json'),catalog=pin(source/(Path('Catalog')/RESOURCE_FILES['manifest'])),
         inputs=inputs,retainedSourceInputs=retained,rows=rows,recipes=recipes,
         materials=[dict(file=key[0],update=value)for key,value in sorted(material_updates.items())if value['values']],review='pending'))
 
@@ -6627,14 +6699,14 @@ def bind_attachment_surfaces():
     if output.exists()or not any(output.is_relative_to(ROOT/p)for p in('tools/asset-authoring/workspace','tools/game-test/artifacts')):
         raise ValueError('Attachment binding requires a new independent workspace.')
     plan=read(args.plan);report=read(args.report);pin=lambda path:dict(path=str(Path(path).resolve()),sha256=sha(path))
-    if plan['source']!=pin(source/'ResourceAssembly.json')or plan['catalog']!=pin(source/'Catalog/CharacterModels.manifest.json')or not report.get('success'):
+    if plan['source']!=pin(source/'ResourceAssembly.json')or plan['catalog']!=pin(source/(Path('Catalog')/RESOURCE_FILES['manifest']))or not report.get('success'):
         raise ValueError('The attachment plan or compilation belongs to another source.')
     for reference in plan['inputs']:
         if sha(reference['path'])!=reference['sha256']:raise ValueError('An attachment input changed before binding.')
     compiled={Path(row['bundlePath']).name:row for row in report.get('bundles')or[report]};groups=collections.defaultdict(list);materials=collections.defaultdict(list)
     for row in plan['rows']:groups[Path(row['source']['path']).name].append(row)
     for row in plan['materials']:materials[row['file']].append(row['update'])
-    assembly=read(source/'ResourceAssembly.json');manifest=read(source/'Catalog/CharacterModels.manifest.json');proofs={row['file']:row for row in assembly['proofs']}
+    assembly=read(source/'ResourceAssembly.json');manifest=read(source/(Path('Catalog')/RESOURCE_FILES['manifest']));proofs={row['file']:row for row in assembly['proofs']}
     output.mkdir(parents=True);catalog=output/'Catalog';catalog.mkdir();count=0
     for bundle in manifest['bundles']:
         name=bundle['file'];target=catalog/name
@@ -6660,10 +6732,10 @@ def bind_attachment_surfaces():
         proof.setdefault('appearanceFinishing',[]).append(dict(kind='source-owned-attachment-surface',beforeSha256=before,sha256=proof['sha256'],
             proof=pin(path),authority=dict(inputs=plan['inputs'])))
         bundle['sha256']=proof['sha256'];count+=len(entries);print('Bound source attachment:',name,flush=True)
-    write(catalog/'CharacterModels.manifest.json',manifest)
+    write(catalog/RESOURCE_FILES['manifest'],manifest)
     assembly.setdefault('retainedSourceInputs',[]).extend(plan['retainedSourceInputs'])
-    assembly.update(catalogSha256=sha(catalog/'CharacterModels.manifest.json'),bytes=sum(row['bytes']for row in assembly['proofs']),artAccepted=False,
-        preparedSource=dict(assembly=pin(source/'ResourceAssembly.json'),catalog=pin(source/'Catalog/CharacterModels.manifest.json')),
+    assembly.update(catalogSha256=sha(catalog/RESOURCE_FILES['manifest']),bytes=sum(row['bytes']for row in assembly['proofs']),artAccepted=False,
+        preparedSource=dict(assembly=pin(source/'ResourceAssembly.json'),catalog=pin(source/(Path('Catalog')/RESOURCE_FILES['manifest']))),
         attachmentSurfaces=dict(plan=pin(args.plan),meshes=count,materials=len(plan['materials']),review='pending'))
     write(output/'ResourceAssembly.json',assembly)
 
@@ -6680,9 +6752,9 @@ def prepare_native_groom_inputs():
     args=parser.parse_args();output=checked_catalog_path(args.output);source=checked_catalog_path(args.source)
     if output.exists()or not any(output.is_relative_to(ROOT/p)for p in('tools/asset-authoring/workspace','tools/game-test/artifacts')):
         raise ValueError('Native groom inputs require a new authoring workspace.')
-    census=read(args.census);designs=read(args.designs);manifest=read(source/'Catalog/CharacterModels.manifest.json')
+    census=read(args.census);designs=read(args.designs);manifest=read(source/(Path('Catalog')/RESOURCE_FILES['manifest']))
     assembly=read(source/'ResourceAssembly.json');proofs={row['file']:row for row in assembly['proofs']};cabs={row['newCab']:row['file']for row in assembly['proofs']}
-    if designs.get('schemaVersion')!=1 or assembly['catalogSha256']!=sha(source/'Catalog/CharacterModels.manifest.json'):
+    if designs.get('schemaVersion')!=1 or assembly['catalogSha256']!=sha(source/(Path('Catalog')/RESOURCE_FILES['manifest'])):
         raise ValueError('Groom design or source authority differs.')
     contract=read(args.domain_contract)
     if contract.get('status')!='PASS_NATIVE_MASK_GPU_AND_SOURCE_DOMAIN_POLICY':raise ValueError('Native groom material coverage has no completed authority.')
@@ -6850,7 +6922,7 @@ def bind_groom_designs():
     plan=read(args.plan);report=read(args.report)
     if not report.get('success'):raise ValueError('The groom mesh build failed.')
     compiled={Path(row['bundlePath']).name:row for row in report.get('bundles')or[report]}
-    assembly=read(source/'ResourceAssembly.json');manifest=read(source/'Catalog/CharacterModels.manifest.json');proofs={row['file']:row for row in assembly['proofs']}
+    assembly=read(source/'ResourceAssembly.json');manifest=read(source/(Path('Catalog')/RESOURCE_FILES['manifest']));proofs={row['file']:row for row in assembly['proofs']}
     groups=collections.defaultdict(list)
     if set(args.assets)-{row['asset']for row in plan['rows']}:raise ValueError('An unknown source groom was requested.')
     for row in plan['rows']:
@@ -6895,10 +6967,10 @@ def bind_groom_designs():
         proof.setdefault('appearanceFinishing',[]).append(dict(kind='source-owned-groom-surface',beforeSha256=before,sha256=proof['sha256'],
             proof=dict(path=str(path.resolve()),sha256=sha(path)),authority=dict(inputs=[dict(path=str(producer.resolve()),sha256=sha(producer))])))
         bundle['sha256']=proof['sha256'];print('Bound source groom:',name,flush=True)
-    write(catalog/'CharacterModels.manifest.json',manifest)
-    assembly.update(catalogSha256=sha(catalog/'CharacterModels.manifest.json'),bytes=sum(row['bytes']for row in assembly['proofs']),artAccepted=False,
+    write(catalog/RESOURCE_FILES['manifest'],manifest)
+    assembly.update(catalogSha256=sha(catalog/RESOURCE_FILES['manifest']),bytes=sum(row['bytes']for row in assembly['proofs']),artAccepted=False,
         preparedSource=dict(assembly=dict(path=str((source/'ResourceAssembly.json').resolve()),sha256=sha(source/'ResourceAssembly.json')),
-            catalog=dict(path=str((source/'Catalog/CharacterModels.manifest.json').resolve()),sha256=sha(source/'Catalog/CharacterModels.manifest.json'))),
+            catalog=dict(path=str((source/(Path('Catalog')/RESOURCE_FILES['manifest'])).resolve()),sha256=sha(source/(Path('Catalog')/RESOURCE_FILES['manifest'])))),
         groomSourceDesigns=dict(plan=dict(path=str(args.plan.resolve()),sha256=sha(args.plan)),bundles=len(groups),review='pending'))
     write(output/'ResourceAssembly.json',assembly)
 
@@ -6921,7 +6993,7 @@ def prepare_groom_frame_resources():
     if bool(args.before_preset)!=bool(args.after_preset):raise ValueError('Groom preset migration requires both compiled presets.')
     source=checked_catalog_path(args.source);output=checked_catalog_path(args.output)
     if not output.is_relative_to(ROOT/'tools')or output==source:raise ValueError('Groom output requires an independent tools workspace.')
-    assembly=read(source/'ResourceAssembly.json');manifest=read(source/'Catalog/CharacterModels.manifest.json')
+    assembly=read(source/'ResourceAssembly.json');manifest=read(source/(Path('Catalog')/RESOURCE_FILES['manifest']))
     if assembly.get('groomVertexFrames')and not args.shader_only:raise ValueError('Use the declared original frame catalog to regenerate groom support.')
     selected={r['bundles'][0]['file']for r in manifest['resources']if any(p.get('set')=='Groom'for p in r.get('parameters',[]))}
     all_grooms=set(selected)
@@ -6963,7 +7035,7 @@ def prepare_groom_frame_resources():
         if texture_path.name not in {row['file']for row in manifest['bundles']}:
             raise ValueError('The compiled groom texture bundle has no existing resource owner.')
         pins.extend(dict(path=str(Path(path).resolve()),sha256=sha(path))for path in (args.texture_report,texture_path))
-    marker=dict(sourceCatalogSha256=sha(source/'Catalog/CharacterModels.manifest.json'),selectedFiles=sorted(selected),inputs=pins)
+    marker=dict(sourceCatalogSha256=sha(source/(Path('Catalog')/RESOURCE_FILES['manifest'])),selectedFiles=sorted(selected),inputs=pins)
     output.mkdir(parents=True,exist_ok=True);catalog=output/'Catalog';catalog.mkdir(exist_ok=True)
     ownership=output/'WorkingDirectory.json'
     if ownership.exists():
@@ -7038,10 +7110,10 @@ def prepare_groom_frame_resources():
     for row in manifest['bundles']:row['sha256']=proofs[row['file']]['sha256']
     for pin in [*pins,*live_producers]:
         if sha(pin['path'])!=pin['sha256']:raise ValueError('Groom producer or shader changed during preparation.')
-    write(catalog/'CharacterModels.manifest.json',manifest)
-    assembly['catalogSha256']=sha(catalog/'CharacterModels.manifest.json');assembly['bytes']=sum(r['bytes']for r in assembly['proofs'])
+    write(catalog/RESOURCE_FILES['manifest'],manifest)
+    assembly['catalogSha256']=sha(catalog/RESOURCE_FILES['manifest']);assembly['bytes']=sum(r['bytes']for r in assembly['proofs'])
     assembly['preparedSource']=dict(assembly=dict(path=str((source/'ResourceAssembly.json').resolve()),sha256=sha(source/'ResourceAssembly.json')),
-        catalog=dict(path=str((source/'Catalog/CharacterModels.manifest.json').resolve()),sha256=sha(source/'Catalog/CharacterModels.manifest.json')))
+        catalog=dict(path=str((source/(Path('Catalog')/RESOURCE_FILES['manifest'])).resolve()),sha256=sha(source/(Path('Catalog')/RESOURCE_FILES['manifest']))))
     finishing=dict(owner=marker,files=sorted(selected),meshes=sum(len(r['meshes'])for r in completed),
         shader=dict(file=shader_name,sha256=proofs[shader_name]['sha256'],changedObject=shader_proof['changedObject']),review='pending')
     if texture_receipt is not None:finishing['textures']=texture_receipt
@@ -7074,10 +7146,10 @@ def prepare_resource_appearance(source,index_path,output,census_path,material_co
     for row in manifest['bundles']:row['sha256']=old_proofs[row['file']]['sha256']
     for pin in pins:
         if sha(pin['path'])!=pin['sha256']:raise ValueError('An appearance source changed during preparation.')
-    write(target/'CharacterModels.manifest.json',manifest)
-    assembly['catalogSha256']=sha(target/'CharacterModels.manifest.json');assembly['bytes']=sum(row['bytes']for row in assembly['proofs'])
+    write(target/RESOURCE_FILES['manifest'],manifest)
+    assembly['catalogSha256']=sha(target/RESOURCE_FILES['manifest']);assembly['bytes']=sum(row['bytes']for row in assembly['proofs'])
     assembly['bundleDependencyPolicy']='serialized-file-closure'
-    assembly['faceFinishing']=dict(source=str(source),sourceCatalogSha256=sha(catalog/'CharacterModels.manifest.json'),inputs=pins,rows=reports,coverage=coverage,
+    assembly['faceFinishing']=dict(source=str(source),sourceCatalogSha256=sha(catalog/RESOURCE_FILES['manifest']),inputs=pins,rows=reports,coverage=coverage,
         humanStyleFiles=sorted(styled),creatureAnatomyPreserved=True,colorCorrections=color_proofs)
     write(output/'ResourceAssembly.json',assembly)
     return dict(status='PREPARED_NOT_VISUALLY_ACCEPTED',meshes=geometry['meshes'],textures=len(texture_jobs),catalog=str(target),runtimeFaces=sum(bool(row['file'])for row in coverage))
@@ -7092,8 +7164,8 @@ def repair_resource_bone_orders():
     parser.add_argument('--audit-only',action='store_true')
     args=parser.parse_args();source=checked_catalog_path(args.source);output=require_workspace()
     if source==output or any(output.iterdir()):raise ValueError('Bone-order repair requires an independent empty workspace.')
-    manifest=read(source/'Catalog/CharacterModels.manifest.json');assembly=read(source/'ResourceAssembly.json')
-    if assembly.get('status')!='PASS_STANDALONE_CHARACTER_RESOURCES'or assembly['catalogSha256']!=sha(source/'Catalog/CharacterModels.manifest.json'):
+    manifest=read(source/(Path('Catalog')/RESOURCE_FILES['manifest']));assembly=read(source/'ResourceAssembly.json')
+    if assembly.get('status')!='PASS_STANDALONE_CHARACTER_RESOURCES'or assembly['catalogSha256']!=sha(source/(Path('Catalog')/RESOURCE_FILES['manifest'])):
         raise ValueError('A complete standalone source catalog is required.')
     assets={row['asset']for row in manifest['resources']if row['type']=='GameObject'}
     audit=resources.audit_native_bone_orders(read(args.native_index),assets)
@@ -7141,9 +7213,9 @@ def repair_resource_bone_orders():
         row=proofs[name];row['sha256']=receipt['target']['sha256'];row['bytes']=target.stat().st_size;row['allRetainedObjectFieldsExactAfterReferenceRebasing']=False
         row.setdefault('appearanceFinishing',[]).append(dict(kind='serialized-bone-order',beforeSha256=bundle['sha256'],sha256=row['sha256'],proof=dict(path=str(path.resolve()),sha256=sha(path)),authority=dict(inputs=pins)))
         bundle['sha256']=row['sha256'];changed.append(dict(file=name,renderers=len(jobs[name]),changedObjects=receipt['changedObjects']))
-    write(catalog/'CharacterModels.manifest.json',manifest)
-    assembly['catalogSha256']=sha(catalog/'CharacterModels.manifest.json');assembly['bytes']=sum(row['bytes']for row in assembly['proofs'])
-    assembly['preparedSource']=dict(assembly=dict(path=str((source/'ResourceAssembly.json').resolve()),sha256=sha(source/'ResourceAssembly.json')),catalog=dict(path=str((source/'Catalog/CharacterModels.manifest.json').resolve()),sha256=sha(source/'Catalog/CharacterModels.manifest.json')))
+    write(catalog/RESOURCE_FILES['manifest'],manifest)
+    assembly['catalogSha256']=sha(catalog/RESOURCE_FILES['manifest']);assembly['bytes']=sum(row['bytes']for row in assembly['proofs'])
+    assembly['preparedSource']=dict(assembly=dict(path=str((source/'ResourceAssembly.json').resolve()),sha256=sha(source/'ResourceAssembly.json')),catalog=dict(path=str((source/(Path('Catalog')/RESOURCE_FILES['manifest'])).resolve()),sha256=sha(source/(Path('Catalog')/RESOURCE_FILES['manifest']))))
     assembly['nativeBoneOrder']=dict(inputs=pins,resources=changed,alreadyAligned=aligned,review='pending');assembly['artAccepted']=False
     write(output/'ResourceAssembly.json',assembly)
     result=dict(status='PREPARED_NATIVE_BONE_ORDERS_REVIEW_PENDING',resources=changed,alreadyAligned=aligned)
@@ -7179,8 +7251,10 @@ def main():
     if args.command in ('generate','generate-npc','generate-extremities','generate-skin-boundaries'):
         import numpy as np
         p,art=source_owner()
-    {'inspect-resource-metadata':inspect_resource_metadata,'scope':select_scope,'capture':capture_source_catalog,'extract':extract_current,'generate':generate_humanoids,'generate-npc':generate_npcs,'generate-extremities':generate_extremities,'generate-skin-boundaries':generate_skin_boundaries,
-        'generate-materials':generate_materials,'compile-face-designs':compile_face_designs,'finish-skin-lods':finish_skin_lods,'finish-skin-interfaces':prepare_skin_interfaces,'bind-skin-surfaces':bind_source_skin_materials,'refine-skin-surfaces':prepare_skin_surface_resources,'complete-groom-frames':complete_groom_frames,'retone-materials':retone_materials,'prepare-material-codec':prepare_material_codec,'verify-material-codec':verify_material_codec,'prepare-resource-spans':prepare_resource_span_catalog,'prepare':prepare_bundles,'finalize':finalize_catalog,'assemble-resources':assemble_resources,'repair-resource-bone-orders':repair_resource_bone_orders,'prepare-appearance-resources':prepare_appearance_resources,'refine-native-faces':prepare_native_face_resources,'prepare-groom-designs':prepare_groom_designs,'prepare-groom-composition':prepare_groom_composition,'bind-groom-designs':bind_groom_designs,'prepare-groom-inputs':prepare_native_groom_inputs,'refine-groom-frames':prepare_groom_frame_resources,'prepare-attachment-inputs':prepare_attachment_inputs,'bind-attachments':bind_attachment_surfaces,'package-resources':package_resources,'plan-resource-retirement':plan_resource_retirement,'publish':publish_catalog}[args.command]()
+    action={'inspect-resource-metadata':inspect_resource_metadata,'scope':select_scope,'capture':capture_source_catalog,'extract':extract_current,'generate':generate_humanoids,'generate-npc':generate_npcs,'generate-extremities':generate_extremities,'generate-skin-boundaries':generate_skin_boundaries,
+        'generate-materials':generate_materials,'compile-face-designs':compile_face_designs,'finish-skin-lods':finish_skin_lods,'finish-skin-interfaces':prepare_skin_interfaces,'bind-skin-surfaces':bind_source_skin_materials,'refine-skin-surfaces':prepare_skin_surface_resources,'complete-groom-frames':complete_groom_frames,'retone-materials':retone_materials,'prepare-material-codec':prepare_material_codec,'verify-material-codec':verify_material_codec,'prepare-resource-spans':prepare_resource_span_catalog,'prepare':prepare_bundles,'finalize':finalize_catalog,'assemble-resources':assemble_resources,'repair-resource-bone-orders':repair_resource_bone_orders,'prepare-appearance-resources':prepare_appearance_resources,'refine-native-faces':prepare_native_face_resources,'prepare-groom-designs':prepare_groom_designs,'prepare-groom-composition':prepare_groom_composition,'bind-groom-designs':bind_groom_designs,'prepare-groom-inputs':prepare_native_groom_inputs,'refine-groom-frames':prepare_groom_frame_resources,'prepare-attachment-inputs':prepare_attachment_inputs,'bind-attachments':bind_attachment_surfaces,'package-resources':package_resources,'plan-resource-retirement':plan_resource_retirement,'publish':publish_catalog}[args.command]
+    from resource_storage import resource_work
+    with resource_work(args.command,remaining):action()
 
 
 if __name__=='__main__':main()

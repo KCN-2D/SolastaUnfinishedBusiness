@@ -1,3 +1,6 @@
+﻿[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns','',Justification='Contract groups use the names of the boundaries they test.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidOverwritingBuiltInCmdlets','',Justification='Mocks replace external operations only inside isolated contract scopes.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions','',Justification='Fixture operations are confined to the isolated contract workspace.')]
 [CmdletBinding(DefaultParameterSetName = 'All')]
 param(
     [Parameter(Mandatory = $true, ParameterSetName = 'All')]
@@ -75,7 +78,7 @@ function Invoke-AuthoringInputValidationContracts([string]$EntryPath, [string]$O
     }
     function Add-ValidationCheck([string]$Name,[bool]$Passed,$Evidence) {
         $checks.Add([ordered]@{name=$Name;passed=$Passed;evidence=$Evidence})
-        if(-not $Passed){Write-Host ('FAIL '+$Name)}
+        if(-not $Passed){Write-Information -InformationAction Continue ('FAIL '+$Name)}
     }
     # This file cannot answer a PE/version query or start an Editor.
     $unity=Join-Path $inputs 'Unity.exe';[IO.File]::WriteAllBytes($unity,[byte[]]@())
@@ -619,7 +622,7 @@ function Invoke-AuthoringInputValidationContracts([string]$EntryPath, [string]$O
         emptyUnityExeBytes=(Get-Item -LiteralPath $unity).Length;inputTreeUnchanged=($before -ceq $after);
         outputWorkspaceCreated=(Test-Path -LiteralPath $outputs);checks=@($checks.ToArray())}
     Save-ValidationJson (Join-Path $OutputDirectory 'Result.json') $result
-    Write-Host ($result.status+': '+$checks.Count+' input-validation contracts; '+$OutputDirectory)
+    Write-Information -InformationAction Continue ($result.status+': '+$checks.Count+' input-validation contracts; '+$OutputDirectory)
     if($result.status -cne 'PASS'){throw 'Authoring input-validation contracts failed.'}
     return [pscustomobject]$result
 }
@@ -651,7 +654,7 @@ function Get-CimInstance {param($ClassName,$Filter,$Property)
  Assert-AuthoringContractProcessQuery $ClassName $Filter $Property @("Name = 'blender.exe'") @('ProcessId','ExecutablePath','CommandLine','CreationDate')
  $script:ProcessQueries++;if($script:BlenderQueryFails){throw 'fixture process query failed'};return $script:BlenderProcesses}
 $checks=[Collections.Generic.List[object]]::new()
-function Need([string]$Name,[bool]$Passed){$checks.Add([ordered]@{name=$Name;passed=$Passed});if(-not $Passed){Write-Host "FAIL $Name"}}
+function Need([string]$Name,[bool]$Passed){$checks.Add([ordered]@{name=$Name;passed=$Passed});if(-not $Passed){Write-Information -InformationAction Continue "FAIL $Name"}}
 function Rejected([scriptblock]$Action){try{&$Action|Out-Null;return $false}catch{return $true}}
 function RejectedAs([scriptblock]$Action,[string]$Pattern){try{&$Action|Out-Null;return $false}catch{return $_.Exception.Message -match $Pattern}}
 function Save([string]$Path,$Value){[IO.File]::WriteAllText($Path,($Value|ConvertTo-Json -Depth 30),[Text.UTF8Encoding]::new($false))}
@@ -660,7 +663,7 @@ function Project([string]$Name){
  $root=Directory (Join-Path $workbench $Name);[IO.File]::WriteAllText((Join-Path $root '.solasta-asset-authoring-workspace'),'SolastaUBAssetAuthoring:UnityWorkspace:1')
  $project=Directory (Join-Path $root 'Project');[IO.File]::WriteAllText((Join-Path $project '.solasta-asset-authoring-project'),'SolastaUBAssetAuthoring:UnityProject:1');[void](Directory (Join-Path $project 'Assets'));return $project
 }
-function Job([string]$Project,[string]$Name,[string[]]$Deps=@(),[bool]$Seal=$true,$Session=$null){
+function New-StorageFixtureJob([string]$Project,[string]$Name,[string[]]$Deps=@(),[bool]$Seal=$true,$Session=$null){
  $job=Directory (Join-Path $Project ('.asset-authoring-jobs/'+$Name));$assets=Directory (Join-Path $Project ('Assets/Generated/'+$Name))
  [IO.File]::WriteAllBytes((Join-Path $assets 'mesh.asset'),[byte[]]::new(2048));[IO.File]::WriteAllText(($assets+'.meta'),'guid: '+[guid]::NewGuid().ToString('N'))
  $result=Join-Path $job 'output.json';Save $result @{success=$true}
@@ -726,7 +729,7 @@ foreach($representation in @('uniform','mixed')){foreach($reverse in @($false,$t
  $reference.paths=@((Join-Path $orderRoot 'a'));$selection=Select-AssetStorageUnits $units $reference 2 0 10
  Need ('cleanup timestamp hard owners survive insufficient budget '+$label) (-not $selection.budgetSatisfied -and $selection.retainedBytes -eq 18 -and $selection.reasons.Count -eq 2 -and $selection.reasons[(Join-Path $orderRoot 'a')] -eq 'explicit-reference' -and $selection.reasons[(Join-Path $orderRoot 'c')] -eq 'incomplete')
 }}
-$project=Project 'unity-zero-latest';$donor=Job $project 'donor';$changed=Job $project 'changed' @($donor.assets);$active=Job $project 'active';$obsolete=Job $project 'obsolete'
+$project=Project 'unity-zero-latest';$donor=New-StorageFixtureJob $project 'donor';$changed=New-StorageFixtureJob $project 'changed' @($donor.assets);$active=New-StorageFixtureJob $project 'active';$obsolete=New-StorageFixtureJob $project 'obsolete'
 [IO.File]::AppendAllText((Join-Path $changed.assets 'mesh.asset'),'changed')
 $zeroRef=Join-Path $OutputDirectory 'zero-latest-unity-references.json';Save $zeroRef @{schemaVersion=1;paths=@($active.assets)}
 $zeroOptions=@{KeepLatest=0;MaxAgeDays=0;ReferencePath=@($zeroRef)}
@@ -734,20 +737,20 @@ $preview=UnityClean $project $zeroOptions;$r=UnityClean $project $zeroOptions -A
 Need 'zero latest Unity policy retires only unreferenced unchanged completed output' ($preview.actions.Count -eq 2 -and $preview.actions[0].jobDirectory -eq $obsolete.job -and $r.actions.Count -eq 2 -and $r.actions[0].applied -and -not(Test-Path $obsolete.job) -and (Test-Path $active.job) -and (Test-Path $changed.job) -and (Test-Path $donor.job))
 Need 'zero latest Unity policy retains changed owner dependency closure' (@($preview.retained|Where-Object {$_.reason -eq 'Authoring outputs changed after completion.'}).Count -eq 2 -and @($preview.retained|Where-Object {$_.reason -eq 'retained-input'}).Count -ge 1)
 Need 'negative Unity latest count rejects before cleanup' ((Rejected {UnityClean $project @{KeepLatest=-1}}) -and (Test-Path $active.job))
-$project=Project 'unity-preview';$job=Job $project 'first'
+$project=Project 'unity-preview';$job=New-StorageFixtureJob $project 'first'
 $r=UnityClean $project
 Need 'Unity dry run keeps output and paired Assets' ((Test-Path $job.job)-and(Test-Path $job.assets)-and $r.actions.Count -eq 2 -and -not $r.actions[0].applied)
 $r=UnityClean $project -Apply
 Need 'Unity age cleanup retires job, assets and sibling meta together' (-not(Test-Path $job.job)-and -not(Test-Path $job.assets)-and -not(Test-Path ($job.assets+'.meta')))
 $r=UnityClean $project -Apply;Need 'Unity cleanup is idempotent' ($r.actions.Count -eq 0)
 Need 'durable Unity diagnostic survives retirement' ((Get-ChildItem (Join-Path (Split-Path $project) 'StorageCleanup') -Filter Journal.jsonl -Recurse -File).Count -ge 1)
-$project=Project 'unity-preserve';$job=Job $project 'hard';$ref=Join-Path $OutputDirectory 'references.json';Save $ref @{schemaVersion=1;paths=@($job.assets)}
+$project=Project 'unity-preserve';$job=New-StorageFixtureJob $project 'hard';$ref=Join-Path $OutputDirectory 'references.json';Save $ref @{schemaVersion=1;paths=@($job.assets)}
 $r=UnityClean $project @{ReferencePath=@($ref);MaxRetainedBytes=1} -Apply
 Need 'current referenced Unity assets keep their paired job above byte budget' ((Test-Path $job.job)-and(Test-Path $job.assets)-and -not $r.budgetSatisfied)
-$project=Project 'unity-latest-roles';$older=Job $project 'older';$newer=Job $project 'newer'
+$project=Project 'unity-latest-roles';$older=New-StorageFixtureJob $project 'older';$newer=New-StorageFixtureJob $project 'newer'
 $r=UnityClean $project @{KeepLatest=1;MaxAgeDays=0} -Apply
 Need 'latest retention keeps each output and import role without doubling the owner count' (-not(Test-Path $older.job)-and -not(Test-Path $older.assets)-and(Test-Path $newer.job)-and(Test-Path $newer.assets)-and $r.actions.Count -eq 2)
-$project=Project 'unity-output-reference';$job=Job $project 'completed';$result=Join-Path $job.job 'output.json'
+$project=Project 'unity-output-reference';$job=New-StorageFixtureJob $project 'completed';$result=Join-Path $job.job 'output.json'
 $resultHash=(Get-FileHash -LiteralPath $result -Algorithm SHA256).Hash;$ownerHash=(Get-FileHash -LiteralPath $job.ownership.path -Algorithm SHA256).Hash
 Save $ref @{schemaVersion=1;paths=@($result)};$r=UnityClean $project @{ReferencePath=@($ref)} -Apply
 Need 'referenced completed output releases only its unreferenced import copies' ((Test-Path $result)-and(Test-Path $job.ownership.path)-and -not(Test-Path $job.assets)-and -not(Test-Path ($job.assets+'.meta'))-and $r.actions.Count -eq 1 -and $r.actions[0].kind -eq 'import')
@@ -756,13 +759,49 @@ $r=UnityClean $project @{ReferencePath=@($ref)} -Apply
 Need 'released import roots remain valid under the existing ownership schema' ($r.status -eq 'complete' -and $r.actions.Count -eq 0 -and (Test-Path $result))
 Save $ref @{schemaVersion=1;paths=@()};$r=UnityClean $project -Apply
 Need 'unreferenced output retires after its import roots were released' (-not(Test-Path $job.job)-and $r.actions.Count -eq 1 -and $r.actions[0].kind -eq 'job')
-$project=Project 'unity-output-mutated';$job=Job $project 'completed';[IO.File]::AppendAllText((Join-Path $job.job 'output.json'),'changed')
+$project=Project 'unity-output-mutated';$job=New-StorageFixtureJob $project 'completed';[IO.File]::AppendAllText((Join-Path $job.job 'output.json'),'changed')
 Save $ref @{schemaVersion=1;paths=@((Join-Path $job.job 'output.json'))};$r=UnityClean $project @{ReferencePath=@($ref)} -Apply
 Need 'a changed referenced output preserves its paired import copies' ($r.actions.Count -eq 0 -and (Test-Path $job.job)-and(Test-Path $job.assets))
-$project=Project 'unity-running';$job=Job $project 'running' @() $false
+$project=Project 'unity-running';$job=New-StorageFixtureJob $project 'running' @() $false
 $r=UnityClean $project -Apply
 Need 'incomplete Unity output is preserved' ((Test-Path $job.job)-and(Test-Path $job.assets)-and $r.actions.Count -eq 0)
-$project=Project 'unity-modified';$job=Job $project 'edited';[IO.File]::AppendAllText((Join-Path $job.assets 'mesh.asset'),'changed')
+$project=Project 'unity-abandoned';$job=New-StorageFixtureJob $project 'interrupted' @() $false
+$data=Get-Content -LiteralPath $job.ownership.path -Raw|ConvertFrom-Json
+$data.creator.pid=2147483647;Save $job.ownership.path $data
+foreach($path in @($job.ownership.path,($job.assets+'.meta'))+@(Get-ChildItem -LiteralPath $job.job,$job.assets -Recurse -File|ForEach-Object FullName)){
+ [IO.File]::SetLastWriteTimeUtc($path,[DateTime]::UtcNow.AddDays(-8))
+}
+$preview=UnityClean $project;$r=UnityClean $project -Apply
+Need 'an exited registered producer releases its abandoned outputs using the original ownership' ($preview.actions.Count -eq 2 -and $r.actions.Count -eq 2 -and -not(Test-Path $job.job) -and -not(Test-Path $job.assets))
+foreach($legacyCase in @('valid','implicit-rig','changed-input','unclaimed','referenced')){
+ $project=Project ('unity-legacy-'+$legacyCase);$id=[guid]::NewGuid().ToString('N')
+ $jobRoot=Directory (Join-Path $project ('.asset-authoring-jobs/'+$id));$assetRoot=Directory (Join-Path $project ('Assets/AuthoringJobs/'+$id))
+ $inputRoot=Directory (Join-Path $assetRoot 'Input');$inputName=if($legacyCase -eq 'implicit-rig'){'SampleRig.fbx'}else{'mesh-recipe.json'};$recipe=Join-Path $inputRoot $inputName;Save $recipe @{schemaVersion=1;meshes=@()}
+ [IO.File]::WriteAllText((Join-Path $jobRoot '.solasta-asset-authoring-job'),'SolastaUBAssetAuthoring:UnityJob:1')
+ if($legacyCase -ne 'unclaimed'){[IO.File]::WriteAllText((Join-Path $jobRoot 'started.json'),'terminal request')}
+ $request=@{schemaVersion=1;jobId=$id;inputSha256=(Get-FileHash -LiteralPath $recipe -Algorithm SHA256).Hash.ToLowerInvariant()}
+ if($legacyCase -ne 'implicit-rig'){$request.kind='mesh-templates'}
+ Save (Join-Path $jobRoot 'request.json') $request
+ if($legacyCase -eq 'changed-input'){[IO.File]::AppendAllText($recipe,'changed')}
+ foreach($path in @(Get-ChildItem -LiteralPath $jobRoot,$assetRoot -Recurse -File|ForEach-Object FullName)){[IO.File]::SetLastWriteTimeUtc($path,[DateTime]::UtcNow.AddDays(-8))}
+ $options=@{}
+ if($legacyCase -eq 'referenced'){Save $ref @{schemaVersion=1;paths=@($assetRoot)};$options.ReferencePath=@($ref)}
+ $preview=UnityClean $project $options;$r=UnityClean $project $options -Apply
+ if($legacyCase -in @('valid','implicit-rig')){
+  Need ('terminal legacy worker requests retire declared roots: '+$legacyCase) ($preview.actions.Count -eq 2 -and $r.actions.Count -eq 2 -and -not(Test-Path $jobRoot) -and -not(Test-Path $assetRoot))
+ }else{
+  Need ('legacy worker retention preserves '+$legacyCase) ($r.actions.Count -eq 0 -and (Test-Path $jobRoot) -and (Test-Path $assetRoot))
+ }
+}
+$legacyState=[pscustomobject]@{status='complete';ownerId='recorded-owner';finishedUtc=[datetime]::UtcNow.ToString('O');editorReleased=$true;
+ editor=[pscustomobject]@{pid=123};worker=[pscustomobject]@{schemaVersion=2;ownerId='recorded-owner';processId=123};cli=[pscustomobject]@{exitCode=0}}
+Need 'legacy CLI exit evidence closes a session without newer release fields' (Test-AssetStorageSessionRelease $legacyState)
+Need 'missing release flags without native worker ownership remain incomplete' (-not(Test-AssetStorageSessionRelease ([pscustomobject]@{editorReleased=$true;cli=[pscustomobject]@{exitCode=0}})))
+$legacyState.cli.exitCode=$null
+Need 'legacy CLI without terminal exit evidence remains incomplete' (-not(Test-AssetStorageSessionRelease $legacyState))
+$legacyState.cli.exitCode=0;$legacyState|Add-Member -NotePropertyName cliReleased -NotePropertyValue $false
+Need 'an explicit incomplete release flag is not overridden by legacy exit evidence' (-not(Test-AssetStorageSessionRelease $legacyState))
+$project=Project 'unity-modified';$job=New-StorageFixtureJob $project 'edited';[IO.File]::AppendAllText((Join-Path $job.assets 'mesh.asset'),'changed')
 $r=UnityClean $project
 Need 'modified Unity output is retained' ((Test-Path $job.job)-and $r.actions.Count -eq 0 -and $r.retained.Count -gt 0)
 $project=Project 'unity-unmarked';[IO.File]::WriteAllText((Join-Path $project '.solasta-asset-authoring-project'),'wrong')
@@ -774,37 +813,46 @@ Need 'Editor source folder is protected' (Rejected {Register-AssetAuthoringJob $
 $project=Project 'unity-locked';[void](Directory (Join-Path $project 'Temp'));$lock=[IO.File]::Open((Join-Path $project 'Temp/UnityLockfile'),[IO.FileMode]::Create,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
 try{Need 'an open native project lock blocks cleanup' (Rejected {UnityClean $project -Apply})}finally{$lock.Dispose()}
 
-$project=Project 'unity-unreadable-output';$job=Job $project 'completed';$locked=[IO.File]::Open((Join-Path $job.assets 'mesh.asset'),[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+$project=Project 'unity-unreadable-output';$job=New-StorageFixtureJob $project 'completed';$locked=[IO.File]::Open((Join-Path $job.assets 'mesh.asset'),[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
 try{Need 'unreadable completed output still fails apply without deleting its owner' ((Rejected {UnityClean $project -Apply}) -and (Test-Path $job.job) -and (Test-Path $job.assets))}finally{$locked.Dispose()}
-$project=Project 'unity-chain';$donor=Job $project 'old-donor';$consumer=Job $project 'new-consumer' @((Join-Path $donor.assets 'mesh.asset'))
+$project=Project 'unity-chain';$donor=New-StorageFixtureJob $project 'old-donor';$consumer=New-StorageFixtureJob $project 'new-consumer' @((Join-Path $donor.assets 'mesh.asset'))
 $r=UnityClean $project
 $retiredOutputs=@($r.actions|Where-Object kind -eq 'job')
 Need 'Unity preview retires consumers before their input owners' ($retiredOutputs.Count -eq 2 -and $retiredOutputs[0].jobDirectory -eq $consumer.job -and $retiredOutputs[1].jobDirectory -eq $donor.job -and $r.actions.Count -eq 4)
 $r=UnityClean $project -Apply
 Need 'Unity consumer and obsolete donor retire in dependency order' (-not(Test-Path $consumer.job)-and -not(Test-Path $donor.job)-and $r.actions[0].jobDirectory -eq $consumer.job)
-$project=Project 'unity-hard-chain';$donor=Job $project 'old-donor';$consumer=Job $project 'new-consumer' @((Join-Path $donor.assets 'mesh.asset'))
+$project=Project 'unity-hard-chain';$donor=New-StorageFixtureJob $project 'old-donor';$consumer=New-StorageFixtureJob $project 'new-consumer' @((Join-Path $donor.assets 'mesh.asset'))
 Save $ref @{schemaVersion=1;paths=@($consumer.job)};$r=UnityClean $project @{ReferencePath=@($ref);MaxRetainedBytes=1} -Apply
 Need 'referenced Unity consumer keeps its source job and assets' ((Test-Path $consumer.job)-and(Test-Path $donor.job)-and(Test-Path $donor.assets)-and -not $r.budgetSatisfied)
-$project=Project 'unity-running-chain';$donor=Job $project 'old-donor';$consumer=Job $project 'pending' @((Join-Path $donor.assets 'mesh.asset')) $false
+$project=Project 'unity-running-chain';$donor=New-StorageFixtureJob $project 'old-donor';$consumer=New-StorageFixtureJob $project 'pending' @((Join-Path $donor.assets 'mesh.asset')) $false
 $r=UnityClean $project -Apply
 Need 'incomplete Unity consumer keeps its declared donor' ((Test-Path $consumer.job)-and(Test-Path $donor.job))
-$project=Project 'unity-failure-chain';$donor=Job $project 'old-donor';$consumer=Job $project 'changed' @((Join-Path $donor.assets 'mesh.asset'));$unrelated=Job $project 'unrelated';[IO.File]::AppendAllText((Join-Path $consumer.assets 'mesh.asset'),'changed')
+$project=Project 'unity-failure-chain';$donor=New-StorageFixtureJob $project 'old-donor';$consumer=New-StorageFixtureJob $project 'changed' @((Join-Path $donor.assets 'mesh.asset'));$unrelated=New-StorageFixtureJob $project 'unrelated';[IO.File]::AppendAllText((Join-Path $consumer.assets 'mesh.asset'),'changed')
 $preview=UnityClean $project
 Need 'modified Unity owner and dependency are retained before retirement selection' ($preview.status -eq 'complete' -and @($preview.actions|Where-Object kind -eq 'job').Count -eq 1 -and $preview.actions[0].jobDirectory -eq $unrelated.job -and @($preview.retained|Where-Object {$_.path -eq $consumer.ownership.path -and $_.reason -eq 'Authoring outputs changed after completion.'}).Count -eq 1 -and @($preview.retained|Where-Object {$_.path -eq $donor.ownership.path -and $_.reason -eq 'retained-input'}).Count -eq 1)
 $r=UnityClean $project -Apply
 Need 'modified Unity output retains its donor while unrelated completed output retires' ($r.status -eq 'complete' -and @($r.actions|Where-Object kind -eq 'job').Count -eq 1 -and $r.actions[0].applied -and -not(Test-Path $unrelated.job) -and (Test-Path $consumer.job) -and (Test-Path $donor.job))
-$project=Project 'unity-missing-file';$job=Job $project 'edited';Remove-Item -LiteralPath (Join-Path $job.assets 'mesh.asset')
+$project=Project 'unity-missing-file';$job=New-StorageFixtureJob $project 'edited';Remove-Item -LiteralPath (Join-Path $job.assets 'mesh.asset')
 $r=UnityClean $project
 Need 'a missing file inside a surviving Unity output is not ignored' ((Test-Path $job.job)-and $r.actions.Count -eq 0)
 $r=UnityClean $project -Apply
 Need 'missing completed Unity file is retained during apply without stopping other cleanup' ($r.status -eq 'complete' -and $r.actions.Count -eq 0 -and (Test-Path $job.job))
+$project=Project 'unity-native-generated-meta';$job=New-StorageFixtureJob $project 'completed'
+$metadata=Join-Path $job.assets 'mesh.asset.meta'
+[IO.File]::WriteAllText($metadata,"fileFormatVersion: 2`nguid: $([guid]::NewGuid().ToString('N'))`nNativeFormatImporter:`n  userData: `n")
+$preview=UnityClean $project;$r=UnityClean $project -Apply
+Need 'native GUID metadata added for a declared asset retires with its owned working copy' ($preview.actions.Count -eq 2 -and $r.actions.Count -eq 2 -and -not(Test-Path $job.job) -and -not(Test-Path $job.assets))
+$project=Project 'unity-unowned-valid-meta';$job=New-StorageFixtureJob $project 'completed'
+[IO.File]::WriteAllText((Join-Path $job.assets 'unowned.asset.meta'),"fileFormatVersion: 2`nguid: $([guid]::NewGuid().ToString('N'))`n")
+$r=UnityClean $project -Apply
+Need 'a valid GUID alone does not authorize metadata for an undeclared asset' ($r.actions.Count -eq 0 -and (Test-Path $job.job) -and (Test-Path $job.assets))
 foreach($addedName in @('mesh.asset.meta','additional.bin')){
- $project=Project ('unity-added-'+($addedName -replace '[^A-Za-z0-9]','-'));$job=Job $project 'completed';$unrelated=Job $project 'obsolete';[IO.File]::WriteAllText((Join-Path $job.assets $addedName),'post-completion output')
+ $project=Project ('unity-added-'+($addedName -replace '[^A-Za-z0-9]','-'));$job=New-StorageFixtureJob $project 'completed';$unrelated=New-StorageFixtureJob $project 'obsolete';[IO.File]::WriteAllText((Join-Path $job.assets $addedName),'post-completion output')
  $preview=UnityClean $project;$r=UnityClean $project -Apply
  Need ('additional output is retained without a file-name exception: '+$addedName) (@($preview.actions|Where-Object kind -eq 'job').Count -eq 1 -and $preview.actions[0].jobDirectory -eq $unrelated.job -and $r.status -eq 'complete' -and @($r.actions|Where-Object kind -eq 'job').Count -eq 1 -and (Test-Path $job.job) -and (Test-Path (Join-Path $job.assets $addedName)) -and -not(Test-Path $unrelated.job))
 }
 foreach($mutation in @('output','owner')){
- $project=Project ('unity-post-selection-'+$mutation);$job=Job $project 'completed'
+ $project=Project ('unity-post-selection-'+$mutation);$job=New-StorageFixtureJob $project 'completed'
  $nativeProjectLock=(Get-Command Get-AssetProjectLock).ScriptBlock;$script:MutationProject=$project;$script:MutationJob=$job;$script:MutationKind=$mutation;$script:MutationLockCalls=0
  function Get-AssetProjectLock([string]$Project){
   if($Project -eq $script:MutationProject){$script:MutationLockCalls++;if($script:MutationLockCalls -eq 2){
@@ -818,20 +866,20 @@ foreach($mutation in @('output','owner')){
   Need ('deletion guard rejects a new post-selection '+$mutation+' mutation') ((RejectedAs {UnityClean $project -Apply} $pattern) -and (Test-Path $job.job) -and (Test-Path $job.assets) -and (Test-Path ($job.assets+'.meta')))
  }finally{Set-Item -LiteralPath Function:Get-AssetProjectLock -Value $nativeProjectLock}
 }
-$project=Project 'unity-overlap';$job=Job $project 'first';$other=Directory (Join-Path $project '.asset-authoring-jobs/second')
+$project=Project 'unity-overlap';$job=New-StorageFixtureJob $project 'first';$other=Directory (Join-Path $project '.asset-authoring-jobs/second')
 Need 'two jobs cannot claim the same asset directory' (Rejected {Register-AssetAuthoringJob -Project $project -JobDirectory $other -AssetDirectory $job.assets -ResultPath (Join-Path $other 'result.json')})
-$project=Project 'unity-tampered-owner';$job=Job $project 'edited' @() $false;$data=Get-Content $job.ownership.path -Raw|ConvertFrom-Json;$data.assetDirectory=Join-Path $OutputDirectory 'outside-assets';Save $job.ownership.path $data
+$project=Project 'unity-tampered-owner';$job=New-StorageFixtureJob $project 'edited' @() $false;$data=Get-Content $job.ownership.path -Raw|ConvertFrom-Json;$data.assetDirectory=Join-Path $OutputDirectory 'outside-assets';Save $job.ownership.path $data
 Need 'completion rejects altered out-of-scope asset ownership' (Rejected {Complete-AssetAuthoringJob $job.ownership $true})
-$project=Project 'unity-live-creator';$job=Job $project 'complete'
+$project=Project 'unity-live-creator';$job=New-StorageFixtureJob $project 'complete'
 $r=UnityClean $project -Apply
 Need 'a completed job is not pinned by its still-running caller shell' (-not(Test-Path $job.job))
-$project=Project 'unity-session';$session=Session $project;$job=Job $project 'ended' @() $true $session
+$project=Project 'unity-session';$session=Session $project;$job=New-StorageFixtureJob $project 'ended' @() $true $session
 $r=UnityClean $project -Apply
 Need 'closed background session retires after its last job' (-not(Test-Path $job.job)-and -not(Test-Path $session.RunDirectory)-and $r.actions.Count -eq 3 -and $r.actions[0].jobDirectory -eq $job.job)
-$project=Project 'unity-session-kept';$session=Session $project;$job=Job $project 'current' @() $true $session;Save $ref @{schemaVersion=1;paths=@($job.assets)}
+$project=Project 'unity-session-kept';$session=Session $project;$job=New-StorageFixtureJob $project 'current' @() $true $session;Save $ref @{schemaVersion=1;paths=@($job.assets)}
 $r=UnityClean $project @{ReferencePath=@($ref)} -Apply
 Need 'current job keeps its background diagnostics' ((Test-Path $job.job)-and(Test-Path $session.RunDirectory))
-$project=Project 'unity-session-shared';$session=Session $project;$one=Job $project 'one' @() $true $session;$two=Job $project 'two' @() $true $session;Save $ref @{schemaVersion=1;paths=@($two.job)}
+$project=Project 'unity-session-shared';$session=Session $project;$one=New-StorageFixtureJob $project 'one' @() $true $session;$two=New-StorageFixtureJob $project 'two' @() $true $session;Save $ref @{schemaVersion=1;paths=@($two.job)}
 $r=UnityClean $project @{ReferencePath=@($ref)} -Apply
 Need 'shared background session survives while any consumer remains' (-not(Test-Path $one.job)-and(Test-Path $two.job)-and(Test-Path $session.RunDirectory))
 $project=Project 'unity-session-active';$session=Session $project;$process=Get-Process -Id $PID
@@ -842,7 +890,7 @@ $project=Project 'unity-disposable';$workspace=Split-Path $project;$jobRoot=Dire
 $owner=Register-AssetAuthoringJob -Project $disposable -JobDirectory $jobRoot -AssetDirectory $assets -ResultPath $result -DisposableProject;Complete-AssetAuthoringJob $owner $true;$data=Get-Content $owner.path -Raw|ConvertFrom-Json;$data.completedUtc=[DateTime]::UtcNow.AddDays(-8).ToString('O');Save $owner.path $data
 $r=UnityClean $disposable -Apply
 Need 'generated disposable project retires as one owned output' (-not(Test-Path $jobRoot))
-$project=Project 'unity-public-entry';$job=Job $project 'ended';$path=& (Join-Path $candidate 'Invoke-UnityAssetBuild.ps1') -Cleanup -GuiProjectPath $project -MaxAgeDays 1
+$project=Project 'unity-public-entry';$job=New-StorageFixtureJob $project 'ended';$path=& (Join-Path $candidate 'Invoke-UnityAssetBuild.ps1') -Cleanup -GuiProjectPath $project -MaxAgeDays 1
 $r=Get-Content $path -Raw|ConvertFrom-Json
 Need 'Unity public cleanup entry needs no Editor executable or launch' ((Test-Path $job.job)-and $r.status -eq 'complete'-and -not $r.applied)
 
@@ -924,13 +972,13 @@ try{
 $zeroResult=Get-Content -LiteralPath $zeroReport -Raw|ConvertFrom-Json
 Need 'Blender public cleanup entry admits zero latest with the stopped-process fixture' ($zeroResult.status -eq 'complete' -and -not $zeroResult.applied -and $zeroResult.actions.Count -eq 1 -and (Test-Path $run))
 Need 'Blender public cleanup entry rejects a negative latest count' ((Rejected {& (Join-Path $candidate 'Invoke-AssetAuthoring.ps1') -Cleanup -OutputRoot $publicRoot -KeepLatest -1}) -and (Test-Path $run))
-$project=Project 'unity-public-zero';$publicJob=Job $project 'completed'
+$project=Project 'unity-public-zero';$publicJob=New-StorageFixtureJob $project 'completed'
 $zeroReport=& (Join-Path $candidate 'Invoke-UnityAssetBuild.ps1') -Cleanup -GuiProjectPath $project -KeepLatest 0
 $zeroResult=Get-Content -LiteralPath $zeroReport -Raw|ConvertFrom-Json
 Need 'Unity public cleanup entry admits zero latest without a renderer executable' ($zeroResult.status -eq 'complete' -and -not $zeroResult.applied -and $zeroResult.actions.Count -eq 2 -and (Test-Path $publicJob.job))
 Need 'Unity public cleanup entry rejects a negative latest count' ((Rejected {& (Join-Path $candidate 'Invoke-UnityAssetBuild.ps1') -Cleanup -GuiProjectPath $project -KeepLatest -1}) -and (Test-Path $publicJob.job))
 
-$project=Project 'unity-operation-lock';$job=Job $project 'pending' @() $false;$lease=HoldOperation $project
+$project=Project 'unity-operation-lock';$job=New-StorageFixtureJob $project 'pending' @() $false;$lease=HoldOperation $project
 try{
  Need 'another process cannot register a Unity consumer during cleanup lease' (RejectedAs {Register-AssetAuthoringJob -Project $project -JobDirectory (Join-Path $project '.asset-authoring-jobs/other') -AssetDirectory (Join-Path $project 'Assets/Generated/other') -ResultPath (Join-Path $project '.asset-authoring-jobs/other/result.json')} 'Another authoring operation owns this storage scope')
  Need 'another process cannot complete a Unity producer during the same lease' (RejectedAs {Complete-AssetAuthoringJob $job.ownership $true} 'Another authoring operation owns this storage scope')
@@ -999,7 +1047,7 @@ Need 'read-only dependencies may identify installed native inputs' ((Get-AssetSt
 Need 'installed inputs remain forbidden owned storage roots' (Rejected {Get-AssetStoragePath $installedInput})
 Need 'read-only references still reject network paths and drive roots' ((Rejected {Get-AssetStoragePath '\\dummy-host\share\input.bundle' -ReadOnlyReference}) -and (Rejected {Get-AssetStoragePath ([IO.Path]::GetPathRoot($installation)) -ReadOnlyReference}))
 $project=Project 'unity-read-only-input'
-$job=Job $project 'consumer' @($installedInput)
+$job=New-StorageFixtureJob $project 'consumer' @($installedInput)
 $record=Get-Content -LiteralPath $job.ownership.path -Raw|ConvertFrom-Json
 Need 'Unity registration and completion retain installed read-only dependency identity' ($record.state -eq 'completed' -and $record.dependencies.Count -eq 1 -and $record.dependencies[0] -eq $installedInput)
 $r=UnityClean $project -Apply
@@ -1302,7 +1350,7 @@ $release=Read-AssetWorkerJson (Join-Path $session.RunDirectory 'session.json');$
 Need 'log redaction rejects an unreleased native owner before writes' ((RejectedAs {Protect-AssetBackgroundLog $session.RunDirectory $session.OwnerId $release} 'requires released native processes') -and (Get-FileHash -LiteralPath $editorPath).Hash -ceq $stable)
 Need 'log redaction rejects a different session identity before writes' ((Rejected {Protect-AssetBackgroundLog $session.RunDirectory ('0'*32)}) -and (Get-FileHash -LiteralPath $editorPath).Hash -ceq $stable)
 
-$project=Project 'unity-accounting-lifecycle';$session=Session $project;$job=Job $project 'lifecycle-unknown';$obsolete=Job $project 'obsolete'
+$project=Project 'unity-accounting-lifecycle';$session=Session $project;$job=New-StorageFixtureJob $project 'lifecycle-unknown';$obsolete=New-StorageFixtureJob $project 'obsolete'
 $data=Get-Content -LiteralPath $job.ownership.path -Raw|ConvertFrom-Json;$data.sessionDirectory=$session.RunDirectory;Save $job.ownership.path $data
 $state=Get-Content -LiteralPath (Join-Path $session.RunDirectory 'session.json') -Raw|ConvertFrom-Json;$state.PSObject.Properties.Remove('cli');Save (Join-Path $session.RunDirectory 'session.json') $state
 $cache=Directory (Join-Path $project 'Library');[IO.File]::WriteAllBytes((Join-Path $cache 'cache.bin'),[byte[]]::new(4096))
@@ -1317,10 +1365,10 @@ Need 'Unity preview accounting matches actual retained scope after apply' ($appl
 Need 'project cache and unregistered bytes remain visible without deletion authority' ((Test-Path (Join-Path $cache 'cache.bin')) -and (Test-Path (Join-Path $project 'Assets/unregistered.bin')) -and $applied.storageBytes -gt $applied.retainedBytes -and $applied.budgetScope -like 'Registered job/import/session*')
 $ownedBudget=$expectedOwned+1;$r=UnityClean $project @{KeepLatest=0;MaxRetainedBytes=$ownedBudget}
 Need 'owned budget remains separate from larger unmanaged project cache' ($r.budgetSatisfied -eq $true -and $r.maxRetainedBytes -eq $ownedBudget -and $r.retainedBytes -lt $ownedBudget -and $r.storageBytes -gt $ownedBudget -and $r.projectCacheBytes -eq 4096 -and $r.actions.Count -eq 0)
-$project=Project 'unity-accounting-malformed';$job=Job $project 'malformed';Save $job.ownership.path @{}
+$project=Project 'unity-accounting-malformed';$job=New-StorageFixtureJob $project 'malformed';Save $job.ownership.path @{}
 $r=UnityClean $project @{KeepLatest=0;MaxRetainedBytes=100000000}
 Need 'unresolved ownership never reports a satisfied budget or disappears from full scope' ($null -eq $r.budgetSatisfied -and -not $r.storageAccountingComplete -and $r.unresolvedOwners -eq 1 -and $r.storageBytes -gt 2048 -and $r.actions.Count -eq 0 -and (Test-Path $job.job))
-$project=Project 'unity-accounting-changed';$job=Job $project 'changed';[IO.File]::AppendAllText((Join-Path $job.assets 'mesh.asset'),'changed')
+$project=Project 'unity-accounting-changed';$job=New-StorageFixtureJob $project 'changed';[IO.File]::AppendAllText((Join-Path $job.assets 'mesh.asset'),'changed')
 $r=UnityClean $project @{KeepLatest=0;MaxRetainedBytes=1}
 Need 'changed outputs remain in verified-unit byte accounting' ($r.retainedBytes -gt 2048 -and $r.retainedBytes -eq $r.registeredRetainedBytes -and $r.unverifiedRetainedBytes -eq 0 -and $r.budgetSatisfied -eq $false -and $r.actions.Count -eq 0)
 $fixedUnit=[pscustomobject]@{path=(Join-Path $project 'latest');roots=@((Join-Path $project 'latest'));dependencies=@();completedUtc='2020-01-01T00:00:00Z';bytes=5L;hardReason=$null}
@@ -1329,7 +1377,7 @@ Need 'unverified fixed bytes participate in the existing latest-retention budget
 $emptyPlanned=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 $dedup=Get-AssetStorageRemainingBytes @() $emptyPlanned $true @($project,$job.job,$job.assets,($job.assets+'.meta'))
 Need 'nested accounting roots count each path once' ($dedup -eq [long]((Get-ChildItem -LiteralPath $project -Force -Recurse -File|Measure-Object Length -Sum).Sum))
-$project=Project 'unity-accounting-read-failure';$job=Job $project 'obsolete';$cache=Directory (Join-Path $project 'Library');$unreadable=Join-Path $cache 'unavailable.bin';[IO.File]::WriteAllBytes($unreadable,[byte[]]::new(128))
+$project=Project 'unity-accounting-read-failure';$job=New-StorageFixtureJob $project 'obsolete';$cache=Directory (Join-Path $project 'Library');$unreadable=Join-Path $cache 'unavailable.bin';[IO.File]::WriteAllBytes($unreadable,[byte[]]::new(128))
 function Get-Item {param([string]$LiteralPath,[switch]$Force,$ErrorAction)
  if($LiteralPath -eq $unreadable){throw [IO.IOException]::new('fixture storage metadata read failed')}
  Microsoft.PowerShell.Management\Get-Item @PSBoundParameters
@@ -1340,7 +1388,7 @@ Need 'unavailable accounting preserves independent guarded cleanup and never rep
 foreach($source in $sourceHashes){if((Get-FileHash -LiteralPath $source.path -Algorithm SHA256).Hash -cne $source.sha256){throw 'Candidate source changed during its contracts.'}}
 $result=[ordered]@{status=$(if(@($checks|Where-Object{-not $_.passed}).Count){'FAIL'}else{'PASS'});scope='Actual authoring storage sources in owned miniature files. No Unity/Blender/game launch; Blender process census is an external-boundary fixture.';checks=@($checks.ToArray());processQueries=$script:ProcessQueries;sourceHashes=$sourceHashes;powerShell=$PSVersionTable.PSVersion.ToString()}
 Save (Join-Path $OutputDirectory 'Result.json') $result
-Write-Host ($result.status+': '+$checks.Count+' contracts; '+$OutputDirectory)
+Write-Information -InformationAction Continue ($result.status+': '+$checks.Count+' contracts; '+$OutputDirectory)
 if($result.status -ne 'PASS'){throw 'Authoring storage contracts failed.'}
 return [pscustomobject]$result
 }

@@ -252,7 +252,7 @@ $evidence = '.\tools\game-test\artifacts'
 
 比較用などの証跡は `-PreserveDirectory` に配列で指定します。指定したフォルダとその配下はバックアップも含めて保持します。`tools/game-test/Cases/`・`tools/game-test/Scenarios/` から名前を参照される実行フォルダ、復元未完了の実行、未解決の配置マーカーがあるゲームの証跡、未知のバックアップファイルも保持します。対象は `tools/game-test/artifacts/` 配下に限り、reparse pointを含むツリーの整理は拒否します。
 
-モデル制作の旧catalogは、[モデル制作の整理](../blender-models/CharacterFaces/README.md#旧catalogの整理)で作った一覧を `-GeneratedPayloadPlanPath '<PayloadRetirementPlan.json>' -ReferencePath '<保持する入力のJSON>'` に渡して整理します。実行・ビルドの整理とは別に実行し、一覧の全ファイルについてSHA256・容量・更新時刻と保持対象を照合します。ソース、manifest、レシピ、ログは保持します。
+モデル制作の旧catalogは、[モデル制作の整理](../blender-models/CharacterFaces/README.md#旧catalogの整理)で作った一覧を `-GeneratedPayloadPlanPath '<PayloadRetirementPlan.json>' -ReferencePath '<保持する入力のJSON>'` に渡して整理します。実行・ビルドの整理とは別に実行し、一覧の全ファイルについてSHA256・容量・更新時刻と保持対象を照合します。生成元の記録も削除中は読取専用で保持し、生成の再開や採用版の変更と競合しないようにします。ソース、manifest、レシピ、ログは保持します。
 
 ## Gitの追跡範囲
 

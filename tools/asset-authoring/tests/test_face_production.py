@@ -1,6 +1,7 @@
 """Facial source ownership and the required authored-guide boundary."""
 import contextlib
 import copy
+import datetime
 import gzip
 import hashlib
 import importlib.util
@@ -23,6 +24,7 @@ spec = importlib.util.spec_from_file_location('face_build_contracts', source)
 assert spec is not None and spec.loader is not None
 build = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(build)
+PACKAGE_TEST_VERSION=datetime.date.min.isoformat().replace('-','.')+'.1'
 
 
 class FaceProductionContracts(unittest.TestCase):
@@ -380,7 +382,7 @@ class FaceProductionContracts(unittest.TestCase):
         with tempfile.TemporaryDirectory()as folder:
             root=Path(folder);original=root/'original';candidate=root/'candidate';current=root/'public'
             for path in(original,candidate,current):path.mkdir()
-            for path in(original,current):(path/'CharacterModels.manifest.json').write_bytes(b'original manifest')
+            for path in(original,current):(path/build.RESOURCE_FILES['manifest']).write_bytes(b'original manifest')
             for path in(original,current):(path/'actor.bundle').write_bytes(b'original resource')
             (candidate/'actor.bundle').write_bytes(b'revised resource');receipt=dict(changed=['actor.bundle'])
             payloads={'actor.bundle':build.sha(candidate/'actor.bundle')};rollback={'actor.bundle':build.sha(original/'actor.bundle')}
@@ -389,7 +391,7 @@ class FaceProductionContracts(unittest.TestCase):
                     mock.patch.object(build.os,'link')as link:
                 build.atomic_publish_catalog(candidate,current,original,b'revised manifest',payloads,{'actor.bundle':'actor.bundle'},rollback,receipt,validate_only=True)
                 self.assertEqual(receipt['status'],'PASS_PUBLICATION_VALIDATION');link.assert_not_called()
-                self.assertEqual((current/'CharacterModels.manifest.json').read_bytes(),b'original manifest')
+                self.assertEqual((current/build.RESOURCE_FILES['manifest']).read_bytes(),b'original manifest')
                 self.assertEqual((current/'actor.bundle').read_bytes(),b'original resource')
                 (candidate/'actor.bundle').write_bytes(b'changed')
                 with self.assertRaisesRegex(ValueError,'candidate payload'):
@@ -399,7 +401,7 @@ class FaceProductionContracts(unittest.TestCase):
         with tempfile.TemporaryDirectory()as folder:
             root=Path(folder);original=root/'original';candidate=root/'candidate';current=root/'public'
             for path in(original,candidate,current):path.mkdir()
-            for path in(original,current):(path/'CharacterModels.manifest.json').write_bytes(b'original manifest')
+            for path in(original,current):(path/build.RESOURCE_FILES['manifest']).write_bytes(b'original manifest')
             (original/'actor.bundle').write_bytes(b'original resource')
             (current/'actor.bundle').write_bytes(b'original resource')
             (candidate/'actor.bundle').write_bytes(b'revised resource')
@@ -415,7 +417,7 @@ class FaceProductionContracts(unittest.TestCase):
             self.assertIs(failure.exception,denied)
             self.assertEqual(link.call_count,1)
             self.assertEqual(receipt['status'],'FAIL_NO_PUBLICATION')
-            self.assertEqual((current/'CharacterModels.manifest.json').read_bytes(),b'original manifest')
+            self.assertEqual((current/build.RESOURCE_FILES['manifest']).read_bytes(),b'original manifest')
             self.assertEqual((current/'actor.bundle').read_bytes(),b'original resource')
             self.assertFalse(list(current.glob('*.new-*')))
 
@@ -461,18 +463,21 @@ class FaceProductionContracts(unittest.TestCase):
             digest=build.sha(original/'actor.bundle')
             manifest=dict(schemaVersion=3,meshes=[],materials=[],textureRemaps=[],bundles=[dict(file='actor.bundle',sha256=digest)],
                 resources=[dict(source='Actor.prefab',type='GameObject',bundles=[dict(file='actor.bundle')])])
-            for path in(original,candidate):build.write(path/'CharacterModels.manifest.json',manifest)
+            for path in(original,candidate):build.write(path/build.RESOURCE_FILES['manifest'],manifest)
             row=dict(file='actor.bundle',bytes=len(b'accepted source'),sha256=digest,source=str(original/'actor.bundle'),sourceSha256=digest,
                 allRetainedObjectFieldsExactAfterReferenceRebasing=False)
             row['source']=str(root/'retired/actor.bundle')
             approved=original.parent/'ResourceAssembly.json'
-            build.write(approved,dict(status='PASS_STANDALONE_CHARACTER_RESOURCES',originalModelDependenciesInherited=False,artAccepted=True,catalogSha256=build.sha(original/'CharacterModels.manifest.json'),proofs=[row]))
+            review=original.parent/'ArtAcceptance.json'
+            build.write(review,dict(status='PASS_NATIVE_APPEARANCE_REVIEW',candidate=dict(sha256=build.sha(original/build.RESOURCE_FILES['manifest']))))
+            build.write(approved,dict(status='PASS_STANDALONE_CHARACTER_RESOURCES',originalModelDependenciesInherited=False,artAccepted=True,
+                artAcceptance=dict(path=str(review),sha256=build.sha(review)),catalogSha256=build.sha(original/build.RESOURCE_FILES['manifest']),proofs=[row]))
             proof=dict(status='PASS_STANDALONE_CHARACTER_RESOURCES',originalModelDependenciesInherited=False,resources=1,bundles=1,
                 bytes=row['bytes'],inputs=[],proofs=[row],preparedSource=dict(assembly=dict(path=str(approved),sha256=build.sha(approved)),
-                    catalog=dict(path=str(original/'CharacterModels.manifest.json'),sha256=build.sha(original/'CharacterModels.manifest.json'))))
+                    catalog=dict(path=str(original/build.RESOURCE_FILES['manifest']),sha256=build.sha(original/build.RESOURCE_FILES['manifest']))))
             build.write(candidate/'ResourceAssembly.json',proof)
             quality=dict(resourceAssembly=dict(path=str(candidate/'ResourceAssembly.json'),sha256=build.sha(candidate/'ResourceAssembly.json')),
-                sourceManifestSha256=build.sha(original/'CharacterModels.manifest.json'),candidateManifestSha256=build.sha(candidate/'CharacterModels.manifest.json'))
+                sourceManifestSha256=build.sha(original/build.RESOURCE_FILES['manifest']),candidateManifestSha256=build.sha(candidate/build.RESOURCE_FILES['manifest']))
             with mock.patch.object(build,'checked_catalog_path',side_effect=lambda path,name=None:Path(path)/name if name else Path(path)),\
                     mock.patch.object(build,'checked_source_path',side_effect=Path),mock.patch.object(build,'atomic_publish_catalog'),contextlib.redirect_stdout(io.StringIO()):
                 build.publish_resource_catalog(candidate,current,original,manifest,quality)
@@ -480,8 +485,8 @@ class FaceProductionContracts(unittest.TestCase):
                 row.update(sha256=build.sha(candidate/'actor.bundle'),bytes=(candidate/'actor.bundle').stat().st_size,
                     allRetainedObjectFieldsExactAfterReferenceRebasing=True)
                 proof['bytes']=row['bytes'];manifest['bundles'][0]['sha256']=row['sha256']
-                build.write(candidate/'CharacterModels.manifest.json',manifest);build.write(candidate/'ResourceAssembly.json',proof)
-                quality['candidateManifestSha256']=build.sha(candidate/'CharacterModels.manifest.json')
+                build.write(candidate/build.RESOURCE_FILES['manifest'],manifest);build.write(candidate/'ResourceAssembly.json',proof)
+                quality['candidateManifestSha256']=build.sha(candidate/build.RESOURCE_FILES['manifest'])
                 quality['resourceAssembly']['sha256']=build.sha(candidate/'ResourceAssembly.json')
                 with self.assertRaisesRegex(ValueError,'unverified final bytes'):
                     build.publish_resource_catalog(candidate,current,original,manifest,quality)
@@ -494,12 +499,57 @@ class FaceProductionContracts(unittest.TestCase):
             root=Path(folder);catalog=root/'Catalog';catalog.mkdir();plan=root/'Plan.json'
             build.write(plan,dict(mode='source-fibers-only'))
             build.write(root/'ResourceAssembly.json',dict(groomSourceDesigns=dict(plan=dict(path=str(plan),sha256=build.sha(plan)))))
-            build.write(catalog/'CharacterModels.manifest.json',dict(schemaVersion=3,meshes=[],materials=[],textureRemaps=[],bundles=[]))
+            build.write(catalog/build.RESOURCE_FILES['manifest'],dict(schemaVersion=3,meshes=[],materials=[],textureRemaps=[],bundles=[]))
             output=root/'Packs'
             with mock.patch.object(build,'checked_catalog_path',side_effect=lambda path,name=None:Path(path)/name if name else Path(path)):
                 with self.assertRaisesRegex(ValueError,'retained source support'):
-                    build.create_resource_packs(catalog/'CharacterModels.manifest.json',output,'2026.11.12.1')
+                    build.create_resource_packs(catalog/build.RESOURCE_FILES['manifest'],output,PACKAGE_TEST_VERSION)
             self.assertFalse(output.exists())
+
+    def test_resource_releases_enforce_the_declared_metadata_independently_of_version(self):
+        configurations=[build.RESOURCE_PACKAGE,dict(build.RESOURCE_PACKAGE,versionPattern=r'revision-\d+',
+            tagName='resources-{version}',releaseMetadata=dict(name='共有資源',body='選択した資源を自動で取得します。',generate_release_notes=False))]
+        for configuration,versions in zip(configurations,[(PACKAGE_TEST_VERSION,PACKAGE_TEST_VERSION+'0'),('revision-1','revision-23')]):
+            for version in versions:
+                with self.subTest(version=version):
+                    metadata=build.resource_release_metadata(version,configuration)
+                    self.assertEqual({key:metadata[key]for key in configuration['releaseMetadata']},configuration['releaseMetadata'])
+                    self.assertEqual(metadata['tag_name'],configuration['tagName'].format(version=version))
+                    build.validate_resource_release(metadata,version,configuration)
+                    for key in (*configuration['releaseMetadata'],'tag_name'):
+                        changed=dict(metadata);changed[key]=not metadata[key]if type(metadata[key])is bool else metadata[key]+version
+                        with self.assertRaisesRegex(ValueError,'package configuration'):
+                            build.validate_resource_release(changed,version,configuration)
+                    for body in ('','\u200b','<!-- -->'):
+                        with self.assertRaisesRegex(ValueError,'package configuration'):
+                            build.validate_resource_release(dict(metadata,body=body),version,configuration)
+                    with self.assertRaisesRegex(ValueError,'package configuration'):
+                        build.validate_resource_release(dict(metadata,generate_release_notes=True),version,configuration)
+
+    def test_resource_package_names_distribution_and_resume_follow_the_same_configuration(self):
+        with tempfile.TemporaryDirectory()as folder:
+            root=Path(folder);source=root/'source';source.mkdir();output=root/'output'
+            configuration=copy.deepcopy(build.RESOURCE_PACKAGE)
+            configuration.update(files={role:role+'.fixture.json'for role in configuration['files']},
+                versionPattern=r'\d+',tagName='fixture-{version}',archiveName='part-{ordinal:03}.zip',
+                downloadBaseUrl='https://resources.example.test/{tag}/')
+            config_path=root/'configuration.json';build.write(config_path,configuration)
+            configuration=build.resource_package_configuration(config_path)
+            payload=source/'actor.bundle';payload.write_bytes(b'owned-resource')
+            manifest=source/configuration['files']['manifest']
+            build.write(manifest,dict(schemaVersion=3,meshes=[],materials=[],textureRemaps=[],bundles=[dict(file=payload.name,sha256=build.sha(payload))]))
+            with mock.patch.object(build,'checked_catalog_path',side_effect=lambda path,name=None:Path(path)/name if name else Path(path)):
+                result=build.create_resource_packs(manifest,output,'1',configuration=configuration)
+                release_path=output/configuration['files']['release']
+                self.assertEqual(result['packs'][0]['file'],configuration['archiveName'].format(ordinal=1))
+                self.assertEqual(result['baseUrl'],configuration['downloadBaseUrl'].format(tag=configuration['tagName'].format(version='1')))
+                self.assertEqual(build.read(output/configuration['files']['packs']),result)
+                self.assertTrue((output/configuration['files']['packageInputs']).is_file())
+                release_path.unlink()
+                self.assertEqual(build.create_resource_packs(manifest,output,'1',configuration=configuration),result)
+                build.validate_resource_release(build.read(release_path),'1',configuration)
+                with self.assertRaisesRegex(ValueError,'distribution configuration'):
+                    build.create_resource_packs(manifest,output,'1',configuration=dict(configuration,downloadBaseUrl='https://changed.example.test/{tag}/'))
 
     def test_resource_publication_preserves_the_verified_catalog_digest(self):
         with tempfile.TemporaryDirectory()as folder:
@@ -510,7 +560,7 @@ class FaceProductionContracts(unittest.TestCase):
             manifest=dict(schemaVersion=3,recipeVersion='revision',meshes=[],materials=[],textureRemaps=[],
                 bundles=[dict(file='actor.bundle',sha256=build.sha(candidate/'actor.bundle'))],
                 resources=[dict(source='Actor/Prefab.prefab',type='GameObject',bundles=[dict(file='actor.bundle')])])
-            build.write(original/'CharacterModels.manifest.json',manifest)
+            build.write(original/build.RESOURCE_FILES['manifest'],manifest)
             proof=dict(status='PASS_STANDALONE_CHARACTER_RESOURCES',originalModelDependenciesInherited=False,
                 resources=1,bundles=1,bytes=len(payload),inputs=[],proofs=[dict(file='actor.bundle',bytes=len(payload),
                     source=str(original/'actor.bundle'),sourceSha256=build.sha(original/'actor.bundle'),
@@ -518,8 +568,8 @@ class FaceProductionContracts(unittest.TestCase):
             build.write(candidate/'ResourceAssembly.json',proof)
             quality: dict[str,Any]=dict(resourceAssembly=dict(path=str(candidate/'ResourceAssembly.json'),sha256=build.sha(candidate/'ResourceAssembly.json')))
             for raw in(json.dumps(manifest).encode(),(json.dumps(manifest,indent=2)+'\r\n').encode()):
-                (candidate/'CharacterModels.manifest.json').write_bytes(raw)
-                quality['candidateManifestSha256']=build.sha(candidate/'CharacterModels.manifest.json')
+                (candidate/build.RESOURCE_FILES['manifest']).write_bytes(raw)
+                quality['candidateManifestSha256']=build.sha(candidate/build.RESOURCE_FILES['manifest'])
                 with mock.patch.object(build,'checked_catalog_path',side_effect=lambda path,name=None:Path(path)/name if name else Path(path)),\
                         mock.patch.object(build,'atomic_publish_catalog')as publish,contextlib.redirect_stdout(io.StringIO()):
                     build.publish_resource_catalog(candidate,current,original,manifest,quality)

@@ -1,3 +1,5 @@
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns','',Justification='Shared helpers name the process and storage collections they return.')]
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions','',Justification='Owned background sessions verify identity and always restore their processes.')]
 param([string]$Configuration)
 
 function Get-AssetWorkerIdentitySource([string]$SourceSha256) {
@@ -643,6 +645,39 @@ function Test-AssetStorageFiles([string[]]$Roots,[string]$Exclude,[array]$Record
     $expected=@($Recorded|Where-Object{$expectedFile=$_;@($Roots|Where-Object{([IO.Directory]::Exists($_)-or [IO.File]::Exists($_))-and(Test-AssetStorageWithin $expectedFile.path $_)}).Count}|Sort-Object path)
     return (ConvertTo-AssetWorkerJson $current -Compress)-ceq(ConvertTo-AssetWorkerJson $expected -Compress)
 }
+function Get-AssetStorageGeneratedMetadata([string[]]$Roots,[string]$Exclude,[array]$Recorded,[string]$Assets) {
+    $current=@(Get-AssetStorageFiles $Roots $Exclude)
+    $expected=[Collections.Generic.Dictionary[string,object]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach($row in $Recorded){
+        $recordedPath=$row.path
+        if(@($Roots|Where-Object{([IO.Directory]::Exists($_)-or[IO.File]::Exists($_))-and(Test-AssetStorageWithin $recordedPath $_)}).Count){$expected[$recordedPath]=$row}
+    }
+    $seen=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $generated=[Collections.Generic.List[object]]::new()
+    foreach($row in $current){
+        [void]$seen.Add($row.path)
+        if($expected.ContainsKey($row.path)){
+            if($expected[$row.path].sha256 -cne $row.sha256 -or $expected[$row.path].bytes -ne $row.bytes){return $null}
+            continue
+        }
+        # Unity may create import metadata after a launcher records completion.
+        # Only a valid GUID sidecar of an already declared asset/directory can
+        # extend that record. Added content and changed metadata stay retained.
+        if(-not$row.path.EndsWith('.meta',[StringComparison]::Ordinal) -or $row.bytes -gt 65536){return $null}
+        $paired=$row.path.Substring(0,$row.path.Length-5)
+        if(-not(Test-AssetStorageWithin $paired $Assets)){return $null}
+        $declared=$expected.ContainsKey($paired)
+        if(-not$declared -and [IO.Directory]::Exists($paired)){
+            $declared=@($expected.Keys|Where-Object{Test-AssetStorageWithin $_ $paired}).Count -gt 0
+        }
+        if(-not$declared){return $null}
+        $text=[IO.File]::ReadAllText($row.path)
+        if(@([regex]::Matches($text,'(?m)^fileFormatVersion: 2\r?$')).Count -ne 1 -or @([regex]::Matches($text,'(?m)^guid: [a-f0-9]{32}\r?$')).Count -ne 1){return $null}
+        $generated.Add($row)
+    }
+    if(@($expected.Keys|Where-Object{-not$seen.Contains($_)}).Count){return $null}
+    return [pscustomobject]@{files=$current;generated=$generated.ToArray()}
+}
 function Assert-AssetStorageOwner($Data,[string]$Path) {
     $context=Get-AssetStorageProject $Data.project
     if($Data.schemaVersion -ne 1 -or $Data.ownerId -cnotmatch '^[a-f0-9]{32}$' -or $Data.disposableProject -isnot [bool] -or
@@ -710,10 +745,10 @@ function Complete-AssetAuthoringJob {
         if(-not(Test-AssetStorageWithin $sessionDirectory (Join-Path $context.jobs 'BackgroundSessions'))){throw 'The session is outside the authoring project.'}
         $sessionPath=Join-Path $sessionDirectory 'session.json'
         $session=Read-AssetWorkerJson $sessionPath
-        foreach ($identity in @($session.editor,$session.cli)+@($session.cliChildren)) {
+        foreach ($identity in @(Get-AssetStorageSessionIdentity $session)) {
             if ($identity -and (Get-AssetOwnedProcess $identity)) { throw 'The authoring session still owns a live process.' }
         }
-        if (-not $session.editorReleased -or -not $session.cliReleased -or -not $session.cliChildrenReleased) { throw 'The authoring session has not verified process release.' }
+        if (-not(Test-AssetStorageSessionRelease $session)) { throw 'The authoring session has not verified process release.' }
     }
     $data.files=@(Get-AssetStorageFiles @($data.jobDirectory,$data.assetDirectory,($data.assetDirectory+'.meta')) $path)
     $data.resultSha256=if ([IO.File]::Exists($data.resultPath)) {(Get-FileHash -LiteralPath $data.resultPath -Algorithm SHA256).Hash}else{$null}
@@ -828,6 +863,65 @@ function Test-AssetStorageProcess($Identity,$Snapshot) {
     $started=$started.ToUniversalTime()
     return $path -eq $Identity.path -and [Math]::Abs(($started-([DateTime]$Identity.startTimeUtc).ToUniversalTime()).TotalSeconds) -lt 1
 }
+function Test-AssetStorageLegacySession($State) {
+    $legacy=$false
+    if($State.PSObject.Properties['worker'] -and $State.worker -and $State.PSObject.Properties['finishedUtc'] -and $State.PSObject.Properties['editor'] -and $State.editor){
+        $worker=$State.worker;$ended=[datetime]::MinValue
+        $legacy=$State.PSObject.Properties['status'] -and $State.status -in @('complete','failed') -and
+            $State.PSObject.Properties['ownerId'] -and $worker.PSObject.Properties['ownerId'] -and $worker.ownerId -ceq $State.ownerId -and
+            $worker.PSObject.Properties['schemaVersion'] -and $worker.schemaVersion -eq 2 -and
+            $worker.PSObject.Properties['processId'] -and $worker.processId -eq $State.editor.pid -and
+            [datetime]::TryParse([string]$State.finishedUtc,[ref]$ended)
+    }
+    return $legacy
+}
+function Get-AssetStorageSessionIdentity($State) {
+    $required=@('editor','cli','cliChildren','editorReleased','cliReleased','cliChildrenReleased')
+    if(@($required|Where-Object{-not$State.PSObject.Properties[$_]}).Count -and -not(Test-AssetStorageLegacySession $State)){
+        throw 'Unknown authoring session lifecycle.'
+    }
+    foreach($name in @('editor','cli','cliChildren')){
+        if($State.PSObject.Properties[$name]){foreach($identity in @($State.$name)){if($identity){$identity}}}
+    }
+}
+function Test-AssetStorageSessionRelease($State) {
+    if(-not$State.PSObject.Properties['editorReleased'] -or $State.editorReleased -ne $true){return $false}
+    $legacy=Test-AssetStorageLegacySession $State
+    if($State.PSObject.Properties['cliReleased']){
+        if($State.cliReleased -ne $true){return $false}
+    }elseif(-not$legacy){return $false}
+    elseif($State.PSObject.Properties['cli'] -and $State.cli){
+        # Older CLI sessions recorded terminal exitCode before release flags
+        # were introduced. The caller also verifies the recorded process birth.
+        if(-not$State.cli.PSObject.Properties['exitCode'] -or $State.cli.exitCode -isnot [int]){return $false}
+    }
+    if($State.PSObject.Properties['cliChildrenReleased']){return $State.cliChildrenReleased -eq $true}
+    return $legacy -and -not($State.PSObject.Properties['cliChildren'] -and @($State.cliChildren).Count)
+}
+function Get-AssetLegacyStorageOwner($Context,[string]$Path,$Request,$Processes) {
+    # These requests predate storage-owner.json. The native worker declares both
+    # output roots from jobId and never resumes a request with started.json.
+    $job=Get-AssetStoragePath ([IO.Path]::GetDirectoryName($Path));$id=[IO.Path]::GetFileName($job)
+    if([IO.FileInfo]::new($Path).Length -gt 4096 -or [IO.Path]::GetDirectoryName($job) -ne $Context.jobs -or $id -cnotmatch '^[a-f0-9]{32}$' -or
+        $Request.schemaVersion -ne 1 -or $Request.jobId -cne $id -or $Request.inputSha256 -cnotmatch '^[a-f0-9]{64}$') {throw 'Unknown legacy job request.'}
+    $marker=Get-AssetStoragePath (Join-Path $job '.solasta-asset-authoring-job')
+    if(-not[IO.File]::Exists($marker) -or [IO.File]::ReadAllText($marker).Trim() -cne 'SolastaUBAssetAuthoring:UnityJob:1' -or
+        -not[IO.File]::Exists((Get-AssetStoragePath (Join-Path $job 'started.json')))){throw 'Legacy job ownership is incomplete.'}
+    if(@($Processes.Values|Where-Object ProcessName -eq 'Unity').Count){throw 'Legacy job cleanup requires a stopped Unity editor.'}
+    $inputs=@{'rig'='SampleRig.fbx';'materials'='recipe.json';'material-identity-contracts'='recipe.json';
+        'mesh-templates'='mesh-recipe.json';'mesh-template-contracts'='mesh-recipe.json';
+        'mesh-batch-templates'='mesh-batch.json';'mesh-batch-template-contracts'='mesh-batch.json'}
+    $kind=if($Request.PSObject.Properties['kind'] -and $Request.kind){[string]$Request.kind}else{'rig'}
+    if(-not$inputs.ContainsKey($kind)){throw 'Unknown legacy job kind.'}
+    $assets=Get-AssetStoragePath (Join-Path $Context.assets ('AuthoringJobs/'+$id))
+    $inputPath=Get-AssetStoragePath (Join-Path $assets ('Input/'+$inputs[$kind]))
+    if(-not[IO.File]::Exists($inputPath) -or (Get-FileHash -LiteralPath $inputPath -Algorithm SHA256).Hash -ine $Request.inputSha256){throw 'The legacy job input differs from its request.'}
+    $files=@(Get-AssetStorageFiles @($job,$assets,($assets+'.meta')) $Path)
+    $modified=@(@($Path)+@($files|ForEach-Object path)|ForEach-Object{[IO.File]::GetLastWriteTimeUtc($_)}|Sort-Object -Descending)[0]
+    return [pscustomobject]@{schemaVersion=1;ownerId=$id;project=$Context.project;jobDirectory=$job;assetDirectory=$assets;
+        resultPath=(Join-Path $job 'Output/unity-report.json');disposableProject=$false;dependencies=@();state='completed';completedUtc=$modified.ToString('O');
+        sessionDirectory=$null;files=$files;outcome='legacy-terminal';failure=$null;resultSha256=$null}
+}
 function Clear-AssetAuthoringJobs {
     param([Parameter(Mandatory)][string]$Project,[string[]]$ReferencePath=@(),[string[]]$PreserveDirectory=@(),
         [ValidateRange(0,100)][int]$KeepLatest=2,[ValidateRange(0,36500)][double]$MaxAgeDays=0,
@@ -845,18 +939,24 @@ function Clear-AssetAuthoringJobs {
     $units=[Collections.Generic.List[object]]::new();$retained=[Collections.Generic.List[object]]::new();$actions=[Collections.Generic.List[object]]::new()
     $accountingRoots=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase);$unresolvedOwners=0
     $planned=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-    $report=[ordered]@{schemaVersion=1;status='planning';scope='Registered completed Unity outputs and imported working copies, with separate ownership roles. Unregistered project data is retained.';
+    $report=[ordered]@{schemaVersion=1;status='planning';scope='Declared Unity jobs and imported copies, including abandoned producers and terminal legacy worker requests. Other project data is retained.';
         project=$context.project;applied=[bool]$Apply;referenceInputs=$references.inputs;retainedBytes=$null;budgetSatisfied=$null;maxRetainedBytes=$MaxRetainedBytes;
         budgetScope='Registered job/import/session roots, including outputs retained before lifecycle verification; project cache and unregistered data are outside the budget.';
         registeredRetainedBytes=$null;unverifiedRetainedBytes=$null;storageScope='Project and registered job/import/session roots.';storageBytes=$null;projectCacheBytes=$null;unmanagedRetainedBytes=$null;storageAccountingComplete=$false;actions=@();retained=@();journal='Journal.jsonl'}
     try {
         if([IO.Directory]::Exists($context.jobs)){
-            foreach($file in Get-ChildItem -LiteralPath $context.jobs -Filter storage-owner.json -Recurse -File){
+            $owners=@(Get-ChildItem -LiteralPath $context.jobs -Filter storage-owner.json -Recurse -File)
+            $owners+=@(Get-ChildItem -LiteralPath $context.jobs -Directory|Where-Object {
+                $_.Name -cmatch '^[a-f0-9]{32}$' -and -not[IO.File]::Exists((Join-Path $_.FullName 'storage-owner.json')) -and
+                [IO.File]::Exists((Join-Path $_.FullName 'request.json'))
+            }|ForEach-Object{Get-Item -LiteralPath (Join-Path $_.FullName 'request.json')})
+            foreach($file in $owners){
                 $data=$null;$accounted=$false
                 try{
                     [void](Get-AssetStoragePath $file.FullName)
                     $snapshot=Read-AssetStorageJson $file.FullName;$data=$snapshot.value
-                    [void](Assert-AssetStorageOwner $data $file.FullName)
+                    if($file.Name -ceq 'request.json'){$data=Get-AssetLegacyStorageOwner $context $file.FullName $data $processSnapshot}
+                    else{[void](Assert-AssetStorageOwner $data $file.FullName)}
                     if($data.project -ne $context.project){throw 'Unknown job ownership.'}
                     foreach($root in @($data.jobDirectory,$data.assetDirectory,($data.assetDirectory+'.meta'))){[void]$accountingRoots.Add((Get-AssetStoragePath $root))};$accounted=$true
                     $job=Get-AssetStoragePath $data.jobDirectory;$assets=Get-AssetStoragePath $data.assetDirectory
@@ -864,7 +964,15 @@ function Clear-AssetAuthoringJobs {
                     elseif($job -eq $context.jobs -or -not(Test-AssetStorageWithin $job $context.jobs) -or $file.DirectoryName -ne $job){throw 'Invalid job directory ownership.'}
                     if(-not(Test-AssetStorageWithin $assets $context.assets)-or ($assets -eq $context.assets -and -not $data.disposableProject)-or(Test-AssetStorageWithin $assets (Join-Path $context.assets 'Editor'))){throw 'Invalid generated asset ownership.'}
                     $hard=if($data.state -cne 'completed' -or -not $data.completedUtc){'incomplete'}else{$null}
-                    if($data.sessionDirectory){$state=Read-AssetWorkerJson (Join-Path (Get-AssetStoragePath $data.sessionDirectory) 'session.json');foreach($identity in @($state.editor,$state.cli)+@($state.cliChildren)){if($identity-and(Test-AssetStorageProcess $identity $processSnapshot)){throw 'The authoring worker remains active.'}}}
+                    if($data.sessionDirectory){$state=Read-AssetWorkerJson (Join-Path (Get-AssetStoragePath $data.sessionDirectory) 'session.json');foreach($identity in @(Get-AssetStorageSessionIdentity $state)){if(Test-AssetStorageProcess $identity $processSnapshot){throw 'The authoring worker remains active.'}}}
+                    if($hard -eq 'incomplete' -and $data.creator -and -not(Test-AssetStorageProcess $data.creator $processSnapshot)){
+                        $released=-not$data.sessionDirectory -or (Test-AssetStorageSessionRelease $state)
+                        if($released){
+                            $data.files=@(Get-AssetStorageFiles @($job,$assets,($assets+'.meta')) $file.FullName)
+                            $modified=@(@($file.FullName)+@($data.files|ForEach-Object path)|ForEach-Object{[IO.File]::GetLastWriteTimeUtc($_)}|Sort-Object -Descending)[0]
+                            $data.completedUtc=$modified.ToString('O');$data.outcome='abandoned';$data.failure='The registered producer exited before completion.';$hard=$null
+                        }
+                    }
                     $dependencies=@($data.dependencies);if($data.sessionDirectory){$dependencies+= $data.sessionDirectory}
                     $roles=@([pscustomobject]@{kind='job';path=$file.FullName;roots=@($job);dependencies=$dependencies})
                     if(-not $data.disposableProject -and ([IO.Directory]::Exists($assets)-or[IO.File]::Exists($assets+'.meta'))){
@@ -902,8 +1010,8 @@ function Clear-AssetAuthoringJobs {
                     $configuration=Read-AssetWorkerJson (Join-Path $sessionDirectory.FullName 'configuration.json')
                     if($sessionDirectory.Name -cnotmatch '^[a-f0-9]{32}$' -or $state.ownerId -cne $sessionDirectory.Name -or
                         $configuration.ownerId -cne $state.ownerId -or $configuration.project -ne $context.project){throw 'Unknown background session ownership.'}
-                    $hard=if(-not $state.editorReleased -or -not $state.cliReleased -or -not $state.cliChildrenReleased){'incomplete-session'}else{$null}
-                    foreach($identity in @($state.editor,$state.cli)+@($state.cliChildren)){if($identity-and(Test-AssetStorageProcess $identity $processSnapshot)){$hard='active-session'}}
+                    $hard=if(-not(Test-AssetStorageSessionRelease $state)){'incomplete-session'}else{$null}
+                    foreach($identity in @(Get-AssetStorageSessionIdentity $state)){if(Test-AssetStorageProcess $identity $processSnapshot){$hard='active-session'}}
                     $files=@(Get-AssetStorageFiles @($sessionDirectory.FullName) $statePath)
                     $data=[pscustomobject]@{ownerId=$state.ownerId;jobDirectory=$sessionDirectory.FullName;assetDirectory=$null;files=$files;
                         outcome=$state.status;failure=$(if($state.PSObject.Properties['error']){$state.error}else{$null});resultSha256=(Get-FileHash -LiteralPath $statePath -Algorithm SHA256).Hash}
@@ -917,7 +1025,13 @@ function Clear-AssetAuthoringJobs {
         foreach($unit in $units){
             if($unit.kind -eq 'session' -or $protected.reasons.ContainsKey($unit.path) -or -not $checkedOwners.Add($unit.identityPath)){continue}
             # Acquisition failures still go through the deletion guard below.
-            try{$unchanged=Test-AssetStorageFiles $unit.verificationRoots $unit.identityPath $unit.data.files}catch{continue}
+            try{
+                $unchanged=Test-AssetStorageFiles $unit.verificationRoots $unit.identityPath $unit.data.files
+                if(-not$unchanged){
+                    $metadata=Get-AssetStorageGeneratedMetadata $unit.verificationRoots $unit.identityPath $unit.data.files $unit.data.assetDirectory
+                    if($metadata){$unit.data.files=$metadata.files;$unit.data|Add-Member -NotePropertyName generatedMetadata -NotePropertyValue $metadata.generated -Force;$unchanged=$true}
+                }
+            }catch{continue}
             if(-not $unchanged){
                 foreach($owned in $units){if($owned.identityPath -eq $unit.identityPath){$owned.hardReason='Authoring outputs changed after completion.'}}
             }
@@ -944,7 +1058,8 @@ function Clear-AssetAuthoringJobs {
                 [void](Get-AssetProjectLock $context.project);Assert-AssetStorageReferences $references
                 if((Get-FileHash -LiteralPath (Get-AssetStoragePath $unit.identityPath) -Algorithm SHA256).Hash -cne $unit.identityHash){throw 'Job ownership changed during cleanup.'}
                 if(-not(Test-AssetStorageFiles $unit.verificationRoots $unit.identityPath $data.files)){throw 'Authoring outputs changed after completion.'}
-                Write-AssetStorageEvent $journal ([ordered]@{event='retire-job';kind=$unit.kind;ownerId=$data.ownerId;ownershipSha256=$unit.identityHash;resultSha256=$data.resultSha256;outcome=$data.outcome;failure=$data.failure;roots=$unit.roots;action=$action})
+                $generatedMetadata=@(if($data.PSObject.Properties['generatedMetadata']){$data.generatedMetadata})
+                Write-AssetStorageEvent $journal ([ordered]@{event='retire-job';kind=$unit.kind;ownerId=$data.ownerId;ownershipSha256=$unit.identityHash;resultSha256=$data.resultSha256;outcome=$data.outcome;failure=$data.failure;generatedMetadata=$generatedMetadata;roots=$unit.roots;action=$action})
                 $actions.Add($action)
                 if($Apply){foreach($root in $unit.roots){
                     [void](Get-AssetProjectLock $context.project);Assert-AssetStorageReferences $references
