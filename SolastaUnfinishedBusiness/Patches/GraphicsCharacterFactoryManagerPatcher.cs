@@ -95,10 +95,11 @@ public static class GraphicsCharacterFactoryManagerPatcher
         [UsedImplicitly]
         public static void Postfix(GraphicsCharacterFactoryManager __instance,
             [HarmonyArgument(0)] GraphicsCharacter graphicsCharacter,
+            [HarmonyArgument(1)] GameObject source,
             [HarmonyArgument(2)] GraphicsCharacterDefinitions.BodyPart bodyPart,
             [HarmonyArgument(3)] bool shape)
         {
-            RacesContext.BindCharacterPartParameters(__instance, graphicsCharacter, bodyPart, shape);
+            RacesContext.BindCharacterPartParameters(__instance, graphicsCharacter, source, bodyPart, shape);
         }
     }
 
@@ -107,10 +108,45 @@ public static class GraphicsCharacterFactoryManagerPatcher
     public static class DestroyBodyPart_Patch
     {
         [UsedImplicitly]
-        public static void Prefix([HarmonyArgument(0)] GraphicsCharacter graphicsCharacter)
+        public static void Prefix([HarmonyArgument(0)] GraphicsCharacter graphicsCharacter,
+            [HarmonyArgument(1)] GraphicsCharacterDefinitions.BodyPart bodyPart,
+            [HarmonyArgument(2)] bool shape)
         {
-            RacesContext.ReleaseBodyShape(graphicsCharacter);
-            RacesContext.ReleaseCharacterModels(graphicsCharacter);
+            RacesContext.ReleaseCharacterPart(graphicsCharacter, bodyPart, shape);
+        }
+
+        [UsedImplicitly]
+        public static void Postfix([HarmonyArgument(0)] GraphicsCharacter graphicsCharacter)
+        {
+            RacesContext.SynchronizeCharacterPartMaterials(graphicsCharacter);
+        }
+    }
+
+    [HarmonyPatch(typeof(GraphicsCharacterFactoryManager), "DestroyGraphicsCharacter")]
+    [UsedImplicitly]
+    public static class DestroyGraphicsCharacter_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix([HarmonyArgument(0)] int requestId,
+            Dictionary<int, GraphicsCharacter> ___characterPerRequestId)
+        {
+            if (!___characterPerRequestId.TryGetValue(requestId, out var graphics) || ReferenceEquals(graphics, null) ||
+                !GnomeScavengerMutationStates.TryGetValue(graphics, out var state)) return;
+            state.RefreshFailed = true;
+            try { state.Suspend(); }
+            catch (Exception exception)
+            {
+                Trace.LogException(new Exception("Failed to stop a retiring native appearance owner.", exception));
+            }
+            finally
+            {
+                try { state.Release(); }
+                catch (Exception exception)
+                {
+                    Trace.LogException(new Exception("Failed to release a retiring native appearance owner.", exception));
+                }
+                finally { GnomeScavengerMutationStates.Remove(graphics); }
+            }
         }
     }
 
@@ -122,18 +158,36 @@ public static class GraphicsCharacterFactoryManagerPatcher
         [UsedImplicitly]
         public static bool Prefix(
             [HarmonyArgument(0)] GraphicsCharacter graphicsCharacter,
-            [HarmonyArgument(1)] MorphotypeElementDefinition.ElementCategory category)
+            [HarmonyArgument(1)] MorphotypeElementDefinition.ElementCategory category,
+            out object __state)
         {
-            return category != MorphotypeElementDefinition.ElementCategory.Musculature ||
-                   RacesContext.ApplyBodyShape(graphicsCharacter);
+            __state = null;
+            if (category != MorphotypeElementDefinition.ElementCategory.Musculature) return true;
+            __state = BeginGnomeScavengerRefresh(graphicsCharacter);
+            return RacesContext.PrepareNativeBodyRest(graphicsCharacter) && RacesContext.ApplyBodyShape(graphicsCharacter);
         }
 
         [UsedImplicitly]
         public static void Postfix([HarmonyArgument(0)] GraphicsCharacter graphicsCharacter,
             [HarmonyArgument(1)] MorphotypeElementDefinition.ElementCategory category)
         {
+            if (category == MorphotypeElementDefinition.ElementCategory.Musculature)
+            {
+                RacesContext.SyncNativeBodyRest(graphicsCharacter);
+            }
             RefreshNativeFallbackHairColor(graphicsCharacter, category);
             RacesContext.RefreshCharacterModelMaterials(graphicsCharacter);
+        }
+
+        [UsedImplicitly]
+        public static Exception Finalizer(object __state, Exception __exception)
+        {
+            try { EndGnomeScavengerRefresh(__state, __exception != null); }
+            catch (Exception exception)
+            {
+                __exception = __exception == null ? exception : new AggregateException(__exception, exception);
+            }
+            return __exception;
         }
 
         private static void RefreshNativeFallbackHairColor(GraphicsCharacter graphics,
@@ -394,7 +448,7 @@ public static class GraphicsCharacterFactoryManagerPatcher
     {
         var mutationState = GnomeScavengerMutationStates.GetValue(
             graphicsCharacter,
-            _ => new GnomeScavengerMutationState());
+            owner => new GnomeScavengerMutationState(owner));
         var hasSeparateHeadItem =
             hero.GetItemInSlot(EquipmentDefinitions.SlotTypeHead) != null;
 
@@ -442,6 +496,80 @@ public static class GraphicsCharacterFactoryManagerPatcher
             }
 
             ScaleGnomeScavengerHood(renderer, mutationState);
+        }
+    }
+
+    private static object BeginGnomeScavengerRefresh(GraphicsCharacter graphics)
+    {
+        if (!graphics) return null;
+        if (!GnomeScavengerMutationStates.TryGetValue(graphics, out var state))
+        {
+            if (!TryGetGnomeScavengerHero(graphics, out _)) return null;
+            state = GnomeScavengerMutationStates.GetValue(graphics, owner => new GnomeScavengerMutationState(owner));
+        }
+        if (state.RefreshDepth == 0)
+        {
+            RacesContext.BeginCharacterModelCreation(graphics);
+            state.RefreshActor = graphics.RulesetCharacter;
+            state.RefreshFailed = false;
+            try { state.Suspend(); }
+            catch
+            {
+                RacesContext.EndCharacterModelCreation(
+                    ServiceRepository.GetService<IGraphicsCharacterFactoryService>() as GraphicsCharacterFactoryManager,
+                    graphics, state.RefreshActor, false);
+                throw;
+            }
+        }
+        state.RefreshDepth++;
+        return state;
+    }
+
+    private static void EndGnomeScavengerRefresh(object value, bool failed)
+    {
+        if (value is not GnomeScavengerMutationState state) return;
+        var outer = false;
+        var completed = false;
+        try
+        {
+            if (state.RefreshDepth <= 0) throw new InvalidOperationException("A Gnome Scavenger appearance refresh lost its mutation scope.");
+            state.RefreshFailed |= failed;
+            if (state.RefreshDepth > 1) { state.RefreshDepth--; return; }
+            outer = true;
+            if (state.Owner && !state.RefreshFailed && TryGetGnomeScavengerHero(state.Owner, out _))
+                state.Complete(() =>
+                {
+                    if (TryGetGnomeScavengerHero(state.Owner, out var hero)) ApplyGnomeScavengerAppearance(state.Owner, hero);
+                });
+            else
+            {
+                if (state.Owner && !state.RefreshFailed) state.Complete(state.RestoreMutations);
+                else state.Abort();
+                if (!state.Owner || !state.RefreshFailed) GnomeScavengerMutationStates.Remove(state.Owner);
+            }
+            completed = !state.RefreshFailed;
+        }
+        catch (Exception exception)
+        {
+            state.RefreshFailed = true;
+            try { state.Abort(); }
+            catch (Exception cleanup) { exception = new AggregateException(exception, cleanup); }
+            Trace.LogException(new Exception("Failed to finish a Gnome Scavenger appearance refresh.", exception));
+        }
+        finally
+        {
+            if (outer)
+            {
+                try
+                {
+                    // Keep the outer mutation depth while the native body owner
+                    // drains, so nested morph callbacks join this same scope.
+                    RacesContext.EndCharacterModelCreation(
+                        ServiceRepository.GetService<IGraphicsCharacterFactoryService>() as GraphicsCharacterFactoryManager,
+                        state.Owner, state.RefreshActor, completed);
+                }
+                finally { state.RefreshDepth = 0; state.RefreshActor = null; }
+            }
         }
     }
 
@@ -517,7 +645,7 @@ public static class GraphicsCharacterFactoryManagerPatcher
             return;
         }
 
-        mutationState.Remember(renderer);
+        var mutation = mutationState.Remember(renderer);
 
         foreach (var headBoneIndex in headBoneIndices)
         {
@@ -533,6 +661,9 @@ public static class GraphicsCharacterFactoryManagerPatcher
             proxy.localPosition = Vector3.zero;
             proxy.localRotation = Quaternion.identity;
             proxy.localScale = Vector3.one * GnomeScavengerHoodScale;
+            RacesContext.BindNativeBodyDerivedBone(mutationState.Owner, renderer, headBone, proxy,
+                Matrix4x4.TRS(Vector3.zero, Quaternion.identity, Vector3.one * GnomeScavengerHoodScale));
+            mutation.RememberBone(headBone, proxy);
             bones[headBoneIndex] = proxy;
         }
 
@@ -546,38 +677,66 @@ public static class GraphicsCharacterFactoryManagerPatcher
         renderer.localBounds = localBounds;
     }
 
-    private static void RestoreGnomeScavengerAppearance(
-        GraphicsCharacter graphicsCharacter)
+    private sealed class GnomeScavengerMutationState(GraphicsCharacter owner)
     {
-        if (!graphicsCharacter ||
-            !GnomeScavengerMutationStates.TryGetValue(
-                graphicsCharacter,
-                out var state))
-        {
-            return;
-        }
-
-        state.Restore();
-        GnomeScavengerMutationStates.Remove(graphicsCharacter);
-    }
-
-    private sealed class GnomeScavengerMutationState
-    {
+        internal readonly GraphicsCharacter Owner = owner;
+        internal int RefreshDepth;
+        internal bool RefreshFailed;
+        internal RulesetCharacter RefreshActor;
+        private CustomModels.SkinMeshSource.SourceGraph nativeOwner;
         private readonly List<GnomeScavengerRendererMutation> mutations = [];
 
-        internal void Remember(SkinnedMeshRenderer renderer)
+        internal GnomeScavengerRendererMutation Remember(SkinnedMeshRenderer renderer)
         {
-            if (!renderer ||
-                mutations.Any(mutation =>
-                    ReferenceEquals(mutation.Renderer, renderer)))
-            {
-                return;
-            }
-
-            mutations.Add(new GnomeScavengerRendererMutation(renderer));
+            if (!renderer) return null;
+            var previous = mutations.FirstOrDefault(mutation => ReferenceEquals(mutation.Renderer, renderer));
+            if (previous != null) return previous;
+            var mutation = new GnomeScavengerRendererMutation(renderer);
+            mutations.Add(mutation);
+            return mutation;
         }
 
-        internal void Restore()
+        internal void Suspend()
+        {
+            if (nativeOwner != null)
+            {
+                nativeOwner.RestoreWithNativeOwner(false, RestoreMutations);
+                return;
+            }
+            var renderers = mutations.Select(mutation => mutation.Renderer).Where(renderer => renderer).ToList();
+            if (TryGetGnomeScavengerHero(Owner, out var hero))
+            {
+                var part = hero.Sex == RuleDefinitions.CreatureSex.Female
+                    ? GraphicsCharacterDefinitions.BodyPart.Body : GraphicsCharacterDefinitions.BodyPart.Helmet;
+                renderers.AddRange(GetBodyPartRenderers(Owner.ArmorSkinnedMeshRenderersPerBodySlot, part)
+                    .Where(renderer => renderer && !renderer.forceRenderingOff && IsScavengerHoodRenderer(renderer)));
+            }
+            nativeOwner = RacesContext.SuspendBodyShapeWithNativeOwner(Owner, renderers, RestoreMutations);
+        }
+        internal void Complete(Action apply)
+        {
+            if (nativeOwner != null) nativeOwner.RestoreWithNativeOwner(true, apply);
+            else apply();
+            nativeOwner = null;
+        }
+        internal void Abort()
+        {
+            // Preserve a stopped graph for a later owner-controlled retry while
+            // this actor is alive. Its native source may still reference a proxy.
+            if (nativeOwner != null) nativeOwner.RestoreWithNativeOwner(false, RestoreMutations);
+            else RestoreMutations();
+            if (!Owner) { nativeOwner?.Restore(false); nativeOwner = null; }
+        }
+        internal void Release()
+        {
+            try { nativeOwner?.Restore(false); }
+            finally
+            {
+                nativeOwner = null;
+                RestoreMutations();
+            }
+        }
+        internal void RestoreMutations()
         {
             foreach (var mutation in mutations)
             {
@@ -590,17 +749,23 @@ public static class GraphicsCharacterFactoryManagerPatcher
 
     private sealed class GnomeScavengerRendererMutation
     {
-        private readonly Transform[] originalBones;
+        private readonly Dictionary<Transform, Transform> originalBonesByProxy = [];
         private readonly Bounds originalLocalBounds;
         private readonly bool originalForceRenderingOff;
 
-        internal GnomeScavengerRendererMutation(
-            SkinnedMeshRenderer renderer)
+        internal GnomeScavengerRendererMutation(SkinnedMeshRenderer renderer)
         {
             Renderer = renderer;
-            originalBones = renderer.bones?.ToArray();
             originalLocalBounds = renderer.localBounds;
             originalForceRenderingOff = renderer.forceRenderingOff;
+        }
+
+        internal void RememberBone(Transform original, Transform proxy)
+        {
+            if (!original || !proxy || proxy.parent != original ||
+                originalBonesByProxy.TryGetValue(proxy, out var previous) && previous != original)
+                throw new InvalidOperationException("An appearance mutation has no unique owned bone replacement.");
+            originalBonesByProxy[proxy] = original;
         }
 
         internal SkinnedMeshRenderer Renderer { get; }
@@ -615,9 +780,17 @@ public static class GraphicsCharacterFactoryManagerPatcher
             Renderer.forceRenderingOff = originalForceRenderingOff;
             Renderer.localBounds = originalLocalBounds;
 
-            if (originalBones != null)
+            if (originalBonesByProxy.Count != 0)
             {
-                Renderer.bones = originalBones;
+                var bones = Renderer.bones;
+                var changed = false;
+                for (var index = 0; index < bones.Length; index++)
+                    if (bones[index] && originalBonesByProxy.TryGetValue(bones[index], out var original))
+                    {
+                        bones[index] = original;
+                        changed = true;
+                    }
+                if (changed) Renderer.bones = bones;
             }
         }
     }
@@ -992,62 +1165,25 @@ public static class GraphicsCharacterFactoryManagerPatcher
         [UsedImplicitly]
         public static void Prefix(
             [HarmonyArgument(0)] GraphicsCharacter graphicsCharacter,
-            out object __state)
+            out (object Models, object Appearance) __state)
         {
-            __state = RacesContext.BeginCharacterModelMaterialRefresh(graphicsCharacter);
-            try
-            {
-                RestoreGnomeScavengerAppearance(graphicsCharacter);
-            }
-            catch (Exception ex)
-            {
-                Trace.LogException(
-                    new Exception("Failed to restore a Gnome Scavenger appearance.", ex));
-            }
+            __state = (RacesContext.BeginCharacterModelMaterialRefresh(graphicsCharacter), null);
+            __state.Appearance = BeginGnomeScavengerRefresh(graphicsCharacter);
         }
 
         [UsedImplicitly]
-        public static void Postfix(
-            [HarmonyArgument(0)] GraphicsCharacter graphicsCharacter)
+        public static Exception Finalizer((object Models, object Appearance) __state, Exception __exception)
         {
-            try
+            try { EndGnomeScavengerRefresh(__state.Appearance, __exception != null); }
+            catch (Exception exception)
             {
-                Apply(graphicsCharacter);
+                __exception = __exception == null ? exception : new AggregateException(__exception, exception);
             }
-            catch (Exception ex)
+            try { RacesContext.EndCharacterModelMaterialRefresh(__state.Models, __exception != null); }
+            catch (Exception exception)
             {
-                try
-                {
-                    RestoreGnomeScavengerAppearance(graphicsCharacter);
-                }
-                catch (Exception restoreException)
-                {
-                    Trace.LogException(
-                        new Exception(
-                            "Failed to restore a Gnome Scavenger appearance after an apply failure.",
-                            restoreException));
-                }
-
-                Trace.LogException(
-                    new Exception("Failed to apply a Gnome Scavenger appearance.", ex));
+                __exception = __exception == null ? exception : new AggregateException(__exception, exception);
             }
-        }
-
-        private static void Apply(
-            GraphicsCharacter graphicsCharacter)
-        {
-            if (!TryGetGnomeScavengerHero(graphicsCharacter, out var hero))
-            {
-                return;
-            }
-
-            ApplyGnomeScavengerAppearance(graphicsCharacter, hero);
-        }
-
-        [UsedImplicitly]
-        public static Exception Finalizer(object __state, Exception __exception)
-        {
-            RacesContext.EndCharacterModelMaterialRefresh(__state, __exception != null);
             return __exception;
         }
     }

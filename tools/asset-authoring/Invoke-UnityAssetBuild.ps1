@@ -48,9 +48,13 @@ function Test-WithinPath([string] $Child, [string] $Parent) {
         $fullChild.StartsWith($fullParent + '\', [StringComparison]::OrdinalIgnoreCase)
 }
 
-function Assert-LocalPath([string] $Path, [switch] $UnityImport) {
-    if ($UnityImport -and ($Path + '.meta').Length -gt 259) {
-        throw "Unity 2019 import path is too long ($($Path.Length + 5) characters including .meta; maximum 259). Shorten the project/workspace path or asset relative names: $Path"
+function Assert-LocalPath([string] $Path, [switch] $UnityImport, [switch] $UnityFile) {
+    $suffix = if ($UnityImport) { '.meta' } else { '' }
+    if (($UnityImport -or $UnityFile) -and ($Path + $suffix).Length -gt 259) {
+        if ($UnityImport) {
+            throw "Unity 2019 import path is too long ($($Path.Length + 5) characters including .meta; maximum 259). Shorten the project/workspace path or asset relative names: $Path"
+        }
+        throw "Unity 2019 file path is too long ($($Path.Length) characters; maximum 259). Shorten the project/workspace path or asset relative names: $Path"
     }
     if ($Path.StartsWith('\\') -or $Path -notmatch '^[A-Za-z]:\\') {
         throw "A local Windows drive path is required: $Path"
@@ -134,7 +138,7 @@ function Assert-UnityVersion([string] $Executable) {
     }
 }
 
-function Assert-RecipeFields($Value, [string[]] $Required, [string[]] $Optional = @()) {
+function Assert-RecipeFieldSet($Value, [string[]] $Required, [string[]] $Optional = @()) {
     if ($null -eq $Value -or $Value -isnot [pscustomobject]) { throw 'A recipe object is required.' }
     $names = @($Value.PSObject.Properties.Name)
     if (@($names | Where-Object { $_ -notin ($Required + $Optional) }).Count -gt 0 -or
@@ -146,7 +150,7 @@ function Test-FiniteNumber($Value) {
         ![double]::IsNaN([double]$Value) -and ![double]::IsInfinity([double]$Value)
 }
 
-function Assert-MeshNumbers($Values, [int] $Count, [string] $Label) {
+function Assert-MeshNumberArray($Values, [int] $Count, [string] $Label) {
     if ($null -eq $Values -or $Values -isnot [array] -or $Values.Count -ne $Count) { throw "Invalid mesh $Label length." }
     foreach ($value in $Values) {
         if (!(Test-FiniteNumber $value) -or [Math]::Abs([double]$value) -gt [single]::MaxValue) { throw "A mesh $Label component is not finite float32 data." }
@@ -154,29 +158,29 @@ function Assert-MeshNumbers($Values, [int] $Count, [string] $Label) {
 }
 
 function Assert-MeshRecipe($Recipe) {
-    Assert-RecipeFields $Recipe @('schemaVersion', 'bundleName', 'meshes') @('textures')
+    Assert-RecipeFieldSet $Recipe @('schemaVersion', 'bundleName', 'meshes') @('textures')
     if ($Recipe.schemaVersion -ne 1 -or $Recipe.bundleName -cnotmatch '^[a-z0-9][a-z0-9_.-]{0,127}$' -or
         $Recipe.meshes -isnot [array] -or $Recipe.meshes.Count -gt 128) { throw 'Invalid mesh recipe version, bundle name or mesh list.' }
     $names = @{}
     foreach ($mesh in $Recipe.meshes) {
-        Assert-RecipeFields $mesh @('name', 'vertices', 'normals', 'tangents', 'uvChannels', 'subMeshes', 'bounds', 'indexFormat') @('colors', 'skin', 'blendShapes')
+        Assert-RecipeFieldSet $mesh @('name', 'vertices', 'normals', 'tangents', 'uvChannels', 'subMeshes', 'bounds', 'indexFormat') @('colors', 'skin', 'blendShapes')
         if ($mesh.name -cnotmatch '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$' -or $names.ContainsKey($mesh.name)) { throw 'Invalid or duplicate mesh name.' }
         $names[$mesh.name] = $true
         if ($mesh.vertices -isnot [array] -or $mesh.vertices.Count -lt 9 -or $mesh.vertices.Count -gt 3000000 -or $mesh.vertices.Count % 3 -ne 0) { throw 'Invalid mesh vertex count.' }
         $count = [int]($mesh.vertices.Count / 3)
-        Assert-MeshNumbers $mesh.vertices ($count * 3) 'vertices'
+        Assert-MeshNumberArray $mesh.vertices ($count * 3) 'vertices'
         foreach ($channel in @(@('normals', 3), @('tangents', 4))) {
             $values = $mesh.($channel[0])
             if ($null -eq $values -or $values -isnot [array] -or $values.Count -notin @(0, ($count * $channel[1]))) { throw 'Invalid mesh channel length.' }
-            Assert-MeshNumbers $values $values.Count $channel[0]
+            Assert-MeshNumberArray $values $values.Count $channel[0]
         }
         if ($mesh.PSObject.Properties['colors']) {
             if ($mesh.colors -isnot [array] -or $mesh.colors.Count -notin @(0, ($count * 4))) { throw 'Invalid mesh colors length.' }
-            Assert-MeshNumbers $mesh.colors $mesh.colors.Count 'colors'
+            Assert-MeshNumberArray $mesh.colors $mesh.colors.Count 'colors'
         }
         if ($mesh.indexFormat -cnotin @('UInt16', 'UInt32') -or ($mesh.indexFormat -ceq 'UInt16' -and $count -gt 65535)) { throw 'Invalid mesh index format or vertex range.' }
-        Assert-RecipeFields $mesh.bounds @('center', 'size')
-        Assert-MeshNumbers $mesh.bounds.center 3 'bounds center'; Assert-MeshNumbers $mesh.bounds.size 3 'bounds size'
+        Assert-RecipeFieldSet $mesh.bounds @('center', 'size')
+        Assert-MeshNumberArray $mesh.bounds.center 3 'bounds center'; Assert-MeshNumberArray $mesh.bounds.size 3 'bounds size'
         if (@($mesh.bounds.size | Where-Object { $_ -lt 0 }).Count) { throw 'Mesh bounds size cannot be negative.' }
         for ($axis = 0; $axis -lt 3; $axis++) {
             $center = [double][single]$mesh.bounds.center[$axis]; $size = [double][single]$mesh.bounds.size[$axis]
@@ -188,15 +192,15 @@ function Assert-MeshRecipe($Recipe) {
         if ($mesh.uvChannels -isnot [array] -or $mesh.uvChannels.Count -gt 8) { throw 'Invalid mesh UV list.' }
         $uvs = @{}
         foreach ($uv in $mesh.uvChannels) {
-            Assert-RecipeFields $uv @('channel', 'dimension', 'values')
+            Assert-RecipeFieldSet $uv @('channel', 'dimension', 'values')
             if (!(Test-FiniteNumber $uv.channel) -or $uv.channel -ne [Math]::Truncate($uv.channel) -or $uv.channel -lt 0 -or $uv.channel -gt 7 -or
                 !(Test-FiniteNumber $uv.dimension) -or $uv.dimension -cnotin @(2, 3, 4) -or $uvs.ContainsKey([int]$uv.channel)) { throw 'Invalid or duplicate mesh UV channel/dimension.' }
             $uvs[[int]$uv.channel] = $true
-            Assert-MeshNumbers $uv.values ($count * $uv.dimension) 'UV'
+            Assert-MeshNumberArray $uv.values ($count * $uv.dimension) 'UV'
         }
         if ($mesh.subMeshes -isnot [array] -or $mesh.subMeshes.Count -lt 1 -or $mesh.subMeshes.Count -gt 256) { throw 'Invalid mesh submesh list.' }
         foreach ($submesh in $mesh.subMeshes) {
-            Assert-RecipeFields $submesh @('topology', 'indices')
+            Assert-RecipeFieldSet $submesh @('topology', 'indices')
             if ($submesh.topology -cne 'Triangles' -or $submesh.indices -isnot [array] -or $submesh.indices.Count -lt 3 -or
                 $submesh.indices.Count -gt 6000000 -or $submesh.indices.Count % 3) { throw 'Invalid mesh triangle list.' }
             foreach ($index in $submesh.indices) {
@@ -205,10 +209,10 @@ function Assert-MeshRecipe($Recipe) {
         }
         if ($mesh.PSObject.Properties['skin'] -and $null -ne $mesh.skin) {
             $skin = $mesh.skin
-            Assert-RecipeFields $skin @('bindPoses', 'boneWeights', 'boneIndices')
+            Assert-RecipeFieldSet $skin @('bindPoses', 'boneWeights', 'boneIndices')
             if ($skin.bindPoses -isnot [array] -or $skin.bindPoses.Count -lt 16 -or $skin.bindPoses.Count % 16) { throw 'Invalid mesh bind pose count.' }
-            Assert-MeshNumbers $skin.bindPoses $skin.bindPoses.Count 'bind poses'
-            Assert-MeshNumbers $skin.boneWeights ($count * 4) 'bone weights'
+            Assert-MeshNumberArray $skin.bindPoses $skin.bindPoses.Count 'bind poses'
+            Assert-MeshNumberArray $skin.boneWeights ($count * 4) 'bone weights'
             $bones = [int]($skin.bindPoses.Count / 16)
             if ($skin.boneIndices -isnot [array] -or $skin.boneIndices.Count -ne $count * 4) { throw 'Invalid mesh bone index count.' }
             foreach ($index in $skin.boneIndices) {
@@ -227,15 +231,15 @@ function Assert-MeshRecipe($Recipe) {
         if ($mesh.PSObject.Properties['blendShapes'] -and $null -ne $mesh.blendShapes) {
             if ($mesh.blendShapes -isnot [array]) { throw 'Invalid mesh blend shape list.' }
             foreach ($shape in $mesh.blendShapes) {
-                Assert-RecipeFields $shape @('name', 'frames')
+                Assert-RecipeFieldSet $shape @('name', 'frames')
                 if ($shape.name -isnot [string] -or [string]::IsNullOrWhiteSpace($shape.name) -or $shape.name -match '\p{Cc}') { throw 'Invalid mesh blend shape name.' }
                 if ($shape.frames -isnot [array] -or $shape.frames.Count -lt 1) { throw 'Missing mesh blend shape frames.' }
                 $previous = [double]::NegativeInfinity
                 foreach ($frame in $shape.frames) {
-                    Assert-RecipeFields $frame @('weight', 'vertices', 'normals', 'tangents')
+                    Assert-RecipeFieldSet $frame @('weight', 'vertices', 'normals', 'tangents')
                     if (!(Test-FiniteNumber $frame.weight) -or [Math]::Abs([double]$frame.weight) -gt [single]::MaxValue -or [single]$frame.weight -le $previous) { throw 'Mesh blend shape frame weights must be finite and strictly increasing.' }
                     $previous = [single]$frame.weight
-                    foreach ($channel in @('vertices', 'normals', 'tangents')) { Assert-MeshNumbers $frame.$channel ($count * 3) ('blend shape ' + $channel) }
+                    foreach ($channel in @('vertices', 'normals', 'tangents')) { Assert-MeshNumberArray $frame.$channel ($count * 3) ('blend shape ' + $channel) }
                 }
             }
         }
@@ -244,7 +248,7 @@ function Assert-MeshRecipe($Recipe) {
         if ($Recipe.textures -isnot [array] -or $Recipe.textures.Count -gt 128) { throw 'Invalid mesh texture list.' }
         $textureNames = @{}; $texturePaths = @{}
         foreach ($texture in $Recipe.textures) {
-            Assert-RecipeFields $texture @('name', 'path', 'sha256', 'normalMap', 'sRGB', 'mipmaps') @('crunchedCompression', 'compressionQuality')
+            Assert-RecipeFieldSet $texture @('name', 'path', 'sha256', 'normalMap', 'sRGB', 'mipmaps') @('crunchedCompression', 'compressionQuality')
             if ($texture.name -isnot [string] -or $texture.name -cnotmatch '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$' -or
                 $texture.path -isnot [string] -or $texture.path -cnotmatch '^[A-Za-z0-9_./-]+$' -or $texture.path.StartsWith('/') -or
                 @($texture.path.Split('/') | Where-Object { $_ -in @('', '.', '..') }).Count -ne 0 -or
@@ -317,7 +321,7 @@ function Install-AssetGuiWorker {
 }
 
 function Assert-MaterialFieldPin($Pin) {
-    Assert-RecipeFields $Pin @('path','sha256')
+    Assert-RecipeFieldSet $Pin @('path','sha256')
     if ($Pin.path -isnot [string] -or $Pin.path -notmatch '^[A-Za-z]:[\\/]' -or $Pin.sha256 -isnot [string] -or $Pin.sha256 -cnotmatch '^[a-f0-9]{64}$') { throw 'Invalid material-field file pin.' }
     $path=[IO.Path]::GetFullPath($Pin.path)
     Assert-LocalPath $path
@@ -333,7 +337,7 @@ function Read-ValidatedMaterialFieldInput([string]$Path) {
     if (!(Test-WithinPath $folder $authoringRoot) -and !(Test-WithinPath $folder (Join-Path $repoRoot 'tools/game-test/artifacts'))) { throw 'Material-field output must use the existing authoring workspace or game-test artifacts owner.' }
     $inputHash=(Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
     $materialFieldInput=Get-Content -Raw -LiteralPath $path|ConvertFrom-Json
-    Assert-RecipeFields $materialFieldInput @('status','tasks','ageScalars','scalarAuthority','scalarAuthorityProof','privateSource','ownerSource','codecResource','sourceInput','nativeAssetAuthority','sourcePins','generatedAssets','bundleName','holdFile')
+    Assert-RecipeFieldSet $materialFieldInput @('status','tasks','ageScalars','scalarAuthority','scalarAuthorityProof','privateSource','ownerSource','codecResource','sourceInput','nativeAssetAuthority','sourcePins','generatedAssets','bundleName','holdFile')
     if ($materialFieldInput.status -cne 'PRIVATE_PERSISTENT_NATIVE_CONTROL_FIELD_BC7_PAIR_INPUT' -or $materialFieldInput.tasks -isnot [array] -or $materialFieldInput.tasks.Count -lt 1 -or $materialFieldInput.tasks.Count -gt 32) { throw 'Material-field input requires 1..32 explicit Main tasks.' }
     if ($materialFieldInput.ageScalars -isnot [array] -or $materialFieldInput.ageScalars.Count -ne 3 -or @($materialFieldInput.ageScalars|Where-Object {!(Test-FiniteNumber $_) -or $_ -le 0}).Count -or $materialFieldInput.scalarAuthority -isnot [string] -or [string]::IsNullOrWhiteSpace($materialFieldInput.scalarAuthority)) { throw 'Material-field age scalar authority is missing or invalid.' }
     if ($materialFieldInput.generatedAssets -isnot [string] -or $materialFieldInput.generatedAssets -cnotmatch '^Assets/MaterialFields_([A-Za-z0-9_]{1,64})$') { throw 'Material-field generatedAssets must be a single owned Assets/MaterialFields_<tag> namespace.' }
@@ -534,13 +538,13 @@ $materialInputs = @()
 if ($materialJob) {
     if ([IO.Path]::GetExtension($sourceFile) -ine '.json') { throw '-MaterialRecipePath must identify a JSON recipe.' }
     $recipe = [IO.File]::ReadAllText($sourceFile) | ConvertFrom-Json
-    Assert-RecipeFields $recipe @('schemaVersion', 'bundleName', 'assets', 'materials')
+    Assert-RecipeFieldSet $recipe @('schemaVersion', 'bundleName', 'assets', 'materials')
     if ($recipe.schemaVersion -ne 1 -or $recipe.bundleName -cnotmatch '^[a-z0-9][a-z0-9_.-]{0,127}$' -or
         !$recipe.assets -or !$recipe.materials) { throw 'Invalid material recipe version, bundle name or asset lists.' }
     $bundleName = $recipe.bundleName
     $seen = @{}
     foreach ($asset in $recipe.assets) {
-        Assert-RecipeFields $asset @('path', 'sha256')
+        Assert-RecipeFieldSet $asset @('path', 'sha256')
         if ($asset.path -notmatch '^[A-Za-z0-9_./-]+$' -or $asset.path.StartsWith('/') -or
             @($asset.path.Split('/') | Where-Object { $_ -in @('', '.', '..') }).Count -ne 0 -or
             [IO.Path]::GetExtension($asset.path) -cnotin @('.shader', '.cginc', '.hlsl', '.png', '.jpg', '.jpeg', '.tga') -or
@@ -554,7 +558,7 @@ if ($materialJob) {
         $materialInputs += [pscustomobject]@{ path = $asset.path; source = $assetSource; sha256 = $asset.sha256 }
     }
     foreach ($material in $recipe.materials) {
-        Assert-RecipeFields $material @('name', 'shader', 'requiredPasses') @('renderQueue', 'properties')
+        Assert-RecipeFieldSet $material @('name', 'shader', 'requiredPasses') @('renderQueue', 'properties')
         if ($material.PSObject.Properties['renderQueue'] -and (!(Test-FiniteNumber $material.renderQueue) -or
             $material.renderQueue -ne [Math]::Truncate($material.renderQueue) -or $material.renderQueue -lt -1 -or $material.renderQueue -gt 5000)) {
             throw 'The material render queue must be an integer from -1 through 5000.'
@@ -562,16 +566,16 @@ if ($materialJob) {
         if ($material.PSObject.Properties['properties']) {
             foreach ($property in $material.properties) {
                 if ($property.kind -eq 'float') {
-                    Assert-RecipeFields $property @('name', 'kind', 'value')
+                    Assert-RecipeFieldSet $property @('name', 'kind', 'value')
                     if (!(Test-FiniteNumber $property.value)) { throw 'A material float must be a finite number.' }
                 }
                 elseif ($property.kind -eq 'color') {
-                    Assert-RecipeFields $property @('name', 'kind', 'rgba')
+                    Assert-RecipeFieldSet $property @('name', 'kind', 'rgba')
                     if (@($property.rgba).Count -ne 4 -or @($property.rgba | Where-Object { !(Test-FiniteNumber $_) }).Count -ne 0) {
                         throw 'A material color must have four finite numeric components.'
                     }
                 }
-                elseif ($property.kind -eq 'texture') { Assert-RecipeFields $property @('name', 'kind', 'texture') }
+                elseif ($property.kind -eq 'texture') { Assert-RecipeFieldSet $property @('name', 'kind', 'texture') }
                 else { throw 'Unknown material property kind.' }
             }
         }
@@ -690,7 +694,7 @@ function Copy-AuthoringInput([string] $Destination) {
     else { [IO.File]::Copy($sourceFile, $Destination, $false) }
 }
 
-function Copy-MaterialInputs([string] $InputDirectory, [switch] $ValidateOnly) {
+function Copy-MaterialInput([string] $InputDirectory, [switch] $ValidateOnly) {
     foreach ($asset in $materialInputs) {
         $destination = [IO.Path]::Combine($InputDirectory, $asset.path.Replace('/', '\'))
         Assert-LocalPath $destination -UnityImport
@@ -704,6 +708,22 @@ function Copy-MaterialInputs([string] $InputDirectory, [switch] $ValidateOnly) {
     }
 }
 $dependencyPaths = @(@($sourceFiles) + @($materialInputs | ForEach-Object source) | Sort-Object -Unique)
+$guiJobPaths = $null
+if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
+    $project = [IO.Path]::GetFullPath($GuiProjectPath)
+    $jobKind = if ($meshBatch) { 'mesh-batch' } elseif ($meshJob) { 'mesh' } elseif ($materialJob) { 'material' } else { 'rig' }
+    $jobId = [datetime]::UtcNow.ToString('yyyyMMdd-HHmmss-fffffff', [Globalization.CultureInfo]::InvariantCulture) + '-' + $jobKind
+    $runRoot = Join-Path $project ('.asset-authoring-jobs\' + $jobId)
+    $inputDirectory = [IO.Path]::Combine($project, 'Assets\AuthoringJobs\' + $jobId + '\Input')
+    $bundleOutput = Join-Path $runRoot 'Output'
+    Assert-LocalPath ([IO.Path]::Combine($inputDirectory, $inputName)) -UnityImport
+    Copy-MaterialInput $inputDirectory -ValidateOnly
+    $projectedNames = if ($meshJob) { @($outputNames.Keys) } else {
+        @('unity-report.json', 'Output', 'Output.manifest', $bundleName, ($bundleName + '.manifest'))
+    }
+    foreach ($name in $projectedNames) { Assert-LocalPath (Join-Path $bundleOutput $name) -UnityFile }
+    $guiJobPaths = [pscustomobject]@{project=$project;jobId=$jobId;runRoot=$runRoot;inputDirectory=$inputDirectory;bundleOutput=$bundleOutput}
+}
 if ($ValidateOnly) {
     [pscustomobject]@{
         status='PASS_AUTHORING_INPUT';validationScope='input_declaration';inputPath=$sourceFile
@@ -741,6 +761,9 @@ try {
 
 if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
     $project = (Resolve-Path -LiteralPath $GuiProjectPath).ProviderPath
+    if (!$project.TrimEnd('\').Equals($guiJobPaths.project.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'The validated GUI project path changed.'
+    }
     Assert-LocalPath $project
     if (!(Test-WithinPath $project $workspace) -or $project -eq $workspace) {
         throw '-GuiProjectPath must identify a project inside the marked WorkspaceRoot.'
@@ -752,12 +775,9 @@ if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
     if ([IO.File]::ReadAllText($versionFile) -notmatch ('(?m)^m_EditorVersion: ' + [regex]::Escape($requiredVersion) + '\s*$')) {
         throw 'The GUI project uses a different Editor version.'
     }
-    $jobKind = if ($meshBatch) { 'mesh-batch' } elseif ($meshJob) { 'mesh' } elseif ($materialJob) { 'material' } else { 'rig' }
-    $jobId = [datetime]::UtcNow.ToString('yyyyMMdd-HHmmss-fffffff', [Globalization.CultureInfo]::InvariantCulture) + '-' + $jobKind
-    $runRoot = Join-Path $project ('.asset-authoring-jobs\' + $jobId)
-    $inputDirectory = [IO.Path]::Combine($project, 'Assets\AuthoringJobs\' + $jobId + '\Input')
-    Assert-LocalPath ([IO.Path]::Combine($inputDirectory, $inputName)) -UnityImport
-    Copy-MaterialInputs $inputDirectory -ValidateOnly
+    $jobId = $guiJobPaths.jobId
+    $runRoot = $guiJobPaths.runRoot
+    $inputDirectory = $guiJobPaths.inputDirectory
     Install-AssetGuiWorker -Project $project -Source (Join-Path $template 'Assets\Editor\AssetBundleBuilder.cs') -SourceHash $sourceHash -AllowInstall:$InstallGuiWorker
     if ($StartBackgroundEditor) {
         if (!$UnityCliPath) { $UnityCliPath = Join-Path $env:LOCALAPPDATA 'Unity\bin\unity.exe' }
@@ -796,7 +816,7 @@ if (![string]::IsNullOrWhiteSpace($GuiProjectPath)) {
     [IO.File]::WriteAllText((Join-Path $runRoot '.solasta-asset-authoring-job'), 'SolastaUBAssetAuthoring:UnityJob:1')
     $copiedInput = Join-Path $inputDirectory $inputName
     Copy-AuthoringInput $copiedInput
-    Copy-MaterialInputs $inputDirectory
+    Copy-MaterialInput $inputDirectory
     $inputHash = if ($meshJob) { $meshInputHash } else { (Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant() }
     if ((Get-FileHash -LiteralPath $copiedInput -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputHash) { throw 'The copied authoring input differs from the source.' }
     $bundleOutput = Join-Path $runRoot 'Output'
@@ -829,7 +849,7 @@ else {
     $project = Join-Path $runRoot 'Project'
     $inputDirectory = [IO.Path]::Combine($project, 'Assets\Input')
     Assert-LocalPath ([IO.Path]::Combine($inputDirectory, $inputName)) -UnityImport
-    Copy-MaterialInputs $inputDirectory -ValidateOnly
+    Copy-MaterialInput $inputDirectory -ValidateOnly
     [IO.Directory]::CreateDirectory($workspace) | Out-Null
     [IO.File]::WriteAllText($markerFile, $workspaceMarker + [Environment]::NewLine)
     [IO.Directory]::CreateDirectory($project) | Out-Null
@@ -844,7 +864,7 @@ else {
     [IO.Directory]::CreateDirectory($inputDirectory) | Out-Null
     $copiedInput = Join-Path $inputDirectory $inputName
     Copy-AuthoringInput $copiedInput
-    Copy-MaterialInputs $inputDirectory
+    Copy-MaterialInput $inputDirectory
     $inputHash = if ($meshJob) { $meshInputHash } else { (Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant() }
     if ((Get-FileHash -LiteralPath $copiedInput -Algorithm SHA256).Hash.ToLowerInvariant() -ne $inputHash) {
         throw 'The copied authoring input does not match its source.'

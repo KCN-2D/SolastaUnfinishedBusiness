@@ -560,14 +560,18 @@ function Stop-AssetBackgroundEditor($Session, [switch]$AllowFailedSession) {
     }finally{if($Session -and $Session.PSObject.Properties['StorageOperation'] -and $Session.StorageOperation){$Session.StorageOperation.ReleaseMutex();$Session.StorageOperation.Dispose();$Session.StorageOperation=$null}}
 }
 
-function Get-AssetStoragePath([string]$Path,[switch]$ReadOnlyReference) {
+function Get-AssetStoragePath([string]$Path,[switch]$ReadOnlyReference,[Collections.Generic.HashSet[string]]$CheckedAncestors) {
     $full=[IO.Path]::GetFullPath($Path).TrimEnd('\','/')
     if ($full.StartsWith('\\') -or $full -notmatch '^[A-Za-z]:\\' -or $full -eq [IO.Path]::GetPathRoot($full).TrimEnd('\')) { throw 'A local non-root storage path is required.' }
+    if ($null -ne $CheckedAncestors -and -not $ReadOnlyReference) { throw 'Ancestor reuse is limited to one read-only reference collection.' }
     for ($cursor=$full;$cursor;$cursor=[IO.Path]::GetDirectoryName($cursor)) {
-        if ([IO.File]::Exists($cursor) -or [IO.Directory]::Exists($cursor)) {
+        if ($null -ne $CheckedAncestors -and $CheckedAncestors.Contains($cursor)) { break }
+        $exists=[IO.File]::Exists($cursor) -or [IO.Directory]::Exists($cursor)
+        if ($exists) {
             if ([IO.File]::GetAttributes($cursor) -band [IO.FileAttributes]::ReparsePoint) { throw "Storage paths cannot contain reparse points: $cursor" }
         }
         if (-not $ReadOnlyReference -and [IO.File]::Exists((Join-Path $cursor 'Solasta.exe'))) { throw 'A game installation is not authoring storage.' }
+        if ($exists -and $null -ne $CheckedAncestors) { [void]$CheckedAncestors.Add($cursor) }
     }
     return $full
 }
@@ -603,14 +607,15 @@ function Get-AssetStorageProject([string]$Project) {
 }
 function Get-AssetStorageReferences([string[]]$ReferencePath) {
     $paths=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $checkedAncestors=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     $inputs=@(foreach ($path in $ReferencePath) {
-        $resolved=Get-AssetStoragePath $path -ReadOnlyReference
+        $resolved=Get-AssetStoragePath $path -ReadOnlyReference -CheckedAncestors $checkedAncestors
         $snapshot=Read-AssetStorageJson $resolved -ReadOnlyReference;$data=$snapshot.value
         if ($data.schemaVersion -ne 1 -or $data.paths -isnot [array] -or @($data.PSObject.Properties.Name|Where-Object{$_ -notin @('schemaVersion','paths')}).Count) { throw 'Invalid storage reference manifest.' }
         [void]$paths.Add($resolved)
         foreach ($entry in $data.paths) {
             if ($entry -isnot [string] -or [string]::IsNullOrWhiteSpace($entry)) { throw 'Storage references must be paths.' }
-            $item=if ([IO.Path]::IsPathRooted($entry)) { Get-AssetStoragePath $entry -ReadOnlyReference } else { Get-AssetStoragePath (Join-Path (Split-Path -Parent $resolved) $entry) -ReadOnlyReference }
+            $item=if ([IO.Path]::IsPathRooted($entry)) { Get-AssetStoragePath $entry -ReadOnlyReference -CheckedAncestors $checkedAncestors } else { Get-AssetStoragePath (Join-Path (Split-Path -Parent $resolved) $entry) -ReadOnlyReference -CheckedAncestors $checkedAncestors }
             [void]$paths.Add($item)
         }
         [ordered]@{path=$resolved;sha256=$snapshot.sha256}

@@ -50,6 +50,63 @@ class RecipeFailureContracts(unittest.TestCase):
 
 
 class SurfaceBindingContracts(unittest.TestCase):
+    @staticmethod
+    def source_packets():
+        native=dict(vertexCount=3,sourceFingerprint='ab'*32,vertices=[0.,0.,0.,1.,0.,0.,0.,1.,0.],
+            normals=[0.,0.,1.]*3,tangents=[1.,0.,0.,1.]*3,weights=[1.,0.,0.,0.]*3,boneIndices=[0,0,0,0]*3,
+            bindPoses=[1.,0.,0.,0.,0.,1.,0.,0.,0.,0.,1.,0.,0.,0.,0.,1.],subMeshes=[[0,1,2]],
+            uv=[dict(channel=0,dimension=2,values=[0.,0.,0.,0.,1.,0.,0.,0.,0.,1.,0.,0.])])
+        target=copy.deepcopy(native);target['vertexCount']=4
+        target['vertices'][3]=1.1;target['normals'][3:6]=[0.,.6,.8]
+        target['vertices']+=[.5,0.,.02];target['normals']+=[0.,0.,1.];target['tangents']+=[1.,0.,0.,1.]
+        target['weights']+=[1.,0.,0.,0.];target['boneIndices']+=[0,0,0,0]
+        target['uv'][0]['values']+=[.5,0.,0.,0.];target['subMeshes']=[[0,3,2,3,1,2]]
+        surfaces=[dict(vertex=3,surface=dict(triangle=[0,1,2],barycentric=[.5,.5,0.]))]
+        return native,target,surfaces
+
+    def test_cloth_rows_keep_identity_prefix_and_transport_changed_native_and_added_frames(self):
+        import numpy as np
+        native,target,surfaces=self.source_packets();before=copy.deepcopy((native,target,surfaces))
+        matrix=np.array([[0.,-2.,0.,.03],[2.,0.,0.,-.02],[0.,0.,2.,.01],[0.,0.,0.,1.]])
+        binding=codec.source_surface_binding(native,target,matrix.T.ravel().tolist(),surfaces)
+        rows=binding['vertices']
+        self.assertEqual([row['native']for row in rows],[True,False,True,False])
+        self.assertEqual([row['anchor']for row in rows],[0,1,2,0])
+        np.testing.assert_allclose(rows[1]['offset'],[.2,0,0],atol=1e-6)
+        np.testing.assert_allclose(rows[1]['normal'],[0,.6,.8],atol=1e-6)
+        np.testing.assert_allclose(rows[3]['offset'],[1.,0,.04],atol=1e-6)
+        self.assertEqual(binding['surfaceSkin'],dict(sourceVertexCount=3,sourceFingerprint=native['sourceFingerprint'],vertices=surfaces))
+        self.assertEqual((native,target,surfaces),before)
+
+    def test_cloth_surface_ownership_rejects_missing_repeated_foreign_and_skin_mismatched_stencils(self):
+        native,target,surfaces=self.source_packets()
+        matrix=native['bindPoses']
+        for declarations in([],surfaces+surfaces,[dict(vertex=2,surface=surfaces[0]['surface'])],
+                [dict(vertex=3,surface=dict(triangle=[0,1,3],barycentric=[.5,.5,0.]))]):
+            with self.subTest(declarations=declarations),self.assertRaises(ValueError):
+                codec.source_surface_binding(native,target,matrix,declarations)
+        altered=copy.deepcopy(target);altered['weights'][12:16]=[.5,.5,0.,0.]
+        with self.assertRaisesRegex(ValueError,'canonical source skin'):
+            codec.source_surface_binding(native,altered,matrix,surfaces)
+        altered=copy.deepcopy(target);altered['boneIndices'][0]=1
+        with self.assertRaisesRegex(ValueError,'native-prefix skin'):
+            codec.source_surface_binding(native,altered,matrix,surfaces)
+
+    def test_cloth_binding_validates_only_required_frames_and_actual_triangle_uv_owners(self):
+        native,target,surfaces=self.source_packets()
+        native['normals'][6:9]=[0.,0.,0.];target['normals'][6:9]=[0.,0.,0.]
+        binding=codec.source_surface_binding(native,target,native['bindPoses'],surfaces)
+        self.assertTrue(binding['vertices'][2]['native'])
+        invalid=copy.deepcopy(target);invalid['normals'][3:6]=[0.,0.,0.]
+        with self.assertRaisesRegex(ValueError,'singular required frame'):
+            codec.source_surface_binding(native,invalid,native['bindPoses'],surfaces)
+        invalid=copy.deepcopy(target);invalid['subMeshes'][0][0]=-1
+        with self.assertRaisesRegex(ValueError,'unowned target triangle'):
+            codec.source_surface_binding(native,invalid,native['bindPoses'],surfaces)
+        invalid=copy.deepcopy(target);invalid['uv'][0]['values']=invalid['uv'][0]['values'][:-4]
+        with self.assertRaisesRegex(ValueError,'another UV vertex layout'):
+            codec.source_surface_binding(native,invalid,native['bindPoses'],surfaces)
+
     def setUp(self):
         self.binding: dict[str, Any] = dict(schemaVersion=1, sourceFingerprint='ab' * 32,
                             rendererToPrefab=[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],

@@ -2,7 +2,7 @@
 import os
 for key in ('OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS'):os.environ[key]='1'
 from pathlib import Path
-import argparse,ast,collections,gzip,hashlib,json,struct,sys
+import argparse,ast,collections,gzip,hashlib,importlib.util,json,struct,sys
 import numpy as np
 H=Path(__file__).resolve().parent
 REPO=next(p for p in H.parents if (p/'SolastaUnfinishedBusiness.sln').exists())
@@ -17,10 +17,17 @@ def functions(path,names,namespace):
     assert len(nodes)==len(names)
     exec(compile(ast.Module(body=nodes,type_ignores=[]),str(path),'exec'),namespace)
     return {name:namespace[name] for name in names}
-scope=dict(Path=Path,gzip=gzip,struct=struct,np=np)
-decoder=H/'GenerateFlowCoverageSweptProfile.py';binding_functions=functions(decoder,['decode_binding','validate_surface_provenance'],scope)
-prover=decoder;decode_binding=binding_functions['decode_binding'];validate_surface_provenance=binding_functions['validate_surface_provenance']
-proof_functions=functions(prover,['prove_row','validate_curved_core'],dict(globals()))
+def load_producer(path):
+    path=Path(path).resolve();digest=sha(path)
+    spec=importlib.util.spec_from_file_location('groom_group_producer_'+digest,path)
+    if spec is None or spec.loader is None:raise ValueError('The groom numeric producer is unavailable.')
+    owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner)
+    if sha(path)!=digest:raise ValueError('The groom numeric producer changed during loading.')
+    return owner
+
+decoder=H/'GenerateFlowCoverageSweptProfile.py';producer=load_producer(decoder)
+prover=decoder;decode_binding=producer.decode_binding;validate_surface_provenance=producer.validate_surface_provenance
+proof_functions=dict(prove_row=producer.prove_row)
 recipe_owner=REPO/'tools/blender-models/CharacterFaces/build_models.py';recipe_functions=functions(recipe_owner,['recipe_mesh'],dict(globals()))
 parser=argparse.ArgumentParser();parser.add_argument('--workspace',type=Path,required=True);parser.add_argument('directory');args=parser.parse_args();ROLLOUT=args.workspace.resolve();assert any(ROLLOUT.is_relative_to(REPO/p)for p in('tools/game-test/artifacts','tools/asset-authoring/workspace')),'Use an ignored authoring workspace.'
 out=Path(args.directory).resolve();assert out.is_relative_to(ROLLOUT/'Postprocess')

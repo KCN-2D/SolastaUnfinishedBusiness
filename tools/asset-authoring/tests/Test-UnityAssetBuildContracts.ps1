@@ -537,6 +537,12 @@ function Invoke-AuthoringInputValidationContracts([string]$EntryPath, [string]$O
     $batchRoot=$mesh | ConvertTo-Json -Depth 30 | ConvertFrom-Json
     $batchRoot.bundleName='output'
     $batchRootPath=Join-Path $inputs 'MeshRootCollision.json';Save-ValidationJson $batchRootPath $batchRoot
+    $longOutput=$mesh | ConvertTo-Json -Depth 30 | ConvertFrom-Json
+    $longOutput.bundleName='contract_'+('x'*100)
+    $longOutputPath=Join-Path $inputs 'MeshLongOutput.json';Save-ValidationJson $longOutputPath $longOutput
+    $projectPrefix=Join-Path ([IO.Path]::GetPathRoot($outputs)) 'AuthoringOutputContracts'
+    $projectedSuffix='\.asset-authoring-jobs\00000000-000000-0000000-mesh-batch\Output\'+$longOutput.bundleName+'.manifest'
+    $boundaryProject=$projectPrefix+('x'*(259-$projectedSuffix.Length-$projectPrefix.Length))
     $batchMaximum=@()
     for($index=0;$index -lt 16;$index++) {
         $value=$mesh | ConvertTo-Json -Depth 30 | ConvertFrom-Json
@@ -553,20 +559,25 @@ function Invoke-AuthoringInputValidationContracts([string]$EntryPath, [string]$O
         @{name='batch-manifest-collision';paths=@($meshPath,$batchManifestPath);error='A mesh bundle output collides'},
         @{name='batch-receipt-collision';paths=@($meshPath,$batchReceiptPath);error='A mesh bundle output collides'},
         @{name='batch-root-collision';paths=@($meshPath,$batchRootPath);error='A mesh bundle output collides'},
+        @{name='batch-output-manifest-at-max-path';paths=@($meshPath,$longOutputPath);dependencies=2;project=$boundaryProject},
+        @{name='batch-output-manifest-past-max-path';paths=@($meshPath,$longOutputPath);project=($boundaryProject+'x');error='Unity 2019 file path is too long'},
         @{name='batch-second-input-invalid';paths=@($meshPath,$badTexturePath);error='The mesh texture source hash differs'},
         @{name='batch-over-limit';paths=@($batchMaximum+$meshPath);errorAny=$true}
     )
     $before=Get-ValidationInputTree
     [IO.File]::WriteAllText((Join-Path $OutputDirectory 'InputTree.Before.json'),$before)
+    # Keep descriptive labels in results without consuming the Unity import path budget.
+    $validationIndex=0
     foreach($case in $cases) {
-        $arguments=@{UnityPath=$unity;WorkspaceRoot=(Join-Path $outputs $case.name)}
+        $caseWorkspace=Join-Path $outputs ([string]$validationIndex);$validationIndex++
+        $arguments=@{UnityPath=$unity;WorkspaceRoot=$caseWorkspace}
         $arguments[$case.parameter]=$case.path
         $expectedColorSpace=if($case.ContainsKey('colorSpace')){$case.colorSpace}else{'Linear'}
         if($case.ContainsKey('colorSpace')){$arguments.ColorSpace=$case.colorSpace}
         if(-not $case.ContainsKey('withoutValidate')) {
             $arguments.ValidateOnly=$true
             # A supplied GUI project must not acquire a lease or create a directory either.
-            $arguments.GuiProjectPath=Join-Path $outputs ($case.name+'/Project')
+            $arguments.GuiProjectPath=Join-Path $caseWorkspace 'Project'
         }
         $observed=@();$failure=$null
         try{$observed=@(& $entry @arguments)}catch{$failure=$_.Exception.Message}
@@ -587,10 +598,12 @@ function Invoke-AuthoringInputValidationContracts([string]$EntryPath, [string]$O
         Add-ValidationCheck ($case.name+'-no-output-workspace') (-not (Test-Path -LiteralPath $outputs)) $outputs
     }
     foreach($case in $batchCases) {
+        $caseWorkspace=Join-Path $outputs ([string]$validationIndex);$validationIndex++
         $observed=@();$failure=$null
+        $projectPath=if($case.ContainsKey('project')){$case.project}else{Join-Path $caseWorkspace 'Project'}
         try {
             $observed=@(& $entry -UnityPath $unity -MeshRecipePath $case.paths -ValidateOnly `
-                -WorkspaceRoot (Join-Path $outputs $case.name) -GuiProjectPath (Join-Path $outputs ($case.name+'/Project')))
+                -WorkspaceRoot $caseWorkspace -GuiProjectPath $projectPath)
         }catch{$failure=$_.Exception.Message}
         if($case.ContainsKey('error') -or $case.ContainsKey('errorAny')) {
             $passed=$null -ne $failure -and ($case.ContainsKey('errorAny') -or $failure -match [regex]::Escape($case.error))
@@ -1543,7 +1556,7 @@ function Invoke-MeshBlendRecipeContracts {
     $tokens=$null;$parseErrors=$null
     $validationAst=[Management.Automation.Language.Parser]::ParseFile($launcher,[ref]$tokens,[ref]$parseErrors)
     if($parseErrors.Count){throw ($parseErrors|Out-String)}
-    foreach($name in @('Assert-LocalPath','Copy-MaterialInputs','Assert-RecipeFields','Test-FiniteNumber','Assert-MeshNumbers','Assert-MeshRecipe','Read-ExternalMeshRecipe')){
+    foreach($name in @('Assert-LocalPath','Copy-MaterialInput','Assert-RecipeFieldSet','Test-FiniteNumber','Assert-MeshNumberArray','Assert-MeshRecipe','Read-ExternalMeshRecipe')){
         $definition=@($validationAst.FindAll({param($n)$n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -ceq $name},$true))
         if($definition.Count -ne 1){throw 'The shared recipe validator ownership changed.'}
         . ([scriptblock]::Create($definition[0].Extent.Text))
@@ -1560,8 +1573,15 @@ function Invoke-MeshBlendRecipeContracts {
     Add-Check 'unity-import-meta-at-max-path' ($accepted -and ($boundary+'.meta').Length -eq 259) $boundary
     $rejected=$false;try{Assert-LocalPath ($boundary+'x') -UnityImport}catch{$rejected=$_.Exception.Message -like '*Shorten the project/workspace path or asset relative names*'}
     Add-Check 'unity-import-meta-over-max-path' $rejected ($boundary+'x')
+    $outputBoundary=$boundaryRoot+('x'*(259-$boundaryRoot.Length))
+    $accepted=$true;try{Assert-LocalPath $outputBoundary -UnityFile}catch{$accepted=$false}
+    Add-Check 'unity-file-at-max-path' ($accepted -and $outputBoundary.Length -eq 259) $outputBoundary
+    $rejected=$false;try{Assert-LocalPath ($outputBoundary+'x') -UnityFile}catch{$rejected=$_.Exception.Message -like '*Unity 2019 file path is too long*'}
+    Add-Check 'unity-file-over-max-path' $rejected ($outputBoundary+'x')
+    $rejected=$false;try{Assert-LocalPath ($outputBoundary+'.manifest') -UnityFile}catch{$rejected=$_.Exception.Message -like '*Unity 2019 file path is too long*'}
+    Add-Check 'unity-file-manifest-needs-its-own-path-budget' $rejected ($outputBoundary+'.manifest')
     Import-AuthoringContractBinding @{materialInputs=@([pscustomobject]@{path=('Textures/'+('x'*150)+'.png');source='C:\UnityImportContracts\source.png';sha256=('0'*64)})}
-    $rejected=$false;try{Copy-MaterialInputs $guiInput -ValidateOnly}catch{$rejected=$_.Exception.Message -like '*Unity 2019 import path is too long*'}
+    $rejected=$false;try{Copy-MaterialInput $guiInput -ValidateOnly}catch{$rejected=$_.Exception.Message -like '*Unity 2019 import path is too long*'}
     Add-Check 'unity-import-reject-before-material-copy' ($rejected -and -not [IO.Directory]::Exists($contractProject)) $guiInput
     $mesh=[ordered]@{name='BlendIndexControl';vertices=@(0,0,0,1,0,0,0,1,0);normals=@(0,0,1,0,0,1,0,0,1);tangents=@(1,0,0,1,1,0,0,1,1,0,0,1);
         uvChannels=@(@{channel=0;dimension=2;values=@(0,0,1,0,0,1)});subMeshes=@(@{topology='Triangles';indices=@(0,1,2)});bounds=@{center=@(.5,.5,0);size=@(1,1,0)};indexFormat='UInt16';blendShapes=@()}

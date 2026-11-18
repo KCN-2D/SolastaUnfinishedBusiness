@@ -3,6 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection.Emit;
 using System;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
@@ -27,6 +28,7 @@ public static class CharacterStageIdentityDefinitionPanelPatcher
             {
                 if (modifier && modifier.transform.parent == __instance.modifiersTable)
                 {
+                    ModifierBindings.Remove(modifier);
                     modifier.Folded = false;
                 }
             }
@@ -229,16 +231,23 @@ public static class CharacterStageIdentityDefinitionPanelPatcher
                 typeof(CharacterCustomizationModifier.ValueChangedHandler), typeof(bool)]);
 
         [UsedImplicitly]
-        private static void Prefix(CharacterCustomizationModifier __instance, RulesetCharacterHero __0,
+        private static bool Prefix(CharacterCustomizationModifier __instance, RulesetCharacterHero __0,
+            MorphotypeElementDefinition.ElementCategory __1, MorphotypeCategoryDefinition __2,
+            List<string> __3, int __4, CharacterCustomizationModifier.ValueChangedHandler __5, bool __6,
             out ModifierInitialization __state)
         {
             __state = null;
             var owner = __instance.GetComponentInParent<CharacterStageIdentityDefinitionPanel>();
             if (owner && ReferenceEquals(owner.currentHero, __0))
             {
+                if (ModifierBindings.TryGetValue(__instance, out var binding) &&
+                    binding.Matches(__instance, __0, __1, __2, __3, __4, __5, __6)) return false;
+                ModifierBindings.Remove(__instance);
                 ReconcileCustomizationChoices(__instance);
                 __state = new ModifierInitialization(__instance);
             }
+
+            return true;
         }
 
         private static void SetGroupActive(GameObject target, bool active)
@@ -256,12 +265,21 @@ public static class CharacterStageIdentityDefinitionPanelPatcher
                 new CodeInstruction(OpCodes.Call, new Action<GameObject, bool>(SetGroupActive).Method));
 
         [UsedImplicitly]
-        private static void Postfix(ModifierInitialization __state)
+        private static void Postfix(CharacterCustomizationModifier __instance, RulesetCharacterHero __0,
+            MorphotypeElementDefinition.ElementCategory __1, MorphotypeCategoryDefinition __2,
+            List<string> __3, CharacterCustomizationModifier.ValueChangedHandler __5, bool __6,
+            ModifierInitialization __state)
         {
             var error = __state?.Finish(null);
             if (error != null)
             {
                 throw error;
+            }
+
+            if (__state != null)
+            {
+                ModifierBindings.Remove(__instance);
+                ModifierBindings.Add(__instance, new ModifierBinding(__instance, __0, __1, __2, __3, __5, __6));
             }
         }
 
@@ -355,6 +373,55 @@ public static class CharacterStageIdentityDefinitionPanelPatcher
 
             private static Exception Combine(Exception originalException, Exception cleanupException) =>
                 originalException == null ? cleanupException : new AggregateException(originalException, cleanupException);
+        }
+    }
+
+    private static readonly ConditionalWeakTable<CharacterCustomizationModifier, ModifierBinding> ModifierBindings = new();
+
+    private sealed class ModifierBinding
+    {
+        private readonly RulesetCharacterHero _hero;
+        private readonly CharacterRaceDefinition _race, _subrace;
+        private readonly RuleDefinitions.CreatureSex _sex;
+        private readonly string _origin, _language;
+        private readonly MorphotypeElementDefinition.ElementCategory _part;
+        private readonly MorphotypeCategoryDefinition _category;
+        private readonly string[] _values;
+        private readonly CharacterCustomizationModifier.ValueChangedHandler _changed;
+        private readonly bool _option, _gamepad, _folded, _displayFoldout;
+
+        internal ModifierBinding(CharacterCustomizationModifier modifier, RulesetCharacterHero hero,
+            MorphotypeElementDefinition.ElementCategory part, MorphotypeCategoryDefinition category,
+            List<string> values, CharacterCustomizationModifier.ValueChangedHandler changed, bool option)
+        {
+            _hero = hero; _race = hero.RaceDefinition; _subrace = hero.SubRaceDefinition; _sex = hero.Sex;
+            hero.MorphotypeElements.TryGetValue(MorphotypeElementDefinition.ElementCategory.Origin, out _origin);
+            _language = I2.Loc.LocalizationManager.CurrentLanguageCode;
+            _part = part; _category = category; _values = values.ToArray();
+            _changed = changed; _option = option; _gamepad = Gui.GamepadActive;
+            _folded = modifier.Folded; _displayFoldout = modifier.displayFoldout;
+        }
+
+        internal bool Matches(CharacterCustomizationModifier modifier, RulesetCharacterHero hero,
+            MorphotypeElementDefinition.ElementCategory part, MorphotypeCategoryDefinition category,
+            List<string> values, int value, CharacterCustomizationModifier.ValueChangedHandler changed, bool option)
+        {
+            hero.MorphotypeElements.TryGetValue(MorphotypeElementDefinition.ElementCategory.Origin, out var origin);
+            // Native selection callbacks update their displayed value before
+            // notifying the panel. Keep those choices while their inputs and
+            // current value agree; a selection is not a new choice definition.
+            return ReferenceEquals(_hero, hero) && ReferenceEquals(_race, hero.RaceDefinition) &&
+                   ReferenceEquals(_subrace, hero.SubRaceDefinition) && _sex == hero.Sex && _origin == origin &&
+                   _language == I2.Loc.LocalizationManager.CurrentLanguageCode && _part == part &&
+                   ReferenceEquals(_category, category) && Equals(_changed, changed) &&
+                   _option == option && _gamepad == Gui.GamepadActive && _folded == modifier.Folded &&
+                   _displayFoldout == modifier.displayFoldout && modifier.part == part &&
+                   ReferenceEquals(modifier.categoryDefinition, category) && modifier.currentValue == value &&
+                   Equals(modifier.ValueChanged, changed) && values != null && _values.SequenceEqual(values) &&
+                   _values.SequenceEqual(modifier.valuesList) &&
+                   OwnsChoiceGroup(modifier, modifier.colorsGroup, modifier.colorChoiceToggles) &&
+                   OwnsChoiceGroup(modifier, modifier.imagesGroup, modifier.imageChoiceToggles) &&
+                   OwnsChoiceGroup(modifier, modifier.labelsGroup, modifier.labelChoiceToggles);
         }
     }
 
@@ -565,8 +632,11 @@ public static class CharacterStageIdentityDefinitionPanelPatcher
     public static class UnbindCustomizationModifier_Patch
     {
         [UsedImplicitly]
-        private static void Prefix(CharacterCustomizationModifier __instance) =>
+        private static void Prefix(CharacterCustomizationModifier __instance)
+        {
+            ModifierBindings.Remove(__instance);
             ReconcileCustomizationChoices(__instance);
+        }
 
         [UsedImplicitly]
         private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>

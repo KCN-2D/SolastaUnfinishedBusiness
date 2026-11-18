@@ -31,6 +31,37 @@ def bilinear_gpu_rows(pixels,uv):
  return(pixels[lo[:,1]%h,lo[:,0]%w]*(1-f[:,0,None])*(1-f[:,1,None])+pixels[lo[:,1]%h,(lo[:,0]+1)%w]*f[:,0,None]*(1-f[:,1,None])+pixels[(lo[:,1]+1)%h,lo[:,0]%w]*(1-f[:,0,None])*f[:,1,None]+pixels[(lo[:,1]+1)%h,(lo[:,0]+1)%w]*f[:,0,None]*f[:,1,None])
 
 
+def texture_sampler_taps(uv,shape,filter_mode,wrap,*,scale=(1.,1.),offset=(0.,0.),top_row=True):
+ """Actual float32 Point/Bilinear addresses for one source mip and material ST."""
+ uv=np.asarray(uv);scale=np.asarray(scale);offset=np.asarray(offset)
+ if len(shape)!=2 or any(type(value)is not int or value<=0 for value in shape)or uv.ndim!=2 or uv.shape[1]!=2 or \
+     scale.shape!=(2,)or offset.shape!=(2,)or not all(np.isfinite(value).all()for value in(uv,scale,offset))or \
+     type(filter_mode)is not int or filter_mode not in(0,1,2)or len(wrap)!=2 or \
+     any(type(value)is not int or value not in(0,1,2,3)for value in wrap)or type(top_row)is not bool:
+  raise ValueError('A source sampler needs finite UV/ST, dimensions, filter and wrap declarations.')
+ h,w=shape
+ with np.errstate(over='ignore',invalid='ignore'):
+  xy=np.asarray(uv*scale+offset,np.float32)*np.asarray([w,h],np.float32)-np.float32(.5)
+ if not np.isfinite(xy).all()or np.any(np.abs(xy)>=np.iinfo(np.int64).max-2):
+  raise ValueError('A source sampler coordinate exceeds its finite address range.')
+ def address(values,size,kind):
+  if kind==0:return values%size
+  if kind==1:return np.clip(values,0,size-1)
+  if kind==2:
+   values=values%(2*size);return np.where(values<size,values,2*size-1-values)
+  return np.minimum(size-1,np.where(values>=0,values,-values-1))
+ if filter_mode==0:
+  first=np.floor(xy+.5).astype(int);y=address(first[:,1],h,wrap[1]);x=address(first[:,0],w,wrap[0])
+  return((h-1-y)if top_row else y)[:,None],x[:,None],np.ones((len(xy),1))
+ first=np.floor(xy).astype(int);fraction=xy-first;rows=[];cols=[];weights=[]
+ for dx in(0,1):
+  for dy in(0,1):
+   y=address(first[:,1]+dy,h,wrap[1]);rows.append(h-1-y if top_row else y)
+   cols.append(address(first[:,0]+dx,w,wrap[0]))
+   weights.append((fraction[:,0]if dx else 1-fraction[:,0])*(fraction[:,1]if dy else 1-fraction[:,1]))
+ return np.stack(rows,1),np.stack(cols,1),np.stack(weights,1)
+
+
 def fit_bilinear_cut(pixels,uv,target,editable,regularization=1e-4,maximum_iterations=96):
  """Fit the actual Repeat/bilinear cut footprint with all other texels locked."""
  pixels=np.asarray(pixels,float);uv=np.asarray(uv,np.float32);target=np.asarray(target,float);editable=np.asarray(editable,bool)
@@ -646,11 +677,11 @@ class Geometry(TypedDict):
 def geometry(p,v,n,t) -> 'Geometry':
     triangles=np.asarray(p['subMeshes'][0],int).reshape(-1,3);return {'vertices':v,'normal':n,'tangent':t,'uv':uv(p),'triangles':triangles,'edges':raw_edges(triangles),'packet':p}
 
-def serialized_skin_context(head_packet,body_packet,head_bones,body_bones,*,cut_tolerance_metres=1e-5):
+def serialized_skin_context(head_packet,body_packet,head_bones,body_bones,*,cut_tolerance_metres=1e-5,common_frame=None):
     """Measure the saved surfaces without transporting a preceding source mesh."""
     if not math.isfinite(cut_tolerance_metres)or cut_tolerance_metres<=0:
         raise ValueError('A serialized skin cut needs a finite positive positional tolerance.')
-    frame,_,error=skin_palette_frame(head_packet,body_packet,head_bones,body_bones)
+    frame,_,error=skin_palette_frame(head_packet,body_packet,head_bones,body_bones,common_frame=common_frame)
     frame=np.asarray(frame,np.float32)
     n=unit(arr(head_packet,'normals',3)@np.linalg.inv(frame[:3,:3]));t=arr(head_packet,'tangents',4).copy()
     transformed=t[:,:3]@frame[:3,:3].T;t[:,:3]=unit(transformed-n*np.sum(transformed*n,axis=1)[:,None]);t[:,3]*=np.sign(np.linalg.det(frame[:3,:3]))
@@ -682,7 +713,8 @@ def serialized_skin_context(head_packet,body_packet,head_bones,body_bones,*,cut_
 
 def source_context(row,head_packet,body_packet):
     if row['headSource'].get('geometrySource')=='saved-serialized-skin-surfaces':
-        return serialized_skin_context(head_packet,body_packet,row['headNativeBonePaths'],row['bodyNativeBonePaths'])
+        frame=np.asarray(row['commonHeadToBody']).reshape(4,4).T if 'commonHeadToBody'in row else None
+        return serialized_skin_context(head_packet,body_packet,row['headNativeBonePaths'],row['bodyNativeBonePaths'],common_frame=frame)
     h=head_packet;b=body_packet;hp=arr(h,'vertices',3).copy();hn=arr(h,'normals',3).copy();ht=arr(h,'tangents',4).copy();bp=arr(b,'vertices',3);bn=arr(b,'normals',3);bt=arr(b,'tangents',4);proof={};body_members={int(v) for aliases in row['bodyCut']['vertexAliases'] for v in aliases}
     if row['bodyCut'].get('expandExactNativePositionAliases'):
         selected={tuple(bp[i]) for i in body_members};body_members={i for i,p in enumerate(bp) if tuple(p) in selected}
@@ -1832,23 +1864,52 @@ def bc7_exact_alpha_palette(values):
 
 
 def reencode_bc7_rgb_block(block,target):
-    """Try BC7 mode5 RGB indices while retaining every decoded source alpha value.
+    """Refit independent BC7 RGB indices without changing decoded source alpha.
 
-    Mode5 has independent RGB and alpha indices (Microsoft BC7 mode reference).
-    It can represent a new pigment pattern which fixed source indices cannot.
+    Native mode4 rotation0/selector0 retains its original alpha bit plane.
+    Mode5 is also eligible when its separate codebook represents alpha exactly.
     """
     from PIL import Image
     original=np.asarray(Image.frombytes('RGBA',(4,4),block,'bcn',7)).reshape(16,4)
-    alpha=bc7_exact_alpha_palette(tuple(map(int,np.unique(original[:,3]))))
-    if alpha is None:return block
     desired=np.asarray(target,np.uint8).reshape(16,4)[:,:3].astype(float)
+    def rgb_score(values):
+        error=values.astype(float)-desired
+        return float(np.abs(error).max()),float(np.sum(error*error))
+    retained=block;retained_score=rgb_score(original[:,:3]);native_bits=int.from_bytes(block,'little')
+    native_mode=next((index for index in range(8)if native_bits&(1<<index)),None)
+    # Only these mode4 header values assign the unchanged 3-bit stream to alpha.
+    if native_mode==4 and(native_bits>>5)&7==0:
+        centered=desired-desired.mean(0);_,axes=np.linalg.eigh(centered.T@centered);projection=centered@axes[:,-1]
+        levels=(np.arange(32)<<3)|(np.arange(32)>>2);weights=np.asarray([0,21,43,64])
+        for endpoints in(desired[[projection.argmin(),projection.argmax()]],np.stack((desired.min(0),desired.max(0)))):
+            for _ in range(8):
+                codes=np.abs(levels[:,None,None]-endpoints[None,:,:]).argmin(0);expanded=levels[codes]
+                palette=((64-weights[:,None])*expanded[0]+weights[:,None]*expanded[1]+32)>>6
+                indices=np.sum((palette[None,:,:]-desired[:,None,:])**2,axis=2).argmin(1)
+                if rgb_score(palette[indices])<retained_score:
+                    chosen=codes.copy();selectors=indices.copy()
+                    if selectors[0]>=2:chosen=chosen[::-1];selectors=3-selectors
+                    bits=native_bits&~((((1<<30)-1)<<8)|(((1<<31)-1)<<50));position=8
+                    for channel in range(3):
+                        for endpoint in range(2):bits|=int(chosen[endpoint,channel])<<position;position+=5
+                    position=50
+                    for index,value in enumerate(selectors):bits|=int(value)<<position;position+=1 if index==0 else 2
+                    candidate=bits.to_bytes(16,'little');decoded=np.asarray(Image.frombytes('RGBA',(4,4),candidate,'bcn',7)).reshape(16,4)
+                    if not np.array_equal(decoded[:,3],original[:,3])or not np.array_equal(decoded[:,:3],palette[indices]):
+                        raise ValueError('The BC7 decoder rejected the independent native mode4 RGB plane.')
+                    retained=candidate;retained_score=rgb_score(decoded[:,:3])
+                if len(np.unique(indices))<2:break
+                fraction=weights[indices]/64
+                endpoints=np.clip(np.linalg.lstsq(np.column_stack((1-fraction,fraction)),desired,rcond=None)[0],0,255)
+    alpha=bc7_exact_alpha_palette(tuple(map(int,np.unique(original[:,3]))))
+    if alpha is None:return retained
     centered=desired-desired.mean(axis=0);_,axes=np.linalg.eigh(centered.T@centered)
     projection=centered@axes[:,-1];starts=[desired[[projection.argmin(),projection.argmax()]],np.stack((desired.min(axis=0),desired.max(axis=0)))]
     levels=(np.arange(128)<<1)|(np.arange(128)>>6);weights=np.asarray([0,21,43,64])
     def score(values):
         error=values.astype(float)-desired
         return float(np.abs(error).max()),float(np.sum(error*error))
-    best_score=score(original[:,:3]);best=None
+    best_score=retained_score;best=None
     for endpoints in starts:
         for _ in range(8):
             codes=np.abs(levels[:,None,None]-endpoints[None,:,:]).argmin(axis=0)
@@ -1859,7 +1920,7 @@ def reencode_bc7_rgb_block(block,target):
             if len(np.unique(indices))<2:break
             fraction=weights[indices]/64
             endpoints=np.clip(np.linalg.lstsq(np.column_stack((1-fraction,fraction)),desired,rcond=None)[0],0,255)
-    if best is None:return block
+    if best is None:return retained
     codes,indices,expected=best;a,b,alpha_palette=alpha
     alpha_indices=np.abs(np.asarray(alpha_palette)[None,:]-original[:,3,None]).argmin(axis=1)
     if indices[0]>=2:codes=codes[::-1].copy();indices=3-indices

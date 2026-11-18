@@ -102,15 +102,16 @@ internal static class RenderMeshDeformerPatcher
             bool sharedMeshIsValid = ___sharedMesh;
             bool meshIsValid = ___mesh;
 
-            if (sharedMeshIsValid && meshIsValid && ___status != null && ___targetObject && ___parent)
+            if (sharedMeshIsValid && meshIsValid && ___targetObject && ___parent &&
+                CustomModels.SkinMeshSource.SourceGraph.CanFinishNativeDeformer(___status) &&
+                CustomModels.SkinMeshSource.SourceGraph.HasRegisteredVertexCount(__instance, ___sharedMesh, ___mesh))
             {
                 __state = RacesContext.BeginCharacterModelNativeSurfaceFinish(__instance, __0);
                 return true;
             }
 
-            // Queued writes can outlive their component during replacement or
-            // teardown. Native Finish dereferences its status before checking
-            // the render target, even when both retained meshes are still alive.
+            // Finish can run after disposal or after loading a mesh whose old
+            // simulation buffer describes a different number of vertices.
             return false;
         }
 

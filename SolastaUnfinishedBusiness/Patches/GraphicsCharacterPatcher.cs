@@ -155,11 +155,19 @@ public static class GraphicsCharacterPatcher
         [UsedImplicitly]
         public static void Prefix(GraphicsCharacter __instance)
         {
-            CombatAnimationContext.ReleaseEquipmentPresentation(__instance);
-            RacesContext.ReleaseBodyShape(__instance);
-            RacesContext.ReleaseCharacterModels(__instance);
-            CivilianAnimationContext.ForgetCivilianReaction(__instance);
-            CombatAnimationContext.ForgetActionAnimation(__instance);
+            Exception failure = null;
+            void Release(Action cleanup)
+            {
+                try { cleanup(); }
+                catch (Exception exception)
+                { failure = failure == null ? exception : new AggregateException(failure, exception); }
+            }
+            Release(() => CombatAnimationContext.ReleaseEquipmentPresentation(__instance));
+            // This restores Body before Model and retains their leases on failure.
+            Release(() => RacesContext.ReleaseCharacterModels(__instance));
+            Release(() => CivilianAnimationContext.ForgetCivilianReaction(__instance));
+            Release(() => CombatAnimationContext.ForgetActionAnimation(__instance));
+            if (failure != null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
         }
     }
 

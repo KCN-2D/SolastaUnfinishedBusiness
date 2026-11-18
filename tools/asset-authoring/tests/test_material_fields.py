@@ -19,6 +19,225 @@ assert spec and spec.loader
 fields=importlib.util.module_from_spec(spec);spec.loader.exec_module(fields)
 
 
+class NativeUniformWorkingSetContracts(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        source=Path(__file__).resolve().parents[2]/'blender-models/CharacterFaces/build_models.py'
+        specification=importlib.util.spec_from_file_location('bounded_native_work_contracts',source)
+        build=importlib.util.module_from_spec(specification);specification.loader.exec_module(build)
+        cls.production=build.source_owner()[0]
+        cls.rgb_bound=build.MAIN_RGB_BLOCK_REFINEMENT_ERROR
+
+    def test_raw_tap_memo_is_operation_bounded_and_consumer_edits_or_new_sampler_frames_cannot_poison_hits(self):
+        production=self.production;points=np.array([[-1.,-1.,0.],[1.,-1.,0.],[0.,1.,0.]])
+        triangles=np.array([[0,1,2]]);uv=np.array([[0.,0.],[1.,0.],[.5,1.]])
+        initial=points[:,:2];centre=np.zeros(2);settings=dict(filterMode=1,wrapU=0,wrapV=0,mipLevel=0)
+        budget=dict(production.source_filter_budget(),nativeCacheBytes=3500);report={}
+        with mock.patch.object(production,'source_filter_budget',return_value=budget):
+            operation=production.source_native_sampler(points,triangles,uv,{},report=report)
+            first=operation(0,initial,centre,.1,(5,5),(2,2),settings,(8,8))
+            before=list(first((0,3,0,3)));retained=copy.deepcopy(before);walked=report['nativeWalkQueries']
+            before[0]['rows'][:]=0;before[0]['weights'][:]=0;before[0]['firstIndex']=999
+            hit=list(first((0,3,0,3)))
+            np.testing.assert_equal(hit,retained);self.assertEqual(report['nativeWalkQueries'],walked)
+            hit[0]['cols'][:]=0
+            np.testing.assert_equal(list(first((0,3,0,3))),retained)
+            for bounds in((1,4,1,4),(2,5,2,5)):list(first(bounds))
+            self.assertGreater(report['cacheEvictions'],0);walked=report['nativeWalkQueries']
+            np.testing.assert_equal(list(first((0,3,0,3))),retained)
+            self.assertGreater(report['nativeWalkQueries'],walked)
+            # Every new supplier owns its own immutable frame/sampler. Even a
+            # same-sized mip or identical ST must not alias another supplier.
+            for sampler,frame in((dict(settings,mipLevel=1),initial),
+                                  (dict(settings,scale=[.7,1.],offset=[.2,0.]),initial),
+                                  (settings,initial+[.01,0.])):
+                next_supplier=operation(0,frame,centre,.1,(5,5),(2,2),sampler,(8,8))
+                walked=report['nativeWalkQueries'];list(next_supplier((0,3,0,3)))
+                self.assertGreater(report['nativeWalkQueries'],walked)
+            self.assertLessEqual(report['peakCacheBytes'],budget['nativeCacheBytes'])
+            self.assertGreater(report['defensiveCopyBytes'],0)
+
+    def test_one_operation_sampler_owns_geometry_once_and_keeps_chart_mip_and_st_inputs_separate(self):
+        production=self.production
+        points=np.array([[-1.,-1.,0.],[1.,-1.,0.],[0.,1.,0.]])
+        triangles=np.array([[0,1,2]]);uv=np.array([[0.,0.],[1.,0.],[.5,1.]])
+        retained=tuple(value.copy()for value in(points,triangles,uv))
+        operation=production.source_native_sampler(points,triangles,uv,{})
+        points[:]=100;triangles[:]=0;uv[:]=100
+        outputs=[]
+        for side,scale,offset in((4,[1.,1.],[0.,0.]),(8,[-1.2,.7],[.4,.2])):
+            initial=retained[0][:,:2].copy();centre=np.array([0.,0.]);sampler=dict(filterMode=1,wrapU=2,wrapV=1,scale=scale,offset=offset)
+            supplier=operation(0,initial,centre,.1,(3,3),(1,1),sampler,(side,side))
+            expected=production.native_source_blocks(*retained,{},0,initial,centre,.1,(3,3),(1,1),sampler,(side,side))
+            initial[:]=100;centre[:]=100;sampler['scale'][0]=100
+            actual=list(supplier((0,3,0,3)));reference=list(expected((0,3,0,3)))
+            for first,last in zip(actual,reference,strict=True):np.testing.assert_equal(first,last)
+            outputs.append(actual)
+        self.assertFalse(np.array_equal(outputs[0][0]['weights'],outputs[1][0]['weights']))
+
+    def test_native_closed_fan_and_edge_aligned_queries_keep_qualified_sources_across_batch_sizes(self):
+        production=self.production;angles=np.arange(8)*np.pi/4
+        rim=np.c_[np.cos(angles),np.sin(angles),np.where(np.arange(8)%2,-.15,.15)]*.001
+        points=np.asarray([point for index in range(8)for point in(np.zeros(3),rim[index],rim[(index+1)%8])])
+        triangles=np.arange(24).reshape(8,3)
+        pairs=[dict(firstTriangle=index,firstEdge=[3*index,3*index+2],secondTriangle=(index+1)%8,
+            secondEdge=[3*((index+1)%8),3*((index+1)%8)+1])for index in range(8)]
+        graph=production.source_native_closure(triangles,pairs);b,c=points[1:3]
+        length=np.linalg.norm(b);along=np.dot(c,b)/length
+        initial=np.array([[0.,0.],[length,0.],[along,np.sqrt(np.dot(c,c)-along*along)]])
+        centre=initial.mean(0);query=-.4*centre
+        queries=np.array([query,np.nextafter(query,-np.inf),np.nextafter(query,np.inf),-.2*centre,-2*centre,initial[0]])
+        args=points,triangles,graph,0,initial,centre
+        full=production.source_native_rays(*args,queries)
+        self.assertFalse(full['failures']);self.assertEqual(full['states'][0],3)
+        self.assertEqual(len(full['fanSamples'][0]['samples']),2)
+        for index in range(len(queries)):
+            single=production.source_native_rays(*args,queries[index:index+1])
+            for key in('states','triangles','bary','hops'):np.testing.assert_array_equal(full[key][index],single[key][0])
+            if index in full['fanSamples']:np.testing.assert_equal(full['fanSamples'][index],single['fanSamples'][0])
+        edge=(0,frozenset((0,2)))
+        unresolved=production.source_native_rays(*args,queries[:1],unresolved_edges=[edge])
+        self.assertEqual(unresolved['states'][0],4)
+        self.assertEqual(unresolved['failures'][0]['reason'],'native-peer-closure-incomplete')
+        # An explicitly unresolved edge cannot be reclassified as exterior by
+        # the block supplier, even though ordinary open edges are allowed.
+        open_points=np.array([[-.02,0.,0.],[0.,0.,0.],[0.,.02,0.],[0.,0.,0.],[.02,0.,.004],[0.,.02,0.]])
+        open_triangles=np.array([[0,1,2],[3,4,5]])
+        open_pair=dict(firstTriangle=0,secondTriangle=1,firstEdge=[1,2],secondEdge=[3,5])
+        open_graph=production.source_native_closure(open_triangles,[open_pair]);missing=(0,frozenset((1,2)))
+        del open_graph[missing]
+        supplier=production.native_source_blocks(open_points,open_triangles,np.zeros((6,2)),open_graph,0,open_points[:3,:2],
+            np.array([-.005,.005]),.01,(1,2),(0,0),dict(filterMode=1,wrapU=0,wrapV=0),(8,8),unresolved_edges=[missing])
+        with self.assertRaisesRegex(ValueError,'unresolved'):list(supplier((0,1,0,2)))
+
+    def test_requested_output_storage_keeps_full_finite_gaussian_and_tensor_values_exact(self):
+        production=self.production;random=np.random.default_rng(6001)
+        values=random.uniform(-2.,1.,(19,23));domain=(random.random(values.shape)>.12).astype(float)
+        selected=np.zeros(values.shape,bool);selected[3,[4,5,19]]=True;selected[16,[1,18]]=True
+        for sigma in(.05,.5,3.,160.,579.):
+            dense_report={};packed_report={}
+            dense,supported=production.rgb_uniform_average(values,domain,.001,sigma*.001,selected,report=dense_report)
+            actual,covered=production.rgb_uniform_average(values,domain,.001,sigma*.001,selected,packed=True,report=packed_report)
+            np.testing.assert_array_equal(actual,dense[selected]);np.testing.assert_array_equal(covered,supported[selected])
+            self.assertLess(packed_report['estimatedTemporaryBytes'],dense_report['estimatedTemporaryBytes'])
+        settings=dict(fineSigmaMetres=.0005,grainSigmaMetres=.002,coherenceSigmaMetres=.004,
+            coherenceRetain=.25,fineCoherenceRetain=.2)
+        dense=production.source_uniform_structure(values,domain,.001,settings,selected)
+        packed=production.source_uniform_structure(values,domain,.001,settings,selected,packed=True)
+        np.testing.assert_array_equal(packed,dense[selected])
+
+    def test_packed_frequency_responses_preserve_original_scatter_and_zero_weight_taps(self):
+        production=self.production;random=np.random.default_rng(6002);shape=(9,9)
+        values=random.uniform(-2.,1.,shape);domain=np.ones(shape);selected=np.ones(shape,bool)
+        y,x=np.indices(shape);patch=dict(rows=y[:,:,None],cols=x[:,:,None],weights=np.ones(shape+(1,)),
+            metresPerTexel=.001,targetRows=np.array([2,2,7]),targetCols=np.array([3,3,6]),
+            patchRows=np.array([[2,3,0],[3,4,8],[7,8,0]]),patchCols=np.array([[3,4,0],[4,5,8],[6,7,0]]),
+            patchWeights=np.tile([.25,.75,0.],(3,1)),blend=np.array([.2,.8,1.]),
+            resolved=np.ones(shape,bool),outside=np.zeros(shape,bool),requiredSupport=np.ones(shape,bool))
+        settings=dict(fineSigmaMetres=.0005,grainSigmaMetres=.001,coherenceSigmaMetres=.002,
+            coherenceRetain=.3,fineCoherenceRetain=.2)
+        baseline=np.zeros(shape+(2,));radius=lambda metric:production.source_uniform_radius(settings,metric)
+        expected=production.filter_source_neighbourhoods(values,domain,selected,[patch],
+            lambda value,weight,metric,wanted:production.source_uniform_structure(value,weight,metric,settings,wanted),
+            baseline,support_radius=radius)
+        actual=production.filter_source_neighbourhoods(values,domain,selected,[patch],
+            lambda value,weight,metric,wanted:production.source_uniform_structure(value,weight,metric,settings,wanted,packed=True),
+            baseline,support_radius=radius,packed_output=True)
+        for first,last in zip(expected,actual,strict=True):np.testing.assert_array_equal(first,last)
+        calls=[]
+        def blocks(bounds):
+            calls.append(bounds);y0,y1,x0,x1=bounds;yy,xx=np.indices((y1-y0,x1-x0))
+            yield dict(firstIndex=0,rows=(yy+y0).reshape(-1,1),cols=(xx+x0).reshape(-1,1),
+                weights=np.ones((yy.size,1)),resolved=np.ones(yy.size,bool),outside=np.zeros(yy.size,bool))
+        stream={key:patch[key]for key in('metresPerTexel','targetRows','targetCols','patchRows','patchCols','patchWeights','blend')}
+        stream.update(gridShape=shape,sourceBlocks=blocks)
+        # Identity has no halo. Unused addresses outside its finite crop must
+        # not become evaluation points or require an unrelated native sample.
+        expected=production.filter_source_neighbourhoods(values,domain,selected,[patch],lambda *args:args[0],values)
+        actual=production.filter_source_neighbourhoods(values,domain,selected,[stream],lambda *args:args[0],values,
+            support_radius=lambda metric:0)
+        for first,last in zip(expected,actual,strict=True):np.testing.assert_array_equal(first,last)
+        self.assertEqual(calls,[(2,9,3,8)])
+
+
+    def test_native_operation_chunks_keep_every_closed_fan_index_and_fail_before_unbudgeted_unfold(self):
+        production=self.production;angles=np.arange(8)*np.pi/4
+        rim=np.c_[np.cos(angles),np.sin(angles),np.where(np.arange(8)%2,-.15,.15)]*.001
+        points=np.asarray([p for i in range(8)for p in(np.zeros(3),rim[i],rim[(i+1)%8])]);triangles=np.arange(24).reshape(8,3)
+        pairs=[dict(firstTriangle=i,firstEdge=[3*i,3*i+2],secondTriangle=(i+1)%8,
+            secondEdge=[3*((i+1)%8),3*((i+1)%8)+1])for i in range(8)]
+        graph=production.source_native_closure(triangles,pairs);b,c=points[1:3];length=np.linalg.norm(b);along=np.dot(c,b)/length
+        initial=np.array([[0.,0.],[length,0.],[along,np.sqrt(np.dot(c,c)-along*along)]])
+        centre=initial.mean(0);query=-.4*centre;queries=np.repeat(query[None],257,axis=0)
+        expected=production.source_native_rays(points,triangles,graph,0,initial,centre,queries)
+        report={};operation=production.source_native_sampler(points,triangles,np.zeros((24,2)),graph,report=report)
+        with mock.patch.object(production,'source_filter_budget',return_value=dict(production.source_filter_budget(),nativeQueries=8)):
+            actual=operation.queries(0,initial,centre,queries)
+        for key in('states','triangles','bary','hops','fanSamples','failures'):np.testing.assert_equal(actual[key],expected[key])
+        self.assertEqual(len(actual['fanSamples']),257);self.assertEqual(report['peakGeometryQueries'],8)
+        self.assertLessEqual(report['peakReceiverWorkBytes'],production.source_filter_budget()['workBytes'])
+        budget=dict(production.source_filter_budget(),nativeWaveBytes=18000)
+        with mock.patch.object(production,'source_filter_budget',return_value=budget),\
+                mock.patch.object(production,'source_native_unfold',wraps=production.source_native_unfold)as unfold:
+            with self.assertRaisesRegex(MemoryError,'fan allocations'):
+                production.source_native_rays(points,triangles,graph,0,initial,centre,query[None])
+        self.assertEqual(unfold.call_count,0)
+
+    def test_supplier_keeps_only_the_callers_previous_yield_alive_before_the_next_native_walk(self):
+        import gc
+        import weakref
+        production=self.production;points=np.array([[-1.,-1.,0.],[1.,-1.,0.],[0.,1.,0.]])
+        triangles=np.array([[0,1,2]]);uv=np.array([[0.,0.],[1.,0.],[.5,1.]])
+        initial=points[:,:2];centre=initial.mean(0)
+        for cache_bytes in(0,10000):
+            budget=dict(production.source_filter_budget(),nativeQueries=8,nativeCacheBytes=cache_bytes)
+            report={};refs=[];live=[]
+            with mock.patch.object(production,'source_filter_budget',return_value=budget):
+                operation=production.source_native_sampler(points,triangles,uv,{},report=report)
+                source=operation(0,initial,centre,.001,(3,8),(4,1),dict(filterMode=1,wrapU=0,wrapV=0),(16,16))
+                if cache_bytes:
+                    warm=source((0,3,0,8));block=next(warm);warm.close();del warm,block
+                native=production.source_native_rays
+                def observed(*args,**kwargs):
+                    live.append(sum(ref()is not None for ref in refs));self.assertLessEqual(live[-1],1)
+                    return native(*args,**kwargs)
+                with mock.patch.object(production,'source_native_rays',side_effect=observed):
+                    stream=source((0,3,0,8))
+                    for unused in range(3):
+                        held=next(stream);refs.append(weakref.ref(held['rows']))
+                    stream.close();del stream,held
+                gc.collect();self.assertTrue(all(ref()is None for ref in refs))
+                self.assertLessEqual(report['peakCacheBytes'],cache_bytes)
+                if cache_bytes:self.assertGreater(report['cachedBlockReuses'],0)
+
+    def test_native_work_chunk_sizes_preserve_full_coordinate_scatter_field_and_bc7(self):
+        from PIL import Image
+        production=self.production;points=np.array([[-1.,-1.,0.],[1.,-1.,0.],[0.,1.,0.]])
+        triangles=np.array([[0,1,2]]);uv=np.array([[0.,0.],[1.,0.],[.5,1.]]);initial=points[:,:2];centre=initial.mean(0)
+        r,c=np.indices((64,64));rr=r.ravel();cc=c.ravel();shape=(72,72)
+        patch_values=dict(gridShape=shape,metresPerTexel=.001,targetRows=rr%16,targetCols=cc%16,
+            patchRows=(rr+4)[:,None],patchCols=(cc+4)[:,None],patchWeights=np.ones((4096,1)),blend=np.ones(4096))
+        y,x=np.indices((16,16));raw=np.stack([100+y*2,80+x*2,np.full((16,16),70),np.full((16,16),255)],axis=2).astype(np.uint8)
+        blocks=raw.reshape(4,4,4,4,4).transpose(0,2,1,3,4).reshape(-1,16,4)
+        original=fields.bc7_rgba_separate_blocks(blocks,5).tobytes();current=np.asarray(Image.frombytes('RGBA',(16,16),original,'bcn',7))
+        values=current[:,:,:3]/255.;domain=np.ones((16,16));domain[:,:4]=0;outputs=[];encoded=[]
+        for limit in(production.source_filter_budget()['nativeQueries'],97):
+            with mock.patch.object(production,'source_filter_budget',return_value=dict(production.source_filter_budget(),nativeQueries=limit)):
+                report={};operation=production.source_native_sampler(points,triangles,uv,{},report=report)
+                source=operation(0,initial,centre,.001,shape,(36,36),dict(filterMode=1,wrapU=0,wrapV=0),(16,16))
+                def average(pixels,weights,spacing,evaluation):
+                    return np.stack([production.rgb_uniform_average(pixels[:,:,channel],weights,spacing,.0005,evaluation)[0]for channel in range(3)],axis=2)
+                output=production.filter_source_neighbourhoods(values,domain,domain>0,[dict(patch_values,sourceBlocks=source)],average,values,
+                    support_radius=lambda spacing:production.rgb_uniform_radius(.0005,spacing))
+                self.assertLessEqual(report['peakGeometryQueries'],limit);outputs.append(output)
+                target=current.copy();target[:,:,:3]=np.clip(np.rint(output[0]*255),0,255).astype(np.uint8);owned=domain>0;target[~owned]=current[~owned]
+                payload,proof=fields.fit_bc7_rgb_field(original,16,16,target,owned,maximum_rgb_error=self.rgb_bound,allow_reencoding=True)
+                decoded=np.asarray(Image.frombytes('RGBA',(16,16),payload,'bcn',7));np.testing.assert_array_equal(decoded[:,:,3],current[:,:,3])
+                np.testing.assert_array_equal(decoded[~owned],current[~owned]);self.assertLessEqual(proof['maximumRgbError'],self.rgb_bound);encoded.append(payload)
+        for first,last in zip(outputs[0],outputs[1],strict=True):np.testing.assert_array_equal(first,last)
+        self.assertEqual(encoded[0],encoded[1])
+
+
 class SkinCutCoverageContracts(unittest.TestCase):
     def test_normal_codec_preserves_unowned_blocks_and_non_normal_carriers(self):
         from PIL import Image
@@ -454,7 +673,47 @@ class SkinNormalCutContracts(unittest.TestCase):
 
 class SurfaceToneContracts(unittest.TestCase):
 
+    def test_native_mode4_rgb_refit_keeps_its_header_and_eight_level_alpha_plane(self):
+        from PIL import Image
+        # Mode4 rotation0/selector0 has RGB5 endpoints, two RGB index bits and
+        # an independent three-bit alpha stream. Keep this synthetic stream.
+        bits=(1<<4)|(63<<44)
+        position=81
+        for index,value in enumerate([0,1,2,3,4,5,6,7]*2):
+            bits|=value<<position;position+=2 if index==0 else 3
+        self.assertEqual(position,128)
+        block=bits.to_bytes(16,'little')
+        original=np.asarray(Image.frombytes('RGBA',(4,4),block,'bcn',7))
+        self.assertEqual(len(np.unique(original[:,:,3])),8)
+        desired=original.copy()
+        desired[:,:,:3]=np.where((np.indices((4,4)).sum(0)%2)[...,None]==0,[206,165,123],[24,49,74])
+        encoded,proof=fields.fit_bc7_rgb_field(block,4,4,desired,np.ones((4,4),bool),maximum_rgb_error=16,allow_reencoding=True)
+        decoded=np.asarray(Image.frombytes('RGBA',(4,4),encoded,'bcn',7))
+        rgb_bits=(((1<<30)-1)<<8)|(((1<<31)-1)<<50)
+        self.assertEqual((bits^int.from_bytes(encoded,'little'))&~rgb_bits,0)
+        np.testing.assert_array_equal(decoded[:,:,3],original[:,:,3])
+        self.assertLessEqual(int(np.abs(decoded[:,:,:3].astype(int)-desired[:,:,:3]).max()),4)
+        self.assertEqual(proof['reencodedRgbBlocks'],1)
+        self.assertLessEqual(proof['maximumRgbError'],16)
+        unchanged,no_op=fields.fit_bc7_rgb_field(encoded,4,4,decoded,np.ones((4,4),bool),maximum_rgb_error=16,allow_reencoding=True)
+        self.assertEqual(unchanged,encoded);self.assertEqual(no_op['reencodedRgbBlocks'],0)
 
+    def test_native_mode4_rgb_refit_preserves_a_partially_owned_block_exactly(self):
+        from PIL import Image
+        bits=(1<<4)|(63<<44)
+        position=81
+        for index,value in enumerate([0,1,2,3,4,5,6,7]*2):
+            bits|=value<<position;position+=2 if index==0 else 3
+        block=bits.to_bytes(16,'little');payload=block*2
+        original=np.asarray(Image.frombytes('RGBA',(8,4),payload,'bcn',7))
+        desired=original.copy();desired[:,:,:3]=[170,100,50]
+        editable=np.ones((4,8),bool);editable[1,2]=False
+        encoded,proof=fields.fit_bc7_rgb_field(payload,8,4,desired,editable,maximum_rgb_error=16,allow_reencoding=True)
+        self.assertEqual(encoded[:16],block);self.assertNotEqual(encoded[16:],block)
+        actual=np.asarray(Image.frombytes('RGBA',(8,4),encoded,'bcn',7))
+        np.testing.assert_array_equal(actual[:,:4],original[:,:4])
+        np.testing.assert_array_equal(actual[:,:,3],original[:,:,3])
+        self.assertTrue(proof['unownedBlocksExact'])
 
     def test_bc7_reencoding_changes_rgb_indices_without_changing_alpha_or_unowned_blocks(self):
         from PIL import Image

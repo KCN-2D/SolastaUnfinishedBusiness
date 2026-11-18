@@ -14,6 +14,7 @@ param(
     [switch]$PruneReports,
     [switch]$PruneLooseFiles,
     [ValidateRange(1,100)][int]$KeepCleanupReports=3,
+    [switch]$PassThru,
     [switch]$Apply
 )
 . (Join-Path $PSScriptRoot 'GameTest.Common.ps1')
@@ -52,27 +53,13 @@ if($PruneLooseFiles -and $root -ne $script:GameTestArtifactRoot){throw 'Loose fi
 if($PruneReports -or $PruneLooseFiles -or $GeneratedPayloadPlanPath){Assert-GtPlainPath $root}else{Assert-GtTree $root}
 $preserved=@($PreserveDirectory | ForEach-Object { Get-GtPath $_ })
 foreach ($path in $preserved) {
-    if (-not (Test-GtWithin $path $script:GameTestArtifactRoot)) { throw 'Preserved paths must be artifact directories.' }
+    if (-not (Test-GtWithin $path $script:GameTestArtifactRoot) -and
+        -not (Test-GtWithin $path $script:AssetAuthoringWorkspace)) { throw 'Preserved paths must be owned tool workspace directories.' }
 }
 $storageReferences=Read-GtStorageReferences $ReferencePath
-$referenced=$storageReferences.paths
 $referenceInputs=$storageReferences.inputs
-$referenceAncestors=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-foreach ($entry in $referenced) {
-    $cursor=$entry
-    while ($cursor) {
-        if (-not $referenceAncestors.Add($cursor)) { break }
-        $cursor=[IO.Path]::GetDirectoryName($cursor)
-    }
-}
 function Test-Referenced([string]$Path) {
-    $cursor=Get-GtPath $Path
-    if ($referenceAncestors.Contains($cursor)) { return $true }
-    while ($cursor) {
-        if ($referenced.Contains($cursor)) { return $true }
-        $cursor=[IO.Path]::GetDirectoryName($cursor)
-    }
-    return $false
+    return Test-GtStorageReferenceOverlap $Path $storageReferences
 }
 function Assert-ArtifactGameStopped {
     $state=Get-VerificationProcessState -Name Solasta
@@ -366,7 +353,7 @@ try {
         $checkedPayloadParents=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
         $extensions=@('.bundle','.bin','.bytes','.gz','.rgba8','.cpu-rgba8','.bc3','.bc7','.mips','.u8','.encoded','.png','.zip')
         foreach ($row in $plan.files) {
-            Assert-GtProperties $row @('path','bytes','sha256','lastWriteUtcTicks') @('path','bytes','sha256','lastWriteUtcTicks')
+            Assert-GtProperties $row @('path','bytes','sha256','lastWriteUtcTicks','role') @('path','bytes','sha256','lastWriteUtcTicks')
             $path=Get-GtPath $row.path
             $withinPayloadRoot=$false
             $payloadParent=[IO.Path]::GetDirectoryName($path)
@@ -376,8 +363,10 @@ try {
                 $payloadParent=[IO.Path]::GetDirectoryName($payloadParent)
             }
             $numericPacket=[IO.Path]::GetFileName($path) -cmatch '^[a-f0-9]{64}\.json$'
+            $typedPayload=$row.PSObject.Properties['role'] -and $row.role -ceq 'payload' -and $producerInputs.Count -gt 0
             if ($path -eq $planPath -or $producerInputs.Contains($path) -or -not $seen.Add($path) -or -not $withinPayloadRoot -or
-                ($extensions -cnotcontains [IO.Path]::GetExtension($path) -and -not $numericPacket) -or
+                ($row.PSObject.Properties['role'] -and -not $typedPayload) -or
+                (-not $typedPayload -and $extensions -cnotcontains [IO.Path]::GetExtension($path) -and -not $numericPacket) -or
                 ($row.bytes -isnot [long] -and $row.bytes -isnot [int]) -or $row.bytes -lt 0 -or
                 $row.sha256 -isnot [string] -or $row.sha256 -cnotmatch '^[a-f0-9]{64}$' -or
                 ($row.lastWriteUtcTicks -isnot [long] -and $row.lastWriteUtcTicks -isnot [int]) -or
@@ -775,5 +764,9 @@ try {
         $totalBytes=[long]($actions | Measure-Object bytes -Sum | ForEach-Object { $_.Sum })
         Write-Information ('{0} entries; {1:N0} bytes; applied={2}' -f $actions.Count,$totalBytes,[bool]$Apply) -InformationAction Continue
         Write-Information "Report: $report" -InformationAction Continue
+        if($PassThru){
+            [pscustomobject]@{path=$report;sha256=Get-GtHash $report;completed=$cleanupCompleted;applied=[bool]$Apply;
+                entries=$actions.Count;logicalBytes=$totalBytes}
+        }
     }
 }

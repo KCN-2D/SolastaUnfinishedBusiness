@@ -22,25 +22,52 @@
 
 採用済みの造形を改めるときは、`--previous-profiles <採用元のProfiles.json>`を加えます。原本に対する新旧ガイドの差分を適用し、制作済みの首の接続、低LOD、付属パーツ、表情の補正を引き継ぎます。
 
+頭部の骨ウェイト、変形フレームと首の形状をゲーム原本へ戻す場合は、`restore-native-surfaces --source <制作済み資源> --native-index <原本索引JSON> --census <原本Mesh>/Census.json --designs <顔の設計JSON> --assets <対象名 ...> --output <新しい入力先>`で`Plan.json`と`BuildPlan.json`を作ります。顔の造形を保持し、設計の`surfaces.renderers`から原本のprefabとMeshをたどります。原本にない変形フレームを除く場合は、各設計の`nativeRecovery.discardNonNativeChannels`にrenderer名とフレーム名の一覧を指定します。`nativeRecovery.passes`は曲面の分割回数です。生成したレシピをUnityでコンパイルし、[体格補正](#体格補正)の`restore-native-surfaces --plan ... --report ...`で新しい資源へ収めます。
+
 輪郭の変形は、制作済みの曲面に追加された頂点へも連続して伝えます。同じ位置のUV境界は首の保護範囲を共有し、全変形フレームで接続と法線・接線を照合します。LODごとの造形ガイドも、物理フレームの復元元を同じ原本モデルのLOD0に結び付けます。
 
-肌の細部は`face-designs.json`の`surfaces`で指定します。各原本の`sourceContentKey`、renderer、材質slot、shaderのチャンネル形式と骨格の範囲を照合し、色素と法線の残す強さ、処理する細部の物理寸法を宣言します。共有テクスチャには同じチャンネルの指定を揃えます。
+`contactUnits`の`ownership`に`native-rim`を指定すると、元モデルの口の接触縁を一体で動かし、周囲の肌には曲面の変形を連続して伝えます。
 
-法線の細部は`normalRetain`と`normalRadiusMetres`、より細かい肌の粒度は`microNormalRetain`と`microNormalRadiusMetres`で調整します。設定の改訂は記録された元画像から計算し、前回の平滑化を重ねません。制作ソースを保存し、再実行と再検証に使います。
+肌の細部は`face-designs.json`の`surfaces`で指定します。各原本の`sourceContentKey`、renderer、材質slot、shaderのチャンネル形式と骨格の範囲を照合し、色素と法線の残す強さ、処理する細部の物理寸法を宣言します。肌色や固有の模様を保ち、強く焼き込まれた陰影としわ・毛穴の描写を原本ごとに調整します。共有テクスチャには同じチャンネルの指定を揃えます。
+
+`domain.protectPrefixes`で眉や唇などの組織を保護します。保護する範囲を絞る場合は、`protectSurfaceRadiusMetres`に同じprefixと内側・外側の半径を指定します。骨格のbindpose原点からの距離をsource prefabのメートル単位で求め、実際の三角形上のUVサンプルで保護の強さを計算します。
+
+UVで分かれた組織は`protectSourceCharts`で保護します。原本Meshのfingerprintごとに`sourceTriangle`アンカーを指定し、元のindexで辺を共有するUVチャート全体を選びます。頭部の復元や再分割後は、`refine-skin-surfaces`がCensusと復元記録を使い、原本のUVとindexed chartに対応する三角形へアンカーを移します。各LODの原本と材質slotを個別に照合し、制作元の宣言と導出した対応を記録します。
+
+法線の細部は`normalRetain`と`normalRadiusMetres`、より細かい肌の粒度は`microNormalRetain`と`microNormalRadiusMetres`で調整します。法線画像に残った広いくぼみや隆起は、より大きい半径の`macroNormalRadiusMetres`と`macroNormalRetain`で調整します。各帯域の保持率は0〜1で指定します。色素画像の線状の描写を残す強さは`pigmentCoherenceRetain`、それより細い線は`pigmentFineCoherenceRetain`で指定します。設定の改訂は記録された元画像から計算し、前回の平滑化を重ねません。制作ソースを保存し、再実行と再検証に使います。
+
+広い陰影は`luminanceRegions`で対象の肌、隣接する参照の肌、保護する模様を指定します。各範囲は`native-rest-prefab-dcc-metres`の座標と楕円体で定義し、元の三角形とUV上で照合します。本人の参照範囲から低周波の明るさを補います。黒く焼き込まれた肌は`reconstruction: adjacent-low-frequency-rgb`で隣接する肌のRGBを参照します。`detailRetain`は0で範囲内の細部を滑らかにし、1で前段の肌調整後の細部を保ちます。
+
+頭皮など、離れた領域から基準色を求める場合は`reconstruction: reference-mean-rgb`を指定します。参照する本人の肌のRGBを実表面の面積で重み付けし、対象領域の基準色に使います。対象の低周波成分は`sourceLowFrequencySigmaMetres`、補正の強さは`strength`、変化の上限は`maximumLinearRgbDelta`で指定します。局所参照用の`referenceSigmaMetres`は使いません。
+
+同じ体積にある肌と口内は、楕円体の`surfaceNormal`と`normalRange`で分けます。法線は元のrendererからprefab座標へ変換し、指定した内積の範囲で選択の強さを滑らかに補間します。参照する画像の支持範囲は対象全域で照合します。
 
 ```text
 --workspace <作業先> refine-skin-surfaces --source <制作済み資源> --census <原本Mesh>/Census.json --plans <face-designs.json> --output <新しい候補>
 ```
 
-制作時に元の画像形式と全mipを扱い、範囲外のブロック、材質アルファ、法線の保持チャンネル、samplerを照合します。`bind-skin-surfaces --source <同じ制作元> --fields <作成した資源> --output <最終候補>`で、画像を対象のrendererが持つ材質へ収めます。共有元の画像は保持します。
+`--channels color`または`--channels normal`で制作するチャンネルを選べます。省略時は両方を対象とします。再開時は同じ選択を指定します。
 
-NPCの肌色は元の画像を保持し、しわや毛穴は法線画像の強さで調整します。中断した材質の収録は`bind-skin-surfaces --resume`で再開できます。
+制作時に元の画像形式と全mipを扱い、範囲外のブロック、材質アルファ、法線の保持チャンネル、samplerを照合します。共有資源の画像を対象rendererの材質へ収める場合は、`bind-skin-surfaces --source <同じ制作元> --fields <作成した資源> --output <最終候補>`を使います。共有元の画像は保持します。専有化済みの画像を調整した出力は、そのまま表示候補として使います。
 
-角などの接合パーツは、`face-designs.json`の`attachments`で支持面、元にするLOD、根元の深さ、曲面補間と材質のfloat値を指定します。`prepare-attachment-inputs --source <原本catalog> --output <制作先>`で、全支持面との接続とLODごとの頂点数を確認したUnity入力を作成します。共通のUnityビルド入口に`Plan.json`の`recipes`を渡し、`bind-attachments --source <同じ原本catalog> --plan <Plan.json> --report <Unityのreport> --output <新しい候補>`で収録します。
+元画像の資源はSHA256で照合します。参照先が移動した場合は、制作元catalogにある同じ資源から読み取り、候補の計算入力へ対応を記録します。
+
+元メッシュ上の計算と画像サンプルには、処理ごとの共通メモリ上限内で別々のキャッシュを使います。材質やmipが変わっても同じ座標系の幾何計算を再利用し、画像サンプルはそれぞれのsamplerで計算します。
+
+中断した材質の収録は`bind-skin-surfaces --resume`で再開できます。
+
+角は、同じ骨格の顔と対応付けます。`face-designs.json`の`attachments`で、皮膚の材質に応じた根元の形状と光沢を指定できます。`prepare-attachment-inputs --source <catalog> --native-index <原本一覧> --output <制作先>`でUnity入力を生成し、共通のUnityビルド入口に`Plan.json`の`recipes`を渡します。`bind-attachments --source <同じcatalog> --plan <Plan.json> --report <Unityのreport> --output <新しい候補>`で収録します。
 
 根元の余剰面は`trimRootRadii`で除き、接合ループを支持面へ収めます。LOD固有の変形チャンネルを持つ原本は、`sources`の`sourceLods`で参照するLODを指定します。
 
 頭部と身体の接続には、実際の表示から得た`head`と`body`の組を`finish-skin-interfaces --source <制作済み資源> --contexts <組み合わせJSON> --output <新しい候補>`へ渡します。全LODの接合点、骨のウェイト、変形フレームと、肌色・法線・散乱光の画像を合わせます。`pigmentReference`は身体の色に合わせる`body`と、顔固有の色を残す`source`から指定します。同じ画像とsamplerを使うLOD材質は一つの生成結果を共有し、既に専有している画像はその参照先で更新します。
+
+衣装から肌が突き出る箇所は、ゲーム内で記録した姿勢と装備のプレハブを指定して補正します。`fit-garments --source <制作済み資源> --pose <姿勢JSON.gz> ... --equipment <プレハブのアドレス> ... --clearance <肌との間隔> --maximum-offset <補正の上限> --output <新しい候補>`を使います。距離の単位はメートルです。体格や表示距離によって着用時の形状が変わる場合は、それぞれの姿勢を渡します。
+衣装同士が貫通する場合は、同じ装備のレンダラーを `--layer <レンダラー1> <レンダラー2>` で指定します。`--selection` のJSONには、`equipment` に装備ごとの姿勢一覧を、`layerReferences` に各姿勢と対応するバニラ標準体格の記録を指定します。重なり方はバニラの記録から判定します。レンダラー名の末尾の `_LOD番号` を省くと、各表示距離で対応する組み合わせを使います。
+
+同じ入力に`--resume`を付けると、完了分の保存内容を照合して再利用し、未完了分だけを生成します。制作コードは版ごとに保持します。圧縮誤差は`skinInterfaces.precisionReview`に記録し、実表示での確認に使います。
+
+生成したmipを完成bundleへ直接組み込み、保存後に材質の設定と画像データを照合します。旧形式で残った途中bundleと生mipは、再開時に完成データとの一致を確認して削除します。未完了の作業先で`--resume --compact-only`を指定すると、この整理だけを実行します。
 
 NPCの組には、実際の服装で取得した表示記録を`display`の`path`と`sha256`で指定します。身体が服で隠れる場合は、首と胸元の元の形状を保持します。表示記録の身体が存在する組だけを接合補正へ渡します。
 
@@ -80,6 +107,10 @@ Unityの共通入口`Invoke-UnityAssetBuild.ps1 -MeshRecipePath`には、`Plan.j
 ## 体格補正
 
 体格スライダーの補正基準は`SolastaUnfinishedBusiness/BlenderModels/BodyShapes/`で管理します。各骨の座標と変位、ウェイト、補間範囲を保存し、MOD起動時に読み込みます。基準を更新するときは、元資源から抽出した全サンプルと補間結果を照合します。
+
+衣装の寸法基準となる素体は、元の頂点・三角形・骨のウェイト・変形フレームを保持します。制作済みの追加面をゲーム原本へ戻すときは、原本の資源索引から実際のprefabとrendererをたどり、参照先Meshの数値packetを共通Meshレシピでコンパイルします。復元planには索引と現在のcatalogのSHA256、資源キー、rendererの相対path、参照先Meshのbundle・SHA256・物理ID、現在のMesh fingerprintを指定します。
+
+`--workspace <作業先> restore-native-surfaces --source <制作済み資源> --plan <復元対象JSON> --report <Unityの結果JSON> --output <新しい候補>`で組み込みます。rendererの骨順とbind pose、原本packetの全フィールド、コンパイル・保存後のMesh fingerprintを照合し、材質・renderer・他のobjectの保持も確認します。
 
 頭部と胴体の境界は、共通の骨・bind poseと元の接合点から対応を決めます。LODごとに頂点数が異なる境界は、`generate-skin-boundaries --rebuild-collars --inputs <入力JSON> --destination <新しい出力先>`で接合部を再構成します。胴体側の頂点、骨のウェイトと変形フレームを引き継ぎ、頭部のUVに合わせた法線テクスチャを用意します。入力には全LODの原本、骨の順序と実際のサンプラー設定を指定します。
 
@@ -141,6 +172,8 @@ HeadはLOD0を先に生成し、その`Coefficient.json`のpath/SHAをLOD1/2の�
 組み立て結果は作業先の`ResourceAssembly.json`、候補catalogの宣言は出力先の`CharacterModels.manifest.json`へ保存します。
 
 `repair-resource-bone-orders --source <組み立て結果の作業先> --native-index <元資源の対応表JSON>`は、全prefabの骨対応を元メッシュの骨名ハッシュと照合します。並びが異なる描画部品を修正し、頂点、ウェイト、結合行列、材質、追加した骨スロットを保存後に照合します。`--audit-only`は照合結果だけを出力します。
+
+`repair-resource-preloads --source <制作済み資源の作業先>`は、各assetの実際の参照先からbundleの先読み情報を再構成します。保存後に参照範囲と他のオブジェクト・streamを照合します。`--resources <catalogのsource ...>`を指定すると、選んだ資源を含むbundleを対象にします。
 
 顔と肌の仕上げは、造形ガイド、全prefabの対応表、元の表情チャンネルを使って実行します。制作した顔と付属部品を組み立て済みの首へつなぎ、接続頂点とフレームを保ちます。顔の色・濃淡・滑らかさは元のテクスチャを使い、Headと首の骨ウェイトに沿って首・胸の校正結果へ補間します。校正済みのBC7ブロックを保持し、顔のRGBと材質アルファを独立したパレットでも符号化して、保存後の復号値を原本と照合します。
 
@@ -251,7 +284,7 @@ python .\tools\blender-models\CharacterFaces\build_models.py --workspace <制作
 
 出力の`Preparation.json`にレシピと元データの対応を記録します。レシピのビルドには[資産制作のmesh batch](../../asset-authoring/README.md)を使います。
 
-肌色の基準は各資源の`pigmentReference`で指定します。NPCの固有色は元の画像を全mipで保持し、しわや毛穴の調整は法線画像へ適用します。`finish_resource_pigments`は、各LODの原本と現在のUV・ボーンの順序を使い、眉や唇などの濃淡と、現在の材質アルファを保ちます。
+肌色の基準は各資源の`pigmentReference`で指定します。`finish_resource_pigments`は、各LODの原本と現在のUV・ボーンの順序を使い、眉や唇などの濃淡と材質アルファを保ちながら肌色を合わせます。焼き込まれた陰影やしわ・毛穴は、顔の生成で指定した`surfaces`に沿って原本ごとに調整します。
 
 肌色の補正後は、`finish-skin-lods`でLOD0の首の肌模様を低LODの実際の表面へ転写します。共通のbind poseで対応する三角形を求め、各LODのUVへ焼き込みます。顔側のRGBを保持し、対象の圧縮ブロックと全mipを保存後に照合します。
 

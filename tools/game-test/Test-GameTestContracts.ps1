@@ -1298,7 +1298,7 @@ function Get-VerificationProcessState {param($Name)
         $expected[$owned]=Get-GtHash (Join-Path $owned 'Result.json')
     }
     $timer=[Diagnostics.Stopwatch]::StartNew()
-    & (Join-Path $tool 'Clear-GameTestArtifacts.ps1') -ArtifactRoot $root -MaxAgeDays 1 -Apply | Out-Null
+    $returned=& (Join-Path $tool 'Clear-GameTestArtifacts.ps1') -ArtifactRoot $root -MaxAgeDays 1 -Apply -PassThru
     $timer.Stop()
     $report=@(Get-ChildItem -LiteralPath $root -Filter 'Storage-Cleanup-*.json' -File)
     if($report.Count -ne 1){throw 'The writer fixture final summary is not unique.'}
@@ -1308,6 +1308,8 @@ function Get-VerificationProcessState {param($Name)
     $writes=@(Get-Content -LiteralPath (Join-Path $tool 'SummaryWrites.txt'))
     $queries=@(Get-Content -LiteralPath (Join-Path $workspace 'tools/runtime-verification/ProcessQueries.txt'))
     $checks=[ordered]@{
+        structuredResultMatchesSavedReport=($returned.completed -and $returned.applied -and $returned.path -eq $report[0].FullName -and
+            $returned.sha256 -eq (Get-GtHash $report[0].FullName) -and $returned.entries -eq $summary.actions.Count -and $returned.logicalBytes -eq $summary.bytes)
         summarySerializedOnce=($writes.Count -eq 1 -and $summary.summaryWrites -eq 1)
         exactActionEventCounts=(@($events|Where-Object event -eq 'action-planned').Count -eq $count -and @($events|Where-Object event -eq 'action-complete').Count -eq $count)
         exactOriginalDiagnostics=($summary.retiredRuns.Count -eq $count -and @($summary.retiredRuns|Where-Object{$_.identitySha256 -ne $expected[$_.path] -or $_.result.status -ne 'failed' -or $_.result.reason -ne 'bounded writer fixture'}).Count -eq 0)
@@ -1382,6 +1384,23 @@ function Get-VerificationProcessState {
         function Add-StorageCheck([string]$Name,[bool]$Passed) {
             $checks.Add([pscustomobject]@{name=$Name;status=$(if($Passed){'PASS'}else{'FAIL'})})
         }
+        $projectAst=Read-ContractSource $Sources['tools/Clear-ToolStorage.ps1']
+        $projectDiscovery=@($projectAst.FindAll({param($node)
+            $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Get-ToolAuthoringProject'
+        },$true))
+        if($projectDiscovery.Count -ne 1){throw 'The authoring project discovery boundary must be unique.'}
+        . ([scriptblock]::Create($projectDiscovery[0].Extent.Text))
+        $projectRoot=Join-Path $workspace 'AuthoringProjects'
+        $ownedProject=Join-Path $projectRoot 'First/Project'
+        $nestedProject=Join-Path $ownedProject 'Assets/ImportedSource/Project'
+        $secondProject=Join-Path $projectRoot 'Second/Project'
+        foreach($project in @($ownedProject,$nestedProject,$secondProject)){
+            [void][IO.Directory]::CreateDirectory($project)
+            [IO.File]::WriteAllText((Join-Path $project '.solasta-asset-authoring-project'),'SolastaUBAssetAuthoring:UnityProject:1')
+        }
+        $foundProjects=@(Get-ToolAuthoringProject $projectRoot)
+        Add-StorageCheck 'project discovery stops inside an owned project and retains independent projects' ($foundProjects.Count -eq 2 -and $ownedProject -in $foundProjects -and $secondProject -in $foundProjects -and $nestedProject -notin $foundProjects)
+        Add-StorageCheck 'missing optional authoring workspace has no projects' (@(Get-ToolAuthoringProject (Join-Path $projectRoot 'Missing')).Count -eq 0)
         function Test-StorageRejection([scriptblock]$Action) {
             try { & $Action | Out-Null; return $false } catch { return $true }
         }
@@ -1562,6 +1581,36 @@ function Get-VerificationProcessState {
                 Add-StorageCheck ('producer guard rejects before deleting any payload: '+$guardCase) ($guardRejected -and (Test-Path -LiteralPath $guardPayload.first) -and (Test-Path -LiteralPath $guardPayload.second))
             }
         }
+        foreach($case in @(
+            @{name='json-data';leaf='numeric-samples.json';role='payload';guard=$true;accepted=$true},
+            @{name='other-data-format';leaf='numeric-samples.native';role='payload';guard=$true;accepted=$true},
+            @{name='metadata-role';leaf='numeric-samples.json';role='metadata';guard=$true;accepted=$false},
+            @{name='unguarded-role';leaf='numeric-samples.json';role='payload';guard=$false;accepted=$false}
+        )){
+            $typed=New-GeneratedPayloadFixture ('typed-'+$case.name)
+            $dataPath=Join-Path (Split-Path -Parent $typed.second) $case.leaf
+            [IO.File]::Move($typed.second,$dataPath)
+            [IO.File]::WriteAllText($dataPath,'[1,2,3]')
+            $data=Get-Item -LiteralPath $dataPath
+            $row=$typed.document.files[1]
+            $row.path=$dataPath;$row.bytes=$data.Length;$row.lastWriteUtcTicks=$data.LastWriteTimeUtc.Ticks
+            $row.sha256=(Get-GtHash $dataPath).ToLowerInvariant();$row.role=$case.role
+            $guardPath=Join-Path $typed.area 'Producer.json'
+            Write-GtJson $guardPath @{outputs=@(@{path=$dataPath;sha256=$row.sha256;role=$case.role})}
+            $guardHash=Get-GtHash $guardPath
+            if($case.guard){$typed.document.guardInputs=@(@{path=$guardPath;sha256=$guardHash.ToLowerInvariant()})}
+            Write-GtJson $typed.plan $typed.document
+            $options=@{GeneratedPayloadPlanPath=$typed.plan;ReferencePath=@($typed.reference)}
+            if($case.accepted){
+                [void](Invoke-StorageCleanup $typed.area -Options $options -Apply)
+                Add-StorageCheck ('declared producer data retires independently of its filename: '+$case.name) (-not(Test-Path -LiteralPath $typed.first) -and -not(Test-Path -LiteralPath $dataPath) -and
+                    (Test-Path -LiteralPath $typed.retained) -and (Get-GtHash $guardPath) -ceq $guardHash)
+            }else{
+                $rejected=Test-StorageRejection {Invoke-StorageCleanup $typed.area -Options $options -Apply}
+                Add-StorageCheck ('typed role cannot bypass producer and metadata boundaries: '+$case.name) ($rejected -and (Test-Path -LiteralPath $typed.first) -and (Test-Path -LiteralPath $dataPath) -and
+                    (Get-GtHash $guardPath) -ceq $guardHash)
+            }
+        }
         $nestedPayload=New-GeneratedPayloadFixture 'many-roots-nested'
         $nestedDirectory=Join-Path (Split-Path -Parent $nestedPayload.first) 'Nested/Deeper'
         [void][IO.Directory]::CreateDirectory($nestedDirectory)
@@ -1589,6 +1638,12 @@ function Get-VerificationProcessState {
         $assetOptions=@{GeneratedPayloadPlanPath=$assetPayload.plan;ReferencePath=@($assetPayload.reference)}
         $assetPreview=Invoke-StorageCleanup $assetPayload.area -Options $assetOptions
         Add-StorageCheck 'asset-authoring workspace payloads support preview with explicit ownership and references' ((Test-Path -LiteralPath $assetPayload.first) -and -not $assetPreview.applied)
+        $authoringKeep=Join-Path $script:AssetAuthoringWorkspace 'RetainedAuthoringInputs'
+        [void][IO.Directory]::CreateDirectory($authoringKeep)
+        $authoringSentinel=Join-Path $authoringKeep 'source.bin';[IO.File]::WriteAllText($authoringSentinel,'retained authoring input')
+        $crossWorkspacePreview=Invoke-StorageCleanup $assetPayload.area -Options $assetOptions -Preserve @($authoringKeep,$payload.area)
+        Add-StorageCheck 'generated payload cleanup accepts preserved inputs from both owned workspaces' (-not $crossWorkspacePreview.applied -and (Test-Path -LiteralPath $assetPayload.first) -and [IO.File]::ReadAllText($authoringSentinel) -ceq 'retained authoring input')
+        Add-StorageCheck 'preservation does not broaden cleanup ownership outside the tool workspaces' ((Test-StorageRejection {Invoke-StorageCleanup $assetPayload.area -Options $assetOptions -Preserve @($workspace) -Apply}) -and (Test-Path -LiteralPath $assetPayload.first))
         $assetApplied=Invoke-StorageCleanup $assetPayload.area -Options $assetOptions -Apply
         Add-StorageCheck 'asset-authoring workspace retires only declared payloads and retains source references' (-not(Test-Path -LiteralPath $assetPayload.first) -and (Test-Path -LiteralPath $assetPayload.retained) -and $assetApplied.applied)
         Add-StorageCheck 'asset-authoring workspace rejects ordinary run pruning' (Test-StorageRejection {Invoke-StorageCleanup $assetPayload.area -Prune -Apply})
@@ -1637,7 +1692,7 @@ function Get-VerificationProcessState {
         }
         $payload=New-GeneratedPayloadFixture 'hardlink'
         $alias=Join-Path (Split-Path -Parent $payload.first) 'shared.bin'
-        [void](New-Item -ItemType HardLink -Path $alias -Target $payload.second)
+        [void](New-Item -ItemType HardLink -Path ('\\?\'+$alias) -Target ('\\?\'+$payload.second))
         Write-GtJson $payload.reference @{schemaVersion=1;paths=@($payload.retained,$alias)}
         $payload.document.reference.sha256=(Get-GtHash $payload.reference).ToLowerInvariant()
         Write-GtJson $payload.plan $payload.document
@@ -3506,6 +3561,7 @@ function Invoke-NativeActionProofContract([string]$Statements,[string]$Mode) {
 
 try {
     $paths=@(
+        'tools/Clear-ToolStorage.ps1',
         'tools/runtime-verification/WindowsDesktop.ps1',
         'tools/runtime-verification/WindowsDesktop.cs',
         'tools/runtime-verification/NativeDisplaySettings.ps1',

@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import math
+from numbers import Real
 import re
 import struct
 import zlib
@@ -55,7 +56,7 @@ def skin_bone_order(bone_paths: list[str], bone_hashes: list[int]) -> list[int]:
     return list(next(iter(orders)))
 
 
-def skin_palette_frame(packet,donor,bone_paths,donor_bone_paths,tolerance=1e-4):
+def skin_palette_frame(packet,donor,bone_paths,donor_bone_paths,tolerance=1e-4,*,common_frame=None):
     """Match bone slots by path and bind pose without merging native aliases."""
     import numpy as np
     if not math.isfinite(tolerance)or tolerance<=0:raise ValueError('A skin palette needs a finite positive frame tolerance.')
@@ -69,16 +70,22 @@ def skin_palette_frame(packet,donor,bone_paths,donor_bone_paths,tolerance=1e-4):
         raise ValueError('A skin palette has incomplete native bone slots.')
     if not np.isfinite(receiver_poses).all()or not np.isfinite(donor_poses).all():raise ValueError('A skin palette has nonfinite native bind poses.')
     common=[(i,j,name)for i,name in enumerate(donor_bone_paths)for j,other in enumerate(bone_paths)if name==other]
-    if not common:raise ValueError('Skin cuts have no shared native bind frame.')
-    names={name for _,_,name in common};candidates=[]
-    for first,second,_ in common:
-        try:frame=np.linalg.inv(donor_poses[first])@receiver_poses[second]
-        except np.linalg.LinAlgError:continue
-        errors=[(name,float(np.abs(receiver_poses[j]-donor_poses[i]@frame).max()))for i,j,name in common]
-        if not np.isfinite(frame).all()or any(min(error for path,error in errors if path==name)>tolerance for name in names):continue
-        if not any(float(np.abs(frame-old).max())<=tolerance for old in candidates):candidates.append(frame)
-    if len(candidates)!=1:raise ValueError('Skin cut parts have incompatible or ambiguous native bind frames.')
-    frame=candidates[0];mapped={};errors=[]
+    if common_frame is None:
+        if not common:raise ValueError('Skin cuts have no shared native bind frame.')
+        names={name for _,_,name in common};candidates=[]
+        for first,second,_ in common:
+            try:frame=np.linalg.inv(donor_poses[first])@receiver_poses[second]
+            except np.linalg.LinAlgError:continue
+            errors=[(name,float(np.abs(receiver_poses[j]-donor_poses[i]@frame).max()))for i,j,name in common]
+            if not np.isfinite(frame).all()or any(min(error for path,error in errors if path==name)>tolerance for name in names):continue
+            if not any(float(np.abs(frame-old).max())<=tolerance for old in candidates):candidates.append(frame)
+        if len(candidates)!=1:raise ValueError('Skin cut parts have incompatible or ambiguous native bind frames.')
+        frame=candidates[0]
+    else:
+        frame=np.asarray(common_frame,float)
+        if frame.shape!=(4,4)or not np.isfinite(frame).all()or not np.allclose(frame[3],[0,0,0,1],rtol=0,atol=1e-10)or abs(np.linalg.det(frame[:3,:3]))<=1e-12:
+            raise ValueError('A declared skin frame must be a finite nonsingular affine transform.')
+    mapped={};errors=[]
     for index,name in enumerate(donor_bone_paths):
         matches=[(float(np.abs(receiver_poses[j]-donor_poses[index]@frame).max()),j)for j,other in enumerate(bone_paths)if name==other]
         compatible=[(error,j)for error,j in matches if error<=tolerance]
@@ -108,6 +115,151 @@ def four_slot_skin(weights, indices, count):
         expanded_weights=[value for _ in range(count)for value in (1.,0.,0.,0.)]
     if expanded_weights and not expanded_indices:expanded_indices=[0]*(count*4)
     return expanded_weights,expanded_indices
+
+
+class SurfaceSkinSupportError(ValueError):
+    """A valid native stencil cannot be represented by the four-slot stream."""
+
+
+def source_surface_coordinates(surface, count):
+    """Validate a sample in the original indexed surface."""
+    fields(surface, ('triangle', 'barycentric'))
+    triangle=surface['triangle'];bary=surface['barycentric']
+    need(isinstance(triangle,list) and len(triangle)==len(set(triangle))==3 and
+         all(type(index)is int and 0<=index<count for index in triangle), 'Invalid native skin source triangle.')
+    need(isinstance(bary,list) and len(bary)==3 and
+         all(isinstance(value,Real) and type(value)is not bool and math.isfinite(value) and 0<=value<=1 for value in bary),
+         'Invalid native skin source barycentric coordinates.')
+    bary=struct.unpack('<3f',struct.pack('<3f',*bary))
+    need(abs(sum(bary)-1)<=1e-6, 'Native skin source barycentric coordinates do not sum to one.')
+    return triangle,bary
+
+
+def source_surface_skin(packet, surface):
+    """Derive one canonical skin stencil from an explicit native surface center."""
+    count=packet['vertexCount']
+    triangle,bary=source_surface_coordinates(surface,count)
+    weights,indices=packet['weights'],packet['boneIndices'];bones=len(packet['bindPoses'])//16
+    need(len(weights)==len(indices)==count*4 and bones>0 and len(packet['bindPoses'])==bones*16,
+         'Native skin source streams or palette are incomplete.')
+    mixed={}
+    for anchor,factor in zip(triangle,bary):
+        if factor==0:continue
+        total=0.
+        for offset in range(anchor*4,anchor*4+4):
+            value=struct.unpack('<f',struct.pack('<f',weights[offset]))[0];bone=indices[offset]
+            need(math.isfinite(value) and 0<=value<=1 and type(bone)is int and
+                 (value==0 or 0<=bone<bones), 'Native skin source has an invalid bone or weight.')
+            if value==0:continue
+            total+=value;mixed[bone]=mixed.get(bone,0.)+factor*value
+        need(abs(total-1)<=1e-5, 'Native skin source influences are unnormalized.')
+    ordered=sorted(mixed.items(),key=lambda row:(-row[1],row[0]));total=sum(mixed.values())
+    if not 1<=len(ordered)<=4:
+        raise SurfaceSkinSupportError('A source center exceeds four positive native skin influences.')
+    values=[];bones=[]
+    for bone,value in ordered:
+        value=struct.unpack('<f',struct.pack('<f',value/total))[0]
+        need(math.isfinite(value) and value>0, 'A source center lost positive skin support during float32 encoding.')
+        bones.append(bone);values.append(value)
+    return values+[0.]*(4-len(values)),bones+[0]*(4-len(bones))
+
+
+def source_surface_binding(native, packet, renderer_to_prefab, surfaces):
+    """Bind fibers whose skeletal weights and simulation both come from the source."""
+    return _surface_binding(native,packet,renderer_to_prefab,surfaces,shared_skin=True)
+
+
+def source_cloth_binding(native, packet, renderer_to_prefab, surfaces):
+    """Bind the simulation to its native surface when skeletal weights belong to the mating mesh."""
+    return _surface_binding(native,packet,renderer_to_prefab,surfaces,shared_skin=False)
+
+
+def _surface_binding(native, packet, renderer_to_prefab, surfaces, *, shared_skin):
+    import numpy as np
+    count=native['vertexCount'];total=packet['vertexCount']
+    need(type(count)is int and type(total)is int and 0<count<=total,
+         'A surface attachment requires its complete native vertex prefix.')
+    if shared_skin:
+        for key,dtype in(('weights','<f4'),('boneIndices','<i4')):
+            before=np.asarray(native[key],dtype=dtype).reshape(-1,4)
+            after=np.asarray(packet[key],dtype=dtype).reshape(-1,4)
+            need(len(before)==count and len(after)==total and np.array_equal(before,after[:count]),
+                 'A surface attachment changed native-prefix skin.')
+        need(np.array_equal(np.asarray(native['bindPoses'],dtype='<f4'),np.asarray(packet['bindPoses'],dtype='<f4')),
+             'A surface attachment changed its native bind palette.')
+    matrix=np.asarray(renderer_to_prefab,dtype=float)
+    need(matrix.shape==(16,)and np.isfinite(matrix).all(),'A surface attachment requires its finite renderer transform.')
+    matrix=matrix.reshape(4,4).T;linear=matrix[:3,:3]
+    need(np.array_equal(matrix[3],[0,0,0,1])and abs(np.linalg.det(linear))>1e-20,
+         'A surface attachment has a singular or non-affine renderer transform.')
+    samples={};faces={frozenset(map(int,tri))for slot in native['subMeshes']for tri in np.asarray(slot,int).reshape(-1,3)}
+    target_weights=np.asarray(packet['weights'],dtype='<f4').reshape(-1,4)
+    target_bones=np.asarray(packet['boneIndices'],dtype='<i4').reshape(-1,4)
+    need(isinstance(surfaces,list),'A surface attachment requires explicit added-vertex stencils.')
+    for item in surfaces:
+        fields(item,('vertex','surface'));index=item['vertex'];sample=item['surface']
+        need(type(index)is int and count<=index<total and index not in samples,
+             'A surface attachment has an unowned or repeated added vertex.')
+        if shared_skin:
+            weights,bones=source_surface_skin(native,sample)
+            need(np.array_equal(target_weights[index],weights)and np.array_equal(target_bones[index],bones),
+                 'A surface attachment differs from its canonical source skin.')
+        else:
+            source_surface_coordinates(sample,count)
+        need(frozenset(sample['triangle'])in faces,'A surface attachment does not name an original native triangle.')
+        samples[index]=sample
+    need(set(samples)==set(range(count,total)),'A surface attachment omits an added vertex.')
+    def channel(source,key,width):
+        values=np.asarray(source[key],dtype='<f4').reshape(-1,width).astype(float)
+        need(len(values)==source['vertexCount']and np.isfinite(values).all(),
+             'A surface attachment has incomplete or nonfinite vertex frames.')
+        return values
+    source_p=channel(native,'vertices',3);source_n=channel(native,'normals',3);source_t=channel(native,'tangents',4)
+    target_p=channel(packet,'vertices',3);target_n=channel(packet,'normals',3);target_t=channel(packet,'tangents',4)
+    unchanged=np.all(source_p==target_p[:count],axis=1)&np.all(source_n==target_n[:count],axis=1)&np.all(source_t==target_t[:count],axis=1)
+    anchors=np.arange(total);required=set(np.flatnonzero(~unchanged).tolist())
+    for index,sample in samples.items():
+        anchors[index]=sample['triangle'][int(np.argmax(np.asarray(sample['barycentric'],dtype='<f4')))]
+        required.add(int(anchors[index]))
+        required.update(anchor for anchor,factor in zip(sample['triangle'],sample['barycentric'])if factor>0)
+    source_p=source_p@linear.T+matrix[:3,3];target_p=target_p@linear.T+matrix[:3,3]
+    source_n=source_n@np.linalg.inv(linear);target_n=target_n@np.linalg.inv(linear)
+    source_tangent=source_t[:,:3]@linear.T;target_tangent=target_t[:,:3]@linear.T
+    active=np.asarray(sorted(required),int);changed=np.r_[np.flatnonzero(~unchanged),np.arange(count,total)]
+    def normalize(values,ids):
+        lengths=np.linalg.norm(values[ids],axis=1)
+        need(np.all(lengths>1e-5),'A surface attachment has a singular required frame.')
+        values[ids]/=lengths[:,None]
+    normalize(source_n,active);normalize(target_n,changed)
+    source_tangent[active]-=source_n[active]*np.sum(source_n[active]*source_tangent[active],axis=1)[:,None]
+    target_tangent[changed]-=target_n[changed]*np.sum(target_n[changed]*target_tangent[changed],axis=1)[:,None]
+    normalize(source_tangent,active);normalize(target_tangent,changed)
+    hands=source_t[:,3]*np.sign(np.linalg.det(linear))
+    need(np.all(np.isin(hands[active],[-1,1])),'A surface attachment has invalid native handedness.')
+    bitangents=np.cross(source_n,source_tangent)*hands[:,None]
+    uv=next((u for u in packet['uv']if u['channel']==0),None)
+    need(uv is not None and uv['dimension']>=2,'A surface attachment lost native texture coordinates.')
+    coordinates=np.asarray(uv['values'],dtype='<f4').reshape(-1,4)
+    need(len(coordinates)==total and np.isfinite(coordinates).all(),'A surface attachment has another UV vertex layout.')
+    slots=np.zeros(total,int)
+    for slot,indices in reversed(list(enumerate(packet['subMeshes']))):
+        indices=np.asarray(indices,int)
+        need(np.all((indices>=0)&(indices<total)),'A surface attachment has an unowned target triangle.')
+        slots[indices]=slot
+    rows=[]
+    for index,anchor in enumerate(anchors):
+        identity=index<count and bool(unchanged[index])
+        if identity:offset=[0.,0.,0.];normal=[0.,0.,1.];tangent=[1.,0.,0.]
+        else:
+            basis=np.asarray((source_tangent[anchor],bitangents[anchor],source_n[anchor]))
+            offset=(basis@(target_p[index]-source_p[anchor])).tolist()
+            normal=(basis@target_n[index]).tolist();tangent=(basis@target_tangent[index]).tolist()
+        rows.append(dict(anchor=int(anchor),native=identity,role='retained-source'if index<count else'surface',slot=int(slots[index]),
+            uv0=coordinates[index,:2].tolist(),offset=offset,normal=normal,tangent=tangent,tangentW=float(target_t[index,3])))
+    binding=dict(matrix=list(map(float,renderer_to_prefab)),vertices=rows)
+    if samples:binding['surfaceSkin' if shared_skin else 'clothSurface']=dict(sourceVertexCount=count,sourceFingerprint=native['sourceFingerprint'],
+        vertices=[dict(vertex=index,surface=sample)for index,sample in sorted(samples.items())])
+    return binding
 
 
 def fields(value, required, optional=()):

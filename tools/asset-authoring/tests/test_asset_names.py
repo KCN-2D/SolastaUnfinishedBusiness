@@ -521,6 +521,7 @@ class CharacterResourceContracts(unittest.TestCase):
         self.assertEqual(trees[1]['deformer'],original[1]['deformer'])
 
     def test_serialized_bytes_include_staged_and_empty_payloads(self):
+        import struct
         owner=self.resource_module()
         original=SimpleNamespace(data=None,get_raw_data=lambda:b'original')
         staged=SimpleNamespace(data=b'edited',get_raw_data=lambda:b'original')
@@ -528,6 +529,28 @@ class CharacterResourceContracts(unittest.TestCase):
         self.assertEqual(owner.serialized_object_bytes(original),b'original')
         self.assertEqual(owner.serialized_object_bytes(staged),b'edited')
         self.assertEqual(owner.serialized_object_bytes(empty),b'')
+        class TypedSource:
+            data=None
+            def __init__(self,order):self.order=order
+            def get_raw_data(self):return b'original'
+            def save_typetree(self,value):
+                self.data=struct.pack(self.order+'fQ',value['amount'],value['bone'])
+        declaration=dict(amount=.1,bone=2**60+7);retained=copy.deepcopy(declaration)
+        for order in('<','>'):
+            source=TypedSource(order);source.data=b'staged'
+            with self.subTest(order=order):
+                self.assertEqual(owner.serialized_object_bytes(source,tree=declaration),
+                    struct.pack(order+'fQ',declaration['amount'],declaration['bone']))
+                self.assertEqual(source.data,b'staged')
+                self.assertEqual(declaration,retained)
+        class InvalidSource(TypedSource):
+            def save_typetree(self,value):
+                self.data=b'partial'
+                raise ValueError('invalid typed payload')
+        invalid=InvalidSource('<')
+        with self.assertRaisesRegex(ValueError,'invalid typed payload'):
+            owner.serialized_object_bytes(invalid,tree=declaration)
+        self.assertIsNone(invalid.data)
 
     @staticmethod
     def resource_module():
@@ -595,6 +618,257 @@ class CharacterResourceContracts(unittest.TestCase):
             nodes=closure.collect([pointer])
         self.assertEqual(nodes,{('prepared',17),('shared',29)})
         self.assertEqual(dict(closure.kept),{'prepared':{17},'shared':{29}})
+
+    def test_packed_subassets_with_the_same_address_keep_distinct_saved_preload_closures(self):
+        api=self.resource_module();pointer=lambda key:dict(m_FileID=0,m_PathID=key)
+        class Object:
+            def __init__(self,key,kind,tree):
+                self.path_id=key;self.type=SimpleNamespace(name=kind);self.tree=copy.deepcopy(tree)
+                self.data=None;self.reader=SimpleNamespace(endian='<')
+            def read_typetree(self):return copy.deepcopy(self.tree)
+            def save_typetree(self,tree):
+                self.tree=copy.deepcopy(tree);self.data=json.dumps(self.tree,sort_keys=True).encode()
+            def get_raw_data(self):return json.dumps(self.tree,sort_keys=True).encode()
+        def load(path,**kwargs):
+            data=json.loads(Path(path).read_bytes())
+            file=SimpleNamespace(name=data['cab'],externals=[],script_types=[],objects={
+                int(key):Object(int(key),value['type'],value['tree'])for key,value in data['objects'].items()})
+            archive=SimpleNamespace(files={file.name:file})
+            archive.save=lambda **_:json.dumps(dict(cab=file.name,objects={str(key):dict(type=obj.type.name,tree=obj.tree)
+                for key,obj in file.objects.items()}),sort_keys=True).encode()
+            return SimpleNamespace(file=archive),file
+        containers=[('hero.prefab',dict(asset=pointer(10))),('hero.prefab',dict(asset=pointer(20))),
+                    ('sibling.prefab',dict(asset=pointer(30)))]
+        objects={1:dict(type='AssetBundle',tree=dict(m_Container=containers,m_PreloadTable=[],m_Dependencies=[],
+                    m_MainAsset=dict(asset=pointer(0),preloadIndex=0,preloadSize=0))),
+            10:dict(type='GameObject',tree=dict(m_Component=[dict(component=pointer(11))])),
+            11:dict(type='SkinnedMeshRenderer',tree=dict(m_Materials=[pointer(12)])),
+            12:dict(type='Material',tree={}),20:dict(type='MonoBehaviour',tree={}),
+            30:dict(type='GameObject',tree=dict(m_Component=[dict(component=pointer(31))])),
+            31:dict(type='SkinnedMeshRenderer',tree=dict(m_Materials=[pointer(32)])),
+            32:dict(type='Material',tree={}),99:dict(type='Mesh',tree={})}
+        with tempfile.TemporaryDirectory()as folder:
+            root=Path(folder);source=root/'input.bundle';output=root/'output';output.mkdir()
+            source.write_text(json.dumps(dict(cab='source',objects=objects)),encoding='utf-8')
+            original=source.read_bytes()
+            def rebase(environment,name,cab):
+                file=next(iter(environment.file.files.values()));file.name=cab
+            closure=api.ResourceClosure({'source':dict(source=str(source),sha256=api.digest(source))},rebase_archive=rebase)
+            with mock.patch.object(api,'load_serialized_bundle',side_effect=load):
+                closure.collect([('source',key)for key in(10,20,30)])
+                receipt=closure.pack('source',output,{'source':dict(file='owned.bundle',cab='packed')})
+                _,saved=load(output/receipt['file']);metadata=saved.objects[1].read_typetree()
+            self.assertEqual([name for name,_ in metadata['m_Container']],['hero.prefab','hero.prefab','sibling.prefab'])
+            for (_,entry),wanted in zip(metadata['m_Container'],([10,11,12],[20],[30,31,32])):
+                self.assertEqual(metadata['m_PreloadTable'][entry['preloadIndex']:entry['preloadIndex']+entry['preloadSize']],
+                    [pointer(key)for key in wanted])
+            self.assertEqual(set(saved.objects),{1,10,11,12,20,30,31,32})
+            self.assertTrue(receipt['assetRootPreloadsExact']);self.assertEqual(receipt['assetRoots'],3)
+            self.assertEqual(source.read_bytes(),original)
+            def broken_rebase(environment,name,cab):
+                rebase(environment,name,cab);file=next(iter(environment.file.files.values()))
+                metadata=file.objects[1].read_typetree();metadata['m_Container'][0][1]['preloadSize']=0
+                file.objects[1].save_typetree(metadata)
+            broken=api.ResourceClosure({'source':dict(source=str(source),sha256=api.digest(source))},rebase_archive=broken_rebase)
+            with mock.patch.object(api,'load_serialized_bundle',side_effect=load):
+                broken.collect([('source',key)for key in(10,20,30)])
+                with self.assertRaisesRegex(ValueError,'own root closure'):
+                    broken.pack('source',output,{'source':dict(file='broken.bundle',cab='packed')})
+            self.assertEqual(source.read_bytes(),original)
+
+    def test_existing_preloads_are_rebuilt_for_duplicate_addresses_main_assets_and_cross_file_ids(self):
+        api=self.resource_module();pointer=lambda key,owner=0:dict(m_FileID=owner,m_PathID=key)
+        def obj(kind,tree):return SimpleNamespace(type=SimpleNamespace(name=kind),read_typetree=lambda:copy.deepcopy(tree))
+        source=SimpleNamespace(name='source',externals=[SimpleNamespace(name='shared')],objects={
+            10:obj('GameObject',dict(component=pointer(11))),
+            11:obj('SkinnedMeshRenderer',dict(gameObject=pointer(10),mesh=pointer(20,1))),
+            20:obj('AnimatorController',dict(clip=pointer(21))),21:obj('AnimationClip',{})})
+        shared=SimpleNamespace(name='shared',externals=[],objects={20:obj('Mesh',{}),99:obj('MonoScript',{})})
+        files={'source':source,'shared':shared}
+        closure=api.ResourceClosure({key:{}for key in files},rebase_archive=None)
+        closure.scripts={'source':[('shared',99)],'shared':[]}
+        entry=lambda key:dict(asset=pointer(key),preloadIndex=0,preloadSize=1)
+        tree=dict(m_Name='unchanged',m_Dependencies=['shared.bundle'],m_PreloadTable=[pointer(20)],
+            m_Container=[('same.address',entry(10)),('same.address',entry(20)),
+                         ('empty.address',dict(asset=pointer(0),preloadIndex=0,preloadSize=0))],m_MainAsset=entry(10))
+        original=copy.deepcopy(tree)
+        with mock.patch.object(closure,'load',side_effect=lambda cab:(None,files[cab])):
+            updated=closure.preload_metadata(source,tree)
+            self.assertEqual(closure.preload_metadata(source,updated),updated)
+        self.assertEqual(tree,original)
+        self.assertEqual(updated['m_Name'],tree['m_Name']);self.assertEqual(updated['m_Dependencies'],tree['m_Dependencies'])
+        self.assertEqual([name for name,_ in updated['m_Container']],['same.address','same.address','empty.address'])
+        wanted=[[pointer(10),pointer(11),pointer(20,1),pointer(99,1)],
+                [pointer(20),pointer(21),pointer(99,1)],[]]
+        for (_,entry),expected in zip(updated['m_Container'],wanted):
+            start,size=entry['preloadIndex'],entry['preloadSize']
+            self.assertEqual(updated['m_PreloadTable'][start:start+size],expected)
+        main=updated['m_MainAsset'];self.assertEqual(updated['m_PreloadTable'][main['preloadIndex']:main['preloadIndex']+main['preloadSize']],wanted[0])
+        valid=copy.deepcopy(updated)
+        for _,entry in valid['m_Container']:
+            start,size=entry['preloadIndex'],entry['preloadSize']
+            valid['m_PreloadTable'][start:start+size]=list(reversed(valid['m_PreloadTable'][start:start+size]))
+        with mock.patch.object(closure,'load',side_effect=lambda cab:(None,files[cab])):
+            self.assertEqual(closure.preload_metadata(source,valid),valid)
+        updated['m_Container'][0][1]['asset']['m_PathID']=999
+        self.assertEqual(tree,original)
+
+    def test_existing_preload_repair_rejects_unrepresentable_transitive_owners_and_invalid_spans(self):
+        api=self.resource_module();pointer=lambda key,owner=0:dict(m_FileID=owner,m_PathID=key)
+        def obj(kind,tree):return SimpleNamespace(type=SimpleNamespace(name=kind),read_typetree=lambda:tree)
+        files={
+            'source':SimpleNamespace(name='source',externals=[SimpleNamespace(name='shared')],objects={10:obj('GameObject',dict(component=pointer(20,1)))}),
+            'shared':SimpleNamespace(name='shared',externals=[SimpleNamespace(name='third')],objects={20:obj('MonoBehaviour',dict(mesh=pointer(30,1)))}),
+            'third':SimpleNamespace(name='third',externals=[],objects={30:obj('Mesh',{})})}
+        tree=dict(m_PreloadTable=[],m_Container=[('source.asset',dict(asset=pointer(10),preloadIndex=0,preloadSize=0))],
+            m_MainAsset=dict(asset=pointer(0),preloadIndex=0,preloadSize=0))
+        def check(value):
+            closure=api.ResourceClosure({key:{}for key in files},rebase_archive=None);closure.scripts={key:[]for key in files}
+            with mock.patch.object(closure,'load',side_effect=lambda cab:(None,files[cab])):
+                return closure.preload_metadata(files['source'],value)
+        original=copy.deepcopy(tree)
+        with self.assertRaisesRegex(ValueError,'existing external reference owner'):check(tree)
+        self.assertEqual(tree,original)
+        files['source'].externals.append(SimpleNamespace(name='third'))
+        good=check(tree);self.assertEqual(good['m_Container'][0][1]['preloadSize'],3)
+        for field,value in(('preloadIndex',-1),('preloadSize',1),('preloadSize',True)):
+            bad=copy.deepcopy(tree);bad['m_Container'][0][1][field]=value
+            with self.subTest(field=field,value=value),self.assertRaisesRegex(ValueError,'original preload span'):check(bad)
+        bad=copy.deepcopy(tree);bad['m_MainAsset']['preloadIndex']=-1
+        with self.assertRaisesRegex(ValueError,'original preload span'):check(bad)
+
+    def test_metadata_preload_repair_roundtrips_streams_and_rejects_unrelated_object_changes(self):
+        api=self.resource_module();pointer=lambda key:dict(m_FileID=0,m_PathID=key)
+        damage=False
+        classes={'AssetBundle':142,'GameObject':1,'SkinnedMeshRenderer':137,'Mesh':43,'MonoBehaviour':114}
+        class Object:
+            def __init__(self,key,kind,tree,record):
+                self.path_id=key;self.type=SimpleNamespace(name=kind);self.tree=copy.deepcopy(tree);self.data=None
+                self.type_id=record.get('typeId',classes.get(kind,-1));self.class_id=record.get('classId',classes.get(kind,-1))
+            def read_typetree(self):return copy.deepcopy(self.tree)
+            def save_typetree(self,tree):self.tree=copy.deepcopy(tree);self.data=self.get_raw_data()
+            def get_raw_data(self):return json.dumps(self.tree,sort_keys=True).encode()
+        def load(path,**kwargs):
+            data=json.loads(Path(path).read_bytes())
+            def schema(value):
+                def write(file,writer,is_reference):writer.write_string_to_null(value)
+                return SimpleNamespace(write=write)
+            type_schemas=data.get('typeSchemas',{kind:kind for kind in classes})
+            ref_schemas=data.get('refTypes',[])
+            file=SimpleNamespace(name=data['cab'],externals=[],script_types=[],flags=data.get('fileFlags',4),
+                header=SimpleNamespace(version=data.get('formatVersion',22),endian=data.get('endian','<')),
+                unity_version=data.get('unityVersion','2019.4'),_m_target_platform=data.get('targetPlatform',5),
+                _enable_type_tree=data.get('typeTree',False),types=[schema(type_schemas[key])for key in sorted(type_schemas)],
+                ref_types=[schema(value)for value in ref_schemas],
+                objects={int(key):Object(int(key),row['type'],row['tree'],row)for key,row in data['objects'].items()})
+            stream=SimpleNamespace(bytes=bytes(data['stream']),flags=data['streamFlags'])
+            archive=SimpleNamespace(files={file.name:file,file.name+'.resS':stream})
+            def save(**kwargs):
+                if damage:file.objects[22].tree['positions'].append(999.)
+                return json.dumps(dict(cab=file.name,objects={str(key):dict(type=obj.type.name,tree=obj.tree,typeId=obj.type_id,classId=obj.class_id)for key,obj in file.objects.items()},
+                    stream=list(stream.bytes),streamFlags=stream.flags,fileFlags=file.flags,formatVersion=file.header.version,endian=file.header.endian,
+                    unityVersion=file.unity_version,targetPlatform=file._m_target_platform,typeTree=file._enable_type_tree,
+                    typeSchemas=type_schemas,refTypes=ref_schemas),sort_keys=True).encode()
+            archive.save=save
+            return SimpleNamespace(file=archive),file
+        entry=lambda key:dict(asset=pointer(key),preloadIndex=0,preloadSize=1)
+        objects={1:dict(type='AssetBundle',tree=dict(m_Container=[('same.address',entry(10)),('same.address',entry(33))],
+            m_PreloadTable=[pointer(33)],m_MainAsset=dict(asset=pointer(0),preloadIndex=0,preloadSize=0))),
+            10:dict(type='GameObject',tree=dict(component=pointer(11))),
+            11:dict(type='SkinnedMeshRenderer',tree=dict(mesh=pointer(22))),
+            22:dict(type='Mesh',tree=dict(positions=[0.,1.,2.])),33:dict(type='MonoBehaviour',tree={})}
+        with tempfile.TemporaryDirectory()as folder:
+            root=Path(folder);source=root/'source.bundle';target=root/'saved.bundle'
+            source.write_text(json.dumps(dict(cab='source',objects=objects,stream=[7,4,19],streamFlags=4)),encoding='utf-8')
+            original=source.read_bytes();closure=api.ResourceClosure({'source':dict(source=str(source),sha256=api.digest(source))},rebase_archive=None)
+            with mock.patch.object(api,'load_serialized_bundle',side_effect=load):
+                receipt=closure.repair_preloads('source',target)
+                self.assertTrue(receipt['changed']);self.assertTrue(receipt['allAssetRootClosuresExact'])
+                self.assertEqual(receipt['assetRoots'],2)
+                _,saved=load(target);tree=saved.objects[1].read_typetree()
+                self.assertEqual(tree['m_PreloadTable'],[pointer(i)for i in(10,11,22,33)])
+                self.assertEqual(saved.objects[22].tree,objects[22]['tree'])
+                self.assertEqual(source.read_bytes(),original)
+                for other in(source,target):
+                    with self.assertRaisesRegex(ValueError,'independent source and new target'):closure.repair_preloads('source',other)
+                good=target.read_bytes()
+                data=json.loads(good);data['objects']['22']['tree']['positions'][0]=5.
+                target.write_text(json.dumps(data),encoding='utf-8');bad=copy.deepcopy(receipt);bad['target']['sha256']=api.digest(target)
+                with self.assertRaisesRegex(ValueError,'unrelated serialized object'):closure.validate_preloads(bad)
+                data=json.loads(good);data['streamFlags']=0;target.write_text(json.dumps(data),encoding='utf-8');bad['target']['sha256']=api.digest(target)
+                with self.assertRaisesRegex(ValueError,'stream or member flags'):closure.validate_preloads(bad)
+                for field,value in(('fileFlags',0),('formatVersion',21),('endian','>'),('unityVersion','other'),('targetPlatform',19),('typeTree',True)):
+                    data=json.loads(good);data[field]=value
+                    target.write_text(json.dumps(data),encoding='utf-8');bad['target']['sha256']=api.digest(target)
+                    with self.subTest(field=field),self.assertRaisesRegex(ValueError,'member flags|serialized object or external-reference ownership'):
+                        closure.validate_preloads(bad)
+                for field in('typeId','classId'):
+                    data=json.loads(good);data['objects']['22'][field]+=1
+                    target.write_text(json.dumps(data),encoding='utf-8');bad['target']['sha256']=api.digest(target)
+                    with self.subTest(field=field),self.assertRaisesRegex(ValueError,'object type ownership'):closure.validate_preloads(bad)
+                for field in('typeSchemas','refTypes'):
+                    data=json.loads(good)
+                    if field=='typeSchemas':data[field]['MonoBehaviour']='different script schema with unchanged class ID'
+                    else:data[field]=['other referenced type']
+                    target.write_text(json.dumps(data),encoding='utf-8');bad['target']['sha256']=api.digest(target)
+                    with self.subTest(field=field),self.assertRaisesRegex(ValueError,'serialized object or external-reference ownership'):
+                        closure.validate_preloads(bad)
+                target.write_bytes(good)
+                updated=api.ResourceClosure({'source':dict(source=str(target),sha256=api.digest(target))},rebase_archive=None)
+                unchanged=updated.repair_preloads('source',root/'same.bundle')
+                self.assertFalse(unchanged['changed']);self.assertEqual(unchanged['source']['sha256'],unchanged['target']['sha256'])
+                damage=True;failed=root/'failed.bundle'
+                with self.assertRaisesRegex(ValueError,'unrelated serialized object'):closure.repair_preloads('source',failed)
+                self.assertFalse(failed.exists());self.assertFalse(failed.with_name(failed.name+'.writing').exists())
+                self.assertEqual(source.read_bytes(),original)
+
+    def test_preload_replay_uses_its_prepared_source_graph_and_preserves_inherited_operations(self):
+        with tempfile.TemporaryDirectory()as folder:
+            root=Path(folder)
+            def save(path,value):
+                path.parent.mkdir(parents=True,exist_ok=True);publisher.write(path,value)
+                return dict(path=str(path),sha256=publisher.sha(path))
+            def pin(path):return dict(path=str(path),sha256=publisher.sha(path))
+            def baseline(name,dependency):
+                directory=root/name;catalog=directory/'Catalog';catalog.mkdir(parents=True)
+                (catalog/'first.bundle').write_bytes(b'unchanged referring object')
+                (catalog/'dependency.bundle').write_bytes(dependency)
+                rows=[dict(file=name,sha256=publisher.sha(catalog/name),objects=1,newCab=cab,
+                    allRetainedObjectFieldsExactAfterReferenceRebasing=True)
+                    for name,cab in(('first.bundle','first'),('dependency.bundle','dependency'))]
+                manifest=save(catalog/publisher.RESOURCE_FILES['manifest'],dict(bundles=[dict(file=row['file'],sha256=row['sha256'])for row in rows]))
+                assembly=save(directory/'ResourceAssembly.json',dict(status='PASS_STANDALONE_CHARACTER_RESOURCES',proofs=rows,catalogSha256=manifest['sha256']))
+                return dict(catalog=manifest,assembly=assembly),rows
+            source,rows=baseline('Source',b'one closed dependency graph')
+            other,other_rows=baseline('Other',b'a different closed dependency graph')
+            self.assertEqual(rows[0]['sha256'],other_rows[0]['sha256'])
+            self.assertNotEqual(rows[1]['sha256'],other_rows[1]['sha256'])
+            target=root/'Candidate'/'Catalog'/'first.bundle';target.parent.mkdir(parents=True);target.write_bytes(b'referring object with repaired preloads')
+            receipt=dict(file=target.name,source=pin(Path(source['catalog']['path']).parent/target.name),target=pin(target),
+                sourceCatalog=dict(manifest=source['catalog'],assembly=source['assembly']),changed=True)
+            proof=root/'Candidate'/'Receipts'/'preloads.json'
+            operation=dict(kind='asset-root-preloads',beforeSha256=rows[0]['sha256'],sha256=publisher.sha(target),
+                proof=save(proof,receipt),authority=dict(inputs=list(source.values())))
+            row=dict(rows[0],sha256=publisher.sha(target),allRetainedObjectFieldsExactAfterReferenceRebasing=False,appearanceFinishing=[operation])
+            assembly=dict(preparedSource=source)
+            graph=SimpleNamespace(validate_preloads=mock.Mock(return_value=dict(changed=True)))
+            with mock.patch.object(publisher,'prepared_resource_closure',return_value=graph)as resolve:
+                publisher.validate_prepared_resource(row,assembly,{})
+                self.assertEqual(resolve.call_count,1)
+                wrong=copy.deepcopy(receipt);wrong['sourceCatalog']=dict(manifest=other['catalog'],assembly=other['assembly'])
+                wrong['source']=pin(Path(other['catalog']['path']).parent/target.name)
+                altered=copy.deepcopy(row);altered['appearanceFinishing'][0]['proof']=save(root/'other-receipt.json',wrong)
+                with self.assertRaisesRegex(ValueError,'another prepared source graph'):
+                    publisher.validate_prepared_resource(altered,assembly,{})
+                self.assertEqual(resolve.call_count,1)
+                # A later candidate inherits the operation as its baseline. The
+                # recursive validation must use that operation's own source.
+                inherited_manifest=save(target.parent/publisher.RESOURCE_FILES['manifest'],dict(bundles=[
+                    dict(file=row['file'],sha256=row['sha256']),dict(file=rows[1]['file'],sha256=rows[1]['sha256'])]))
+                inherited_assembly=save(target.parent.parent/'ResourceAssembly.json',dict(assembly,proofs=[row,rows[1]],
+                    catalogSha256=inherited_manifest['sha256'],status='PASS_STANDALONE_CHARACTER_RESOURCES'))
+                publisher.validate_prepared_resource(copy.deepcopy(row),dict(preparedSource=dict(catalog=inherited_manifest,assembly=inherited_assembly)),{})
+                self.assertEqual(resolve.call_count,2)
 
     def test_sibling_prefab_and_controller_hold_the_same_serialized_file_lifetime(self):
         api=self.resource_module()
@@ -848,6 +1122,22 @@ class CharacterResourceContracts(unittest.TestCase):
         extended,alias_proof=api.extend_skin_bone_palette(file,repeated,slots,[*slots,target[-1],source[0]])
         self.assertEqual(extended['m_Bones'],[pointer(6),pointer(6),pointer(4),pointer(6)])
         self.assertTrue(alias_proof['nativeBonePrefixExact'])
+        # A verified native recovery can remove an unused prepared suffix.
+        # Other consumers retain their transforms and their original palette.
+        binds=[{'e%d%d'%(r,c):float(root_bind[r,c])for r in range(4)for c in range(4)}for _ in range(2)]
+        objects[22]=SimpleNamespace(type=SimpleNamespace(name='Mesh'),read_typetree=lambda:dict(m_BindPose=binds))
+        restored_packet=dict(packet,vertexCount=1,weights=[1.,0.,0.,0.],boneIndices=[0,0,0,0],bindPoses=packet['bindPoses'][:16])
+        original_consumer=copy.deepcopy(framed);other_rig=copy.deepcopy(objects[14].read_typetree())
+        restored,restored_proof=api.extend_skin_bone_palette(file,framed,target,source,packet=restored_packet)
+        self.assertEqual(restored['m_Bones'],[pointer(6)])
+        self.assertEqual(restored_proof['removedUnusedSuffixSlots'],[1])
+        self.assertEqual(framed,original_consumer);self.assertEqual(objects[14].read_typetree(),other_rig)
+        for changed in(dict(restored_packet,boneIndices=[0,1,0,0]),dict(restored_packet,weights=[float('nan'),0.,0.,0.]),
+                        dict(restored_packet,bindPoses=[2.]+restored_packet['bindPoses'][1:])):
+            with self.assertRaisesRegex(ValueError,'reduced skin palette'):
+                api.extend_skin_bone_palette(file,framed,target,source,packet=changed)
+        with self.assertRaisesRegex(ValueError,'complete replacement packet'):
+            api.extend_skin_bone_palette(file,framed,target,source)
         with self.assertRaisesRegex(ValueError,'native bone prefix'):
             api.extend_skin_bone_palette(file,renderer,source,list(reversed(target)))
 
@@ -862,6 +1152,23 @@ class CharacterResourceContracts(unittest.TestCase):
         self.assertEqual(unpack.call_args_list,[mock.call(b'crunched',level)for level in range(3)])
         self.assertEqual([image.shape[:2]for image in images],[(4,4),(2,2),(1,1)])
         self.assertEqual([int(image[0,0,0])for image in images],[0,1,2])
+
+    def test_rgb24_mips_preserve_odd_dimensions_payloads_and_opaque_alpha(self):
+        import numpy as np
+        api=self.resource_module();blocks=[bytes(range(45)),bytes(range(6)),bytes([71,83,97])]
+        payload=[b''.join(blocks)]
+        texture=SimpleNamespace(m_Name='opaque atlas',m_TextureFormat=3,m_Width=5,m_Height=3,m_MipCount=3,
+            get_image_data=lambda:payload[0])
+        obj=SimpleNamespace(read=lambda:texture,version=(2019,4,37,1),platform=19)
+        self.assertEqual(api.texture_mip_payloads(obj),(3,blocks))
+        images=api.texture_mip_images(obj)
+        self.assertEqual([image.shape[:2]for image in images],[(3,5),(1,2),(1,1)])
+        for image,block in zip(images,blocks,strict=True):
+            np.testing.assert_array_equal(image[:,:,:3].ravel(),np.frombuffer(block,np.uint8))
+            self.assertTrue(np.all(image[:,:,3]==255))
+        for raw in (b''.join(blocks)[:-1],b''.join(blocks)+b'\0'):
+            payload[0]=raw
+            with self.assertRaisesRegex(ValueError,'mip chain'):api.texture_mip_payloads(obj)
 
     def test_groom_precision_preserves_native_fitting_records(self):
         api=self.resource_module()

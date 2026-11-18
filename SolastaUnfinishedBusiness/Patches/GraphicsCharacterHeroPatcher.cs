@@ -13,6 +13,30 @@ namespace SolastaUnfinishedBusiness.Patches;
 [UsedImplicitly]
 public static class GraphicsCharacterHeroPatcher
 {
+    [HarmonyPatch(typeof(GraphicsCharacterHero), "MorphotypeElementChanged")]
+    [UsedImplicitly]
+    public static class MorphotypeElementChanged_Patch
+    {
+        private static void RefreshParts(IGraphicsCharacterFactoryService service, GraphicsCharacterHero graphics,
+            bool forceClean, MorphotypeElementDefinition.ElementCategory category)
+        {
+            // The native loader compares source keys and the helmet crown mask.
+            // A face change can retain matching clothes, hair and wielded items.
+            service.RefreshGraphicsCharacter(graphics,
+                forceClean && category != MorphotypeElementDefinition.ElementCategory.FaceShape);
+        }
+
+        [UsedImplicitly]
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions) =>
+            instructions.ReplaceCalls(AccessTools.Method(typeof(IGraphicsCharacterFactoryService),
+                    nameof(IGraphicsCharacterFactoryService.RefreshGraphicsCharacter),
+                    [typeof(GraphicsCharacterHero), typeof(bool)]),
+                2, "GraphicsCharacterHero.MorphotypeElementChanged.Parts",
+                new CodeInstruction(OpCodes.Ldarg_2),
+                new CodeInstruction(OpCodes.Call,
+                    AccessTools.Method(typeof(MorphotypeElementChanged_Patch), nameof(RefreshParts))));
+    }
+
     [HarmonyPatch]
     [UsedImplicitly]
     public static class WieldedEquipmentChanged_Patch

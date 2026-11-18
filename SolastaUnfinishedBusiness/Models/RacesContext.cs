@@ -210,9 +210,50 @@ internal static class RacesContext
         if (graphics) graphics.GetComponent<BodyShapePresentation>()?.Release(false);
     }
 
+    internal static CustomModels.SkinMeshSource.SourceGraph SuspendBodyShapeWithNativeOwner(
+        GraphicsCharacter graphics, IEnumerable<SkinnedMeshRenderer> renderers, Action restoreOwner)
+    {
+        if (!graphics) { restoreOwner(); return null; }
+        var body = graphics.GetComponent<BodyShapePresentation>();
+        if (body && body.TrySuspendNativeOwner(restoreOwner, out var retained)) return retained;
+        // A natively initialized part can precede its first body overlay. Use
+        // the same owner transaction with unchanged source meshes in that case.
+        var live = CharacterModelRenderers(graphics);
+        var targets = renderers.Where(renderer => renderer && live.Contains(renderer)).Distinct().ToArray();
+        if (targets.Length == 0) { restoreOwner(); return null; }
+        var sources = CustomModels.SkinMeshSource.Capture(graphics, targets) ??
+            throw new InvalidOperationException("A native presentation mutation has no complete source binding.");
+        if (!sources.Values.Any(source => source.ClothOwner)) { restoreOwner(); return null; }
+        var graph = CustomModels.SkinMeshSource.PrepareMeshes(graphics,
+            sources.ToDictionary(pair => pair.Key, pair => (pair.Value, pair.Value.Original)));
+        try
+        {
+            graph.Apply(false);
+            graph.RestoreWithNativeOwner(false, restoreOwner);
+            return graph;
+        }
+        catch (Exception failure)
+        {
+            try { graph.Restore(false); }
+            catch (Exception rollback)
+            { throw new AggregateException("Native presentation suspension and recovery failed.", failure, rollback); }
+            throw;
+        }
+    }
+
+    internal static void BindNativeBodyDerivedBone(GraphicsCharacter graphics, SkinnedMeshRenderer renderer,
+        Transform parent, Transform bone, Matrix4x4 local)
+    {
+        if (!graphics || graphics.GetComponent<BodyShapePresentation>() is not { } owner)
+            throw new InvalidOperationException("A generated native source bone has no presentation owner.");
+        owner.BindDerivedBone(renderer, parent, bone, local);
+    }
+
     internal static bool ApplyBodyShape(GraphicsCharacter graphics)
     {
         if (_bodyShapesUnloading) return true;
+        if (DeferBodyShapeDuringCreation(graphics))
+            return graphics.GetComponent<BodyShapePresentation>() is not { HasSources: true };
         var character = graphics?.RulesetCharacter;
         if (!UsesBodyShapeAppearance(character))
         {
@@ -236,6 +277,16 @@ internal static class RacesContext
         if ((enabled || originallyAvailable) && character.MorphotypeElementAdditionalValues.TryGetValue(
                 MorphotypeElementDefinition.ElementCategory.Musculature, out var savedValue) &&
             BodyShapeFinite(savedValue)) value = Mathf.Clamp(savedValue, 0f, 100f);
+        var supplemental = enabled || originallyAvailable;
+        var field = supplemental ? GetBodyShapeField(character.Sex == CreatureSex.Female ? 1 : 0) : null;
+        var previous = graphics.GetComponent<BodyShapePresentation>();
+        if (previous?.KeepsBodyShape(graphics, field, value, presentation.DefaultMusculature, supplemental) == true)
+        {
+            if (previous.IsPending) previous.Refresh(graphics, field, value, presentation.DefaultMusculature, supplemental);
+            return false;
+        }
+        ReleaseBodyShape(graphics);
+        if (previous?.HasSources == true) return false;
         foreach (var renderer in graphics.BlendShapeRenderers)
         {
             if (IsProtectedBodyRenderer(graphics, renderer)) continue;
@@ -250,6 +301,82 @@ internal static class RacesContext
 
     private static bool HasNativeBodyShape(RacePresentation presentation) =>
         presentation != null && (!OriginalBodyShapeCategories.TryGetValue(presentation, out var available) || available);
+
+    internal static void SyncNativeBodyRest(GraphicsCharacter graphics)
+    {
+        if (_bodyShapesUnloading || !graphics || graphics.RulesetCharacter == null || !graphics.Animator ||
+            UsesBodyShapeAppearance(graphics.RulesetCharacter)) return;
+        if (DeferBodyShapeDuringCreation(graphics)) return;
+        if (graphics.GetComponent<CharacterModelPresentation>() is { IsInitializing: true }) return;
+        if (graphics is not GraphicsCharacterMonster monster || !monster.HumanoidMonsterPresentationDefinition) return;
+        var body = (int)GraphicsCharacterDefinitions.BodyPart.Body;
+        var targets = Part(graphics.ShapeSkinnedMeshRenderersPerBodySlot)
+            .Concat(Part(graphics.ArmorSkinnedMeshRenderersPerBodySlot))
+            .Where(renderer => renderer && renderer.sharedMesh &&
+                graphics.BlendShapeRenderers.Contains(renderer) && NativeBodyShapeFrame(renderer.sharedMesh) >= 0).ToHashSet();
+        IEnumerable<SkinnedMeshRenderer> Part(SkinnedMeshRenderer[][] slots) =>
+            slots != null && body < slots.Length ? slots[body] ?? [] : [];
+        var sources = CustomModels.SkinMeshSource.Capture(graphics, targets);
+        if (sources == null || !sources.Values.Any(source => source.ClothOwner && source.OwnerCurrent)) return;
+        // NPC appearance values and physical weights remain owned by the native factory.
+        var owner = graphics.GetComponent<BodyShapePresentation>() ?? graphics.gameObject.AddComponent<BodyShapePresentation>();
+        if (owner.HasSources) return;
+        owner.Bind(graphics);
+        if (owner.isActiveAndEnabled) owner.Refresh(graphics, null, 0f, 0f, false);
+    }
+
+    internal static bool PrepareNativeBodyRest(GraphicsCharacter graphics)
+    {
+        if (!graphics || UsesBodyShapeAppearance(graphics.RulesetCharacter)) return true;
+        ReleaseBodyShape(graphics);
+        return graphics.GetComponent<BodyShapePresentation>() is not { HasSources: true };
+    }
+
+    private static bool DeferBodyShapeDuringCreation(GraphicsCharacter graphics)
+    {
+        if (!graphics ||
+            !UsesBodyShapeAppearance(graphics.RulesetCharacter) &&
+            graphics is not GraphicsCharacterMonster { HumanoidMonsterPresentationDefinition: not null }) return false;
+        var owner = graphics.GetComponent<BodyShapePresentation>();
+        if (!CharacterModelCreations.ContainsKey(graphics) && owner?.NativePartsRetiring(graphics) != true) return false;
+        // The factory still owns native morph weights until every renderer, virtual
+        // deformer and copied collider has been rebound to the actor's skeleton.
+        owner ??= graphics.gameObject.AddComponent<BodyShapePresentation>();
+        owner.Bind(graphics);
+        owner.DeferRefresh();
+        return true;
+    }
+
+    internal static void BeginCharacterModelCreation(GraphicsCharacter graphics)
+    {
+        if (!graphics) return;
+        CharacterModelCreations.TryGetValue(graphics, out var state);
+        CharacterModelCreations[graphics] = (state.Count + 1, state.Failed);
+    }
+
+    internal static bool EndCharacterModelCreation(GraphicsCharacterFactoryManager factory, GraphicsCharacter graphics,
+        RulesetCharacter actor, bool completed)
+    {
+        if (ReferenceEquals(graphics, null)) return completed;
+        if (!CharacterModelCreations.TryGetValue(graphics, out var state) || state.Count <= 0)
+        {
+            CharacterModelCreations.Remove(graphics);
+            if (graphics) graphics.GetComponent<BodyShapePresentation>()?.Release(false);
+            ReportBodyShapeError("creation-owner", new InvalidOperationException("A native appearance creation scope lost its ownership depth."));
+            return false;
+        }
+        var failed = state.Failed || !completed;
+        if (state.Count > 1) { CharacterModelCreations[graphics] = (state.Count - 1, failed); return !failed; }
+        CharacterModelCreations.Remove(graphics);
+        if (!graphics) return false;
+        var owner = graphics.GetComponent<BodyShapePresentation>();
+        if (owner?.IsPending != true) return !failed;
+        if (!failed && factory && !_characterModelsUnloading && !_bodyShapesUnloading &&
+            ReferenceEquals(actor, graphics.RulesetCharacter) && !factory.IsAbortingGraphicsCharacter(graphics))
+            RefreshBodyShape(graphics);
+        else owner.Release(false);
+        return !failed;
+    }
 
     private static bool UsesBodyShapeAppearance(RulesetCharacter character) => character is RulesetCharacterHero ||
         character is RulesetCharacterSimulacrum duplicate && SimulacrumBehavior.UsesInventoryAppearance(duplicate);
@@ -288,7 +415,7 @@ internal static class RacesContext
     private static readonly ConditionalWeakTable<Mesh, string> CharacterModelFingerprints = new();
     private static readonly ConditionalWeakTable<Texture, string> CharacterModelTextureFingerprints = new();
     private static readonly HashSet<CharacterModelPresentation> CharacterModelOwners = [];
-    private static readonly Dictionary<GraphicsCharacter, int> CharacterModelCreations = [];
+    private static readonly Dictionary<GraphicsCharacter, (int Count, bool Failed)> CharacterModelCreations = [];
     private static readonly Dictionary<GraphicsCharacter, (LODGroup Group, LOD[] Levels, Dictionary<Renderer, bool> Hidden)>
         CharacterModelLodStates = [];
     private static readonly HashSet<string> CharacterModelErrors = [];
@@ -605,13 +732,32 @@ internal static class RacesContext
     }
 
     internal static void BindCharacterPartParameters(GraphicsCharacterFactoryManager factory, GraphicsCharacter graphics,
-        GraphicsCharacterDefinitions.BodyPart part, bool shape)
+        GameObject source, GraphicsCharacterDefinitions.BodyPart part, bool shape)
     {
-        if (_characterModelCatalog?.UsesCompleteParts != true || !graphics) return;
+        if (!factory || !graphics) return;
         var index = (int)part;
-        var keys = shape ? factory.shapePartsToLoad : factory.armorPartsToLoad;
         var instances = shape ? graphics.ShapeInstancePerBodySlot : graphics.ArmorInstancePerBodySlot;
-        if (index < 0 || index >= keys.Length || index >= instances.Length || !instances[index]) return;
+        if (instances == null || index < 0 || index >= instances.Length || !instances[index]) return;
+        if (!_bodyShapesUnloading &&
+            (UsesBodyShapeAppearance(graphics.RulesetCharacter) ||
+             graphics is GraphicsCharacterMonster { HumanoidMonsterPresentationDefinition: not null }))
+        {
+            // Native Destroy completes after this callback. Retain this part's
+            // actual consumers while the request still owns its temporary flag.
+            var owner = graphics.GetComponent<BodyShapePresentation>() ?? graphics.gameObject.AddComponent<BodyShapePresentation>();
+            owner.Bind(graphics);
+            if (graphics.DestroyClothSimulation || factory.forceDestroyClothes)
+            {
+                var components = CustomModels.SkinMeshSource.NativePartClothConsumers(instances[index]);
+                if (components.Length != 0) owner.RetireNativePart(instances[index], components);
+            }
+            else if (!IsBodyIdentityPart(part) || part == GraphicsCharacterDefinitions.BodyPart.Head ||
+                     CustomModels.SkinMeshSource.NativePartClothConsumers(instances[index]).Length != 0)
+                owner.BindNativePart(source, instances[index]);
+        }
+        if (_characterModelCatalog?.UsesCompleteParts != true) return;
+        var keys = shape ? factory.shapePartsToLoad : factory.armorPartsToLoad;
+        if (index >= keys.Length) return;
         _characterModelCatalog.BindPartParameters(graphics, keys[index], instances[index], part, shape);
     }
 
@@ -665,10 +811,55 @@ internal static class RacesContext
     internal static void ReleaseCharacterModels(GraphicsCharacter graphics)
     {
         if (!graphics) return;
-        RestoreCharacterModelLods(graphics);
-        try { graphics.GetComponent<CharacterModelPresentation>()?.Release(false, false); }
-        catch (Exception exception) { ReportCharacterModelError("release", exception); }
+        try
+        {
+            graphics.GetComponent<BodyShapePresentation>()?.ReleaseForRetirement();
+            RestoreCharacterModelLods(graphics);
+            graphics.GetComponent<CharacterModelPresentation>()?.Release(false, false);
+        }
+        catch (Exception exception) { ReportCharacterModelError("release", exception); throw; }
         graphics.GetComponent<CharacterModelResourceLease>()?.Release();
+    }
+
+    internal static void ReleaseCharacterPart(GraphicsCharacter graphics,
+        GraphicsCharacterDefinitions.BodyPart part, bool shape)
+    {
+        if (!graphics) return;
+        var slots = shape ? graphics.ShapeInstancePerBodySlot : graphics.ArmorInstancePerBodySlot;
+        var index = (int)part;
+        if (slots == null || index < 0 || index >= slots.Length)
+            throw new InvalidOperationException("A retiring character part has no native slot owner.");
+        var instance = slots[index];
+        var renderers = shape ? graphics.ShapeSkinnedMeshRenderersPerBodySlot : graphics.ArmorSkinnedMeshRenderersPerBodySlot;
+        var colliders = AccessTools.Property(typeof(GraphicsCharacter),
+            shape ? "ShapeCapsuleCollidersPerBodySlot" : "ArmorCapsuleCollidersPerBodySlot")?.GetValue(graphics) as Array;
+        var materials = shape ? graphics.ShapeMaterialsPerBodySlot : graphics.ArmorMaterialsPerBodySlot;
+        if (renderers == null || index >= renderers.Length || colliders == null || index >= colliders.Length ||
+            materials == null || index >= materials.Length)
+            throw new InvalidOperationException("A retiring character part has incomplete native component slots.");
+        // Native retirement also destroys copied colliders and materials that may
+        // live outside the part's hierarchy. Use the actual slot write set.
+        var components = (renderers[index] ?? []).Cast<Component>()
+            .Concat((colliders.GetValue(index) as IEnumerable)?.Cast<Component>() ?? [])
+            .Where(component => component).ToArray();
+        var materialTargets = materials[index] ?? [];
+        if (!instance && components.Length == 0 && materialTargets.Length == 0) return;
+        var body = graphics.GetComponent<BodyShapePresentation>();
+        var model = graphics.GetComponent<CharacterModelPresentation>();
+        model?.RetireSourceSnapshots(instance, components);
+        var lower = model?.DependsOnPart(instance, components, materialTargets) == true;
+        // Return the upper overlay before its lower model source. An exception
+        // aborts native DestroyBodyPart and the factory's replacement request.
+        body?.ReleasePart(instance, components, materialTargets, lower);
+        RestoreCharacterModelLods(graphics);
+        if (lower) model.Release(false, false);
+        // The actor's complete-part lease remains live through native retirement.
+        // EndLoad/Synchronize prune sources only after the factory updates its slots.
+    }
+
+    internal static void SynchronizeCharacterPartMaterials(GraphicsCharacter graphics)
+    {
+        if (graphics) graphics.GetComponent<CharacterModelResourceLease>()?.SynchronizeMaterials();
     }
 
     private static void UnloadCharacterModels()
@@ -1015,6 +1206,8 @@ internal static class RacesContext
         GraphicsCharacter graphics, IEnumerator native)
     {
         var prepared = false;
+        var completed = false;
+        GraphicsCharacter retained = null;
         RulesetCharacter actor = null;
         CharacterModelCatalog.PreparedSources preparation = null;
         CharacterModelResourceLease resourceLease = null;
@@ -1025,6 +1218,7 @@ internal static class RacesContext
         {
             actor = graphics ? graphics.RulesetCharacter : null;
             if (!factory) yield break;
+            if (graphics) { BeginCharacterModelCreation(graphics); retained = graphics; }
             if (Current())
             {
                 PrepareCharacterModelCatalog();
@@ -1049,6 +1243,7 @@ internal static class RacesContext
                         resourceLease.Synchronize(factory);
                         yield return native.Current;
                     }
+                    completed = true;
                     yield break;
                 }
             }
@@ -1094,18 +1289,28 @@ internal static class RacesContext
                 var owner = graphics.GetComponent<CharacterModelPresentation>() ?? graphics.gameObject.AddComponent<CharacterModelPresentation>();
                 owner.Bind(graphics); owner.PrepareSources(preparation); preparation = null;
             }
+            completed = true;
         }
         finally
         {
-            try { (native as IDisposable)?.Dispose(); }
+            var released = false;
+            try
+            {
+                try { (native as IDisposable)?.Dispose(); }
+                finally
+                {
+                    try
+                    {
+                        if (resourceLease) resourceLease.EndLoad();
+                        else if (graphics) graphics.GetComponent<CharacterModelResourceLease>()?.Synchronize();
+                    }
+                    finally { preparation?.Dispose(); }
+                }
+                released = true;
+            }
             finally
             {
-                try
-                {
-                    if (resourceLease) resourceLease.EndLoad();
-                    else if (graphics) graphics.GetComponent<CharacterModelResourceLease>()?.Synchronize();
-                }
-                finally { preparation?.Dispose(); }
+                if (!ReferenceEquals(retained, null)) EndCharacterModelCreation(factory, retained, actor, completed && released);
             }
         }
     }
@@ -1114,17 +1319,18 @@ internal static class RacesContext
         int requestId, GraphicsCharacter existing)
     {
         GraphicsCharacter created = null;
+        RulesetCharacter actor = null;
         var generation = _characterModelPreparationGeneration;
         var completed = false;
         void RetainCreation()
         {
-            if (!ReferenceEquals(created, null) || _characterModelCatalog?.UsesCompleteParts != true) return;
+            if (!ReferenceEquals(created, null)) return;
             var graphics = existing;
             if (!graphics && requestId >= 0) factory.characterPerRequestId.TryGetValue(requestId, out graphics);
             if (!graphics) return;
             created = graphics;
-            CharacterModelCreations.TryGetValue(created, out var owners);
-            CharacterModelCreations[created] = owners + 1;
+            actor = graphics.RulesetCharacter;
+            BeginCharacterModelCreation(created);
         }
         try
         {
@@ -1156,15 +1362,11 @@ internal static class RacesContext
         }
         finally
         {
-            try { (native as IDisposable)?.Dispose(); }
+            var released = false;
+            try { (native as IDisposable)?.Dispose(); released = true; }
             finally
             {
-                if (!ReferenceEquals(created, null))
-                {
-                    var owners = CharacterModelCreations[created] - 1;
-                    if (owners == 0) CharacterModelCreations.Remove(created);
-                    else CharacterModelCreations[created] = owners;
-                }
+                completed = EndCharacterModelCreation(factory, created, actor, completed && released);
             }
         }
         if (completed && generation != _characterModelPreparationGeneration && factory && created &&
@@ -2781,14 +2983,14 @@ internal static class RacesContext
             const string prefix = "UB/CharacterResources/";
             if (!UsesCompleteParts || key == null || !key.StartsWith(prefix, StringComparison.Ordinal) ||
                 !_resources.TryGetValue(key.Substring(prefix.Length), out var part)) return;
+            var parameters = new List<(Renderer Renderer, int Slot, HashSet<Material> Owners)>();
             foreach (var parameter in part.Parameters)
             {
                 var target = parameter.Renderer.Length == 0 ? instance.transform : instance.transform.Find(parameter.Renderer);
                 var renderer = target ? target.GetComponent<Renderer>() : null;
                 var materials = renderer ? renderer.sharedMaterials : [];
-                if (!renderer || parameter.Slot >= materials.Length || !materials[parameter.Slot] ||
-                    !graphics.MaterialsToDestroy.Contains(materials[parameter.Slot]))
-                    throw new InvalidOperationException("A completed character part parameter does not reference a native-owned material: " + part.Source);
+                if (!renderer || parameter.Slot >= materials.Length || !materials[parameter.Slot])
+                    throw new InvalidOperationException("A completed character part parameter has no material slot: " + part.Source);
                 var owners = parameter.Set switch
                 {
                     "Skin" => graphics.SkinMaterials, "Face" => graphics.FaceMaterials, "Eyes" => graphics.EyeMaterials,
@@ -2798,8 +3000,13 @@ internal static class RacesContext
                     "Armor" => graphics.ArmorMaterials,
                     _ => throw new InvalidOperationException("Unknown character part parameter set.")
                 };
-                owners?.Add(materials[parameter.Slot]);
+                parameters.Add((renderer, parameter.Slot, owners));
             }
+            if (parameters.Count == 0) return;
+            var lease = graphics.GetComponent<CharacterModelResourceLease>() ??
+                graphics.gameObject.AddComponent<CharacterModelResourceLease>();
+            lease.Bind(graphics, this);
+            lease.BindMaterials(parameters);
         }
         internal static CharacterModelBlueprint ReadBlueprint(string directory, CharacterModelBlueprint previous)
         {
@@ -4289,7 +4496,8 @@ internal static class RacesContext
     internal static CustomModels.SkinMeshSource.SourceGraph BeginCharacterModelNativeSurfaceFinish(object deformer, int bufferIndex)
     {
         var graphics = CustomModels.SkinMeshSource.NativeSourceGraphics(deformer);
-        var graph = graphics ? graphics.GetComponent<CharacterModelPresentation>()?._sourceGraph : null;
+        var graph = graphics ? graphics.GetComponent<BodyShapePresentation>()?.OwnedSourceGraph(deformer) ??
+            graphics.GetComponent<CharacterModelPresentation>()?._sourceGraph : null;
         return graph?.BeginNativeSurfaceFinish(deformer, bufferIndex) == true ? graph : null;
     }
 
@@ -4299,6 +4507,137 @@ internal static class RacesContext
         private CharacterModelCatalog _catalog;
         private readonly HashSet<UnityEngine.Object> _sources = [];
         private int _loading;
+        private Dictionary<Material, Material> _materials = [];
+        private Dictionary<(Renderer Renderer, int Slot), (Material Source, Material Instance)> _materialBindings = [];
+        internal void BindMaterials(IReadOnlyList<(Renderer Renderer, int Slot, HashSet<Material> Owners)> parameters)
+        {
+            SynchronizeMaterials();
+            var bindingsCurrent = true;
+            foreach (var parameter in parameters)
+            {
+                var current = parameter.Renderer.sharedMaterials[parameter.Slot];
+                if (!Graphics.MaterialsToDestroy.Contains(current) || _materials.ContainsValue(current) &&
+                    (!_materialBindings.TryGetValue((parameter.Renderer, parameter.Slot), out var binding) || binding.Instance != current))
+                { bindingsCurrent = false; break; }
+            }
+            if (bindingsCurrent)
+            {
+                foreach (var parameter in parameters) parameter.Owners?.Add(parameter.Renderer.sharedMaterials[parameter.Slot]);
+                return;
+            }
+            var created = new Dictionary<Material, Material>();
+            var previous = new Dictionary<Renderer, Material[]>();
+            var replacements = new Dictionary<Renderer, Material[]>();
+            var bindings = new Dictionary<(Renderer Renderer, int Slot), (Material Source, Material Instance)>(_materialBindings);
+            var added = new List<(HashSet<Material> Owners, Material Instance)>();
+            try
+            {
+                foreach (var parameter in parameters)
+                {
+                    if (!parameter.Renderer) throw new InvalidOperationException("A completed part lost its material renderer.");
+                    if (!previous.TryGetValue(parameter.Renderer, out var original))
+                    {
+                        original = parameter.Renderer.sharedMaterials;
+                        previous.Add(parameter.Renderer, original);
+                        replacements.Add(parameter.Renderer, original.ToArray());
+                    }
+                    if (parameter.Slot < 0 || parameter.Slot >= original.Length || !original[parameter.Slot])
+                        throw new InvalidOperationException("A completed part lost its declared material slot.");
+                    var current = original[parameter.Slot];
+                    var owned = _materials.FirstOrDefault(pair => pair.Value == current);
+                    // The factory already owns its primary material. Keep that instance,
+                    // while additional declared slots share one actor-owned clone per source.
+                    if (Graphics.MaterialsToDestroy.Contains(current) && !owned.Value) continue;
+                    var source = owned.Value ? owned.Key : current;
+                    if (!_materials.TryGetValue(source, out var material) && !created.TryGetValue(source, out material))
+                    {
+                        material = new Material(source) { name = source.name, hideFlags = HideFlags.HideAndDontSave };
+                        created.Add(source, material);
+                    }
+                    if (!material) throw new InvalidOperationException("A completed part lost its owned material instance.");
+                    replacements[parameter.Renderer][parameter.Slot] = material;
+                    bindings[(parameter.Renderer, parameter.Slot)] = (source, material);
+                }
+                var materials = new Dictionary<Material, Material>(_materials);
+                foreach (var pair in created) materials.Add(pair.Key, pair.Value);
+                foreach (var pair in replacements)
+                    if (!pair.Value.SequenceEqual(previous[pair.Key])) pair.Key.sharedMaterials = pair.Value;
+                foreach (var material in created.Values)
+                    if (Graphics.MaterialsToDestroy.Add(material)) added.Add((Graphics.MaterialsToDestroy, material));
+                foreach (var parameter in parameters)
+                {
+                    var material = replacements[parameter.Renderer][parameter.Slot];
+                    if (!Graphics.MaterialsToDestroy.Contains(material))
+                        throw new InvalidOperationException("A completed part material has no actor owner.");
+                    if (parameter.Owners?.Add(material) == true) added.Add((parameter.Owners, material));
+                }
+                _materials = materials;
+                _materialBindings = bindings;
+            }
+            catch (Exception error)
+            {
+                var errors = new List<Exception> { error };
+                foreach (var pair in added)
+                    try { pair.Owners.Remove(pair.Instance); } catch (Exception rollback) { errors.Add(rollback); }
+                foreach (var pair in previous)
+                    try { if (pair.Key) pair.Key.sharedMaterials = pair.Value; } catch (Exception rollback) { errors.Add(rollback); }
+                foreach (var material in created.Values)
+                    try { if (material) UnityEngine.Object.Destroy(material); } catch (Exception rollback) { errors.Add(rollback); }
+                if (errors.Count != 1) throw new AggregateException("A completed part material transition and its restoration failed.", errors);
+                throw;
+            }
+            SynchronizeMaterials();
+        }
+        internal void SynchronizeMaterials()
+        {
+            if (_materialBindings.Count == 0 && _materials.Count == 0) return;
+            var live = new HashSet<Renderer>();
+            if (Graphics)
+                foreach (var slots in new[] { Graphics.ShapeInstancePerBodySlot, Graphics.ArmorInstancePerBodySlot })
+                    if (slots != null)
+                        foreach (var part in slots)
+                            if (part) live.UnionWith(part.GetComponentsInChildren<Renderer>(true));
+            foreach (var pair in _materialBindings.ToArray())
+            {
+                var renderer = pair.Key.Renderer;
+                var materials = renderer ? renderer.sharedMaterials : [];
+                if (!renderer || !live.Contains(renderer) || pair.Key.Slot >= materials.Length ||
+                    materials[pair.Key.Slot] != pair.Value.Instance) _materialBindings.Remove(pair.Key);
+            }
+            var used = _materialBindings.Values.Select(binding => binding.Instance).ToHashSet();
+            foreach (var pair in _materials.ToArray())
+                if (!used.Contains(pair.Value))
+                {
+                    ReleaseMaterial(pair.Value);
+                    _materials.Remove(pair.Key);
+                }
+        }
+        private void ReleaseMaterial(Material material)
+        {
+            if (!ReferenceEquals(Graphics, null))
+            {
+                Graphics.MaterialsToDestroy.Remove(material);
+                Graphics.SkinMaterials.Remove(material); Graphics.FaceMaterials.Remove(material);
+                Graphics.EyeMaterials.Remove(material); Graphics.HairMaterials.Remove(material);
+                Graphics.BeardMaterials.Remove(material); Graphics.ArmorMaterials.Remove(material);
+            }
+            if (material) UnityEngine.Object.Destroy(material);
+        }
+        private void ReleaseMaterials()
+        {
+            foreach (var group in _materialBindings.GroupBy(pair => pair.Key.Renderer))
+            {
+                if (!group.Key) continue;
+                var materials = group.Key.sharedMaterials; var changed = false;
+                foreach (var pair in group)
+                    if (pair.Key.Slot < materials.Length && materials[pair.Key.Slot] == pair.Value.Instance)
+                    { materials[pair.Key.Slot] = pair.Value.Source; changed = true; }
+                if (changed) group.Key.sharedMaterials = materials;
+            }
+            _materialBindings.Clear();
+            foreach (var material in _materials.Values) ReleaseMaterial(material);
+            _materials.Clear();
+        }
         internal void Bind(GraphicsCharacter graphics, CharacterModelCatalog catalog)
         {
             if (_catalog != null && !ReferenceEquals(_catalog, catalog))
@@ -4318,12 +4657,14 @@ internal static class RacesContext
         }
         internal void Synchronize(GraphicsCharacterFactoryManager factory = null)
         {
+            SynchronizeMaterials();
             if (_catalog == null || !Graphics || _loading != 0 && !factory) return;
             _catalog.RetainCompletePartSources(Graphics, _sources, factory);
             ReleaseUnusedCharacterModelCatalog();
         }
         internal void Release()
         {
+            SynchronizeMaterials();
             var catalog = _catalog;_catalog = null;
             catalog?.ReleaseNativeSources(_sources);
             CharacterModelResourceOwners.Remove(this);
@@ -4335,7 +4676,11 @@ internal static class RacesContext
         {
             if (_catalog?.IsRetiring == true) Synchronize();
         }
-        private void OnDestroy() => Release();
+        private void OnDestroy()
+        {
+            try { ReleaseMaterials(); }
+            finally { Release(); }
+        }
     }
 
     private sealed class CharacterModelPresentation : MonoBehaviour
@@ -4452,6 +4797,33 @@ internal static class RacesContext
         internal bool IsPending => _refreshPending;
         internal bool HasSources => _skins.Count != 0 || _materials.Count != 0 || _packs.Count != 0 || _nativeSources.Count != 0;
         internal bool HasCatalogSources => _catalog != null && HasSources || _preparedSources != null || _sourcePreparation != null;
+        private bool OnlySourceSnapshots => _graphics && _catalog == null && _sourceGraph == null &&
+            _graphics.GetComponent<BodyShapePresentation>() is not { ReadsModelSources: true } && _materials.Count == 0 &&
+            _packs.Count == 0 && _nativeSources.Count == 0 && _requiredNativeSources.Count == 0 && _derivedKeys.Count == 0 &&
+            _preparedSources == null && _sourcePreparationReceipt == null && _sourcePreparation == null &&
+            _sourcePreparationCoroutine == null && !_sourcePreparationFactory && _skins.All(skin => skin.IsSourceSnapshot);
+        private bool SnapshotScopeCurrent => !IsInitializing && !_suspended && !_initializationFailed &&
+            _materialRefreshDepth == 0 && !_materialRefreshPending && !_materialRefreshFailed;
+        internal void RetireSourceSnapshots(GameObject part, IReadOnlyCollection<Component> components)
+        {
+            if (_busy || !SnapshotScopeCurrent || !OnlySourceSnapshots || !_graphics ||
+                !ReferenceEquals(_actor, _graphics.RulesetCharacter)) return;
+            var current = CustomModels.SkinMeshSource.Capture(_graphics, _skins.Select(skin => skin.Renderer));
+            if (current == null || _skins.Any(skin => !current.TryGetValue(skin.Renderer, out var source) ||
+                    !skin.IsCurrent(_graphics, source))) return;
+            // These rows have never written a mesh, channel, palette, bounds or
+            // material and have no surface/derived plan for an upper owner to read.
+            _skins.RemoveAll(skin => components.Contains(skin.Renderer) ||
+                part && skin.Renderer.transform.IsChildOf(part.transform));
+        }
+        internal bool DependsOnPart(GameObject part, IReadOnlyCollection<Component> components, IReadOnlyCollection<Material> materials) =>
+            (_busy || IsInitializing) && HasSources ||
+            _sourceGraph?.DependsOnPart(part, components, materials) == true ||
+            _skins.Any(skin => !skin.Renderer || components.Contains(skin.Renderer) ||
+                part && skin.Renderer.transform.IsChildOf(part.transform)) ||
+            _materials.Any(owner => materials.Contains(owner.Material)) ||
+            part && part.GetComponentsInChildren<Renderer>(true).Any(renderer =>
+                renderer.sharedMaterials.Any(material => _materials.Any(owner => owner.Material == material)));
         internal void PrepareSources(CharacterModelCatalog.PreparedSources preparation)
         {
             CancelSourcePreparation();
@@ -4958,6 +5330,23 @@ internal static class RacesContext
                     RefreshMaterials();
                     return;
                 }
+                if (preparedSources == null && catalog == null && ReferenceEquals(_actor, graphics.RulesetCharacter) &&
+                    SnapshotScopeCurrent && OnlySourceSnapshots && _skins.All(skin => renderers.Contains(skin.Renderer) &&
+                        sources.TryGetValue(skin.Renderer, out var source) && skin.IsCurrent(graphics, source)))
+                {
+                    var body = graphics.GetComponent<BodyShapePresentation>();
+                    foreach (var renderer in renderers.Where(renderer => !_skins.Any(skin => skin.Renderer == renderer)))
+                    {
+                        var source = body?.SourceBeforeOverlay(renderer) ?? sources[renderer];
+                        _skins.Add(new CharacterModelSkin(graphics, renderer, source,
+                            CharacterModelFingerprint(source.Original), source.Original, null));
+                    }
+                    // New native inputs can introduce a real joint correction.
+                    // Plan it using the original sources; any output falls back
+                    // to the normal upper-restore/lower-apply transaction below.
+                    PrepareJoints(graphics, new Dictionary<SkinnedMeshRenderer, CustomModels.SkinMeshSource.SurfaceBinding>());
+                    if (OnlySourceSnapshots) { RefreshBodyShape(graphics); return; }
+                }
                 Release(false, false);
                 if (HasSources) throw new InvalidOperationException("Previous custom character model sources have not finished restoring.");
                 // Release removes the previous registration before this owner acquires new sources.
@@ -4998,10 +5387,15 @@ internal static class RacesContext
                 RefreshBodyShape(graphics);
                 published = true;
             }
-            catch
+            catch (Exception failure)
             {
-                Release(false, false);
-                if (_graphics) RefreshBodyShape(_graphics);
+                try
+                {
+                    Release(false, false);
+                    if (_graphics) RefreshBodyShape(_graphics);
+                }
+                catch (Exception rollback)
+                { throw new AggregateException("Custom appearance preparation and rollback failed.", failure, rollback); }
                 throw;
             }
             finally
@@ -5089,7 +5483,9 @@ internal static class RacesContext
                 }
                 owner.Apply(row.Value.Body);
             }
-            _sourceGraph?.RefreshNativeSurfaceMaterials();
+            var bodyPresentation = _graphics.GetComponent<BodyShapePresentation>();
+            bodyPresentation?.RefreshNativeSurfaceMaterials();
+            _sourceGraph?.RefreshNativeSurfaceMaterials(bodyPresentation == null ? null : bodyPresentation.OwnsNativeDeformer);
             _catalog.ReleaseBundles(_packs, requiredPacks);
         }
 
@@ -5322,6 +5718,9 @@ internal static class RacesContext
             current.Original == _original && current.OwnerCurrent && current.AcceptsCurrentMesh() &&
             (!_trackJointSampler || _jointSamplerState == JointPeriodicSamplers(Renderer)) && current.MatchesBones(_bones);
         internal bool ChangesSource => authored != _original;
+        internal bool IsSourceSnapshot => _original && authored == _original && _source != null &&
+            _source.Original == _original && !_clothInstalled && _restoreGraph == null && !_trackJointSampler &&
+            _appliedBounds.Equals(default(Bounds)) && _appliedBones.SequenceEqual(_bones);
         internal CustomModels.SkinMeshSource Source => _source;
         internal Mesh Authored => authored;
         internal void SetAuthored(Mesh mesh) => authored = mesh;
@@ -5805,7 +6204,8 @@ internal static class RacesContext
             {
                 var filename = sex == 0 ? "BodyShapeFieldMale.json" : "BodyShapeFieldFemale.json";
                 var path = System.IO.Path.Combine(Main.ModFolder, "BlenderModels", "BodyShapes", filename);
-                BodyShapeFields[sex] = BodyShapeField.FromCalibration(JObject.Parse(System.IO.File.ReadAllText(path)), sex);
+                BodyShapeFields[sex] = BodyShapeField.FromCalibration(JObject.Parse(System.IO.File.ReadAllText(path)), sex,
+                    BodyShapeField.Continuation.Affine);
             }
             catch (Exception exception) { ReportBodyShapeError("calibration-" + sex, exception); }
         }
@@ -6219,17 +6619,114 @@ internal static class RacesContext
 
     private sealed class BodyShapeField
     {
+        internal enum Continuation { Bounded, Affine }
         private readonly Dictionary<string, BodyShapeSample[]> _samples;
         private readonly Dictionary<string, float> _support;
         private readonly Dictionary<string, SampleIndex> _indices;
         private readonly BodyShapeField _parent;
+        private readonly Dictionary<string, AffineRest> _affine;
+
+        private sealed class AffineRest
+        {
+            private readonly Vector3 _center, _mean;
+            private readonly Matrix4x4 _gradient;
+            internal AffineRest(IReadOnlyList<BodyShapeSample> samples)
+            {
+                var total = samples.Sum(sample => (double)sample.Weight);
+                var center = new double[3]; var mean = new double[3];
+                if (total <= 0d || double.IsNaN(total) || double.IsInfinity(total))
+                    throw new InvalidOperationException("A physical affine rest has no finite sample support.");
+                for (var axis = 0; axis < 3; axis++)
+                { center[axis] = samples[0].Point[axis]; mean[axis] = samples[0].Delta[axis]; }
+                foreach (var sample in samples)
+                    for (var axis = 0; axis < 3; axis++)
+                    {
+                        center[axis] += ((double)sample.Point[axis] - samples[0].Point[axis]) * sample.Weight / total;
+                        mean[axis] += ((double)sample.Delta[axis] - samples[0].Delta[axis]) * sample.Weight / total;
+                    }
+                var covariance = new double[3, 3]; var cross = new double[3, 3];
+                foreach (var sample in samples)
+                    for (var row = 0; row < 3; row++)
+                        for (var column = 0; column < 3; column++)
+                        {
+                            var weight = sample.Weight / total;
+                            covariance[row, column] += (sample.Point[row] - center[row]) * (sample.Point[column] - center[column]) * weight;
+                            cross[row, column] += (sample.Delta[row] - mean[row]) * (sample.Point[column] - center[column]) * weight;
+                        }
+                var axes = new double[3, 3];
+                for (var axis = 0; axis < 3; axis++) axes[axis, axis] = 1d;
+                for (var iteration = 0; iteration < 32; iteration++)
+                {
+                    var first = 0; var second = 1;
+                    for (var row = 0; row < 3; row++)
+                        for (var column = row + 1; column < 3; column++)
+                            if (Math.Abs(covariance[row, column]) > Math.Abs(covariance[first, second]))
+                            { first = row; second = column; }
+                    var scale = Enumerable.Range(0, 3).Max(axis => Math.Abs(covariance[axis, axis]));
+                    if (Math.Abs(covariance[first, second]) <= Math.Max(scale * 1e-14d, double.Epsilon)) break;
+                    var angle = .5d * Math.Atan2(2d * covariance[first, second], covariance[second, second] - covariance[first, first]);
+                    var cosine = Math.Cos(angle); var sine = Math.Sin(angle);
+                    var rotation = new double[3, 3];
+                    for (var axis = 0; axis < 3; axis++) rotation[axis, axis] = 1d;
+                    rotation[first, first] = rotation[second, second] = cosine;
+                    rotation[first, second] = sine; rotation[second, first] = -sine;
+                    var next = new double[3, 3]; var basis = new double[3, 3];
+                    for (var row = 0; row < 3; row++)
+                        for (var column = 0; column < 3; column++)
+                        {
+                            for (var i = 0; i < 3; i++)
+                            {
+                                basis[row, column] += axes[row, i] * rotation[i, column];
+                                for (var j = 0; j < 3; j++)
+                                    next[row, column] += rotation[i, row] * covariance[i, j] * rotation[j, column];
+                            }
+                        }
+                    covariance = next; axes = basis;
+                }
+                var maximum = Enumerable.Range(0, 3).Max(axis => covariance[axis, axis]);
+                var inverse = new double[3, 3];
+                for (var eigen = 0; eigen < 3; eigen++)
+                {
+                    var value = covariance[eigen, eigen];
+                    if (value <= maximum * 1e-8d || value <= 0d) continue;
+                    for (var row = 0; row < 3; row++)
+                        for (var column = 0; column < 3; column++)
+                            inverse[row, column] += axes[row, eigen] * axes[column, eigen] / value;
+                }
+                // Unobserved covariance directions have zero displacement gradient,
+                // retaining the identity rest map instead of inventing compression.
+                _gradient = Matrix4x4.zero;
+                for (var row = 0; row < 3; row++)
+                    for (var column = 0; column < 3; column++)
+                    {
+                        var value = 0d;
+                        for (var axis = 0; axis < 3; axis++) value += cross[row, axis] * inverse[axis, column];
+                        if (double.IsNaN(value) || double.IsInfinity(value) || !BodyShapeFinite((float)value))
+                            throw new InvalidOperationException("A physical affine rest has a nonfinite displacement gradient.");
+                        _gradient[row, column] = (float)value;
+                    }
+                _center = new Vector3((float)center[0], (float)center[1], (float)center[2]);
+                _mean = new Vector3((float)mean[0], (float)mean[1], (float)mean[2]);
+            }
+            internal Vector3 Evaluate(Vector3 point) => _gradient.MultiplyVector(point - _center) + _mean;
+            internal Matrix4x4 Derivative
+            {
+                get
+                {
+                    var value = Matrix4x4.identity;
+                    for (var row = 0; row < 3; row++)
+                        for (var column = 0; column < 3; column++) value[row, column] += _gradient[row, column];
+                    return value;
+                }
+            }
+        }
         private BodyShapeField(Dictionary<string, BodyShapeSample[]> samples, Dictionary<string, float> support)
         {
             _samples = samples;
             _support = support;
             _indices = samples.ToDictionary(pair => pair.Key, pair => new SampleIndex(pair.Value), StringComparer.Ordinal);
         }
-        internal static BodyShapeField FromCalibration(JObject document, int sex)
+        internal static BodyShapeField FromCalibration(JObject document, int sex, Continuation continuation)
         {
             if ((int?)document["schemaVersion"] != 1 || (int?)document["sex"] != sex ||
                 (string)document["coordinateDomain"] != "normalized-native-bone-local" ||
@@ -6258,7 +6755,11 @@ internal static class RacesContext
                 samples.Add(bone, values);
                 support.Add(bone, radius);
             }
-            return new BodyShapeField(samples, support);
+            // Supplemental volume changes must remain smooth inside coarse garment
+            // triangles as well as the finer body surface they cover.
+            return continuation == Continuation.Bounded ? new BodyShapeField(samples, support) :
+                new BodyShapeField(samples.ToDictionary(pair => pair.Key, pair => pair.Value.ToList(), StringComparer.Ordinal),
+                    null, continuation);
 
             static float Number(JToken value)
             {
@@ -6269,12 +6770,20 @@ internal static class RacesContext
             static Vector3 Vector(JArray values, int index) => new(Number(values[index * 3]),
                 Number(values[index * 3 + 1]), Number(values[index * 3 + 2]));
         }
-        private BodyShapeField(Dictionary<string, List<BodyShapeSample>> samples, BodyShapeField parent)
+        private BodyShapeField(Dictionary<string, List<BodyShapeSample>> samples, BodyShapeField parent,
+            Continuation continuation)
         {
             _parent = parent;
+            if (continuation == Continuation.Affine)
+            {
+                _affine = samples.ToDictionary(pair => pair.Key, pair => new AffineRest(pair.Value), StringComparer.Ordinal);
+                _samples = samples.ToDictionary(pair => pair.Key, _ => Array.Empty<BodyShapeSample>(), StringComparer.Ordinal);
+                _support = []; _indices = [];
+                return;
+            }
             _samples = samples.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray());
             _support = [];
-            foreach (var pair in _samples)
+            foreach (var pair in _samples.ToArray())
             {
                 var values = pair.Value;
                 var minimum = values[0].Point;
@@ -6309,13 +6818,15 @@ internal static class RacesContext
                     }
                     if (distance < float.MaxValue) distances.Add(Mathf.Sqrt(distance));
                 }
-                if (distances.Count == 0) throw new InvalidOperationException("A native muscle field has no spatial support: " + pair.Key);
+                // A sparse twist influence can describe only one spatial point.
+                // Inherit the calibrated field or a supported ancestor for that bone.
+                if (distances.Count == 0) { _samples.Remove(pair.Key); continue; }
                 distances.Sort();
                 _support.Add(pair.Key, distances[(distances.Count - 1) * 3 / 4] * 3f);
             }
             _indices = _samples.ToDictionary(pair => pair.Key, pair => new SampleIndex(pair.Value), StringComparer.Ordinal);
         }
-        private bool Contains(string bone) => _samples.ContainsKey(bone) || _parent != null && _parent.Contains(bone);
+        internal bool Contains(string bone) => _samples.ContainsKey(bone) || _parent != null && _parent.Contains(bone);
         internal int ResolveAnchor(Transform[] bones, int influence)
         {
             if (Contains(bones[influence].name)) return influence;
@@ -6327,26 +6838,24 @@ internal static class RacesContext
             }
             throw new InvalidOperationException("The native muscle field has no mapped ancestor for: " + bones[influence].name);
         }
-        internal static BodyShapeField Complete(BodyShapeField parent, List<BodyShapeRenderer> rows)
+        internal static BodyShapeField Complete(BodyShapeField parent, List<BodyShapeRenderer> rows,
+            Func<BodyShapeRenderer, BodyShapeRest> physicalRest = null,
+            Func<BodyShapeRenderer, Transform[]> physicalBones = null,
+            Func<Transform, float> physicalLength = null, Continuation continuation = Continuation.Bounded)
         {
-            if (parent == null) return null;
             var samples = new Dictionary<string, List<BodyShapeSample>>(StringComparer.Ordinal);
             var seen = new List<(Mesh Original, Transform[] Bones)>();
             foreach (var row in rows)
             {
-                if (row.Identity || !row.UseNativeFrame || !row.Original.name.EndsWith("LOD0", StringComparison.Ordinal) ||
-                    NativeBodyShapeFrame(row.Original) < 0) continue;
-                if (row.Original.GetBlendShapeIndex(BodyVolumePositive) >= 0 ||
-                    row.Original.GetBlendShapeIndex(BodyVolumeNegative) >= 0)
-                    throw new InvalidOperationException("A native muscle source still contains an owned body frame.");
-                var sourceBones = row.Renderer.bones;
+                if (physicalRest == null && NativeBodyShapeFrame(row.Original) < 0) continue;
+                var sourceBones = physicalBones == null ? row.Renderer.bones : physicalBones(row);
                 if (seen.Any(source => source.Original == row.Original && source.Bones.SequenceEqual(sourceBones))) continue;
-                var rest = ReadBodyShapeRest(row.Original);
+                var rest = physicalRest == null ? ReadBodyShapeRest(row.Original) : physicalRest(row);
                 var bones = sourceBones.Take(rest.BindPoses.Length).ToArray();
                 if (bones.Length < rest.BindPoses.Length || rest.Muscular == null)
                     throw new InvalidOperationException("An actor's native muscle source is incomplete.");
                 seen.Add((row.Original, sourceBones));
-                var lengths = bones.Select(BodyShapeBoneLength).ToArray();
+                var lengths = physicalLength == null ? bones.Select(BodyShapeBoneLength).ToArray() : new float[bones.Length];
                 for (var vertex = 0; vertex < rest.Vertices.Length; vertex++)
                 {
                     var weights = rest.Weights[vertex];
@@ -6355,6 +6864,7 @@ internal static class RacesContext
                         var weight = BodyShapeWeight(weights, influence);
                         if (weight <= 0f) continue;
                         var index = BodyShapeWeightIndex(weights, influence);
+                        if (physicalLength != null && lengths[index] == 0f) lengths[index] = physicalLength(bones[index]);
                         var name = bones[index].name;
                         if (!samples.TryGetValue(name, out var list)) samples.Add(name, list = []);
                         list.Add(new BodyShapeSample(rest.BindPoses[index].MultiplyPoint3x4(rest.Vertices[vertex]) / lengths[index],
@@ -6362,10 +6872,11 @@ internal static class RacesContext
                     }
                 }
             }
-            return samples.Count == 0 ? parent : new BodyShapeField(samples, parent);
+            return samples.Count == 0 ? parent : new BodyShapeField(samples, parent, continuation);
         }
         internal Vector3 Evaluate(string bone, Vector3 point)
         {
+            if (_affine != null && _affine.TryGetValue(bone, out var affine)) return affine.Evaluate(point);
             if (!_samples.TryGetValue(bone, out var samples))
             {
                 if (_parent != null) return _parent.Evaluate(bone, point);
@@ -6398,6 +6909,14 @@ internal static class RacesContext
             if (_parent == null) return local * confidence * confidence;
             if (blend == 0f) return local;
             return Vector3.Lerp(local, _parent.Contains(bone) ? _parent.Evaluate(bone, point) : Vector3.zero, blend);
+        }
+
+        internal (Vector3 Delta, Matrix4x4 Derivative) EvaluateAffineRest(string bone, Vector3 point)
+        {
+            if (_affine != null && _affine.TryGetValue(bone, out var affine))
+                return (affine.Evaluate(point), affine.Derivative);
+            if (_parent != null) return _parent.EvaluateAffineRest(bone, point);
+            throw new InvalidOperationException("A physical affine rest has no supported source bone.");
         }
 
         private sealed class SampleIndex
@@ -6525,6 +7044,7 @@ internal static class RacesContext
         internal Mesh Original;
         internal bool UseNativeFrame;
         internal bool Identity;
+        internal bool HeadAttachment;
         internal bool CalibrationSource;
     }
 
@@ -6611,7 +7131,10 @@ internal static class RacesContext
             if (slots == null) continue;
             for (var slot = 0; slot < slots.Length; slot++)
             {
+                // Native head muscle frames carry the same neck/shoulder cut as
+                // the body. Other identity parts retain their independent motion.
                 if (IsBodyIdentityPart((GraphicsCharacterDefinitions.BodyPart)slot) &&
+                    slot != (int)GraphicsCharacterDefinitions.BodyPart.Head &&
                     slots[slot] != null && slots[slot].Contains(renderer)) return true;
             }
         }
@@ -6631,6 +7154,7 @@ internal static class RacesContext
             {
                 if (slots[slot] == null) continue;
                 var identityPart = IsBodyIdentityPart((GraphicsCharacterDefinitions.BodyPart)slot);
+                var headAttachment = slot == (int)GraphicsCharacterDefinitions.BodyPart.Head;
                 var calibrationSource = ReferenceEquals(slots, graphics.ShapeSkinnedMeshRenderersPerBodySlot) &&
                     slot == (int)GraphicsCharacterDefinitions.BodyPart.Body;
                 foreach (var renderer in slots[slot])
@@ -6639,11 +7163,13 @@ internal static class RacesContext
                     if (result.TryGetValue(renderer, out var row))
                     {
                         row.Identity |= identityPart;
+                        row.HeadAttachment |= headAttachment;
                         row.CalibrationSource |= calibrationSource;
                     }
                     else result.Add(renderer, new BodyShapeRenderer
                     { Renderer = renderer, Identity = identityPart,
-                        UseNativeFrame = useNativeFrame, CalibrationSource = calibrationSource });
+                        HeadAttachment = headAttachment, UseNativeFrame = useNativeFrame,
+                        CalibrationSource = calibrationSource });
                 }
             }
         }
@@ -6690,6 +7216,28 @@ internal static class RacesContext
 
     private sealed class BodyShapePresentation : MonoBehaviour
     {
+        private static List<BodyShapeRenderer> HighestDetailRows(GraphicsCharacter graphics,
+            IEnumerable<BodyShapeRenderer> rows)
+        {
+            var source = rows.ToList();
+            if (!graphics.sharedLodGroup) return source;
+            var lods = graphics.sharedLodGroup.GetLODs();
+            if (lods.Length == 0) return source;
+            var detail = lods[0].renderers.ToHashSet();
+            // Membership belongs to the active native LODGroup, independently of asset names.
+            return source.Where(row => detail.Contains(row.Renderer) || !lods.Any(lod => lod.renderers.Contains(row.Renderer))).ToList();
+        }
+
+        private static List<BodyShapeRenderer> PhysicalBodyRows(GraphicsCharacter graphics, List<BodyShapeRenderer> rows)
+        {
+            var body = HighestDetailRows(graphics, rows.Where(row => row.CalibrationSource));
+            if (body.Count != 0) return body;
+            var slots = graphics.ArmorSkinnedMeshRenderersPerBodySlot;
+            var index = (int)GraphicsCharacterDefinitions.BodyPart.Body;
+            var renderers = slots != null && index < slots.Length ? slots[index] : null;
+            return renderers == null ? body : HighestDetailRows(graphics, rows.Where(row => renderers.Contains(row.Renderer)));
+        }
+
         private GraphicsCharacter _graphics;
         private BodyShapeField _baseField, _field;
         private Animator _fieldRig;
@@ -6700,10 +7248,68 @@ internal static class RacesContext
         private bool _supplemental;
         private readonly List<BodyShapePiece> _pieces = [];
         private readonly HashSet<string> _derivedKeys = new(StringComparer.Ordinal);
+        private readonly Dictionary<SkinnedMeshRenderer, HashSet<string>> _pieceData = [];
         private CustomModels.SkinMeshSource.SourceGraph _sourceGraph;
         private float _value;
         private float _default;
         private bool _busy, _refreshPending;
+        private readonly ConditionalWeakTable<GameObject, NativePartRetirement> _retiringNativeParts = new();
+        private readonly ConditionalWeakTable<GameObject, CustomModels.SkinMeshSource.NativePartRest> _nativePartRests = new();
+        internal void BindNativePart(GameObject source, GameObject instance)
+        {
+            _nativePartRests.Remove(instance);
+            var rest = CustomModels.SkinMeshSource.CaptureNativePartRest(_graphics, source, instance);
+            if (rest != null) _nativePartRests.Add(instance, rest);
+            DeferRefresh();
+        }
+        internal void BindDerivedBone(SkinnedMeshRenderer renderer, Transform parent, Transform bone, Matrix4x4 local)
+        {
+            foreach (var shape in new[] { true, false })
+            {
+                var slots = shape ? _graphics.ShapeSkinnedMeshRenderersPerBodySlot : _graphics.ArmorSkinnedMeshRenderersPerBodySlot;
+                var parts = shape ? _graphics.ShapeInstancePerBodySlot : _graphics.ArmorInstancePerBodySlot;
+                if (slots == null || parts == null) continue;
+                for (var index = 0; index < Math.Min(slots.Length, parts.Length); index++)
+                    if (slots[index]?.Contains(renderer) == true && parts[index])
+                    {
+                        if (_nativePartRests.TryGetValue(parts[index], out var rest)) rest.BindDerivedBone(parent, bone, local);
+                        else if ((!_retiringNativeParts.TryGetValue(parts[index], out var retirement) || !retirement.IsPending) &&
+                                 CustomModels.SkinMeshSource.NativePartRestConsumers(parts[index]).Length != 0)
+                            throw new InvalidOperationException("A generated native source bone lost its part's authored rest binding.");
+                        return;
+                    }
+            }
+            throw new InvalidOperationException("A generated native source bone has no current renderer slot owner.");
+        }
+        private IReadOnlyDictionary<Transform, Matrix4x4> NativePartFrames(Component owner)
+        {
+            foreach (var part in (_graphics.ShapeInstancePerBodySlot ?? []).Concat(_graphics.ArmorInstancePerBodySlot ?? []).Where(part => part).Distinct())
+                if (_nativePartRests.TryGetValue(part, out var rest) && rest.Contains(owner))
+                    return rest.Frames(owner, _graphics.transform);
+            throw new InvalidOperationException("A native physical owner has no retained source-prefab rest binding.");
+        }
+        private sealed class NativePartRetirement(Component[] components)
+        {
+            internal bool IsPending => components.Any(component => component);
+        }
+        internal void RetireNativePart(GameObject part, Component[] components)
+        {
+            _nativePartRests.Remove(part);
+            _retiringNativeParts.Remove(part);
+            _retiringNativeParts.Add(part, new NativePartRetirement(components));
+            DeferRefresh();
+        }
+        internal bool NativePartsRetiring(GraphicsCharacter graphics)
+        {
+            var pending = false;
+            foreach (var part in (graphics.ShapeInstancePerBodySlot ?? []).Concat(graphics.ArmorInstancePerBodySlot ?? []).Where(part => part).Distinct())
+            {
+                if (!_retiringNativeParts.TryGetValue(part, out var retirement)) continue;
+                if (retirement.IsPending) pending = true;
+                else _retiringNativeParts.Remove(part);
+            }
+            return pending;
+        }
         internal bool IsPending => _refreshPending;
         internal void Bind(GraphicsCharacter graphics) => _graphics = graphics;
         internal void DeferRefresh()
@@ -6714,6 +7320,7 @@ internal static class RacesContext
         internal void RefreshPending()
         {
             if (!_refreshPending) return;
+            if (!_graphics || _graphics.RulesetCharacter == null || !_graphics.Animator) { Release(false); return; }
             RefreshBodyShape(_graphics);
             if (_refreshPending) _characterModelRefreshPending = true;
         }
@@ -6723,10 +7330,15 @@ internal static class RacesContext
             private readonly Mesh _original = row.Original;
             private readonly Transform[] _bones = row.Renderer.bones;
             private readonly bool _identity = row.Identity;
+            private readonly bool _headAttachment = row.HeadAttachment;
             private readonly bool _useNativeFrame = row.UseNativeFrame;
             private readonly bool _calibrationSource = row.CalibrationSource;
+            internal bool DependsOnPart(GameObject part, IReadOnlyCollection<Component> components) => !_renderer ||
+                components.Contains(_renderer) || part && (_renderer.transform.IsChildOf(part.transform) ||
+                _bones.Any(bone => bone && bone.IsChildOf(part.transform)));
             internal bool Matches(BodyShapeRenderer current) => current.Renderer == _renderer &&
                 current.Original == _original && current.Identity == _identity &&
+                current.HeadAttachment == _headAttachment &&
                 current.UseNativeFrame == _useNativeFrame &&
                 current.CalibrationSource == _calibrationSource &&
                 current.Source != null && current.Source.MatchesBones(_bones);
@@ -6735,9 +7347,122 @@ internal static class RacesContext
             _fieldSourcesReady && _supplemental == supplemental && _baseField == field && _fieldRig == graphics.Animator &&
             _fieldAvatar == (graphics.Animator ? graphics.Animator.avatar : null) && ReferenceEquals(_fieldActor, graphics.RulesetCharacter) &&
             sources.Count == _fieldSources.Count && _fieldSources.All(source => sources.Any(source.Matches));
-        internal bool HasSources => _pieces.Count != 0;
+        internal bool HasSources => _pieces.Count != 0 || _sourceGraph != null;
+        internal bool KeepsBodyShape(GraphicsCharacter graphics, BodyShapeField field, float value, float defaultValue, bool supplemental) =>
+            _fieldSourcesReady && _graphics == graphics && _baseField == field && _value == value && _default == defaultValue &&
+            _supplemental == supplemental && ReferenceEquals(_fieldActor, graphics.RulesetCharacter) &&
+            _fieldRig == graphics.Animator && _fieldAvatar == (graphics.Animator ? graphics.Animator.avatar : null) &&
+            (_sourceGraph == null || _sourceGraph.KeepsPhysicalRest()) &&
+            _pieces.All(piece => piece.KeepsCurrent(_sourceGraph));
+
+        internal void ReleaseForRetirement() => ReleaseCore(false, null, propagateFailure: true);
+        internal void ReleasePart(GameObject part, IReadOnlyCollection<Component> components,
+            IReadOnlyCollection<Material> materials, bool all)
+        {
+            if (all || _sourceGraph?.DependsOnPart(part, components, materials) == true ||
+                _fieldSources.Any(source => source.DependsOnPart(part, components)))
+                ReleaseCore(false, null, propagateFailure: true);
+            else
+            {
+                foreach (var piece in _pieces.Where(piece => piece.DependsOnPart(part, components)).ToArray())
+                {
+                    piece.Release(true);
+                    _pieces.Remove(piece);
+                    ReleasePieceData(piece.Renderer);
+                }
+                foreach (var renderer in _pieceData.Keys.Where(renderer => !renderer || components.Contains(renderer) ||
+                             part && renderer.transform.IsChildOf(part.transform)).ToArray())
+                    ReleasePieceData(renderer);
+            }
+            DeferRefresh();
+        }
+
+        private void ReleasePieceData(SkinnedMeshRenderer renderer)
+        {
+            if (!_pieceData.TryGetValue(renderer, out var keys)) return;
+            CharacterModelPresentation.ReleaseSourceData(keys);
+            _pieceData.Remove(renderer);
+        }
+        internal CustomModels.SkinMeshSource.SourceGraph OwnedSourceGraph(object deformer) =>
+            _sourceGraph?.OwnsNativeDeformer(deformer) == true ? _sourceGraph : null;
+        internal bool OwnsNativeDeformer(object deformer) => _sourceGraph?.OwnsNativeDeformer(deformer) == true;
+        internal void RefreshNativeSurfaceMaterials() => _sourceGraph?.RefreshNativeSurfaceMaterials();
         internal bool IsBodyOverlayOf(SkinnedMeshRenderer renderer, Mesh original, CustomModels.SkinMeshSource source) =>
+            _sourceGraph?.IsPhysicalOverlayOf(renderer, original, source) == true ||
             _pieces.Any(piece => piece.Renderer == renderer && piece.IsOverlayOf(original, source));
+        internal CustomModels.SkinMeshSource SourceBeforeOverlay(SkinnedMeshRenderer renderer) =>
+            _sourceGraph?.OriginalSource(renderer) ?? _pieces.FirstOrDefault(piece => piece.Renderer == renderer)?.OriginalSource;
+        internal bool ReadsModelSources => _sourceGraph?.HasSurfaceSource == true;
+        private const float PhysicalRestBoneLength = 1f;
+        private const BodyShapeField.Continuation PhysicalRestContinuation = BodyShapeField.Continuation.Affine;
+        private CustomModels.SkinMeshSource.RestDeformation PhysicalRestDeformation(string key,
+            IReadOnlyDictionary<SkinnedMeshRenderer, IReadOnlyDictionary<(string Name, int Occurrence), float>> channels,
+            IReadOnlyList<SkinnedMeshRenderer> bodySources)
+        {
+            var fields = new Dictionary<CustomModels.SkinMeshSource.RestDeformation.Group, BodyShapeField>();
+            return new CustomModels.SkinMeshSource.RestDeformation(key, Evaluate, channels,
+                _graphics.GetComponent<CharacterModelPresentation>()?._sourceGraph, NativePartFrames, bodySources, Detail);
+
+            IReadOnlyList<SkinnedMeshRenderer> Detail(IReadOnlyList<SkinnedMeshRenderer> renderers) =>
+                HighestDetailRows(_graphics, renderers.Select(renderer => new BodyShapeRenderer { Renderer = renderer }))
+                    .Select(row => row.Renderer).ToArray();
+
+            (Vector3 Position, Matrix4x4 Derivative) Evaluate(CustomModels.SkinMeshSource.RestDeformation.Group group,
+                Transform bone, Vector3 point)
+            {
+                if (!fields.TryGetValue(group, out var field))
+                {
+                    var sampled = new Dictionary<SkinnedMeshRenderer, BodyShapeRest>();
+                    BodyShapeRest Rest(BodyShapeRenderer row)
+                    {
+                        if (sampled.TryGetValue(row.Renderer, out var existing)) return existing;
+                        var surface = group.Surfaces[row.Renderer];
+                        var source = ReadBodyShapeRest(surface.Source);
+                        var target = ReadNativeRestMesh(surface.Target, readable => readable.vertices);
+                        if (target.Length != source.Vertices.Length || !surface.Source.bindposes.SequenceEqual(surface.Target.bindposes))
+                            throw new InvalidOperationException("A physical body field has different source and target rest topology.");
+                        var frames = group.SkinFrames(row.Renderer, surface.Source);
+                        var vertices = source.Vertices.Select((position, index) =>
+                            CustomModels.SkinMeshSource.RestDeformation.Group.SkinValue(position, source.Weights[index], frames, true)).ToArray();
+                        var positions = target.Select((position, index) =>
+                            CustomModels.SkinMeshSource.RestDeformation.Group.SkinValue(position, source.Weights[index], frames, true)).ToArray();
+                        var result = new BodyShapeRest
+                        {
+                            Vertices = vertices, Weights = source.Weights,
+                            BindPoses = group.Palettes[row.Renderer].Take(source.BindPoses.Length).Select(bone => group.BoneFrame(bone).inverse).ToArray(),
+                            Muscular = positions.Select((position, index) => position - vertices[index]).ToArray()
+                        };
+                        sampled.Add(row.Renderer, result);
+                        return result;
+                    }
+                    List<BodyShapeRenderer> Rows(IEnumerable<SkinnedMeshRenderer> renderers) =>
+                        renderers.Where(group.Surfaces.ContainsKey)
+                            .Select(renderer => new BodyShapeRenderer
+                            { Renderer = renderer, Original = group.Surfaces[renderer].Source }).ToList();
+                    BodyShapeField Complete(BodyShapeField parent, List<BodyShapeRenderer> rows) =>
+                        BodyShapeField.Complete(parent, rows, Rest, row => group.Palettes[row.Renderer],
+                            // Physical fits use authored bone-local units. Their affine
+                            // map has no dependency on animated bone spacing.
+                            _ => PhysicalRestBoneLength, PhysicalRestContinuation);
+                    var parent = Complete(null, Rows(group.BodyRenderers));
+                    field = group.BodySurface && parent != null ? parent : Complete(parent, Rows(group.FieldRenderers));
+                    if (field == null) throw new InvalidOperationException("A physical cloth owner has no source-to-target deformation samples.");
+                    fields.Add(group, field);
+                }
+                if (!group.Bones.TryGetValue(bone, out var boneRest))
+                    throw new InvalidOperationException("A physical field point has no canonical source bone frame.");
+                var anchor = bone;
+                while (anchor && (!field.Contains(anchor.name) || !group.Bones.ContainsKey(anchor))) anchor = anchor.parent;
+                if (!anchor) throw new InvalidOperationException("A physical body field has no canonical supported ancestor: " + bone.name);
+                var toAnchor = group.Bones[anchor].inverse * boneRest;
+                var fromAnchor = toAnchor.inverse;
+                var target = field.EvaluateAffineRest(anchor.name, toAnchor.MultiplyPoint3x4(point));
+                var derivative = fromAnchor * target.Derivative * toAnchor;
+                derivative.m03 = derivative.m13 = derivative.m23 = 0f;
+                return (point + fromAnchor.MultiplyVector(target.Delta), derivative);
+            }
+        }
+
         private static string GeometryKey(GraphicsCharacter graphics, BodyShapeField field,
             List<BodyShapeRenderer> rows, bool supplemental)
         {
@@ -6759,7 +7484,7 @@ internal static class RacesContext
                 // weak identity avoids reading source vertex buffers on UI callbacks and
                 // cannot alias a later mesh when Unity recycles an instance ID.
                 declarations.Add(new JArray(BodyShapeMeshIdentities.GetValue(row.Original, _ => Guid.NewGuid().ToString("N")),
-                    row.UseNativeFrame, row.CalibrationSource,
+                    row.UseNativeFrame, row.HeadAttachment, row.CalibrationSource,
                     !row.UseNativeFrame && native >= 0 ? row.Renderer.GetBlendShapeWeight(native) : 0f, bones));
             }
             var declaration = new JArray(Array.IndexOf(BodyShapeFields, field), supplemental, declarations);
@@ -6779,34 +7504,52 @@ internal static class RacesContext
                 _value = value;
                 _default = defaultValue;
                 var rows = CaptureBodyShapeRenderers(graphics);
-                if (_pieces.Any(piece => !rows.Any(row => row.Renderer == piece.Renderer && piece.IsCurrent(row))))
+                var supplementalWeight = value - defaultValue;
+                bool NativeChannels(BodyShapeRenderer row) => NativeBodyShapeFrame(row.Original) >= 0 &&
+                    graphics.BlendShapeRenderers.Contains(row.Renderer);
+                bool SupplementalChannels(BodyShapeRenderer row) => supplemental && supplementalWeight != 0f &&
+                    (!row.Identity || row.HeadAttachment) &&
+                    (!row.UseNativeFrame || NativeBodyShapeFrame(row.Original) < 0);
+                IEnumerable<BodyShapeRenderer> PhysicalConsumers(IEnumerable<BodyShapeRenderer> candidates) =>
+                    candidates.Where(row => (!row.Identity || row.HeadAttachment) && row.Source.ClothOwner &&
+                        (NativeChannels(row) || SupplementalChannels(row)));
+                if (_pieces.Any(piece => !rows.Any(row => row.Renderer == piece.Renderer && piece.IsCurrent(row, _sourceGraph))) ||
+                    _sourceGraph != null && !_sourceGraph.HasPhysicalSources(
+                        PhysicalBodyRows(graphics, rows).Select(row => row.Renderer).ToArray(),
+                        PhysicalConsumers(rows).Select(row => row.Renderer)))
                 {
                     Release(false);
+                    if (HasSources) throw new InvalidOperationException("Previous body sources have not finished restoring.");
                     rows = CaptureBodyShapeRenderers(graphics);
                 }
+                foreach (var row in rows)
+                    if (_sourceGraph?.OriginalMesh(row.Renderer) is { } original) row.Original = original;
                 foreach (var piece in _pieces)
                 {
                     rows.Single(row => row.Renderer == piece.Renderer).Original = piece.Original;
                 }
-                var sources = rows.Where(row => row.CalibrationSource && row.UseNativeFrame && NativeBodyShapeFrame(row.Original) >= 0).ToList();
-                if (!FieldSourcesCurrent(graphics, field, rows, supplemental))
+                var sources = HighestDetailRows(graphics, rows.Where(row => row.CalibrationSource && row.UseNativeFrame && NativeBodyShapeFrame(row.Original) >= 0));
+                // Calibration samples and seam donors are the field's inputs.
+                // Other logical skins do not invalidate their unchanged owners.
+                List<BodyShapeRenderer> FieldInputs() => sources.Concat(rows.Where(row => !row.Identity &&
+                    row.UseNativeFrame && NativeBodyShapeFrame(row.Original) >= 0)).Distinct().ToList();
+                if (!FieldSourcesCurrent(graphics, field, FieldInputs(), supplemental))
                 {
                     Release(false);
-                    if (_pieces.Count != 0) throw new InvalidOperationException("Native body sources have not finished restoring.");
+                    if (HasSources) throw new InvalidOperationException("Native body sources have not finished restoring.");
                     rows = CaptureBodyShapeRenderers(graphics);
-                    sources = rows.Where(row => row.CalibrationSource && row.UseNativeFrame && NativeBodyShapeFrame(row.Original) >= 0).ToList();
+                    sources = HighestDetailRows(graphics, rows.Where(row => row.CalibrationSource && row.UseNativeFrame && NativeBodyShapeFrame(row.Original) >= 0));
                     _baseField = field;
                     _supplemental = supplemental;
                     _fieldRig = graphics.Animator;
                     _fieldAvatar = _fieldRig ? _fieldRig.avatar : null;
                     _fieldActor = graphics.RulesetCharacter;
-                    _fieldSources.AddRange(rows.Select(row => new FieldSource(row)));
+                    _fieldSources.AddRange(FieldInputs().Select(row => new FieldSource(row)));
                     _fieldSourcesReady = true;
                 }
-                // The face, hair, horns and other identity parts have no body deformation.
-                // Their replacement does not change the body geometry contract.
-                var bodyRows = rows.Where(row => !row.Identity && supplemental &&
-                    (!row.UseNativeFrame || NativeBodyShapeFrame(row.Original) < 0)).ToList();
+                // Head parts can include the neck, shoulders and upper chest. Their
+                // body-weighted attachments share the body field; facial bones stay fixed.
+                var bodyRows = rows.Where(SupplementalChannels).ToList();
                 var calibrationKey = bodyRows.Count == 0 ? null : GeometryKey(graphics, field, sources, supplemental);
                 var fieldAttempted = false;
                 BodyShapeField GetField()
@@ -6853,6 +7596,8 @@ internal static class RacesContext
                 foreach (var row in bodyRows)
                 {
                     if (_pieces.Any(piece => piece.Renderer == row.Renderer)) continue;
+                    if (!_pieceData.TryGetValue(row.Renderer, out var pieceData))
+                        _pieceData.Add(row.Renderer, pieceData = new HashSet<string>(StringComparer.Ordinal));
                     try
                     {
                         // Native face refresh recreates the actor's parts. Geometry is
@@ -6860,7 +7605,8 @@ internal static class RacesContext
                         // unchanged body and garment calculations. Live cloth ownership
                         // is still installed as one complete transition below.
                         var key = calibrationKey + ":" + GeometryKey(graphics, field, [row], supplemental);
-                        var cached = CharacterModelPresentation.ExistingSourceData(_derivedKeys, key);
+                        if (!pieceData.Contains(key)) CharacterModelPresentation.ReleaseSourceData(pieceData);
+                        var cached = CharacterModelPresentation.ExistingSourceData(pieceData, key);
                         if (cached != null)
                         {
                             if (cached.Length == 1) continue;
@@ -6873,11 +7619,11 @@ internal static class RacesContext
                         BodyShapePiece.Create(row, GetField, GetSeams, _pieces, supplemental);
                         if (_pieces.Count == count)
                         {
-                            CharacterModelPresentation.RetainPreparedSourceData(_derivedKeys, key, [new TextAsset("null")]);
+                            CharacterModelPresentation.RetainPreparedSourceData(pieceData, key, [new TextAsset("null")]);
                             continue;
                         }
                         var created = _pieces[_pieces.Count - 1];
-                        CharacterModelPresentation.RetainPreparedSourceData(_derivedKeys, key,
+                        CharacterModelPresentation.RetainPreparedSourceData(pieceData, key,
                             [new TextAsset(new JValue(created.Expansion).ToString(Formatting.None)), created.Owned]);
                         created.Retained();
                     }
@@ -6887,33 +7633,127 @@ internal static class RacesContext
                         ReportBodyShapeError(row.Original.name, exception);
                     }
                 }
-                if (_pieces.Count != 0 && _sourceGraph == null)
+                if (_sourceGraph == null)
                 {
-                    // Clothing pieces can share one native virtual mesh and cloth owner.
-                    // Install the complete overlay as one transition, as for authored character skins.
-                    var changes = _pieces.ToDictionary(piece => piece.Renderer, piece => (piece.Source, piece.Owned));
-                    _sourceGraph = CustomModels.SkinMeshSource.PrepareMeshes(graphics, changes, null,
-                        (key, create) => CharacterModelPresentation.RetainSourceData(_derivedKeys, key, create, null));
-                    _sourceGraph.Apply(true);
-                    foreach (var piece in _pieces) piece.Installed(_sourceGraph.Installed[piece.Renderer]);
+                    var fallback = PhysicalBodyRows(graphics, rows);
+                    var consumers = PhysicalConsumers(rows).Select(row => row.Renderer).ToHashSet();
+                    var changed = new Dictionary<SkinnedMeshRenderer, (CustomModels.SkinMeshSource Source, Mesh Mesh)>();
+                    var channels = new Dictionary<SkinnedMeshRenderer, IReadOnlyDictionary<(string Name, int Occurrence), float>>();
+                    // Native or supplemental body-channel consumers enter this transaction.
+                    // The native graph closes their shared VD/child relations and
+                    // retains collider/bone dependencies; body read sources remain.
+                    foreach (var row in rows.Where(row => (!row.Identity || row.HeadAttachment) &&
+                                 (consumers.Contains(row.Renderer) || fallback.Any(source => source.Renderer == row.Renderer))))
+                    {
+                        var piece = _pieces.SingleOrDefault(piece => piece.Renderer == row.Renderer);
+                        var target = piece?.Owned ?? row.Original;
+                        changed.Add(row.Renderer, (row.Source, target));
+                        var values = new Dictionary<(string Name, int Occurrence), float>();
+                        var native = NativeBodyShapeFrame(row.Original);
+                        var nativeWeight = NativeChannels(row) ? row.Renderer.GetBlendShapeWeight(native) : 0f;
+                        if (nativeWeight != 0f) values.Add(Channel(native), nativeWeight);
+                        if (piece != null && supplementalWeight != 0f)
+                        {
+                            var shape = supplementalWeight > 0f ? BodyVolumePositive : BodyVolumeNegative;
+                            values.Add(Channel(target.GetBlendShapeIndex(shape)), Mathf.Abs(supplementalWeight));
+                        }
+                        if (values.Count != 0) channels.Add(row.Renderer, values);
+                        (string Name, int Occurrence) Channel(int index)
+                        {
+                            if (index < 0 || index >= target.blendShapeCount)
+                                throw new InvalidOperationException("A desired physical body channel is absent from its target mesh.");
+                            var name = target.GetBlendShapeName(index);
+                            return (name, Enumerable.Range(0, index).Count(previous => target.GetBlendShapeName(previous) == name));
+                        }
+                    }
+                    if (channels.Count != 0 && changed.Values.Any(change => change.Source.ClothOwner))
+                    {
+                        // Physical fits use authored source/target rest, not the legacy
+                        // geometry cache's animated bone lengths or weak mesh identities.
+                        var declaration = new JArray((int)PhysicalRestContinuation, PhysicalRestBoneLength,
+                            supplemental, value, defaultValue,
+                            new JArray(fallback.Select(row => new JArray(CharacterModelFingerprint(row.Original),
+                                row.UseNativeFrame, row.HeadAttachment, row.CalibrationSource))));
+                        var rest = PhysicalRestDeformation(declaration.ToString(Formatting.None), channels,
+                            fallback.Select(row => row.Renderer).ToArray());
+                        _sourceGraph = CustomModels.SkinMeshSource.PrepareMeshes(graphics, changed, null,
+                            (key, create) => CharacterModelPresentation.RetainSourceData(_derivedKeys, key, create, null),
+                            restDeformation: rest);
+                        _sourceGraph.Apply(true);
+                    }
                 }
-                foreach (var piece in _pieces) piece.SetValue(value, defaultValue);
+                foreach (var piece in _pieces)
+                    if (!piece.IsInstalled)
+                    {
+                        if (_sourceGraph?.Installed.TryGetValue(piece.Renderer, out var installed) == true) piece.Installed(installed);
+                        else piece.Apply(graphics);
+                    }
+                foreach (var row in rows.Where(row => !row.Identity || row.HeadAttachment))
+                {
+                    if (_sourceGraph?.ConsumesPhysicalChannels(row.Renderer) == true) continue;
+                    var native = NativeBodyShapeFrame(row.Original);
+                    if (native >= 0 && graphics.BlendShapeRenderers.Contains(row.Renderer))
+                        row.Renderer.SetBlendShapeWeight(native, row.UseNativeFrame ? value : defaultValue);
+                }
+                foreach (var piece in _pieces)
+                    if (_sourceGraph?.ConsumesPhysicalChannels(piece.Renderer) != true) piece.SetValue(value, defaultValue);
             }
-            catch (Exception exception) { ReportBodyShapeError("presentation", exception); }
+            catch (Exception exception)
+            {
+                try { Release(false); }
+                catch (Exception cleanup) { exception = new AggregateException(exception, cleanup); }
+                ReportBodyShapeError("presentation", exception);
+            }
             finally { _busy = false; SynchronizeCharacterModelRefreshPending(); }
         }
-        internal void Release(bool destroying)
+        internal void Release(bool destroying) => ReleaseCore(destroying, null);
+        internal bool TrySuspendNativeOwner(Action restoreOwner, out CustomModels.SkinMeshSource.SourceGraph graph)
+        {
+            graph = _sourceGraph;
+            if (graph == null)
+            {
+                // Return ordinary overlays before the caller captures an otherwise
+                // unowned native cloth graph. The caller still owns the one logical
+                // palette undo callback and its stopped-source/native restart phase.
+                ReleaseCore(false, null, false, true);
+                return false;
+            }
+            ReleaseCore(false, restoreOwner, false, true);
+            if (_sourceGraph != null)
+                throw new InvalidOperationException("A native presentation mutation did not release its previous body graph.");
+            return true;
+        }
+        private void ReleaseCore(bool destroying, Action restoreOwner, bool restartNative = true, bool propagateFailure = false)
         {
             _refreshPending = false;
-            try
+            void ReleasePieces()
             {
-                _sourceGraph?.Restore(!destroying);
-                _sourceGraph = null;
-                foreach (var piece in _pieces) piece.Release();
+                foreach (var piece in _pieces) piece.Release(!destroying && restartNative);
                 _pieces.Clear();
+                foreach (var renderer in _pieceData.Keys.ToArray()) ReleasePieceData(renderer);
                 CharacterModelPresentation.ReleaseSourceData(_derivedKeys);
             }
-            catch (Exception exception) { ReportBodyShapeError("presentation-restore", exception); return; }
+            try
+            {
+                if (restoreOwner == null)
+                {
+                    _sourceGraph?.Restore(!destroying && restartNative);
+                    ReleasePieces();
+                }
+                else
+                {
+                    void RestorePresentation() { ReleasePieces(); restoreOwner(); }
+                    if (_sourceGraph != null) _sourceGraph.RestoreWithNativeOwner(!destroying && restartNative, RestorePresentation);
+                    else RestorePresentation();
+                }
+                _sourceGraph = null;
+            }
+            catch (Exception exception)
+            {
+                ReportBodyShapeError("presentation-restore", exception);
+                if (propagateFailure) throw;
+                return;
+            }
             _baseField = _field = null;
             _fieldRig = null;
             _fieldAvatar = null;
@@ -6921,16 +7761,19 @@ internal static class RacesContext
             _fieldSources.Clear();
             _fieldSourcesReady = false;
             _supplemental = false;
-            if (_pieces.Count == 0 && _bodyShapesUnloading) BodyShapeOwners.Remove(this);
+            if (!HasSources && _bodyShapesUnloading) BodyShapeOwners.Remove(this);
             SynchronizeCharacterModelRefreshPending();
         }
         private void OnEnable() { if (!_bodyShapesUnloading && _graphics && !_busy) RefreshBodyShape(_graphics); }
         private void OnDisable() { Release(false); }
-        private void OnDestroy() { Release(true); if (_pieces.Count == 0) BodyShapeOwners.Remove(this); }
+        private void OnDestroy() { Release(true); if (!HasSources) BodyShapeOwners.Remove(this); }
         private void LateUpdate()
         {
             if (_bodyShapesUnloading || !_graphics || _busy) return;
-            foreach (var piece in _pieces) piece.SetValue(_value, _default);
+            if (_refreshPending && !DeferCharacterModelRefresh && !CharacterModelCreations.ContainsKey(_graphics) &&
+                !NativePartsRetiring(_graphics)) RefreshPending();
+            foreach (var piece in _pieces)
+                if (_sourceGraph?.ConsumesPhysicalChannels(piece.Renderer) != true) piece.SetValue(_value, _default);
         }
     }
 
@@ -6957,14 +7800,23 @@ internal static class RacesContext
         private readonly Mesh _owned;
         private readonly Bounds _originalBounds;
         private readonly Bounds _appliedBounds;
-        private readonly bool _identity, _useNativeFrame;
+        private readonly bool _identity, _headAttachment, _useNativeFrame;
         private readonly Transform[] _bones;
         private CustomModels.SkinMeshSource _source;
+        private CustomModels.SkinMeshSource.SourceGraph _graph;
         private bool _installed, _retained;
         private readonly int _positive;
         private readonly int _negative;
         internal CustomModels.SkinMeshSource Source => _source;
         internal Mesh Owned => _owned;
+        internal CustomModels.SkinMeshSource OriginalSource => _graph?.OriginalSource(Renderer);
+        internal bool IsInstalled => _installed;
+        internal bool KeepsCurrent(CustomModels.SkinMeshSource.SourceGraph physical) => _installed && Renderer &&
+            _source != null && _source.AcceptsCurrentMesh() && _source.MatchesBones(_bones) &&
+            (_source.Original == _owned || physical?.IsPhysicalOverlayOf(Renderer, Original, _source) == true);
+        internal bool DependsOnPart(GameObject part, IReadOnlyCollection<Component> components) => !Renderer ||
+            components.Contains(Renderer) || part && (Renderer.transform.IsChildOf(part.transform) ||
+            _bones.Any(bone => bone && bone.IsChildOf(part.transform))) || _graph?.DependsOnPart(part, components) == true;
         internal readonly float Expansion;
         internal BodyShapePiece(BodyShapeRenderer row, Mesh owned, float expansion)
         {
@@ -6974,6 +7826,7 @@ internal static class RacesContext
             Expansion = expansion;
             _source = row.Source;
             _identity = row.Identity;
+            _headAttachment = row.HeadAttachment;
             _useNativeFrame = row.UseNativeFrame;
             _bones = row.Renderer.bones;
             _positive = owned.GetBlendShapeIndex(BodyVolumePositive);
@@ -6989,11 +7842,11 @@ internal static class RacesContext
             var hasNativeFrame = row.UseNativeFrame && NativeBodyShapeFrame(row.Original) >= 0;
             // A native frame already fits this asset's skin and clothing. Supplemental
             // fields fill missing deformation; they do not mask authored native motion.
-            if (row.Identity || !supplemental || hasNativeFrame) return;
+            if ((row.Identity && !row.HeadAttachment) || !supplemental || hasNativeFrame) return;
             var rest = ReadBodyShapeRest(row.Original);
             var bones = row.Renderer.bones.Take(rest.BindPoses.Length).ToArray();
             if (bones.Length < rest.BindPoses.Length) throw new InvalidOperationException("The body's original bone mapping is incomplete.");
-            var protectedBones = bones.Select(bone => !row.UseNativeFrame && IsProtectedBodyBone(bone)).ToArray();
+            var protectedBones = bones.Select(bone => (row.HeadAttachment || !row.UseNativeFrame) && IsProtectedBodyBone(bone)).ToArray();
             if (rest.WeightedBones.All(index => protectedBones[index])) return;
             var field = getField();
             if (field == null) return;
@@ -7143,12 +7996,14 @@ internal static class RacesContext
         internal bool IsOverlayOf(Mesh original, CustomModels.SkinMeshSource source) =>
             _installed && Original == original && Renderer && source != null && source.MatchesBones(_bones) &&
             source.Original == _owned && source.OwnerCurrent && source.AcceptsCurrentMesh();
-        internal bool IsCurrent(BodyShapeRenderer row)
+        internal bool IsCurrent(BodyShapeRenderer row, CustomModels.SkinMeshSource.SourceGraph physical)
         {
             var source = row.Source;
             if (!_installed || row.Renderer != Renderer || row.Identity != _identity ||
+                row.HeadAttachment != _headAttachment ||
                 row.UseNativeFrame != _useNativeFrame ||
-                source == null || !source.MatchesBones(_bones) || source.Original != _owned || !source.AcceptsCurrentMesh()) return false;
+                source == null || !source.MatchesBones(_bones) || !source.AcceptsCurrentMesh() ||
+                source.Original != _owned && physical?.IsPhysicalOverlayOf(Renderer, Original, source) != true) return false;
             _source = source;
             return true;
         }
@@ -7165,9 +8020,22 @@ internal static class RacesContext
             _installed = true;
             Renderer.localBounds = _appliedBounds;
         }
-        internal void Retained() => _retained = true;
-        internal void Release()
+        internal void Apply(GraphicsCharacter graphics)
         {
+            if (_installed) return;
+            if (_source.ClothOwner)
+                throw new InvalidOperationException("A native cloth body piece has no connected physical source transaction.");
+            _graph ??= CustomModels.SkinMeshSource.PrepareMeshes(graphics,
+                new Dictionary<SkinnedMeshRenderer, (CustomModels.SkinMeshSource Source, Mesh Mesh)>
+                    { [Renderer] = (_source, _owned) });
+            _graph.Apply(true);
+            Installed(_graph.Installed[Renderer]);
+        }
+        internal void Retained() => _retained = true;
+        internal void Release(bool restartNative)
+        {
+            _graph?.Restore(restartNative);
+            _graph = null;
             _installed = false;
             if (Renderer && Renderer.localBounds.Equals(_appliedBounds)) Renderer.localBounds = _originalBounds;
             if (!_retained && _owned) UnityEngine.Object.Destroy(_owned);
@@ -7198,12 +8066,18 @@ internal static class RacesContext
                     continue;
                 }
                 if (protectedVertices[index] || rest.Normals[index].sqrMagnitude < 1e-8f) continue;
+                // Shared front/back vertices have no unique area normal. Keep
+                // their imported frame instead of normalizing cancellation noise.
+                if (before[index].sqrMagnitude == 0f) continue;
+                if (after[index].sqrMagnitude == 0f)
+                    throw new InvalidOperationException($"A body deformation collapsed a surface frame: {owned.name}, vertex {index}.");
                 var nativeNormal = rest.Normals[index] + (baseline == 0f ? Vector3.zero : rest.MuscularNormals[index] * baseline);
-                var normal = (nativeNormal + after[index] - before[index]).normalized;
+                var rotation = Quaternion.FromToRotation(before[index], after[index]);
+                var normal = (rotation * nativeNormal).normalized;
                 normals[index] = normal - nativeNormal;
                 if (tangents == null) continue;
                 var tangent = (Vector3)rest.Tangents[index] + (baseline == 0f ? Vector3.zero : rest.MuscularTangents[index] * baseline);
-                tangents[index] = Quaternion.FromToRotation(nativeNormal, normal) * tangent - tangent;
+                tangents[index] = rotation * tangent - tangent;
             }
             owned.AddBlendShapeFrame(name, 100f, changes, normals, tangents);
         }
@@ -7212,6 +8086,7 @@ internal static class RacesContext
     private static Vector3[] BodyShapeNormals(Vector3[] vertices, int[] triangles)
     {
         var result = new Vector3[vertices.Length];
+        var areas = new float[vertices.Length];
         for (var index = 0; index < triangles.Length; index += 3)
         {
             var first = triangles[index];
@@ -7219,8 +8094,24 @@ internal static class RacesContext
             var third = triangles[index + 2];
             var normal = Vector3.Cross(vertices[second] - vertices[first], vertices[third] - vertices[first]);
             result[first] += normal; result[second] += normal; result[third] += normal;
+            var area = normal.magnitude;
+            areas[first] += area; areas[second] += area; areas[third] += area;
         }
-        for (var index = 0; index < result.Length; index++) result[index].Normalize();
+        for (var index = 0; index < result.Length; index++)
+        {
+            var normal = result[index];
+            if (!BodyShapeFinite(normal)) throw new InvalidOperationException("A body surface has a nonfinite area normal.");
+            var scale = Mathf.Max(Mathf.Abs(normal.x), Mathf.Max(Mathf.Abs(normal.y), Mathf.Abs(normal.z)));
+            if (scale <= areas[index] * 0.000001f)
+            {
+                result[index] = Vector3.zero;
+                continue;
+            }
+            // Area depends on triangle size; its direction must not use Unity's
+            // absolute Vector3.Normalize threshold for already unit-scale vectors.
+            normal /= scale;
+            result[index] = normal / Mathf.Sqrt(normal.sqrMagnitude);
+        }
         return result;
     }
 

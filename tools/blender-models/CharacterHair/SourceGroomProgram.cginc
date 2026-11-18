@@ -80,10 +80,13 @@
             // broadens their longitudinal distribution; it must not mix a
             // solid-surface GGX lobe back into the opaque lock underneath them.
             float fiberRoughness=lerp(perceptualRoughness,roughness,saturate(s.FiberAnisotropy));
-            float fiberDistribution=SourceGroomFiberDistribution(dot(t,h),fiberRoughness);
+            float fiberHalfAngle=dot(t,h);
+            float fiberDistribution=SourceGroomFiberDistribution(fiberHalfAngle,fiberRoughness);
+            float internalDistribution=SourceGroomFiberDistribution(
+                abs(fiberHalfAngle)-0.11,min(fiberRoughness+0.23,1));
             float fiberMask=min(1,min(2*nh*nv/max(lh,1e-5),2*nh*nl/max(lh,1e-5)));
             float fiberVisibility=fiberMask/(4*max(nv*nl,1e-5));
-            float specularTerm=max(fiberDistribution*fiberVisibility*UNITY_PI*nl,0);
+            float specularTerm=max(fiberVisibility*UNITY_PI*nl,0);
             #if defined(_SPECULARHIGHLIGHTS_OFF)
                 specularTerm=0;
             #endif
@@ -106,8 +109,13 @@
             environmentSurface.Alpha=surface.Alpha;
             half4 color=LightingStandardSpecular(environmentSurface,viewDir,indirect);
             half diffuseTerm=DisneyDiffuse(nv,nl,lh,perceptualRoughness)*nl;
+            // Use a broader, pigment-filtered reflection for light scattered
+            // within the fibers. Absolute angle keeps the axis sign independent of UV seams.
+            float internalWeight=0.24*_CoreResponse*s.FiberAnisotropy;
+            half3 fiberReflection=lerp(fiberDistribution,
+                internalDistribution*sqrt(saturate(s.Albedo)),internalWeight);
             color.rgb+=gi.light.color*(diffuse*diffuseTerm
-                +FresnelTerm(specular,lh)*specularTerm);
+                +FresnelTerm(specular,lh)*specularTerm*fiberReflection);
             return color;
         }
 
@@ -228,6 +236,7 @@
             bool fineCoordinates=i.groomRoleAndSign.x>=0.5 || (_CoreFineStrength>0 && abs(groomDet)>1e-20);
             float fineWeight=i.groomRoleAndSign.x>=0.5?1:_CoreFineStrength;
             float strandVariation=0;
+            float strandOcclusion=1;
             float4 groom = float4(1,1,1,1);
             float3 fine = float3(0,0,1);
             if (fineCoordinates && mask <= 0.5)
@@ -335,6 +344,7 @@
                 if(_NativePigmentMean>0)filteredLuminance=_NativePigmentMean;
                 float legacyLuminance=lerp(filteredLuminance,luminance,_BakedColorDetail);
                 float nativeStrandRatio=clamp(luminance/max(localLuminance,1e-4),0.25,4);
+                strandOcclusion=1-0.22*_CoreResponse*saturate(1-nativeStrandRatio);
                 float strandLuminance=filteredLuminance*lerp(1,nativeStrandRatio,_BakedColorDetail);
                 float modernWeight=_NativePigmentMean>0 ? _CoreResponse : 0;
                 float gain=lerp(legacyLuminance,strandLuminance,modernWeight)/max(luminance,1e-4);
@@ -358,6 +368,7 @@
                     float3 phase=(i.sourceAndGroom.zw.x*cycles+wave+tile*0.61803399)*(2*UNITY_PI);
                     float variation=dot(sin(phase)*visibility,float3(0.6,0.3,0.1));
                     strandVariation=variation;
+                    strandOcclusion*=1-0.13*_CoreResponse*fineWeight*saturate(-strandVariation);
                     float3 groomPigment=groom.rgb;
                     // Core alpha is intentionally intact: transparent groom gaps
                     // must not stamp full-strength dark pigment onto that core.
@@ -381,7 +392,7 @@
             float strandLuster=saturate(_FiberSmoothness*lusterScale+0.08*strandVariation
                 +0.035*(groom.a-0.5));
             o.Smoothness = mask <= 0.5 ? lerp(_FiberSmoothness,strandLuster,_CoreResponse) : _Smoothness;
-            o.Occlusion = 1;
+            o.Occlusion = strandOcclusion;
             o.Alpha = 1;
             float det=dUVdx.x*dUVdy.y-dUVdx.y*dUVdy.x;
             float3 alongV=(-dPdx*dUVdy.x+dPdy*dUVdx.x)*(det<0?-1:1);

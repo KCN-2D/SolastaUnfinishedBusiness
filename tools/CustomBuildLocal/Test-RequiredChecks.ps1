@@ -20,6 +20,24 @@ if ($PlanPath) { $cases += @{name='verified project';event='Stop';expected='allo
 $results = [Collections.Generic.List[object]]::new()
 try {
     . (Join-Path $PSScriptRoot '../game-test/GameTest.Common.ps1')
+    $stage = Join-Path $temporary 'Stage'
+    $formalOutput = Join-Path $temporary 'Output'
+    $archive = Join-Path $temporary 'Package.zip'
+    $file = 'fixture.dll'
+    foreach ($directory in @($stage,$formalOutput)) {
+        [void][IO.Directory]::CreateDirectory($directory)
+        [IO.File]::WriteAllText((Join-Path $directory $file),'original')
+    }
+    [IO.File]::WriteAllText($archive,'package')
+    $build = [pscustomobject]@{stage='Stage';manifest=@(Get-GtManifest $stage);zipSha256=Get-GtHash $archive}
+    if (-not (Test-GtBuildPayload $build $temporary $formalOutput $archive)) { throw 'A matching build was not reused.' }
+    foreach ($changedFile in @($archive,(Join-Path $stage $file),(Join-Path $formalOutput $file))) {
+        $original = [IO.File]::ReadAllText($changedFile)
+        [IO.File]::WriteAllText($changedFile,('x' * $original.Length))
+        if (Test-GtBuildPayload $build $temporary $formalOutput $archive) { throw "A stale build was reused: $changedFile" }
+        [IO.File]::WriteAllText($changedFile,$original)
+    }
+    $results.Add([pscustomobject]@{name='build reuse requires matching staged files, output and archive';passed=$true})
     $reportPath = Join-Path $temporary 'Checks.json'
     $requirements = [pscustomobject]@{reportFile='Checks.json';checks=@([pscustomobject]@{name='resource recovery';minimumCount=1},[pscustomobject]@{name='localized display';minimumCount=2})}
     $validChecks = @([pscustomobject]@{name='resource recovery';passed=$true},[pscustomobject]@{name='localized display';passed=$true},[pscustomobject]@{name='localized display';passed=$true})

@@ -18,6 +18,14 @@ try {
 & tools\asset-authoring\workspace\Python\Scripts\python.exe -m pip install --no-cache-dir -r tools\asset-authoring\requirements.txt -r tools\localization\requirements.txt
 ```
 
+## Python処理の計測
+
+共通Python環境の`py-spy`で、実行中のPython処理を計測します。対象のプロセスIDと、`tools/game-test/artifacts`以下の出力先を指定します。同じコマンドの親子プロセスがある場合は、実処理を行う子プロセスを選びます。計測の終了後に表示される`Samples`と`Errors`を確認します。
+
+```text
+tools\asset-authoring\workspace\Python\Scripts\py-spy.exe record --pid <PID> --duration 15 --rate 50 --format speedscope --output <作業先\profile.json>
+```
+
 ## アイコン制作
 
 リポジトリのルートで実行します。[画像・アイコンの作成ルール](../../.codex/PROJECT_GUIDE.md#画像アイコンの作成と差し替え)に沿って参照画像と表示先を確認し、次の手順で制作します。
@@ -366,7 +374,7 @@ RGBAの各チャンネルに材質データを保存するPNGは、共通関数`
 
 通常の生成では、入力依存とジョブの所有範囲を登録し、終了時に成果物のハッシュを保存します。Unityのローカル生成処理は`Register-AssetAuthoringJob`と`Complete-AssetAuthoringJob`で、ジョブの成果物、Unityへの取込用コピー、セッションを登録します。
 
-キャラクター資源の生成コマンドは、開始時に出力先と元catalogを`.resource-work/`へ登録し、終了時に生成ファイルとSHA256を保存します。失敗した場合やプロセスが中断した場合も、既存の入力と今回の生成物を区別して整理します。[全ツールの整理](../README.md#生成物と追跡範囲)では、旧形式の制作入力・receiptから確認できる未完了候補も対象にします。
+キャラクター資源と数値メッシュの生成処理は、開始時に入力のcatalogまたは制作receiptと出力先を`.resource-work/`へ登録します。出力先を`--workspace`で指定するコマンドも同じ登録を行います。生成データは`payload`、参照を記録するreceiptは`metadata`としてSHA256とともに保存し、数値JSONやbindingも整理の対象にします。失敗・中断した生成物と、作業前から存在したファイルを区別します。[全ツールの整理](../README.md#生成物と追跡範囲)では、旧形式の制作入力・receiptから所有を確認できる候補も対象にします。
 
 ```powershell
 & .\tools\asset-authoring\Invoke-UnityAssetBuild.ps1 -Cleanup `

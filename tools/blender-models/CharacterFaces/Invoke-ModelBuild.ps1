@@ -84,7 +84,7 @@ try{
    if(-not $child.success -or @($child.meshes).Count -ne $job.meshes -or @($child.sourceAssets).Count -ne $job.sourceAssets -or $child.sourceBundlesLoaded -ne $job.sourceBundles -or $child.sourceBundlesReleased -ne $job.sourceBundles){throw ('The member source closure failed: '+$job.outputFile)}
    $target=Join-Path $archive $job.outputFile;$proof=Join-Path $proofRoot ($job.outputFile+'.json')
    if(Test-Path -LiteralPath $target){throw 'The completed output already exists.'}
-   New-Item -ItemType HardLink -Path $target -Target $child.bundlePath|Out-Null
+   New-Item -ItemType HardLink -Path ('\\?\'+$target) -Target ('\\?\'+$child.bundlePath)|Out-Null
    if((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant() -cne $child.bundleSha256){throw 'The archived candidate differs from its report.'}
    $child|ConvertTo-Json -Depth 90|Set-Content -LiteralPath $proof -Encoding UTF8
    $results.Add([pscustomobject]@{file=$job.outputFile;bundlePath=$target;sha256=$child.bundleSha256;bytes=(Get-Item -LiteralPath $target).Length;report=$proof;originalJob=$created[0].FullName;memberIndex=$index})

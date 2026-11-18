@@ -29,6 +29,12 @@ def require(value, message):
         raise ValueError(message)
 
 
+def source_filter_budget():
+    """One operator's temporary work, excluding retained source/final images."""
+    return dict(workBytes=512*1024*1024,gatherBytes=8*1024*1024,nativeQueries=4096,nativeWaveBytes=128*1024*1024,
+        nativeCacheBytes=32*1024*1024,nativeTapBlockBytes=64*1024*1024)
+
+
 def load_inputs(path):
     """Resolve explicitly declared production inputs relative to their owner."""
     path = Path(path).resolve()
@@ -405,6 +411,35 @@ def anatomy_surface_anchor(positions, normals, ownership, point, candidates, *, 
     return int(ids[np.argmin(np.sum((positions[ids] - point) ** 2, axis=1))])
 
 
+def anatomy_surface_pair(positions, normals, ownership, origins, centre, frame, scale_metres):
+    """Find bilateral cheek crests at corresponding source anatomical heights."""
+    positions=np.asarray(positions,float);normals=np.asarray(normals,float)
+    origins=np.asarray(origins,float);frame=np.asarray(frame,float);centre=np.asarray(centre,float)
+    require(positions.shape==normals.shape and positions.ndim==2 and positions.shape[1]==3 and
+            origins.shape==(2,3) and frame.shape==(3,3) and centre.shape==(3,) and
+            all(np.isfinite(value).all()for value in(positions,normals,origins,frame,centre)) and
+            np.isfinite(scale_metres) and scale_metres>0,'Invalid paired native anatomical frame.')
+    require(np.allclose(frame.T@frame,np.eye(3),rtol=0,atol=1e-6),'A paired anatomical frame must be orthonormal.')
+    ownership=np.asarray(ownership,float)
+    require(ownership.shape==(len(positions),) and np.isfinite(ownership).all() and
+            np.all((ownership>=0)&(ownership<=1)),'Invalid paired native surface ownership.')
+    side,forward,up=frame.T;local=(positions-centre)@frame;candidates=[]
+    for sign,origin in zip((-1,1),origins):
+        height=(positions-origin)@up
+        region=(ownership>0)&(sign*local[:,0]>.55*scale_metres)&(sign*local[:,0]<1.4*scale_metres)
+        region&=(np.abs(height)<.12*scale_metres)&(local[:,1]>-.25*scale_metres)&(local[:,1]<.6*scale_metres)
+        region&=(normals@(sign*.8*side+.6*forward)>0)
+        ids=np.flatnonzero(region)
+        require(len(ids)>0,'The source paired zygomatic surface is absent.')
+        candidates.append((ids,height[ids]))
+    left,lh=candidates[0];right,rh=candidates[1]
+    score=local[right,0][None,:]-local[left,0][:,None]-4*np.abs(lh[:,None]-rh[None,:])-.5*(np.abs(lh[:,None])+np.abs(rh[None,:]))
+    a,b=np.unravel_index(np.argmax(score),score.shape);indices=(int(left[a]),int(right[b]))
+    return indices,dict(sourceBoneOffsetsMetres=[float(lh[a]),float(rh[b])],
+        bilateralSourceHeightResidualMetres=float(abs(lh[a]-rh[b])),
+        surfaceBreadthMetres=float(local[indices[1],0]-local[indices[0],0]))
+
+
 def anatomy_edge_path(start, end, graph, positions):
     import heapq
     distances = {start: 0.0}
@@ -464,7 +499,7 @@ def anatomy_contact_path(positions, graph, score, metric, horizontal, endpoints=
     raise ValueError('The actual contact tissue has no connected native edge curve.')
 
 
-def anatomy_contact_curves(asset, skin: 'dict[str, Any]', packet: 'dict[str, Any]', positions, normals, graph, representative, ownership, functions, marks):
+def anatomy_contact_curves(asset, skin: 'dict[str, Any]', packet: 'dict[str, Any]', positions, normals, graph, representative, ownership, functions, marks, parts=('eyelids','lips')):
     horizontal = marks['right'] - marks['left']
     horizontal /= np.linalg.norm(horizontal)
     vertical = (marks['left'] + marks['right']) * 0.5 - marks['mouth']
@@ -478,28 +513,31 @@ def anatomy_contact_curves(asset, skin: 'dict[str, Any]', packet: 'dict[str, Any
 
     def region(tokens):
         return anatomy_influence(packet, bones, tokens)[representative] * exterior * (ownership > 0)
-    eyes = [s for s in asset['skins'] if s['path'].lower().endswith('lod0') and any((m and m['shader'] == 'Custom/CharacterEye' for m in s['materials']))]
-    if len(eyes) != 1:
-        raise ValueError('An unambiguous native ocular owner is required for contact construction.')
-    eye = eyes[0]
-    ep = native_packet(eye)
-    ev = functions['points'](ep['vertices'], art.CONVERT @ functions['matrix'](eye['rendererToPrefab']))
-    et = np.concatenate([np.asarray(s, dtype=int).reshape(-1, 3) for s in ep['subMeshes']])
-    eye_bones = [b.rsplit('/', 1)[-1].lower() if b else '' for b in eye['bones']]
+    require(parts and set(parts)<={'eyelids','lips'},'Unknown native contact tissue selection.')
     curves = {}
-    for side in ('l', 'r'):
-        ew = anatomy_influence(ep, eye_bones, ('b_eye_' + side,))
-        triangles = et[np.all(ew[et] > 0.5, axis=1)]
-        if not len(triangles):
-            raise ValueError('The actual ocular source has no independently owned globe triangles.')
-        globe = ev[np.unique(triangles)]
-        center = globe.mean(axis=0)
-        radius = np.linalg.norm(globe - center, axis=1).max()
-        nearby = np.linalg.norm(positions - center, axis=1) < radius * 1.6
-        metric = np.full(len(positions), np.inf)
-        metric[nearby] = anatomy_triangle_distances(positions[nearby], ev, triangles)
-        for part in ('upper', 'lower'):
-            curves['lid-' + part + '-' + side] = anatomy_contact_path(positions, graph, region(('eyelid_' + part + '_' + side,)) * nearby, metric, horizontal)
+    if 'eyelids' in parts:
+        eyes = [s for s in asset['skins'] if s['path'].lower().endswith('lod0') and any((m and m['shader'] == 'Custom/CharacterEye' for m in s['materials']))]
+        if len(eyes) != 1:
+            raise ValueError('An unambiguous native ocular owner is required for contact construction.')
+        eye = eyes[0]
+        ep = native_packet(eye)
+        ev = functions['points'](ep['vertices'], art.CONVERT @ functions['matrix'](eye['rendererToPrefab']))
+        et = np.concatenate([np.asarray(s, dtype=int).reshape(-1, 3) for s in ep['subMeshes']])
+        eye_bones = [b.rsplit('/', 1)[-1].lower() if b else '' for b in eye['bones']]
+        for side in ('l', 'r'):
+            ew = anatomy_influence(ep, eye_bones, ('b_eye_' + side,))
+            triangles = et[np.all(ew[et] > 0.5, axis=1)]
+            if not len(triangles):
+                raise ValueError('The actual ocular source has no independently owned globe triangles.')
+            globe = ev[np.unique(triangles)]
+            center = globe.mean(axis=0)
+            radius = np.linalg.norm(globe - center, axis=1).max()
+            nearby = np.linalg.norm(positions - center, axis=1) < radius * 1.6
+            metric = np.full(len(positions), np.inf)
+            metric[nearby] = anatomy_triangle_distances(positions[nearby], ev, triangles)
+            for part in ('upper', 'lower'):
+                curves['lid-' + part + '-' + side] = anatomy_contact_path(positions, graph, region(('eyelid_' + part + '_' + side,)) * nearby, metric, horizontal)
+    if 'lips'not in parts:return curves
     upper = region(('lip_upper',))
     lower = region(('lip_lower',))
     corner = region(('lip_corner',))
@@ -522,7 +560,7 @@ def anatomy_contact_curves(asset, skin: 'dict[str, Any]', packet: 'dict[str, Any
     return curves
 
 
-def anatomy_curvature_field(positions, normals, graph, anchors, radius, path_cache):
+def anatomy_curvature_field(positions, normals, graph, anchors, radius, path_cache, *, preserved_knots=None):
     import heapq
     "Fit a person's connected native tissue, preserving its anatomical crests.\n\n    A depth quadric follows the observed patch rather than bridging a face with\n    an invented chord. A constrained fit keeps the actual crest knots fixed.\n    Its support follows mesh distance and cannot cross an eye or oral island.\n    "
     paths = []
@@ -565,14 +603,18 @@ def anatomy_curvature_field(positions, normals, graph, anchors, radius, path_cac
     ids = np.flatnonzero(weight > 0)
     if len(ids) < 6:
         raise ValueError('The native tissue patch has insufficient compatible normal samples.')
-    constraints = design[anchors]
-    rhs = depth[anchors]
+    fixed = np.asarray(anchors if preserved_knots is None else preserved_knots, dtype=int)
+    require(fixed.ndim == 1 and len(fixed) >= 2 and len(set(fixed.tolist())) == len(fixed) and
+            set(fixed.tolist()) <= set(anchors) and anchors[0] in fixed and anchors[-1] in fixed,
+            'A native curvature section must preserve its distinct anatomical endpoints.')
+    constraints = design[fixed]
+    rhs = depth[fixed]
     fit_weight = weight.copy()
     coeff = None
     for iteration in range(3):
         left = design[ids].T @ (design[ids] * fit_weight[ids, None])
         target = design[ids].T @ (depth[ids] * fit_weight[ids])
-        system = np.block([[left, constraints.T], [constraints, np.zeros((len(anchors), len(anchors)))]])
+        system = np.block([[left, constraints.T], [constraints, np.zeros((len(fixed), len(fixed)))]])
         if np.linalg.matrix_rank(system) < len(system):
             raise ValueError('The native anatomical surface constraints are dependent.')
         coeff = np.linalg.solve(system, np.r_[target, rhs])[:6]
@@ -584,8 +626,8 @@ def anatomy_curvature_field(positions, normals, graph, anchors, radius, path_cac
     if coeff is None:raise ValueError('The native anatomical surface fit did not produce coefficients.')
     correction = (design @ coeff - depth) * radius
     shift = normals * np.divide(correction, compatibility, out=np.zeros_like(correction), where=compatibility > 0.5)[:, None]
-    shift[anchors] = 0
-    return (shift * weight[:, None], weight, dict(nativePathVertices=len(path), knotVertices=anchors, supportRadiusMetres=radius, nativePatchSamples=len(ids), nativeSectionLengthMetres=float(np.sum(np.linalg.norm(np.diff(positions[anchors], axis=0), axis=1))), largestSectionCorrectionMetres=float(np.linalg.norm(shift[ids], axis=1).max()), sourcePatchFit='native weighted constrained robust quadric; actual anatomical crest knots fixed', maximumKnotResidualMetres=float(np.abs(constraints @ coeff - rhs).max() * radius)))
+    shift[fixed] = 0
+    return (shift * weight[:, None], weight, dict(nativePathVertices=len(path), knotVertices=anchors, preservedKnotVertices=fixed.tolist(), supportRadiusMetres=radius, nativePatchSamples=len(ids), nativeSectionLengthMetres=float(np.sum(np.linalg.norm(np.diff(positions[anchors], axis=0), axis=1))), largestSectionCorrectionMetres=float(np.linalg.norm(shift[ids], axis=1).max()), sourcePatchFit='native weighted constrained robust quadric; declared anatomical knots fixed', maximumKnotResidualMetres=float(np.abs(constraints @ coeff - rhs).max() * radius)))
 
 
 def anatomy_orientation_review(source, candidate, triangles):
@@ -1146,6 +1188,274 @@ def rotate_between(values, before, after):
     return values + first + np.cross(axis, first) / np.maximum(1 + cosine[:, None], 1e-8)
 
 
+def garment_crossing_depth(garment, skin, normal, *, positive_only=True):
+    """Signed depth intervals of the surfaces inside one garment triangle's prism."""
+    edges = garment[1:] - garment[0]
+    gram = edges @ edges.T
+    if np.linalg.det(gram) < 1e-20:
+        return
+    relative = skin - garment[0]
+    uv = relative @ np.linalg.solve(gram, edges).T
+    heights = relative @ normal
+    bary = np.concatenate((uv, 1 - uv.sum(axis=2, keepdims=True)), axis=2)
+    overlap = (bary.max(axis=1) >= 0).all(axis=1)
+    if positive_only:
+        overlap &= heights.max(axis=1) > 0
+    for i in np.flatnonzero(overlap):
+        if (bary[i] >= 0).all():
+            yield heights[i].min(), heights[i].max()
+        else:
+            interval = clipped_garment_depth(np.column_stack((uv[i], heights[i])))
+            if interval is not None:
+                yield interval
+
+
+def clipped_garment_depth(polygon):
+    for boundary in range(3):
+        distances = polygon[:, boundary] if boundary < 2 else 1 - polygon[:, :2].sum(axis=1)
+        previous, previous_distance = polygon[-1], distances[-1]
+        inside = []
+        for point, distance in zip(polygon, distances):
+            if (previous_distance < 0) != (distance < 0):
+                fraction = previous_distance / (previous_distance - distance)
+                inside.append(previous + fraction * (point - previous))
+            if distance >= 0:
+                inside.append(point)
+            previous, previous_distance = point, distance
+        if not inside:
+            return None
+        polygon = np.asarray(inside)
+    return polygon[:, 2].min(), polygon[:, 2].max()
+
+
+def overlapping_surface_faces(low, high, surface_low, surface_high):
+    """Find exact AABB overlaps without testing each cloth face against all skin."""
+    candidates = [[] for _ in low]
+    if len(surface_low) == 0:
+        return [np.empty(0, dtype=int) for _ in low]
+    centers = (surface_low + surface_high) * .5
+    pending = [(np.arange(len(surface_low)), np.arange(len(low)))]
+    while pending:
+        surface, queries = pending.pop()
+        bounds_low = surface_low[surface].min(axis=0)
+        bounds_high = surface_high[surface].max(axis=0)
+        queries = queries[((low[queries] <= bounds_high) & (high[queries] >= bounds_low)).all(axis=1)]
+        if not len(queries):
+            continue
+        if len(surface) <= 48:
+            hits = ((low[queries, None] <= surface_high[surface]) &
+                    (high[queries, None] >= surface_low[surface])).all(axis=2)
+            for row, column in zip(*np.nonzero(hits)):
+                candidates[queries[row]].append(surface[column])
+            continue
+        axis = np.argmax(np.ptp(centers[surface], axis=0))
+        count = len(surface) // 2
+        children = np.argpartition(centers[surface, axis], count)
+        pending.extend(((surface[children[:count]], queries), (surface[children[count:]], queries)))
+    return [np.array(sorted(matches), dtype=int) for matches in candidates]
+
+
+def garment_inside_faces(exterior, lining, search_distance):
+    """Use the native layer order to protect exposed pieces of either renderer."""
+    outer_normals = normalise(np.cross(exterior[:, 1] - exterior[:, 0], exterior[:, 2] - exterior[:, 0]))
+    inner_normals = normalise(np.cross(lining[:, 1] - lining[:, 0], lining[:, 2] - lining[:, 0]))
+    candidates = overlapping_surface_faces(exterior.min(axis=1) - search_distance,
+        exterior.max(axis=1) + search_distance, lining.min(axis=1), lining.max(axis=1))
+    inside = np.zeros(len(lining), dtype=bool)
+    outside = np.zeros(len(lining), dtype=bool)
+    for face, normal, nearby in zip(exterior, outer_normals, candidates):
+        for index in nearby[inner_normals[nearby] @ normal > .6]:
+            for shallow, deep in garment_crossing_depth(face, lining[index:index + 1], normal, positive_only=False):
+                if 0 <= shallow < search_distance:
+                    outside[index] = True
+                elif -search_distance < deep < 0:
+                    inside[index] = True
+    return inside & ~outside
+
+
+def fit_garment_crossings(positions, triangles, skin, *, clearance, maximum_offset):
+    """Fit the outer garment in the drawn pose while moving UV duplicates together."""
+    require(0 < clearance < maximum_offset and math.isfinite(maximum_offset),
+            'Garment clearance must be positive and smaller than its displacement limit.')
+    groups = art.weld_groups(positions)
+    directions = surface_normals(positions, triangles, groups)
+    skin_normals = normalise(np.cross(skin[:, 1] - skin[:, 0], skin[:, 2] - skin[:, 0]))
+    skin_low, skin_high = skin.min(axis=1), skin.max(axis=1)
+    # Bounds enclose all iterations because each vertex stays within maximum_offset.
+    low = positions[triangles].min(axis=1) - maximum_offset
+    high = positions[triangles].max(axis=1) + maximum_offset
+    candidates = overlapping_surface_faces(low, high, skin_low, skin_high)
+    displacement = np.zeros(groups.max() + 1)
+    group_faces = groups[triangles]
+    edges = np.sort(np.stack((group_faces, np.roll(group_faces, -1, axis=1)), axis=-1), axis=-1)
+    unique_edges, edge_ids = np.unique(edges.reshape(-1, 2), axis=0, return_inverse=True)
+    edges_for_faces = edge_ids.reshape(triangles.shape)
+    fitted = positions.copy()
+    for _ in range(5):
+        vertices = fitted[triangles]
+        normals = normalise(np.cross(vertices[:, 1] - vertices[:, 0], vertices[:, 2] - vertices[:, 0]))
+        advance = np.zeros_like(displacement)
+        depths_by_face = np.zeros(len(triangles))
+        crossing = np.zeros(len(triangles), dtype=bool)
+        for i, (indices, face, normal, nearby) in enumerate(zip(triangles, vertices, normals, candidates)):
+            projections = directions[indices] @ normal
+            if not len(nearby) or projections.min() < .4:
+                continue
+            neighbours = nearby[skin_normals[nearby] @ normal > .6]
+            for shallow, deep in garment_crossing_depth(face, skin[neighbours], normal):
+                if deep <= 0 or shallow >= maximum_offset:
+                    continue
+                depths_by_face[i] = max(depths_by_face[i], min(deep, maximum_offset))
+                crossing[i] |= shallow <= 0
+        # Extend a measured intersection into its interior. Fully protruding faces
+        # have no crossing edge of their own. Leave separate parallel sheets alone.
+        participating = crossing
+        while participating.any():
+            touched = np.zeros(len(unique_edges), dtype=bool)
+            touched[edges_for_faces[participating]] = True
+            connected = (depths_by_face > 0) & touched[edges_for_faces].any(axis=1)
+            if np.array_equal(connected, participating):
+                break
+            participating = connected
+        for i in np.flatnonzero(participating):
+            projections = directions[triangles[i]] @ normals[i]
+            np.maximum.at(advance, group_faces[i], (depths_by_face[i] + clearance) / projections)
+        next_displacement = np.minimum(displacement + advance, maximum_offset)
+        if np.array_equal(displacement, next_displacement):
+            break
+        displacement = next_displacement
+        fitted = positions + directions * displacement[groups, None]
+    return fitted - positions
+
+
+def garment_skinning_frame(packet, observed, points, posed, triangles, bone_paths, tolerance, world_to_prefab):
+    poses = np.asarray(packet['bindPoses']).reshape(-1, 4, 4).transpose(0, 2, 1)
+    bones = observed['bones'][:len(poses)]
+    require([bone['name'] for bone in bones] == [path.rsplit('/', 1)[-1] for path in bone_paths[:len(poses)]],
+            'The drawn garment and the source renderer have different bone orders.')
+    worlds = np.asarray([bone['localToWorld'] for bone in bones]).reshape(-1, 4, 4).transpose(0, 2, 1)
+    weights = np.asarray(packet['weights']).reshape(-1, 4)
+    indices = np.asarray(packet['boneIndices']).reshape(-1, 4)
+    transform = np.einsum('vb,vbij->vij', weights, (world_to_prefab @ worlds @ poses)[indices])
+    linear = transform[:, :3, :3].copy()
+    reference = points.copy()
+    active = {row['name']: row['weight'] for row in observed.get('blendWeights', []) if row['weight']}
+    for shape in packet['shapes']:
+        weight = active.get(shape['name'])
+        if weight is None:
+            continue
+        frames = sorted([(0., None)] + [(frame['weight'], frame) for frame in shape['frames'] if frame['weight']],
+                        key=lambda row: row[0])
+        if len(frames) < 2:
+            raise ValueError('An active garment blend shape has no weighted frames.')
+        if any(a[0] == b[0] for a, b in zip(frames, frames[1:])):
+            raise ValueError('Two garment blend frames have the same weight.')
+        end = min(max(1, np.searchsorted([w for w, _ in frames], weight)), len(frames) - 1)
+        (low, first), (high, last) = frames[end-1:end+1]
+        fraction = (weight - low) / (high - low)
+        for frame, factor in ((first, 1 - fraction), (last, fraction)):
+            if frame is not None:
+                reference += np.asarray(frame['vertices']).reshape(-1, 3) * factor
+    predicted = np.einsum('vij,vj->vi', linear, reference) + transform[:, :3, 3]
+    unbound = np.linalg.norm(predicted - posed, axis=1) > tolerance
+    if not unbound.any() or 'observedBindPoses' not in observed:
+        return linear, unbound
+    live = np.asarray(observed['observedBindPoses'][:len(poses)]).reshape(-1, 16)
+    require(live.shape == (len(poses), 16) and np.allclose(live, np.asarray(packet['bindPoses']).reshape(-1, 16), rtol=1e-6, atol=1e-7),
+            'The pose mesh and source mesh have different bind poses.')
+    # Cloth and procedural morphs move the surface after skeletal skinning.
+    # Use a nondegenerate incident triangle to transfer motion in its tangent
+    # plane, and preserve the thickness of the fabric in the normal direction.
+    def face_frames(vertices):
+        faces = vertices[triangles]
+        u, v = faces[:, 1] - faces[:, 0], faces[:, 2] - faces[:, 0]
+        cross = np.cross(u, v)
+        area = np.linalg.norm(cross, axis=1)
+        quality = area / np.maximum(np.sum(u*u + v*v + (u-v)**2, axis=1), 1e-20)
+        return np.stack((u, v, normalise(cross)), axis=2), quality
+    before, original_quality = face_frames(predicted)
+    after, posed_quality = face_frames(posed)
+    quality = np.minimum(original_quality, posed_quality)
+    # UV seams can split one physical point into multiple indices.
+    groups = art.weld_groups(np.column_stack((points, posed)))
+    support = np.full(groups.max()+1, -1, int)
+    for face in np.argsort(quality, kind='stable'):
+        if quality[face] > 1e-4:
+            support[groups[triangles[face]]] = face
+    chart = support[groups]
+    usable = unbound & (chart >= 0)
+    faces = chart[usable]
+    linear[usable] = after[faces] @ np.linalg.solve(before[faces], linear[usable])
+    return linear, unbound & ~usable
+
+
+def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *, clearance, maximum_offset, previous=None):
+    """Map correction of the final posed cloth surface back into the original garment."""
+    require(packet['subMeshes'] == observed['submeshes'], 'Drawn garment topology differs from its prefab.')
+    points = np.asarray(packet['vertices']).reshape(-1, 3)
+    # The character preview magnifies the actor independently of the camera.
+    # Measure in the same prefab metres as the equipment and its simulation.
+    rendered_frame = np.asarray(observed['localToWorld']).reshape(4, 4).T
+    world_to_prefab = np.linalg.solve(rendered_frame.T, renderer_to_prefab.T).T
+    def to_prefab(vertices):
+        return vertices @ world_to_prefab[:3, :3].T + world_to_prefab[:3, 3]
+    posed = to_prefab(np.asarray(observed['vertices'], dtype=float).reshape(points.shape))
+    skin = to_prefab(np.asarray(skin, dtype=float))
+    require(np.isfinite(posed).all() and np.isfinite(skin).all(),
+            'The observed garment or skin has non-finite vertices.')
+    triangles = np.concatenate(packet['subMeshes']).reshape(-1, 3)
+    outer = [indices for is_skin, indices in zip(observed['skinMaterials'], packet['subMeshes'], strict=True)
+             if indices and not is_skin]
+    current = previous if previous is not None else packet
+    if not outer:
+        return current, 0
+    linear, unbound = garment_skinning_frame(packet, observed, points, posed, triangles, bone_paths, clearance,
+                                              world_to_prefab)
+    current_points = np.asarray(current['vertices']).reshape(points.shape)
+    offset = current_points - points
+    prior = np.einsum('vij,vj->vi', linear, offset)
+    delta = fit_garment_crossings(posed + prior, np.concatenate(outer).reshape(-1, 3), skin,
+                                  clearance=clearance, maximum_offset=maximum_offset)
+    moved = np.any(delta != 0, axis=1)
+    if not moved.any():
+        return current, 0
+    require(not np.any(unbound & moved), 'A fitted garment vertex has no matching bone or posed triangle.')
+    requested = (prior + delta)[moved]
+    limit = np.maximum(1, np.linalg.norm(requested, axis=1, keepdims=True) / maximum_offset)
+    rest_offsets = np.linalg.solve(linear[moved], (requested / limit)[:, :, None])[:, :, 0]
+    rest_distance = np.linalg.norm(rest_offsets @ renderer_to_prefab[:3, :3].T, axis=1, keepdims=True)
+    offset[moved] = rest_offsets / np.maximum(1, rest_distance / maximum_offset)
+    correction = points + offset - current_points
+    welded = art.weld_groups(points)
+    native_normals = np.asarray(packet['normals']).reshape(-1, 3)
+    groups = normal_groups(points, native_normals)
+    before = surface_normals(points, triangles, groups, points, native_normals)
+    for attempt in range(8):
+        proposal = current_points + correction * (2.0 ** -attempt)
+        fitted, _ = preserve_surface_orientation(points, proposal, triangles, renderer_to_prefab, groups=welded)
+        after = surface_normals(fitted, triangles, groups, points, native_normals)
+        if np.all(np.sum(before * after, axis=1) >= 0):
+            break
+    else:
+        return current, 0
+    changed = np.count_nonzero(np.any(fitted != current_points, axis=1))
+    if not changed:
+        return current, 0
+    candidate = dict(packet, vertices=fitted.astype(np.float32).ravel().tolist())
+    for field, width in [('normals', 3), ('tangents', 4)]:
+        values = np.array(packet[field]).reshape(-1, width)
+        values[:, :3] = rotate_between(values[:, :3], before, after)
+        candidate[field] = values.astype(np.float32).ravel().tolist()
+    # Preserve the native culling envelope, including conservative artist padding.
+    old_center, old_size = np.asarray(packet['bounds']).reshape(2, 3)
+    center, size = np.asarray(physical_mesh_bounds(candidate)).reshape(2, 3)
+    low = np.minimum(old_center - old_size / 2, center - size / 2)
+    high = np.maximum(old_center + old_size / 2, center + size / 2)
+    candidate['bounds'] = np.r_[(low + high) / 2, high - low].tolist()
+    candidate['sourceFingerprint'] = fingerprint(candidate)[0]
+    return candidate, int(changed)
+
+
 def normal_groups(positions, native_normals):
     groups = art.weld_groups(positions)
     result = np.empty(len(positions), dtype=np.int64)
@@ -1238,7 +1548,7 @@ def surface_normals(positions, triangles, groups, source_positions=None, native_
     return normalise(normals)
 
 
-def preserve_surface_orientation(reference, candidate, triangles, transform):
+def preserve_surface_orientation(reference, candidate, triangles, transform, *, groups=None):
     source = art.points(reference.ravel().tolist(), transform)
     source_edges = np.stack((source[triangles[:, 1]] - source[triangles[:, 0]],
                              source[triangles[:, 2]] - source[triangles[:, 0]]), axis=1)
@@ -1249,7 +1559,9 @@ def preserve_surface_orientation(reference, candidate, triangles, transform):
     representable_area = np.finfo(np.float32).eps * 16 * (coordinate * edge_length + edge_length ** 2)
     supported = np.sqrt(squared) > representable_area
     initial_bad = None
-    for attempt, factor in enumerate([2.0 ** -i for i in range(9)] + [0.]):
+    factors = np.ones(groups.max() + 1) if groups is not None else None
+    for attempt in range(12):
+        factor = (2.0 ** -attempt if attempt < 9 else 0.) if factors is None else factors[groups, None]
         local = (reference + (candidate - reference) * factor).astype(np.float32)
         points = art.points(local.ravel().tolist(), transform)
         area = np.cross(points[triangles[:, 1]] - points[triangles[:, 0]],
@@ -1259,13 +1571,48 @@ def preserve_surface_orientation(reference, candidate, triangles, transform):
         if initial_bad is None:
             initial_bad = int(np.count_nonzero(bad))
         if not np.any(bad):
-            return local, dict(surfaceScaleFactor=factor, surfaceBacktrackingAttempts=attempt,
+            return local, dict(surfaceScaleFactor=float(np.min(factor)), surfaceBacktrackingAttempts=attempt,
                 initialFacingFailures=initial_bad, supportedFacingTriangles=int(supported.sum()),
                 floatLimitedTriangles=int((~supported).sum()), minimumSourceProjectedAreaRatio=.05)
+        if factors is not None:
+            affected = np.unique(groups[triangles[bad]])
+            if attempt < 9:
+                factors[affected] *= .5
+            else:
+                factors[affected] = 0.
     raise ValueError('The native reference surface cannot retain its source-facing triangles.')
 
 
-def interpolate_source_handles(packet, skin, pose, positions, controls, reports, ownership, transform, units=()):
+def handle_curvature_coordinates(edges, inverse_lengths, mass, free, anchored, target_indices, target_count):
+    """Evaluate the biharmonic system on rows incident to a free surface point."""
+    count = len(mass)
+    free_column = np.full(count, -1, dtype=int)
+    free_column[free] = np.arange(len(free))
+    fixed_column = np.full(count, -1, dtype=int)
+    fixed_column[anchored] = target_indices
+    connected = np.concatenate((edges, edges[:, ::-1]))
+    edge_weights = np.tile(inverse_lengths, 2)
+    source, target = connected.T
+    active = np.unique(np.r_[free, source[free_column[target] >= 0]])
+    row = np.full(count, -1, dtype=int)
+    row[active] = np.arange(len(active))
+    degrees = np.bincount(source, weights=edge_weights, minlength=count)
+    diagonal = np.arange(count)
+    source = np.r_[source, diagonal]
+    target = np.r_[target, diagonal]
+    amounts = np.r_[-edge_weights, degrees]
+    keep = row[source] >= 0
+    source, target, amounts = source[keep], target[keep], amounts[keep]
+    scale = np.sqrt(mass[source])
+    moving = free_column[target] >= 0
+    matrix = np.zeros((len(active), len(free)))
+    fixed = np.zeros((len(active), target_count))
+    np.add.at(matrix, (row[source[moving]], free_column[target[moving]]), amounts[moving] / scale[moving])
+    np.add.at(fixed, (row[source[~moving]], fixed_column[target[~moving]]), amounts[~moving] / scale[~moving])
+    return np.linalg.solve(matrix.T @ matrix, -matrix.T @ fixed)
+
+
+def interpolate_source_handles(packet, skin, pose, positions, controls, reports, ownership, transform, units=(),sections=()):
     """Positive surface interpolation keeps handle edits local and bounded."""
     rest = art.points(packet['vertices'], transform)
     groups = art.weld_groups(rest)
@@ -1285,12 +1632,16 @@ def interpolate_source_handles(packet, skin, pose, positions, controls, reports,
                 'A contact unit requires explicit source bone prefixes.')
         bones = np.array([bool(name) and name.rsplit('/', 1)[-1].lower().startswith(prefixes)
                           for name in skin['bones']])
-        selected = np.any(bones[indices] & (weights > 0), axis=1) & allowed
+        require(bones.any(),'The declared contact unit has no owned source tissue.')
+        mode=unit.get('ownership','bone-influence')
+        require(mode in('bone-influence','native-rim'),'Unknown articulated contact ownership.')
+        selected=((humanoid_face_contact_guard(packet,skin,contact_bone_prefixes=prefixes)==0)
+                  if mode=='native-rim'else np.any(bones[indices] & (weights > 0), axis=1)) & allowed
         require(np.any(selected), 'The declared contact unit has no owned source tissue.')
         handle = next((i for i, report in enumerate(reports) if report['name'] == unit['handle']), None)
         require(handle is not None, 'A contact unit has no matching authored handle.')
         offset = controls[handle][1] - controls[handle][0]
-        unit_rows.append((selected, offset, handle))
+        unit_rows.append((selected, offset, handle, mode))
         inside |= selected
     allowed &= inside
     group_allowed = np.ones(count, dtype=bool)
@@ -1320,7 +1671,7 @@ def interpolate_source_handles(packet, skin, pose, positions, controls, reports,
     # Closed lip rims and other declared articulated units share one neutral
     # displacement. Independent nearest handles can expose an internal triangle
     # even when every individual triangle retains a positive signed area.
-    for selected, offset, handle in unit_rows:
+    for selected, offset, handle, mode in unit_rows:
         ids = np.flatnonzero(selected)
         targets = positions[ids] + offset
         targets = reference_pose_surface_to_rest(packet, skin, pose, ids, targets) if pose is not None else targets
@@ -1332,16 +1683,12 @@ def interpolate_source_handles(packet, skin, pose, positions, controls, reports,
             fixed[group] = True
             displacement[group] = local.mean(axis=0)
         reports[handle]['contactUnitVertices'] = len(ids)
+        reports[handle]['contactUnitOwnership'] = mode
         reports[handle]['contactUnitOffsetMm'] = (offset*1000).tolist()
     edges = np.unique(np.sort(groups[np.concatenate((triangles[:,[0,1]], triangles[:,[1,2]], triangles[:,[2,0]]))],axis=1),axis=0)
     edges = edges[edges[:,0]!=edges[:,1]]
     _, representatives = np.unique(groups,return_index=True)
     lengths = np.linalg.norm(rest[representatives[edges[:,0]]]-rest[representatives[edges[:,1]]],axis=1)
-    weights = 1/np.maximum(lengths,1e-6)
-    laplace = np.zeros((count,count))
-    for (a,b), weight in zip(edges,weights):
-        laplace[a,a] += weight; laplace[b,b] += weight
-        laplace[a,b] -= weight; laplace[b,a] -= weight
     free = np.flatnonzero(~fixed)
     anchored = np.flatnonzero(fixed)
     if len(free):
@@ -1353,11 +1700,9 @@ def interpolate_source_handles(packet, skin, pose, positions, controls, reports,
         mass=np.zeros(count)
         for column in range(3):np.add.at(mass,groups[triangles[:,column]],area/3)
         mass=np.maximum(mass,max(float(mass.max())*1e-9,1e-20))
-        curvature=laplace.T@(laplace/mass[:,None])
         targets,target_indices=np.unique(displacement[anchored],axis=0,return_inverse=True)
-        boundary=np.eye(len(targets))[target_indices]
-        coordinates=np.linalg.solve(curvature[np.ix_(free,free)],
-            -curvature[np.ix_(free,anchored)]@boundary)
+        coordinates=handle_curvature_coordinates(edges,1/np.maximum(lengths,1e-6),
+            mass,free,anchored,target_indices,len(targets))
         if not np.isfinite(coordinates).all():raise ValueError('The source curvature coordinates are not finite.')
         # A C1 positive partition retains a convex combination of source
         # displacements, with smooth slopes at fixed tissue and handle patches.
@@ -1373,6 +1718,41 @@ def interpolate_source_handles(packet, skin, pose, positions, controls, reports,
     # Every free sample is a positive harmonic combination of explicit handles.
     if np.linalg.norm(displacement,axis=1).max() > np.linalg.norm(displacement[anchored],axis=1).max()+1e-10:
         raise ValueError('The source handle interpolation overshot its owned targets.')
+    if sections:
+        graph=[set()for _ in range(count)]
+        for left,right in edges:graph[left].add(right);graph[right].add(left)
+        current=(apply_native_reference_pose(packet,skin,pose)if pose is not None else packet)
+        normals=art.native_normals(current,art.CONVERT if pose is not None else transform)[representatives]
+        contact=humanoid_face_contact_guard(packet,skin,contact_bone_prefixes=('b_eye_','b_eyelid_','b_lip_'))
+        mask=np.ones(count);np.minimum.at(mask,groups,np.minimum(ownership,contact));mask[~group_allowed]=0
+        curvature=np.zeros((count,3));support=np.zeros(count);path_cache={}
+        by_name={report['name']:int(groups[report['sourceVertex']])for report in reports}
+        for section in sections:
+            required={'id','anchors','radiusMetres','retain'}
+            require(isinstance(section,dict)and required<=set(section)<=required|{'preservedKnots'}and
+                    isinstance(section['id'],str)and section['id']and isinstance(section['anchors'],list)and
+                    len(section['anchors'])>=2 and all(name in by_name for name in section['anchors']),
+                    'A native curvature section requires explicit source handles.')
+            radius=section['radiusMetres'];retain=section['retain']
+            require(type(radius)in(int,float)and np.isfinite(radius)and radius>0 and
+                    type(retain)in(int,float)and np.isfinite(retain)and 0<=retain<=1,
+                    'A native curvature section requires a positive physical radius and bounded retention.')
+            anchors=[by_name[name]for name in section['anchors']]
+            require(len(set(anchors))==len(anchors),'A native curvature section has coincident source handles.')
+            preserved=section.get('preservedKnots',[section['anchors'][0],section['anchors'][-1]])
+            require(isinstance(preserved,list)and all(name in section['anchors']for name in preserved),
+                    'A native curvature section cannot preserve an unrelated source knot.')
+            change,weight,proof=anatomy_curvature_field(positions[representatives],normals,graph,anchors,radius,path_cache,
+                preserved_knots=[by_name[name]for name in preserved])
+            curvature+=change*(1-retain);support+=weight
+            owner=next(report for report in reports if report['name']==section['anchors'][0])
+            owner.setdefault('curvatureSections',[]).append(dict(id=section['id'],retain=retain,**proof))
+        correction=curvature/np.maximum(1.,support[:,None])*mask[:,None]
+        ids=representatives[np.flatnonzero(np.linalg.norm(correction,axis=1)>0)]
+        if len(ids):
+            target=positions[ids]+correction[groups[ids]]
+            target=(reference_pose_surface_to_rest(packet,skin,pose,ids,target)if pose is not None else target)
+            displacement[groups[ids]]+=target-rest[ids]
     return rest+displacement[groups]
 
 
@@ -1445,11 +1825,14 @@ def native_packet(skin: 'dict[str, Any]') -> 'dict[str, Any]':
         raise ValueError('Facial authoring requires original serialized mesh data; a skinned read proxy is not a native rest source: ' + skin['meshFile'])
     if fingerprint(packet)[0] != packet['sourceFingerprint']:
         raise ValueError('Native packet fingerprint mismatch: ' + skin['meshFile'])
+    if packet['sourceFingerprint'] != skin.get('sourceFingerprint'):
+        raise ValueError('Native packet differs from its declared source fingerprint: ' + skin['meshFile'])
     return packet
 
 
 def role(skin: 'dict[str, Any]'):
     if skin.get('_faceProfile',{}).get('operation')=='source-guide-follow':return 'attached'
+    if skin.get('_faceProfile',{}).get('operation')=='source-guide':return 'skin'
     shaders=[m['shader']for m in skin['materials']if m]
     contact_name=(skin['mesh']+'/'+skin['path']).lower()
     if not any('/Skin'in shader for shader in shaders)and ('Custom/CharacterEye'in shaders or any(token in contact_name for token in ('eyelash','eyeocclud','jaw','teeth','tongue'))):
@@ -2053,6 +2436,10 @@ def refine_native_skin_surface(native, current_frames, matrix, lod, forbidden=No
         maps = [(extremity_skin_map(weights, indices, a), extremity_skin_map(weights, indices, b)) for a, b in twins]
         if reason is None and any(len(set(left) | set(right)) > 4 for left, right in maps):
             reason = 'more-than-four-merged-native-influences'
+        if reason is None and any(left != right for left, right in maps):
+            # Averaged skin at a new midpoint does not reproduce the posed
+            # coarse edge when its endpoints use different bone transforms.
+            reason = 'different-native-skin-influences'
         if reason is None:
             # UV/normal duplicate edges may be ordered oppositely. Their semantic native skin must match.
             aligned = []
@@ -2072,6 +2459,7 @@ def refine_native_skin_surface(native, current_frames, matrix, lod, forbidden=No
         maximum = min(settings['maximumBowMillimetres'] / 1000, length * settings['maximumBowEdgeFraction'])
         factor = min(1, maximum / max(bow_length, 1e-30)) * min(ownership[i] for edge in twins for i in edge)
         selected[key] = dict(twins=twins, position=linear + bow * factor, factor=factor,
+                             ownership=min(ownership[i] for edge in twins for i in edge),
                              bowMetres=min(maximum, bow_length), normal=extremity_normalized(np.mean(n[[i for edge in twins for i in edge]], axis=0)))
     positions = list(p)
     normals = list(n)
@@ -2091,7 +2479,7 @@ def refine_native_skin_surface(native, current_frames, matrix, lod, forbidden=No
             t = extremity_normalized(t - np.dot(t, entry['normal']) * entry['normal'])
             new_tangents.append(np.r_[t, tangents[a, 3]])
             new_uv.append((uv[a] + uv[b]) / 2)
-            ids, skin = canonical_skin(weights, indices, [(a, 0.5), (b, 0.5)])
+            ids, skin = indices[a].copy(), weights[a].copy()
             new_indices.append(ids)
             new_weights.append(skin)
             added.append(dict(index=idx, edge=[a, b], physicalEdge=list(physical_key), factor=entry['factor']))
@@ -2150,7 +2538,11 @@ def refine_native_skin_surface(native, current_frames, matrix, lod, forbidden=No
                 a, b = entry['twins'][0]
                 linear = (fp[a] + fp[b]) / 2
                 pn = np.mean([extremity_midpoint(fp, fn, x, y) for x, y in entry['twins']], axis=0)
-                group_positions[key] = linear + (pn - linear) * entry['factor']
+                bow = pn - linear
+                maximum = min(settings['maximumBowMillimetres'] / 1000,
+                              np.linalg.norm((fp[b] - fp[a]) @ m.T) * settings['maximumBowEdgeFraction'])
+                factor = min(entry['factor'], maximum / max(np.linalg.norm(bow @ m.T), 1e-30) * entry['ownership'])
+                group_positions[key] = linear + bow * factor
                 group_normals[key] = extremity_normalized(np.mean(fn[[i for edge in entry['twins'] for i in edge]], axis=0))
             for added_row in added:
                 idx = added_row['index']
@@ -2304,16 +2696,22 @@ def rigid_attachment_topology(packet,frame):
         while wave:
             wave=set().union(*(cut_graph[v]for v in wave))&remaining;remaining-=wave;loop|=wave
         loops.append(sorted(loop))
-    radius=float(np.median([sum(graph[a][b]for a in loop for b in cut_graph[a])/(4*np.pi)for loop in loops]))
+    radii=np.array([sum(graph[a][b]for a in loop for b in cut_graph[a])/(4*np.pi)for loop in loops])
     roots=np.asarray(sorted(cut_graph),int);distance=np.full(len(points),np.inf);distance[roots]=0
+    owner=np.full(len(points),-1,dtype=int)
+    for number,loop in enumerate(loops):owner[loop]=number
     queue=[(0.,int(i))for i in roots];heapq.heapify(queue)
     while queue:
         value,index=heapq.heappop(queue)
         if value!=distance[index]:continue
         for other,length in graph[index].items():
             candidate=value+length
-            if candidate<distance[other]:distance[other]=candidate;heapq.heappush(queue,(candidate,other))
-    return dict(frame=frame,world=world,points=points,first=first,groups=groups,faces=faces,roots=roots,loops=loops,distance=distance,radius=radius)
+            if candidate<distance[other]:
+                distance[other]=candidate
+                owner[other]=owner[index]
+                heapq.heappush(queue,(candidate,other))
+    return dict(frame=frame,world=world,points=points,first=first,groups=groups,faces=faces,roots=roots,loops=loops,
+                distance=distance,radius=float(np.median(radii)),radii=radii,owner=owner)
 
 
 def fit_rigid_attachment_roots(packet,frame,supports,*,depth_metres,falloff_radii,maximum_shift_metres):
@@ -2322,8 +2720,10 @@ def fit_rigid_attachment_roots(packet,frame,supports,*,depth_metres,falloff_radi
     require(all(np.isfinite(v)and v>0 for v in(depth_metres,falloff_radii,maximum_shift_metres)),
         'Attachment root distances and limits must be finite and positive.')
     topology=rigid_attachment_topology(packet,frame)
-    frame,world,points,first,groups,faces,roots,loops,distance,radius=(topology[key]for key in('frame','world','points','first','groups','faces','roots','loops','distance','radius'))
-    width=radius*falloff_radii;field=np.clip(1-distance/width,0,1);field=field*field*(3-2*field)
+    frame,world,points,first,groups,faces,roots,loops,distance=(topology[key]for key in('frame','world','points','first','groups','faces','roots','loops','distance'))
+    widths=topology['radii']*falloff_radii
+    owners=topology['owner']
+    field=np.clip(1-distance/widths[owners],0,1);field=field*field*(3-2*field)
     require(supports,'Attachment root fitting requires every declared support surface.')
     targets=[];directions=[]
     for root in roots:
@@ -2344,10 +2744,17 @@ def fit_rigid_attachment_roots(packet,frame,supports,*,depth_metres,falloff_radi
         correction=min(0.,float(np.min(np.sum((delta[selected]-movement)*normals,axis=1)/cosine)))
         delta[selected]=movement+axis*correction
     require(np.linalg.norm(delta,axis=1).max()<=maximum_shift_metres,'An attachment root is outside its declared support envelope.')
-    squared=np.sum((points[:,None]-points[roots][None])**2,axis=2)
-    influence=np.exp(-(squared-squared.min(axis=1,keepdims=True))/max(width**2,1e-12))
-    influence/=influence.sum(axis=1,keepdims=True)
-    offsets=(influence@delta)*field[:,None];offsets[roots]=delta
+    offsets=np.zeros_like(points)
+    support_normals=np.zeros_like(points)
+    for number, loop in enumerate(loops):
+        selected=np.searchsorted(roots,loop)
+        region=np.flatnonzero((owners==number)&(field>0))
+        squared=np.sum((points[region,None]-points[roots[selected]][None])**2,axis=2)
+        influence=np.exp(-(squared-squared.min(axis=1,keepdims=True))/max(widths[number]**2,1e-12))
+        influence/=influence.sum(axis=1,keepdims=True)
+        offsets[region]=(influence@delta[selected])*field[region,None]
+        support_normals[region]=influence@directions[selected]
+    offsets[roots]=delta
     changed=points+offsets
     before=points[faces];after=changed[faces]
     original_cross=np.cross(before[:,1]-before[:,0],before[:,2]-before[:,0]);authored_cross=np.cross(after[:,1]-after[:,0],after[:,2]-after[:,0])
@@ -2361,7 +2768,7 @@ def fit_rigid_attachment_roots(packet,frame,supports,*,depth_metres,falloff_radi
             require(np.all(np.sum(old_cross*new_cross,axis=1)>1e-20),'Attachment root fitting reversed a stored physical frame.')
     inverse=np.linalg.inv(frame);local=changed[groups]@inverse[:3,:3].T+inverse[:3,3]
     normals=normalise(np.asarray(packet['normals']).reshape(-1,3)@np.linalg.inv(frame[:3,:3]))
-    mass=field[groups,None];aligned=normalise(influence@directions)[groups]
+    mass=field[groups,None];aligned=normalise(support_normals)[groups]
     normals=normalise(normals*(1-mass)+aligned*mass)@frame[:3,:3];normals=normalise(normals)
     tangents=np.asarray(packet['tangents']).reshape(-1,4).copy();t=tangents[:,:3]-np.sum(tangents[:,:3]*normals,axis=1)[:,None]*normals
     fallback=np.linalg.norm(t,axis=1)<1e-10
@@ -2375,7 +2782,7 @@ def fit_rigid_attachment_roots(packet,frame,supports,*,depth_metres,falloff_radi
         output[outside]=original[outside];candidate[key]=output.ravel().tolist()
     candidate['bounds']=physical_mesh_bounds(candidate);candidate['sourceFingerprint']=fingerprint(candidate)[0]
     return candidate,dict(rootLoops=len(loops),rootVertices=len(roots),supportSurfaces=len(supports),rootDepthMetres=depth_metres,
-        falloffMetres=width,maximumRootShiftMm=float(np.linalg.norm(delta,axis=1).max()*1000),
+        falloffMetres=float(np.median(widths)),rootFalloffMetres=widths.tolist(),maximumRootShiftMm=float(np.linalg.norm(delta,axis=1).max()*1000),
         originalTopologyUvSkinAndUnownedVerticesExact=True,nativePhysicalFrameChannelsExact=True,rootField=field[groups].tolist())
 
 
@@ -2413,10 +2820,19 @@ def refine_attachment_surface(packet,frame,supports,profile,lod):
     return candidate,dict(root=root,passes=passes)
 
 
-def indexed_surface_uv_metrics(packet: 'dict[str, Any]',skin: 'dict[str, Any]',slot,shape,feather,sampler,vertex_field=None):
+def indexed_surface_uv_metrics(packet: 'dict[str, Any]',skin: 'dict[str, Any]',slot,shape,feather,sampler,vertex_field=None,bone_domain=None,additional_domains=None,triangle_field=None,sample_receiver=None):
     import heapq
-    """Actual native slot UV coverage, source seam closure and rest metric."""
+    """Actual native slot sample support, source seam closure and rest metric."""
     h,w=shape
+    require(sample_receiver is None or callable(sample_receiver),'A source surface sample receiver must be callable.')
+    filter_mode=sampler.get('filterMode')
+    require(filter_mode is None or type(filter_mode)is int and filter_mode in(0,1,2),'Unknown native texture filter mode.')
+    if filter_mode is not None:
+        require(type(sampler.get('anisoLevel',1))is int and 0<=sampler.get('anisoLevel',1)<=1,
+                'An anisotropic source requires its actual sampling footprint.')
+        require(all(type(sampler[key])is int and sampler[key]in(0,1,2,3)for key in('wrapU','wrapV')),
+                'Unknown native texture wrap mode.')
+    radius=0. if filter_mode is None else .5 if filter_mode==0 else 1.
     positions=np.asarray(packet['vertices'],dtype='<f4').reshape(-1,3)
     transform=np.asarray(skin['rendererToPrefab']).reshape(4,4).T
     world=positions@transform[:3,:3].T+transform[:3,3]
@@ -2426,14 +2842,17 @@ def indexed_surface_uv_metrics(packet: 'dict[str, Any]',skin: 'dict[str, Any]',s
     prop=next(p for p in material['properties'] if p['name']=='_MainTex')
     uv=uv*np.asarray(prop['scale'])+np.asarray(prop['offset'])
     triangles=np.asarray(packet['subMeshes'][slot],dtype=int).reshape(-1,3)
+    triangle_values=None if triangle_field is None else np.asarray(triangle_field,float)
+    require(triangle_values is None or triangle_values.shape==(len(triangles),)and np.isfinite(triangle_values).all()and
+            np.all((triangle_values>=0)&(triangle_values<=1)),'Invalid declared native triangle field.')
     outside=[bool(np.min(uv[triangles,axis]) < -1e-6 or np.max(uv[triangles,axis]) > 1+1e-6) for axis in (0,1)]
     require(all(not outside[axis] or sampler['wrapU' if axis==0 else 'wrapV']==0 for axis in (0,1)), 'Periodic source must retain its actual Repeat sampler.')
     tile_instances=[]
-    for tri in triangles:
+    for ordinal,tri in enumerate(triangles):
         low=np.floor(uv[tri].min(axis=0)+1e-6).astype(int);high=np.floor(uv[tri].max(axis=0)-1e-6).astype(int)
         low=np.minimum(low,high)
         for u in range(int(low[0]),int(high[0])+1):
-            for v in range(int(low[1]),int(high[1])+1):tile_instances.append((tri,np.array([u,v])))
+            for v in range(int(low[1]),int(high[1])+1):tile_instances.append((ordinal,tri,np.array([u,v])))
     # Weld only native duplicate position + skin + all native position frames.
     # Distinct skin/expression correspondences never become a fake interior edge.
     fields=[np.arange(len(positions),dtype='<u4').reshape(-1,1)]
@@ -2463,12 +2882,20 @@ def indexed_surface_uv_metrics(packet: 'dict[str, Any]',skin: 'dict[str, Any]',s
             if next_distance<distances[other]:distances[other]=next_distance;heapq.heappush(queue,(next_distance,other))
     vertex_weight=np.clip(distances[groups]/(6*feather),0,1)
     vertex_weight=vertex_weight*vertex_weight*(3-2*vertex_weight)
+    require(sum(value is not None for value in(bone_domain,vertex_field,triangle_field))<=1,'A source surface must have one ownership evaluator.')
+    if bone_domain is not None:
+        require(isinstance(bone_domain,dict)and set(bone_domain)=={'bones','declaration'},'Unknown source bone domain.')
     if vertex_field is not None:
         vertex_weight=np.asarray(vertex_field,dtype=float)
         require(vertex_weight.shape==(len(positions),) and np.all(np.isfinite(vertex_weight)) and np.all((vertex_weight>=0)&(vertex_weight<=1)), 'Invalid declared native vertex field.')
-    ownership=np.zeros(shape);metric=np.zeros(shape);anisotropy=np.zeros(shape)
+    require(additional_domains is None or isinstance(additional_domains,dict)and all(
+        isinstance(name,str)and isinstance(domain,dict)and set(domain)=={'bones','declaration'}for name,domain in additional_domains.items()),
+        'Unknown additional source bone domains.')
+    extra_ownership={name:np.zeros(shape)for name in additional_domains or {}}
+    extra_preparation={name:{}for name in additional_domains or {}}
+    ownership=np.zeros(shape);metric=np.zeros(shape);anisotropy=np.zeros(shape);domain_preparation={}
     covered=np.zeros(shape,dtype=bool);overlaps=0;physical_triangles=0
-    for tri,tile in tile_instances:
+    for ordinal,tri,tile in tile_instances:
         tex=np.column_stack(((uv[tri,0]-tile[0])*w-.5,(1-(uv[tri,1]-tile[1]))*h-.5))
         delta=np.stack((tex[1]-tex[0],tex[2]-tex[0]),axis=1)
         determinant=np.linalg.det(delta)
@@ -2478,18 +2905,88 @@ def indexed_surface_uv_metrics(packet: 'dict[str, Any]',skin: 'dict[str, Any]',s
         if singular[-1]<=0:continue
         density=float(np.sqrt(np.prod(singular)))
         ratio=float(singular[0]/singular[-1])
-        lo=np.maximum(0,np.ceil(tex.min(axis=0)).astype(int));hi=np.minimum((w-1,h-1),np.floor(tex.max(axis=0)).astype(int))
+        # The sampler reads neighbouring texels around u*size-.5. Intersect
+        # that fetch footprint with the indexed source triangle, retaining a
+        # source barycentric witness rather than dilating the finished mask.
+        halo=int(np.ceil(radius))
+        lo=np.maximum(-halo,np.ceil(tex.min(axis=0)-radius).astype(int))
+        hi=np.minimum((w-1+halo,h-1+halo),np.floor(tex.max(axis=0)+radius).astype(int))
         if np.any(hi<lo):continue
         yy,xx=np.mgrid[lo[1]:hi[1]+1,lo[0]:hi[0]+1]
         ab=np.stack((xx-tex[0,0],yy-tex[0,1]),axis=-1)@np.linalg.inv(delta).T
         bary=np.dstack((1-ab.sum(axis=2),ab))
         inside=np.all(bary>=-1e-7,axis=2)
+        if filter_mode is not None:
+            # Interior centres retain the existing sample. For gutter texels,
+            # the intersection polygon vertices consist of triangle vertices,
+            # box corners and edge/box-line crossings. Their mean lies on the
+            # actual source surface, including subpixel triangles.
+            flat=bary.reshape(-1,3);centres=np.column_stack((xx.ravel(),yy.ravel()))
+            outside_ids=np.flatnonzero(~inside.ravel());inverse=np.linalg.inv(delta)
+            for start in range(0,len(outside_ids),4096):
+                ids=outside_ids[start:start+4096];centre=centres[ids];total=np.zeros((len(ids),3));count=np.zeros(len(ids),int)
+                for corner in range(3):
+                    valid=np.all(np.abs(tex[corner]-centre)<=radius,axis=1)
+                    total[valid,corner]+=1;count[valid]+=1
+                for dx in(-radius,radius):
+                    for dy in(-radius,radius):
+                        query=centre+np.array([dx,dy]);value=(query-tex[0])@inverse.T
+                        value=np.column_stack((1-value.sum(axis=1),value));valid=np.all(value>=-1e-10,axis=1)
+                        total[valid]+=value[valid];count[valid]+=1
+                for first,last in((0,1),(1,2),(2,0)):
+                    edge=tex[last]-tex[first]
+                    for axis in(0,1):
+                        if abs(edge[axis])<=1e-15:continue
+                        for sign in(-1,1):
+                            fraction=(centre[:,axis]+sign*radius-tex[first,axis])/edge[axis]
+                            query=tex[first]+fraction[:,None]*edge
+                            valid=(fraction>=0)&(fraction<=1)&np.all(np.abs(query-centre)<=radius+1e-12,axis=1)
+                            total[valid,first]+=1-fraction[valid];total[valid,last]+=fraction[valid];count[valid]+=1
+                valid=count>0
+                if not np.any(valid):continue
+                selected=ids[valid];value=np.maximum(0,total[valid]/count[valid,None]);value/=value.sum(axis=1)[:,None]
+                query=value@tex
+                roundoff=32*np.finfo(float).eps*max(1.,float(np.max(np.abs(tex))))
+                contributes=(np.all(np.floor(query+.5).astype(int)==centres[selected],axis=1)if filter_mode==0 else
+                    np.all(np.abs(query-centres[selected])<1.-roundoff,axis=1))
+                selected=selected[contributes];flat[selected]=value[contributes];inside.ravel()[selected]=True
+            # The centre test tolerance must not produce points outside the
+            # native triangle when they are passed to the ownership evaluator.
+            flat[inside.ravel()]=np.maximum(0,flat[inside.ravel()]);flat[inside.ravel()]/=flat[inside.ravel()].sum(axis=1)[:,None]
         if not np.any(inside):continue
         rows=yy[inside];cols=xx[inside]
-        interpolated=np.clip(bary[inside]@vertex_weight[tri],0,1)
+        interpolated=(np.full(int(np.count_nonzero(inside)),triangle_values[ordinal])if triangle_values is not None else
+            source_material_ownership(packet,bone_domain['bones'],bone_domain['declaration'],
+            renderer_to_prefab=skin['rendererToPrefab'],sample_triangle=tri,sample_barycentric=bary[inside],_prepared=domain_preparation)
+            if bone_domain is not None else np.clip(bary[inside]@vertex_weight[tri],0,1))
+        extra_interpolated={name:source_material_ownership(packet,domain['bones'],domain['declaration'],
+            renderer_to_prefab=skin['rendererToPrefab'],sample_triangle=tri,sample_barycentric=bary[inside],_prepared=extra_preparation[name])
+            for name,domain in(additional_domains or {}).items()}
+        if filter_mode is not None:
+            for values,size,mode in((cols,w,sampler['wrapU']),(rows,h,sampler['wrapV'])):
+                if mode==0:values[:]=values%size
+                elif mode==1:np.clip(values,0,size-1,out=values)
+                elif mode==2:
+                    values[:]=values%(2*size);values[:]=np.where(values<size,values,2*size-1-values)
+                else:values[:]=np.minimum(size-1,np.where(values>=0,values,-values-1))
+            if sample_receiver is not None:
+                # Keep each actual footprint witness until its consumer has
+                # resolved native coordinates; a UV address can have several owners.
+                sample_receiver(ordinal,rows.copy(),cols.copy(),bary[inside].copy(),interpolated.copy(),density)
+            # Repeat/Clamp can map several footprint witnesses onto one texel.
+            # Reduce them before the shared source-overlap minimum operation.
+            addresses=rows*w+cols;unique,reduce=np.unique(addresses,return_inverse=True)
+            values=np.full(len(unique),np.inf);np.minimum.at(values,reduce,interpolated)
+            rows=unique//w;cols=unique%w;interpolated=values
+            for name,value in extra_interpolated.items():
+                reduced=np.full(len(unique),np.inf);np.minimum.at(reduced,reduce,value);extra_interpolated[name]=reduced
+        elif sample_receiver is not None:
+            sample_receiver(ordinal,rows.copy(),cols.copy(),bary[inside].copy(),interpolated.copy(),density)
         repeat=covered[rows,cols]
         overlaps+=int(repeat.sum())
         ownership[rows,cols]=np.where(repeat,np.minimum(ownership[rows,cols],interpolated),interpolated)
+        for name,value in extra_interpolated.items():
+            extra_ownership[name][rows,cols]=np.where(repeat,np.minimum(extra_ownership[name][rows,cols],value),value)
         metric[rows,cols]=np.where(repeat,np.maximum(metric[rows,cols],density),density)
         anisotropy[rows,cols]=ratio
         covered[rows,cols]=True
@@ -2502,11 +2999,19 @@ def indexed_surface_uv_metrics(packet: 'dict[str, Any]',skin: 'dict[str, Any]',s
                 metresPerTexelQuantiles=np.quantile(metric[covered],[0,.1,.5,.9,1]).tolist(),
                 anisotropyQuantiles=np.quantile(anisotropy[covered],[0,.1,.5,.9,1]).tolist(),
                 nativeSourceChannelsWritten=False,
-                boundaryRule='original indexed topology; no split-vertex weld with omitted expression frames; native indexed open boundary fade' if vertex_field is None else 'declared native vertex field; shared UV coverage retains minimum owning value')
-    return ownership,metric,report,covered
+                sampledSupport=('legacy texel centres'if filter_mode is None else
+                    'native Point footprint'if filter_mode==0 else'native Bilinear footprint at this mip'),
+                boundaryRule=('declared native triangle field; shared sampled support retains minimum owning value'if triangle_values is not None else
+                    'source anatomy at actual triangle samples; shared UV coverage retains minimum owning value'if bone_domain is not None else
+                    'original indexed topology; no split-vertex weld with omitted expression frames; native indexed open boundary fade' if vertex_field is None else 'declared native vertex field; shared UV coverage retains minimum owning value'))
+    result=(ownership,metric,report,covered)
+    if additional_domains is not None:
+        rule='source anatomy at actual triangle samples; shared UV coverage retains minimum owning value'
+        result+=({name:dict(ownership=value,report=dict(report,boundaryRule=rule))for name,value in extra_ownership.items()},)
+    return result
 
 
-def source_surface_junction(first,first_skin,first_slot,second,second_skin,second_slot,first_shape,second_shape,tolerance=.001):
+def source_surface_junction(first,first_skin,first_slot,second,second_skin,second_slot,first_shape,second_shape,tolerance=.001,*,split_uv=False):
     """Match actual source-cut edges in common native bind frames and material UVs."""
     from collections import defaultdict
     def topology(triangles):
@@ -2521,8 +3026,72 @@ def source_surface_junction(first,first_skin,first_slot,second,second_skin,secon
         return uv*np.asarray(prop['scale'])+np.asarray(prop['offset'])
     def inside_uv(edge,uv,shape):
         a,b,c=edge;h,w=shape[:2];p=uv[[a,b,c]];pixels=p*np.array([w,h]);line=pixels[1]-pixels[0]
-        height=abs(np.cross(line,pixels[2]-pixels[0]))/max(np.linalg.norm(line),1e-20)
+        third=pixels[2]-pixels[0]
+        height=abs(line[0]*third[1]-line[1]*third[0])/max(np.linalg.norm(line),1e-20)
         return np.asarray([[((1-t)*p[0]+t*p[1])*(1-min(.2,depth/max(height,1e-20)))+p[2]*min(.2,depth/max(height,1e-20)) for depth in (.5,1.5,2.5)] for t in (.25,.5,.75)])
+    if split_uv:
+        require(first is second and first_slot==second_slot,'A split-UV junction must retain one source Mesh and material slot.')
+        points=np.asarray(first['vertices'],dtype=np.float32).reshape(-1,3)
+        frame=art.matrix(first_skin['rendererToPrefab'])
+        require(np.isfinite(frame).all()and np.array_equal(frame,art.matrix(second_skin['rendererToPrefab']))and
+                first_skin['bones']==second_skin['bones'],'A split-UV junction changed its native renderer frame or palette.')
+        rest_points=points@frame[:3,:3].T+frame[:3,3]
+        triangles=np.asarray(first['subMeshes'][first_slot],int).reshape(-1,3)
+        uv=texture_uv(first,first_skin,first_slot)
+        require(np.array_equal(uv,texture_uv(second,second_skin,second_slot)),
+                'A split-UV junction changed its sampled material coordinates.')
+        precision=8*np.finfo(np.float32).eps*max(1.,float(np.max(np.abs(points))))
+        weights=np.asarray(first['weights'],float).reshape(-1,4);indices=np.asarray(first['boneIndices'],int).reshape(-1,4)
+        bones=first_skin['bones'];position_fields=[points]
+        for shape in first.get('shapes',[]):
+            for frame in shape['frames']:position_fields.append(np.asarray(frame['vertices'],float).reshape(-1,3))
+        signatures=[]
+        for index in range(len(points)):
+            skin={}
+            for bone,weight in zip(indices[index],weights[index]):
+                if weight>0:
+                    name=bones[int(bone)];skin[name]=skin.get(name,0.)+weight
+            semantic=tuple(sorted((name,int(np.rint(value/np.finfo(np.float32).eps)))for name,value in skin.items()))
+            signatures.append((tuple(tuple(np.rint(field[index]/precision).astype(np.int64))for field in position_fields),semantic))
+        parents=np.arange(len(triangles));edge_rows=defaultdict(list)
+        def root(index):
+            while parents[index]!=index:parents[index]=parents[parents[index]];index=int(parents[index])
+            return index
+        for ordinal,triangle in enumerate(triangles):
+            for a,b,c in ((triangle[0],triangle[1],triangle[2]),(triangle[1],triangle[2],triangle[0]),(triangle[2],triangle[0],triangle[1])):
+                edge_rows[tuple(sorted((int(a),int(b))))].append((int(a),int(b),int(c),ordinal))
+        for edges in edge_rows.values():
+            for edge in edges[1:]:parents[root(edge[3])]=root(edges[0][3])
+        groups=defaultdict(list)
+        for edges in edge_rows.values():
+            if len(edges)==1:
+                edge=edges[0];groups[tuple(sorted((signatures[edge[0]],signatures[edge[1]])))].append(edge)
+        pairs=[];ambiguous=0;hard_normals=0
+        for edges in groups.values():
+            if len(edges)<2:continue
+            if len(edges)!=2:ambiguous+=1;continue
+            a,b=edges
+            if signatures[a[0]]!=signatures[b[0]]:b=(b[1],b[0],b[2],b[3])
+            if np.array_equal(uv[list(a[:2])],uv[list(b[:2])]):continue
+            require('normals'in first,'A paired source UV cut requires its native normals.')
+            normal=np.asarray(first['normals'],float).reshape(-1,3)
+            fields=[normal]
+            fields.extend(normal+np.asarray(frame['normals'],float).reshape(-1,3)for shape in first.get('shapes',[])for frame in shape['frames'])
+            continuous=True
+            for field in fields:
+                left=normalise(field[list(a[:2])]);right=normalise(field[list(b[:2])])
+                if np.min(np.sum(left*right,axis=1))<1-8*np.finfo(np.float32).eps:continuous=False;break
+            if not continuous:hard_normals+=1;continue
+            length=float(np.linalg.norm(rest_points[a[1]]-rest_points[a[0]]))
+            if length<=0:continue
+            pairs.append(dict(firstEdge=list(a[:3]),secondEdge=list(b[:3]),firstTriangle=a[3],secondTriangle=b[3],
+                firstComponent=root(a[3]),secondComponent=root(b[3]),lengthMetres=length,
+                firstUv=inside_uv(a[:3],uv,first_shape).tolist(),secondUv=inside_uv(b[:3],uv,second_shape).tolist(),
+                firstCutUv=[((1-t)*uv[a[0]]+t*uv[a[1]]).tolist()for t in(.25,.5,.75)],
+                secondCutUv=[((1-t)*uv[b[0]]+t*uv[b[1]]).tolist()for t in(.25,.5,.75)]))
+        return dict(pairs=pairs,splitUv=True,ambiguousPhysicalEdgeGroups=ambiguous,hardNormalEdgesRetained=hard_normals,
+            sourceFloat32PositionTolerance=precision,sourceSkinAndAllStoredFramesRequired=True,
+            components=[root(index)for index in range(len(triangles))],geometryChanged=False)
     fv=np.asarray(first['vertices'],dtype=float).reshape(-1,3);sv=np.asarray(second['vertices'],dtype=float).reshape(-1,3)
     transform,slots,_=art.skin_palette_frame(first,second,first_skin['bones'],second_skin['bones'])
     fb=np.asarray(first['bindPoses']).reshape(-1,4,4).transpose(0,2,1);sb=np.asarray(second['bindPoses']).reshape(-1,4,4).transpose(0,2,1)
@@ -2556,6 +3125,7 @@ def source_surface_junction(first,first_skin,first_slot,second,second_skin,secon
         pairs.append(dict(firstEdge=list(edge),secondEdge=list(other),firstUv=inside_uv(edge,fu,first_shape).tolist(),secondUv=inside_uv(other,su,second_shape).tolist(),lengthMetres=length))
         contact.update((a,b))
     return dict(pairs=pairs,firstContactVertices=sorted(contact),sharedNativeBindFrames=len({second_skin['bones'][index]for index in slots}),maximumBindFrameDeviationMetres=frame_error,maximumContactGapMetres=float(distances[list(contact)].max()) if contact else None,toleranceMetres=tolerance)
+
 
 
 def rgb_junction_gain(first_samples,second_samples,weights):
@@ -2638,50 +3208,1936 @@ def refine_rgb_junction(rgba,field,gain):
     return result,dict(affectedPixels=int(np.count_nonzero(field)),protectedPixels=int(np.count_nonzero(protected)),gamutLimitedPixels=int(np.count_nonzero(gamut>1)),alphaExact=True,protectedPixelsExact=True,gain=gain.tolist(),operation='native-source junction RGB gain with declared bone/UV support')
 
 
-def rgb_gaussian(values, sigma):
-    """The same finite Gaussian kernel, evaluated in bounded 64-column FFT chunks."""
-    if sigma < 0.15:
-        return values.copy()
-    radius = int(np.ceil(sigma * 3))
-    offsets = np.arange(-radius, radius + 1)
-    kernel = np.exp(-(offsets / sigma) ** 2 * .5)
-    kernel /= kernel.sum()
-    out = values.astype(np.float64, copy=True)
-    for axis in (0, 1):
-        moved = np.moveaxis(out, axis, 0)
-        n = moved.shape[0]
-        if len(kernel)<=33:
-            # Small physical radii are cheaper as the same finite convolution.
-            # Avoid hundreds of padded FFTs for a short kernel on each skin mip.
-            result=np.zeros_like(moved)
-            for delta,weight in zip(offsets,kernel):
-                if abs(delta)>=n:continue
-                target=slice(max(0,delta),min(n,n+delta));source=slice(max(0,-delta),min(n,n-delta))
-                result[target]+=moved[source]*weight
-            out=np.moveaxis(result,0,axis)
+def source_native_closure(triangles,pairs):
+    import collections
+    rows=collections.defaultdict(list);result={}
+    for ordinal,triangle in enumerate(triangles):
+        for a,b in zip(triangle,np.roll(triangle,-1)):
+            rows[frozenset((int(a),int(b)))].append(ordinal)
+    for edge,owners in rows.items():
+        if len(owners)>2:raise ValueError('Unresolved nonmanifold native edge.')
+        if len(owners)==2:
+            for first,last in((owners[0],owners[1]),(owners[1],owners[0])):
+                result[(first,edge)]=(last,{value:value for value in edge})
+    for row in pairs:
+        a,b=row['firstEdge'][:2];c,d=row['secondEdge'][:2]
+        for first,own,last,peer in((row['firstTriangle'],(a,b),row['secondTriangle'],(c,d)),
+                                   (row['secondTriangle'],(c,d),row['firstTriangle'],(a,b))):
+            key=(first,frozenset(own))
+            if key in result:raise ValueError('Unresolved conflicting native peer.')
+            result[key]=(last,dict(zip(own,peer,strict=True)))
+    return result
+
+
+def source_native_unfold(points,triangles,neighbours,current,layout,edge):
+    """Carry an indexed or verified peer edge into its adjacent native triangle."""
+    triangle=triangles[current];edge=list(edge);a,b=map(int,edge)
+    connection=neighbours.get((current,frozenset(edge)))
+    if connection is None:raise ValueError('Native fan is not closed.')
+    following,mapping=connection;other=triangles[following]
+    peer_a,peer_b=mapping[a],mapping[b]
+    c=next(int(value)for value in other if value not in(peer_a,peer_b))
+    at={int(value):index for index,value in enumerate(triangle)}
+    corner=next(index for index,value in enumerate(triangle)if value not in(a,b))
+    origin=layout[at[a]];vector=layout[at[b]]-origin;length=np.linalg.norm(vector)
+    relative=points[c]-points[peer_a];native_edge=points[peer_b]-points[peer_a]
+    if not np.isclose(np.linalg.norm(native_edge),length,rtol=0,atol=1e-12):
+        raise ValueError('Native fan peer has different edge length.')
+    along=np.dot(relative,native_edge)/length;height2=np.dot(relative,relative)-along*along
+    if height2<=0:raise ValueError('Native fan triangle is collapsed.')
+    tangent=vector/length;normal=np.array([-tangent[1],tangent[0]])
+    side=np.sign(np.dot(layout[corner]-origin,normal))
+    if side==0:raise ValueError('Native fan side is ambiguous.')
+    locations={peer_a:origin,peer_b:layout[at[b]],c:origin+tangent*along-normal*side*np.sqrt(height2)}
+    return following,np.array([locations[int(value)]for value in other]),mapping
+
+
+def source_native_complete_fan(points,triangles,neighbours,seed,initial,vertex,*,_reserve=None):
+    """Verify the entire incident native cycle before using either limit."""
+    if _reserve is not None:_reserve(4096)
+    current=seed;layout=np.asarray(initial,float);centre=int(vertex)
+    edge=(centre,next(int(value)for value in triangles[seed]if value!=centre))
+    visited=set()
+    for _ in range(len(triangles)+1):
+        if current in visited:raise ValueError('Native fan repeats before closing at its source.')
+        if _reserve is not None:_reserve(512)
+        visited.add(current)
+        following,next_layout,mapping=source_native_unfold(points,triangles,neighbours,current,layout,edge)
+        entered=frozenset(mapping[value]for value in edge);centre=mapping[centre]
+        current=following;layout=next_layout
+        if current==seed:
+            if centre!=vertex:raise ValueError('Native fan closes on another source vertex.')
+            return visited
+        edge=next((int(centre),int(value))for value in triangles[current]
+            if value!=centre and frozenset((int(centre),int(value)))!=entered)
+    raise ValueError('Native fan is not completely traversed.')
+
+
+def source_native_fan_limits(points,triangles,neighbours,seed,initial,vertex,query,*,_reserve=None):
+    """Resolve both angular limits through a complete qualified native vertex fan."""
+    if _reserve is not None:_reserve(4096)
+    initial=np.asarray(initial,float);query=np.asarray(query,float)
+    at=int(np.flatnonzero(triangles[seed]==vertex)[0]);origin=initial[at]
+    if np.linalg.norm(query-origin)==0:raise ValueError('Native fan direction is absent.')
+    edges=[(int(vertex),int(value))for value in triangles[seed]if value!=vertex]
+    results=[]
+    for start_edge in edges:
+        current=seed;layout=initial.copy();centre=int(vertex);edge=start_edge;visited=set();walk=[]
+        for _ in range(len(triangles)+1):
+            signature=(current,centre,frozenset(edge))
+            if signature in visited:raise ValueError('Native fan direction has no outgoing wedge.')
+            if _reserve is not None:_reserve(512)
+            visited.add(signature)
+            following,next_layout,mapping=source_native_unfold(points,triangles,neighbours,current,layout,edge)
+            entered=frozenset(mapping[value]for value in edge);centre=mapping[centre]
+            current=following;layout=next_layout;walk.append(int(current))
+            triangle=triangles[current];corner=int(np.flatnonzero(triangle==centre)[0])
+            inverse=np.linalg.inv(np.stack((layout[1]-layout[0],layout[2]-layout[0]),axis=1))
+            target=inverse@(query-origin);direction=np.r_[-target.sum(),target]
+            others=[index for index in range(3)if index!=corner]
+            if min(direction[others])>=-1e-10:
+                # The full query may extend beyond this one triangle. The caller can
+                # continue this limit using the ordinary native ray walker.
+                results.append(dict(triangle=int(current),vertex=int(centre),layout=layout,
+                    origin=layout[corner],walk=walk))
+                break
+            edge=next((int(centre),int(value))for value in triangle
+                if value!=centre and frozenset((int(centre),int(value)))!=entered)
+        else:raise ValueError('Native fan traversal is incomplete.')
+    return results
+
+
+def source_native_ray(points,triangles,neighbours,seed,initial,centre,query,*,unresolved_edges=(),_fan_visits=frozenset(),_reserve=None):
+    if _reserve is not None:_reserve(4096)
+    layout=np.asarray(initial,float).copy();position=np.asarray(centre,float);query=np.asarray(query,float)
+    current=seed;visited=set()
+    for hop in range(2*len(triangles)+1):
+        if _reserve is not None:_reserve(1024)
+        triangle=triangles[current]
+        inverse=np.linalg.inv(np.stack((layout[1]-layout[0],layout[2]-layout[0]),axis=1))
+        delta=query-layout[0]
+        target=np.array([delta[0]*inverse[0,0]+delta[1]*inverse[0,1],delta[0]*inverse[1,0]+delta[1]*inverse[1,1]])
+        target=np.r_[1-target.sum(),target]
+        if min(target)>=-1e-10:
+            return dict(state='source',triangle=int(current),bary=target,point=target@points[triangle],hops=hop)
+        start=inverse@(position-layout[0]);start=np.r_[1-start.sum(),start]
+        # The existing barycentric boundary contract also applies while
+        # crossing. A ray on an edge does not exit it at amount zero merely
+        # because a cancelled barycentric coordinate has a tiny negative sign.
+        collinear=(np.abs(start)<=1e-10)&(np.abs(target)<=1e-10)
+        crossing=[]
+        for corner in np.flatnonzero((target<0)&~collinear):
+            amount=start[corner]/(start[corner]-target[corner])
+            if amount>=-1e-10:crossing.append((max(0.,amount),int(corner)))
+        if not crossing:return dict(state='unresolved',reason='no-forward-native-crossing',hops=hop)
+        crossing.sort();amount,corner=crossing[0]
+        if collinear.any()or len(crossing)>1 and abs(crossing[1][0]-amount)<1e-12:
+            opposite={value[1]for value in crossing if abs(value[0]-amount)<1e-12}
+            opposite.update(np.flatnonzero(collinear).tolist())
+            remaining=[index for index in range(3)if index not in opposite]
+            if len(remaining)!=1:return dict(state='unresolved',reason='native-vertex-fan-needs-disambiguation',hops=hop)
+            vertex=int(triangle[remaining[0]])
+            point=position+(query-position)*amount
+            signature=tuple(np.round(points[vertex],14))
+            if signature in _fan_visits:return dict(state='unresolved',reason='native-fan-transport-cycle',hops=hop)
+            try:
+                closed=source_native_complete_fan(points,triangles,neighbours,current,layout,vertex,_reserve=_reserve)
+                limits=source_native_fan_limits(points,triangles,neighbours,current,layout,vertex,query,_reserve=_reserve)
+            except ValueError as error:
+                return dict(state='unresolved',reason=str(error),hops=hop)
+            if any((ordinal,edge)in unresolved_edges for ordinal in closed for edge in
+                   (frozenset((int(a),int(b)))for a,b in zip(triangles[ordinal],np.roll(triangles[ordinal],-1)))
+                   if vertex in edge):
+                return dict(state='unresolved',reason='native-peer-closure-incomplete',hops=hop)
+            if _reserve is not None:_reserve(1024)
+            results=[source_native_ray(points,triangles,neighbours,value['triangle'],value['layout'],value['origin'],query,
+                unresolved_edges=unresolved_edges,_fan_visits=_fan_visits|{signature},_reserve=_reserve)for value in limits]
+            if any(value['state']=='unresolved'for value in results):
+                return dict(state='unresolved',reason='native-fan-limit-is-unresolved',limits=results,hops=hop)
+            samples=[];outside_weight=0.
+            for value in results:
+                if _reserve is not None:_reserve(512+512*len(value.get('samples',())))
+                if value['state']=='source':samples.append(dict(triangle=value['triangle'],bary=value['bary'],point=value['point'],weight=.5))
+                elif value['state']=='source-stencil':
+                    samples.extend(dict(sample,weight=sample['weight']*.5)for sample in value['samples'])
+                    outside_weight+=.5*value['outsideWeight']
+                elif value['state']=='outside':outside_weight+=.5
+            if not samples:return dict(state='outside',nativeFanVertex=vertex,hops=hop)
+            return dict(state='source-stencil',samples=samples,outsideWeight=outside_weight,
+                nativeFanVertex=vertex,closedFanTriangles=sorted(closed),hops=hop,
+                interpretation='two-sided symmetric native transport limits')
+        a,b=[int(triangle[index])for index in range(3)if index!=corner]
+        key=(current,frozenset((a,b)))
+        if key in unresolved_edges:return dict(state='unresolved',reason='native-peer-closure-incomplete',hops=hop)
+        connection=neighbours.get(key)
+        if connection is None:return dict(state='outside',nativeBoundary=list(map(int,(a,b))),hops=hop)
+        position=position+(query-position)*amount
+        signature=(key,tuple(np.round(position,14)))
+        if signature in visited:return dict(state='unresolved',reason='native-transport-cycle',hops=hop)
+        visited.add(signature)
+        following,mapping=connection;other=triangles[following]
+        peer_a,peer_b=mapping[a],mapping[b];c=next(int(value)for value in other if value not in(peer_a,peer_b))
+        at={int(value):index for index,value in enumerate(triangle)}
+        origin=layout[at[a]];edge=layout[at[b]]-origin;length=np.linalg.norm(edge)
+        relative=points[c]-points[peer_a];source_edge=points[peer_b]-points[peer_a]
+        if not np.isclose(np.linalg.norm(source_edge),length,rtol=0,atol=1e-12):
+            return dict(state='unresolved',reason='native-peer-length-differs',hops=hop)
+        along=np.dot(relative,source_edge)/length;perpendicular=np.dot(relative,relative)-along*along
+        if perpendicular<=0:return dict(state='unresolved',reason='native-triangle-collapsed',hops=hop)
+        tangent=edge/length;normal=np.array([-tangent[1],tangent[0]])
+        side=np.sign(np.dot(layout[corner]-origin,normal))
+        if side==0:return dict(state='unresolved',reason='native-edge-side-ambiguous',hops=hop)
+        vertices={peer_a:origin,peer_b:layout[at[b]],c:origin+tangent*along-normal*side*np.sqrt(perpendicular)}
+        layout=np.array([vertices[int(value)]for value in other]);current=following
+    return dict(state='unresolved',reason='finite-native-traversal-not-complete',hops=2*len(triangles)+1)
+
+
+def source_native_rays(points, triangles, neighbours, seed, initial, centre, queries,
+                *, unresolved_edges=(), retain_layouts=False, _frame=None, _unfold=None, _work_report=None):
+    """Same native wavefront decisions, with query arithmetic grouped by hop."""
+    import collections,sys
+    queries=np.asarray(queries,float);centre=np.asarray(centre,float);count=len(queries)
+    limits=source_filter_budget()
+    def report_size(value):
+        amount=sys.getsizeof(value)
+        if isinstance(value,dict):amount+=sum(report_size(key)+report_size(item)for key,item in value.items())
+        elif isinstance(value,(list,tuple,set,frozenset)):amount+=sum(report_size(item)for item in value)
+        elif isinstance(value,np.ndarray):amount=max(amount,value.nbytes)
+        return amount
+    if count>limits['nativeQueries']:
+        require(count*33<=limits['workBytes']//8,'Native receiver result arrays exceed their metadata work budget.')
+        result=dict(states=np.empty(count,np.uint8),triangles=np.empty(count,np.int32),bary=np.empty((count,3)),
+            hops=np.empty(count,np.int32),fanSamples={},failures={},groups=0,peakPendingQueries=0,layouts={})
+        retained_reports=0
+        for first in range(0,count,limits['nativeQueries']):
+            part=source_native_rays(points,triangles,neighbours,seed,initial,centre,
+                queries[first:first+limits['nativeQueries']],unresolved_edges=unresolved_edges,
+                retain_layouts=retain_layouts,_frame=_frame,_unfold=_unfold,_work_report=_work_report)
+            last=first+len(part['states'])
+            retained_reports+=sum(report_size(part[name])for name in('fanSamples','failures','layouts'))
+            require(retained_reports+count*113+limits['nativeWaveBytes']+limits['nativeCacheBytes']+
+                limits['workBytes']//8<=limits['workBytes'],'Native receiver reports exceed their temporary work budget.')
+            for name in('states','triangles','bary','hops'):result[name][first:last]=part[name]
+            for name in('fanSamples','failures'):result[name].update((first+index,value)for index,value in part[name].items())
+            for current,values in part['layouts'].items():result['layouts'].setdefault(current,[]).extend(values)
+            result['groups']+=part['groups'];result['peakPendingQueries']=max(result['peakPendingQueries'],part['peakPendingQueries'])
+        return result
+    # Dense arithmetic/temporary views cost at most 795 bytes/q. Measure the
+    # installed Python/NumPy object headers for two generations of frames,
+    # ragged children and their pointer lists rather than assuming a version.
+    frame_work=sys.getsizeof((0,None,None,None))+sys.getsizeof(0)+sum(
+        sys.getsizeof(np.empty(shape))for shape in((3,2),(2,2),(3,)))
+    ragged_work=sum(sys.getsizeof(np.empty(1,dtype=dtype))for dtype in(np.int64,np.float64,np.int32))+3*np.dtype(np.intp).itemsize
+    wave_arrays=count*(795+2*frame_work+ragged_work+2*np.dtype(np.intp).itemsize)+8192
+    require(wave_arrays<=limits['nativeWaveBytes'],'Native wave arrays exceed their temporary work budget.')
+    if _work_report is not None:_work_report['peakNativeWaveBytes']=max(_work_report.get('peakNativeWaveBytes',0),wave_arrays)
+    metadata_bytes=0;retained_layout_bytes=0
+    states=np.zeros(count,np.uint8);owners=np.full(count,-1,np.int32);barycentrics=np.zeros((count,3))
+    hops=np.zeros(count,np.int32);fan_samples={};failures={};layouts=collections.defaultdict(list)
+    indices=np.arange(count);group=np.zeros(count,np.int32);entered=np.zeros(count)
+    def direct_frame(current,layout,centre):
+        inverse=np.linalg.inv(np.stack((layout[1]-layout[0],layout[2]-layout[0]),axis=1))
+        origin=inverse@(centre-layout[0]);origin=np.r_[1-origin.sum(),origin]
+        return int(current),layout,inverse,origin
+    frame=direct_frame if _frame is None else _frame
+    advance=(lambda current,layout,edge:source_native_unfold(points,triangles,neighbours,current,layout,edge))if _unfold is None else _unfold
+    frames=[frame(int(seed),np.asarray(initial,float),centre)]
+    groups=0;hop=0
+    def retain(index,result):
+        nonlocal metadata_bytes
+        if result['state']not in('source','outside'):
+            amount=report_size(result)+128
+            if wave_arrays+metadata_bytes+amount>limits['nativeWaveBytes']:
+                raise MemoryError('Native ragged reports exceed their temporary work budget.')
+            metadata_bytes+=amount
+            if _work_report is not None:_work_report['peakNativeWaveBytes']=max(_work_report.get('peakNativeWaveBytes',0),wave_arrays+metadata_bytes)
+        hops[index]=result.get('hops',0)
+        if result['state']=='source':
+            states[index]=1;owners[index]=result['triangle'];barycentrics[index]=result['bary']
+        elif result['state']=='outside':states[index]=2
+        elif result['state']=='source-stencil':
+            states[index]=3;fan_samples[int(index)]=result
+        else:states[index]=4;failures[int(index)]=result
+    while frames:
+        groups+=len(frames)
+        if retain_layouts:
+            for current,layout,_,_ in frames:
+                if isinstance(retain_layouts,(bool,np.bool_))or current in retain_layouts:
+                    if retained_layout_bytes+400>limits['workBytes']//8:
+                        raise MemoryError('Retained native layouts exceed their metadata work budget.')
+                    layouts[current].append(layout.copy());retained_layout_bytes+=400
+                    if _work_report is not None:_work_report['peakNativeLayoutBytes']=max(_work_report.get('peakNativeLayoutBytes',0),retained_layout_bytes)
+        if hop>2*len(triangles):
+            for index in indices:retain(index,dict(state='unresolved',reason='finite-native-traversal-not-complete',hops=hop))
+            break
+        inverse=np.asarray([frame[2]for frame in frames])[group]
+        origins=np.asarray([frame[1][0]for frame in frames])[group]
+        origin=np.asarray([frame[3]for frame in frames])[group]
+        current=np.asarray([frame[0]for frame in frames],np.int32)[group]
+        delta=queries[indices]-origins
+        target=np.empty((len(indices),2))
+        target[:,0]=delta[:,0]*inverse[:,0,0]+delta[:,1]*inverse[:,0,1]
+        target[:,1]=delta[:,0]*inverse[:,1,0]+delta[:,1]*inverse[:,1,1]
+        target=np.c_[1-target.sum(1),target]
+        inside=np.min(target,axis=1)>=-1e-10
+        selected=indices[inside];states[selected]=1;owners[selected]=current[inside]
+        barycentrics[selected]=target[inside];hops[selected]=hop
+        indices=indices[~inside];target=target[~inside];group=group[~inside];entered=entered[~inside];origin=origin[~inside]
+        if not len(indices):break
+        collinear=(np.abs(origin)<=1e-10)&(np.abs(target)<=1e-10)
+        roots=np.divide(origin,origin-target,out=np.full_like(target,np.inf),
+            where=(origin!=target)&(target<0)&~collinear)
+        valid=(target<0)&(roots>=entered[:,None]-1e-10)&(roots>=-1e-10)
+        roots=np.where(valid,np.maximum(0.,roots),np.inf)
+        corner=np.argmin(roots,axis=1);ordered=np.sort(roots,axis=1);amount=ordered[:,0]
+        missing=~np.isfinite(amount)
+        ties=(ordered[:,1]-amount<1e-12)&~missing
+        ties|=np.any(collinear,axis=1)&~missing
+        for offset in np.flatnonzero(missing|ties):
+            current,layout,_,_=frames[int(group[offset])]
+            start=centre+(queries[indices[offset]]-centre)*entered[offset]
+            charged=[wave_arrays+metadata_bytes]
+            def reserve(amount):
+                if charged[0]+amount>limits['nativeWaveBytes']:
+                    raise MemoryError('Native fan allocations exceed their temporary work budget.')
+                charged[0]+=amount
+                if _work_report is not None:_work_report['peakNativeWaveBytes']=max(_work_report.get('peakNativeWaveBytes',0),charged[0])
+            retain(indices[offset],source_native_ray(points,triangles,neighbours,current,layout,start,
+                queries[indices[offset]],unresolved_edges=unresolved_edges,_reserve=reserve))
+        propagate=np.flatnonzero(~missing&~ties)
+        buckets=group[propagate]*3+corner[propagate]
+        order=np.argsort(buckets,kind='stable');propagate=propagate[order];buckets=buckets[order]
+        cuts=np.r_[0,np.flatnonzero(buckets[1:]!=buckets[:-1])+1,len(buckets)]
+        next_indices=[];next_entered=[];next_groups=[];next_frames=[]
+        for first,last in zip(cuts[:-1],cuts[1:]):
+            if first==last:continue
+            selected=propagate[first:last];parent=int(buckets[first]//3);at=int(buckets[first]%3)
+            current,layout,_,_=frames[parent];own=indices[selected]
+            edge=frozenset(int(value)for index,value in enumerate(triangles[current])if index!=at)
+            key=(current,edge)
+            if key in unresolved_edges:
+                for index in own:retain(index,dict(state='unresolved',reason='native-peer-closure-incomplete',hops=hop))
+            elif key not in neighbours:
+                states[own]=2;hops[own]=hop
+            else:
+                following,next_layout,_=advance(current,layout,edge)
+                next_indices.append(own);next_entered.append(amount[selected])
+                next_groups.append(np.full(len(own),len(next_frames),np.int32))
+                next_frames.append(frame(following,next_layout,centre))
+        if not next_indices:break
+        indices=np.concatenate(next_indices);entered=np.concatenate(next_entered);group=np.concatenate(next_groups)
+        frames=next_frames;hop+=1
+    return dict(states=states,triangles=owners,bary=barycentrics,fanSamples=fan_samples,failures=failures,
+        hops=hops,groups=groups,peakPendingQueries=count,layouts=dict(layouts))
+
+
+def source_uniform_support(profile, spacing, regions):
+    settings = {key: profile[key] for key in ('fineSigmaMetres', 'grainSigmaMetres', 'coherenceSigmaMetres')}
+    settings['fineCoherenceRetain'] = profile.get('pigmentFineCoherenceRetain', 1.0)
+    radius = source_uniform_radius(settings, spacing)
+    radius = max(radius, rgb_uniform_radius(profile['featherMetres'] / 3, spacing))
+    local = [dict(source=rgb_uniform_radius(value['sourceLowFrequencySigmaMetres'], spacing),
+                  reference=rgb_uniform_radius(value['referenceSigmaMetres'], spacing)if 'referenceSigmaMetres'in value else 0)
+             for value in regions]
+    return dict(globalRadiusPixels=radius, regionalRadiusPixels=local, filterRadiusPixels=max([radius] + [max(value.values()) for value in local]), receiverInterpolationPixels=1, metric='same finite uniform native-prefab metre operator; bounded work, no sigma cap')
+
+def source_canonical_receivers(points, triangles, neighbours, requests):
+    """Share a boundary owner only through its exact qualified native edges."""
+    canonical = []
+    boundary_paths = []
+    for ordinal, bary in requests:
+        ordinal = int(ordinal)
+        bary = np.asarray(bary, float)
+        active = np.flatnonzero(bary > 1e-10)
+        if len(active) not in (1, 2):
+            canonical.append((ordinal, bary))
             continue
-        matrix = moved.reshape(n, -1)
-        length = 1 << (n + len(kernel) - 2).bit_length()
-        frequency = np.fft.rfft(kernel, n=length)[:, None]
-        result = np.empty_like(matrix)
-        for start in range(0, matrix.shape[1], 64):
-            spectrum = np.fft.rfft(matrix[:, start:start+64], n=length, axis=0)
-            spectrum *= frequency
-            convolution = np.fft.irfft(spectrum, n=length, axis=0)
-            result[:, start:start+64] = convolution[radius:radius+n]
-        out = np.moveaxis(result.reshape(moved.shape), 0, axis)
+        pending = [(ordinal, bary)]
+        owners = {ordinal: bary}
+        paths = {ordinal: []}
+        while pending:
+            current, weights = pending.pop()
+            triangle = triangles[current]
+            support = {int(triangle[index]): weights[index] for index in np.flatnonzero(weights > 1e-10)}
+            for a, b in zip(triangle, np.roll(triangle, -1)):
+                edge = frozenset((int(a), int(b)))
+                if not set(support) <= edge:
+                    continue
+                adjacent = neighbours.get((current, edge))
+                if adjacent is None:
+                    continue
+                following, mapping = adjacent
+                following = int(following)
+                if following in owners:
+                    continue
+                transferred = {int(mapping[vertex]): weight for vertex, weight in support.items()}
+                value = np.array([transferred.get(int(vertex), 0.0) for vertex in triangles[following]])
+                owners[following] = value
+                paths[following] = paths[current] + [(current, edge)]
+                pending.append((following, value))
+        owner = min(owners)
+        if np.linalg.norm(owners[owner] @ points[triangles[owner]] - bary @ points[triangles[ordinal]]) > 1e-10:
+            raise ValueError('A qualified native alias changes its original physical receiver point.')
+        canonical.append((owner, owners[owner]))
+        boundary_paths.append((ordinal, paths[owner]))
+    return (canonical, boundary_paths)
+
+def source_receiver_coordinates(points, triangles, neighbours, seed, initial, centre, requests, layouts, *, diagnostics=None, statistics=None, sampler=None):
+    count = len(requests)
+    if not count:
+        return np.empty((0, 2))
+    ordinals = np.asarray([row[0] for row in requests], int)
+    bary = np.asarray([row[1] for row in requests], float)
+    candidates = [None] * count
+    native = np.zeros((count, 3))
+    allowed = [None] * count
+    maximum = 0
+    original_queries = 0
+    distinct_queries = 0
+    for triangle in np.unique(ordinals):
+        ids = np.flatnonzero(ordinals == triangle)
+        values = bary[ids]
+        options = np.asarray(layouts.get(int(triangle), []))
+        native[ids] = values @ points[triangles[triangle]]
+        if not len(options):
+            continue
+        queries = np.einsum('ni,kij->nkj', values, options)
+        order = np.argsort(np.linalg.norm(queries - centre, axis=2), axis=1, kind='stable')
+        patterns = np.sum((values > 1e-10) * [1, 2, 4], axis=1)
+        owners_by_pattern = {}
+        for pattern in np.unique(patterns):
+            active = np.flatnonzero(np.array([pattern & 1, pattern & 2, pattern & 4]) > 0)
+            owners = {int(triangle)}
+            if len(active) == 2:
+                edge = frozenset((int(triangles[triangle, index]) for index in active))
+                other = neighbours.get((int(triangle), edge))
+                if other is not None:
+                    owners.add(int(other[0]))
+            elif len(active) == 1:
+                pending = [(int(triangle), int(triangles[triangle, active[0]]))]
+                visited = set(pending)
+                while pending:
+                    current, vertex = pending.pop()
+                    for other in triangles[current]:
+                        if other == vertex:
+                            continue
+                        connection = neighbours.get((current, frozenset((vertex, int(other)))))
+                        if connection is None:
+                            continue
+                        following, mapping = connection
+                        key = (int(following), int(mapping[vertex]))
+                        if key not in visited:
+                            visited.add(key)
+                            pending.append(key)
+                owners = {value[0] for value in visited}
+            owners_by_pattern[int(pattern)] = owners
+        for at, index in enumerate(ids):
+            seen = set()
+            unique = []
+            for query in queries[at, order[at]]:
+                identity = (query.dtype.str, query.tobytes())
+                if identity not in seen:
+                    seen.add(identity)
+                    unique.append(query)
+            candidates[index] = np.asarray(unique)
+            allowed[index] = owners_by_pattern[int(patterns[at])]
+            original_queries += len(options)
+            distinct_queries += len(unique)
+            maximum = max(maximum, len(unique))
+    result = np.full((count, 2), np.nan)
+    walks = 0
+    attempts = {}
+    for rank in range(maximum):
+        ids = np.asarray([index for index in range(count) if not np.isfinite(result[index]).all() and candidates[index] is not None and (rank < len(candidates[index]))], int)
+        if not len(ids):
+            continue
+        chosen = np.asarray([candidates[index][rank] for index in ids])
+        walked = source_native_rays(points, triangles, neighbours, seed, initial, centre, chosen) if sampler is None else sampler.queries(seed, initial, centre, chosen)
+        walks += 1
+        valid = np.zeros(len(ids), bool)
+        ordinary = np.flatnonzero(walked['states'] == 1)
+        if len(ordinary):
+            actual = np.einsum('ni,nij->nj', walked['bary'][ordinary], points[triangles[walked['triangles'][ordinary]]])
+            owners = np.asarray([int(walked['triangles'][at]) in allowed[int(ids[at])] for at in ordinary])
+            valid[ordinary] = owners & (np.linalg.norm(actual - native[ids[ordinary]], axis=1) <= 1e-10)
+        for at, fan in walked['fanSamples'].items():
+            index = int(ids[at])
+            valid[at] = any((row['triangle'] in allowed[index] and np.linalg.norm(np.asarray(row['bary']) @ points[triangles[row['triangle']]] - native[index]) <= 1e-10 for row in fan['samples']))
+        for at in np.flatnonzero(~valid):
+            index = int(ids[at])
+            state = int(walked['states'][at])
+            fact = dict(query=chosen[at].tolist(), state=state)
+            if state == 1:
+                owner = int(walked['triangles'][at])
+                point = walked['bary'][at] @ points[triangles[owner]]
+                fact.update(triangle=owner, pointMetres=point.tolist(), distanceMetres=float(np.linalg.norm(point - native[index])))
+            elif state == 3:
+                fact['fanSampleTriangles'] = [int(row['triangle']) for row in walked['fanSamples'][int(at)]['samples']]
+            elif state == 4:
+                fact['reason'] = walked['failures'][int(at)].get('reason')
+            attempts.setdefault(index, []).append(fact)
+        result[ids[valid]] = chosen[valid]
+    missing = np.flatnonzero(~np.isfinite(result).all(1))
+    if len(missing):
+        facts = []
+        for triangle in np.unique(ordinals[missing]):
+            indices = missing[ordinals[missing] == triangle]
+            index = int(indices[0])
+            candidate = candidates[index]
+            facts.append(dict(seed=int(seed), receiverTriangle=int(triangle), missingReceivers=len(indices), firstRequestIndex=index, receiverBarycentric=bary[index].tolist(), receiverPointMetres=native[index].tolist(), allowedTriangles=sorted(allowed[index]) if allowed[index] is not None else [], candidateLayouts=0 if candidate is None else len(candidate), candidates=attempts.get(index, [])[:8], reason='no-prepared-native-layout' if candidate is None else 'native-point-round-trip-mismatch', missingRequestIndicesSha256=hashlib.sha256(indices.astype('<u4').tobytes()).hexdigest()))
+        if diagnostics is not None:
+            diagnostics.extend(facts)
+        elif any((fact['reason'] == 'no-prepared-native-layout' for fact in facts)):
+            raise ValueError('An owned receiver has no prepared native layout.')
+        else:
+            raise ValueError('An owned receiver cannot reproduce its native surface correspondence: ' + json.dumps(facts[0], separators=(',', ':')))
+    if statistics is not None:
+        statistics.update(witnesses=count, rankBatchedWalks=walks, allWitnessesRetained=True, unresolvedWitnesses=len(missing), nativeReceiverTriangles=len(np.unique(ordinals)), originalCandidateQueries=original_queries, distinctCandidateQueries=distinct_queries, identicalCandidateQueriesReused=original_queries - distinct_queries)
+    return result
+
+def source_qualified_coordinates(points, triangles, neighbours, seed, initial, centre, requests, layouts, *, diagnostics=None, sampler=None):
+    """Give qualified UV aliases one receiver owner before chart evaluation."""
+    canonical, boundary_paths = source_canonical_receivers(points, triangles, neighbours, requests)
+    expanded = {int(ordinal): list(values) for ordinal, values in layouts.items()}
+    needed = {ordinal for ordinal, _ in canonical} | {int(ordinal) for ordinal, _ in requests}
+    for ordinal, values in list(layouts.items()):
+        triangle = triangles[ordinal]
+        for a, b in zip(triangle, np.roll(triangle, -1)):
+            edge = frozenset((int(a), int(b)))
+            adjacent = neighbours.get((int(ordinal), edge))
+            if adjacent is None or int(adjacent[0]) not in needed:
+                continue
+            for layout in values:
+                following, value, _ = (source_native_unfold(points, triangles, neighbours, int(ordinal), layout, edge) if sampler is None else sampler.unfold(int(ordinal), layout, edge))
+                entries = expanded.setdefault(int(following), [])
+                if not any((np.array_equal(value, existing) for existing in entries)):
+                    entries.append(value)
+    for ordinal, path in boundary_paths:
+        for source_layout in list(expanded.get(ordinal, [])):
+            current = ordinal
+            value = source_layout
+            for expected, edge in path:
+                if current != expected:
+                    raise ValueError('A qualified native alias path changed its triangle owner.')
+                current, value, _ = (source_native_unfold(points, triangles, neighbours, current, value, edge) if sampler is None else sampler.unfold(current, value, edge))
+            entries = expanded.setdefault(int(current), [])
+            if not any((np.array_equal(value, existing) for existing in entries)):
+                entries.append(value)
+    return source_receiver_coordinates(points, triangles, neighbours, seed, initial, centre, canonical, expanded, diagnostics=diagnostics, sampler=sampler)
+
+def source_receiver_grid_half(coordinates, centre, spacing, support):
+    """Cover the actual receivers and every finite read of the same operator."""
+    return np.ceil(np.max(np.abs(np.asarray(coordinates) - centre), axis=0) / spacing).astype(int) + support['filterRadiusPixels'] + support['receiverInterpolationPixels']
+
+def source_neighbourhood_context(packet, skin, slot, shape, sampler, profile, regions, evaluation, *, deadline=None, require_complete=False):
+    """Cover every declared source cut; collect only actual stage-owned texels."""
+    import heapq, time
+    shape = tuple(shape)
+    evaluation = np.asarray(evaluation, bool)
+    if evaluation.shape != shape:
+        raise ValueError('Native filter receiver ownership differs from its texture.')
+    if not evaluation.any():
+        return ([], dict(pairs=None, patches=0, receivers=0, noWritableOutput=True))
+    matches = source_surface_junction(packet, skin, slot, packet, skin, slot, shape, shape, split_uv=True)
+    if matches['ambiguousPhysicalEdgeGroups']:
+        raise ValueError('A native RGB cut has ambiguous physical peer ownership.')
+    pairs = matches['pairs']
+    if (not pairs and not require_complete) or not evaluation.any():
+        return ([], dict(pairs=len(pairs), patches=0, receivers=0))
+    matrix = np.asarray(skin['rendererToPrefab']).reshape(4, 4).T
+    points = np.asarray(packet['vertices']).reshape(-1, 3) @ matrix[:3, :3].T + matrix[:3, 3]
+    triangles = np.asarray(packet['subMeshes'][slot]).reshape(-1, 3)
+    uv = np.asarray(next((value['values'] for value in packet['uv'] if value['channel'] == 0))).reshape(-1, 4)[:, :2]
+    prop = next((value for value in skin['materials'][slot]['properties'] if value['name'] == '_MainTex'))
+    uv = uv * np.asarray(prop['scale']) + np.asarray(prop['offset'])
+    neighbours = source_native_closure(triangles, pairs)
+    graph = [{} for _ in points]
+    for triangle in triangles:
+        for a, b in zip(triangle, np.roll(triangle, -1)):
+            graph[int(a)][int(b)] = graph[int(b)][int(a)] = float(np.linalg.norm(points[a] - points[b]))
+    for pair in pairs:
+        for a, b in zip(pair['firstEdge'][:2], pair['secondEdge'][:2], strict=True):
+            graph[a][b] = graph[b][a] = 0.0
+
+    def distances(seeds):
+        result = np.full(len(points), np.inf)
+        queue = []
+        for vertex, value in seeds:
+            if value < result[vertex]:
+                result[vertex] = value
+                heapq.heappush(queue, (float(value), int(vertex)))
+        while queue:
+            value, vertex = heapq.heappop(queue)
+            if value != result[vertex]:
+                continue
+            for other, length in graph[vertex].items():
+                following = value + length
+                if following < result[other]:
+                    result[other] = following
+                    heapq.heappush(queue, (following, other))
+        return result
+    incident = {}
+    for index, pair in enumerate(pairs):
+        for side in ('first', 'second'):
+            for vertex in pair[side + 'Edge'][:2]:
+                incident.setdefault(int(vertex), []).append((pair['lengthMetres'], index, side))
+    cut_vertices = np.array(sorted(incident), int)
+    covered = np.zeros(len(points), bool)
+    contexts = []
+
+    def support_at(spacing, validate):
+        if validate:
+            return source_uniform_support(profile, spacing, regions)
+        valid = max([profile['coherenceSigmaMetres'], profile['featherMetres'] / 3] +
+                    [max(region['sourceLowFrequencySigmaMetres'],region.get('referenceSigmaMetres',0.))for region in regions]) / 128
+        if spacing >= valid:
+            return source_uniform_support(profile, spacing, regions)
+        adjusted = source_uniform_support(profile, valid, regions)
+        adjusted['filterRadiusPixels'] = int(np.ceil((adjusted['filterRadiusPixels'] + 1) * valid / spacing))
+        return adjusted
+    while not np.all(covered[cut_vertices]):
+        if deadline is not None and time.perf_counter() > deadline:
+            return ([], dict(pairs=len(pairs), patches=0, receivers=0, complete=False, unplannedCutVertices=int(np.count_nonzero(~covered[cut_vertices])), failureGroups=[]))
+        vertex = int(cut_vertices[np.flatnonzero(~covered[cut_vertices])[0]])
+        _, index, side = min(incident[vertex])
+        pair = pairs[index]
+        edge = pair[side + 'Edge']
+        if edge[0] != vertex:
+            edge = [edge[1], edge[0], edge[2]]
+        ordinal = pair[side + 'Triangle']
+        source_triangles = [pair['firstTriangle'], pair['secondTriangle']]
+        metrics = []
+        for source in source_triangles:
+            triangle = triangles[source]
+            texture = np.column_stack((uv[triangle, 0] * shape[1], uv[triangle, 1] * shape[0]))
+            area = abs(np.linalg.det(np.stack((texture[1] - texture[0], texture[2] - texture[0]), axis=1)))
+            physical = np.linalg.norm(np.cross(points[triangle[1]] - points[triangle[0]], points[triangle[2]] - points[triangle[0]]))
+            if area <= 0 or physical <= 0:
+                raise ValueError('A native filter cut has a collapsed physical or texture triangle.')
+            metrics.append(np.sqrt(physical / area))
+        spacing = float(min(metrics))
+        support = support_at(spacing, False)
+        radius = (support['filterRadiusPixels'] + support['receiverInterpolationPixels']) * spacing
+        inner = radius / 2
+        length = pair['lengthMetres']
+        t = min(0.5, inner / (2 * length))
+        field_distance = distances([(edge[0], t * length), (edge[1], (1 - t) * length)])
+        field = np.clip((radius - field_distance) / (radius - inner), 0, 1)
+        field = field * field * (3 - 2 * field)
+        covered |= field_distance <= inner
+        vector = points[edge[1]] - points[edge[0]]
+        relative = points[edge[2]] - points[edge[0]]
+        along = np.dot(relative, vector) / length
+        height2 = np.dot(relative, relative) - along * along
+        if height2 <= 0:
+            raise ValueError('A native filter seed has no unfolded surface.')
+        locations = {edge[0]: [0.0, 0.0], edge[1]: [0.0, length], edge[2]: [-np.sqrt(height2), along]}
+        initial = np.array([locations[int(value)] for value in triangles[ordinal]])
+        contexts.append(dict(seed=ordinal, initial=initial, centre=np.array([0.0, t * length]), spacing=spacing, radius=radius, support=support, field=field, requests=[], cut=index, seedSide=side))
+    by_triangle = {}
+    for index, context in enumerate(contexts):
+        for ordinal in np.flatnonzero(np.max(context['field'][triangles], axis=1) > 0):
+            by_triangle.setdefault(int(ordinal), []).append(index)
+    witness_chunks = []
+    witness_count = 0
+
+    def receive(ordinal, rows, cols, bary, ownership, density):
+        nonlocal witness_count
+        selected = evaluation[rows, cols]
+        if not selected.any():
+            return
+        rows = rows[selected]
+        cols = cols[selected]
+        bary = bary[selected]
+        weights = [(index, bary @ contexts[index]['field'][triangles[ordinal]]) for index in by_triangle.get(ordinal, [])]
+        required = np.full(len(rows),require_complete,bool)
+        for _, weight in weights:
+            required |= weight > 0
+        if not required.any():
+            return
+        ids = np.full(len(rows), -1, int)
+        ids[required] = np.arange(witness_count, witness_count + int(required.sum()))
+        witness_chunks.append((ordinal, rows[required], cols[required], bary[required]))
+        witness_count += int(required.sum())
+        for index, weight in weights:
+            valid = weight > 0
+            if valid.any():
+                contexts[index]['requests'].append((ordinal, rows[valid], cols[valid], bary[valid], weight[valid], ids[valid]))
+    indexed_surface_uv_metrics(packet, skin, slot, shape, 0.001, sampler, vertex_field=np.ones(len(points)), sample_receiver=receive)
+    return (dict(contexts=contexts, points=points, triangles=triangles, uv=uv, neighbours=neighbours, witnessChunks=witness_chunks, witnessCount=witness_count), dict(pairs=len(pairs)))
+
+def prepare_source_neighbourhoods(packet, skin, slot, shape, sampler, profile, regions, evaluation, *, deadline=None, require_complete=False):
+    """Retain existing cut-centred charts; replace dense tap tables by suppliers.
+
+    Discovery layouts are provisional inverse-map candidates only. Their holes
+    never authorize a missing filter sample: every actual finite stage support
+    is independently resolved by the canonical native block supplier.
+    """
+    import time
+    started=time.perf_counter()
+    context, initial_proof = source_neighbourhood_context(packet, skin, slot, shape, sampler, profile, regions, evaluation,
+        deadline=deadline,require_complete=require_complete)
+    context_seconds=time.perf_counter()-started
+    if not context or not context['witnessCount']:
+        return ([], dict(initial_proof, requiredWitnesses=0, coveredWitnesses=0, noWritableCutWitnesses=True))
+    points = context['points']
+    triangles = context['triangles']
+    uv = context['uv']
+    neighbours = context['neighbours']
+    supplier_stats={}
+    make_blocks = source_native_sampler(points, triangles, uv, neighbours,report=supplier_stats)
+    count = context['witnessCount']
+    chunks = context['witnessChunks']
+    ordinals = np.concatenate([np.full(len(row[1]), row[0], np.int32) for row in chunks])
+    rows = np.concatenate([row[1] for row in chunks])
+    cols = np.concatenate([row[2] for row in chunks])
+    bary = np.concatenate([row[3] for row in chunks])
+    wanted = np.zeros(count)
+    covered = np.zeros(count)
+    for current in context['contexts']:
+        for request in current['requests']:
+            np.add.at(wanted, request[5], request[4])
+    if require_complete:wanted=np.maximum(wanted,1.)
+    patches = []
+    patch_ids = []
+    records = []
+    retained_layout_bytes = 0
+
+    def budget():
+        if deadline is not None and time.perf_counter() > deadline:
+            raise TimeoutError('Bounded receiver preparation reached its explicit diagnostic deadline.')
+
+    def append_chart(seed, initial, centre, spacing, support, ids, blend, half, kind, direct=None):
+        nonlocal retained_layout_bytes
+        chart_started=time.perf_counter()
+        budget()
+        ids = np.asarray(ids, int)
+        blend = np.asarray(blend, float)
+        if not len(ids):
+            return
+        half = np.asarray(half, int)
+        grid_shape = tuple((int(value) for value in 2 * half[::-1] + 1))
+        record = dict(kind=kind, seed=int(seed), grid=list(grid_shape), requests=len(ids), spacingMetres=float(spacing), support=support)
+        if direct is None:
+            width = grid_shape[1]
+            total = int(np.prod(grid_shape))
+            layouts = {}
+            unknown = 0
+            peak = 0
+            required = set((int(value) for value in ordinals[ids]))
+            required.add(int(seed))
+            layouts,lattice_proof=make_blocks.lattice(int(seed),initial,centre,spacing,grid_shape,tuple(map(int,half)),sampler,tuple(shape),required)
+            budget()
+            unknown=lattice_proof.get('unknownQueries',0)
+            peak=min(source_filter_budget()['nativeQueries'],lattice_proof.get('nativePointQueries',0))
+            retained_layout_bytes=sum(value.nbytes for entries in layouts.values()for value in entries)
+            if retained_layout_bytes>source_filter_budget()['workBytes']//8:
+                raise ValueError('Inverse-layout candidates exceed the bounded metadata work budget.')
+            discovery_seconds=time.perf_counter()-chart_started
+            inverse_started=time.perf_counter();failures = []
+            coordinates = source_qualified_coordinates(points, triangles, neighbours, int(seed), initial, centre, [(int(ordinals[index]), bary[index]) for index in ids], layouts, diagnostics=failures, sampler=make_blocks)
+            valid = np.isfinite(coordinates).all(1)
+            record.update(discoveryQueries=total, peakDiscoveryQueries=peak, discoveryUnknownQueries=unknown, discoveryLayoutsAreNotFilterCoverage=True,
+                qualifiedReceivers=int(valid.sum()),discoverySeconds=discovery_seconds,inverseReceiverSeconds=time.perf_counter()-inverse_started,
+                nativeLattice=lattice_proof)
+        else:
+            coordinates = np.asarray(direct, float)
+            walked = make_blocks.queries(int(seed), initial, centre, coordinates)
+            valid = walked['states'] == 1
+            native_point = np.einsum('ni,nij->nj', walked['bary'][valid], points[triangles[walked['triangles'][valid]]])
+            expected = np.asarray(direct)
+            if expected.shape != (len(ids), 2):
+                raise ValueError('Known native receiver coordinates differ from their requests.')
+            canonical_values = source_canonical_receivers(points, triangles, neighbours, [(int(ordinals[index]), bary[index]) for index in ids])[0]
+            target = np.asarray([weights @ points[triangles[ordinal]] for ordinal, weights in canonical_values])
+            good = (walked['triangles'][valid] == seed) & (np.linalg.norm(native_point - target[valid], axis=1) <= 1e-10)
+            valid[np.flatnonzero(valid)] = good
+            record.update(discoveryQueries=0, knownSeedForwardVerified=True, qualifiedReceivers=int(valid.sum()),
+                discoverySeconds=0.,inverseReceiverSeconds=time.perf_counter()-chart_started)
+        records.append(record)
+        if len(records) % 16 == 0:
+            print('Bounded chart candidates:', len(records), 'required receivers covered:', int(np.count_nonzero(covered)), '/', count, flush=True)
+        if not valid.any():
+            return
+        ids = ids[valid]
+        blend = blend[valid]
+        coordinates = coordinates[valid]
+        required_half = source_receiver_grid_half(coordinates, centre, spacing, support)
+        half = np.maximum(half, required_half)
+        grid_shape = tuple((int(value) for value in 2 * half[::-1] + 1))
+        record.update(preparedGrid=list(grid_shape), receiverRequiredHalf=required_half.tolist())
+        origin = centre - half * spacing
+        fraction = (coordinates - origin) / spacing
+        lower = np.floor(fraction).astype(int)
+        fraction -= lower
+        py = []
+        px = []
+        pw = []
+        for dy in (0, 1):
+            for dx in (0, 1):
+                yy = lower[:, 1] + dy
+                xx = lower[:, 0] + dx
+                weight = (fraction[:, 1] if dy else 1 - fraction[:, 1]) * (fraction[:, 0] if dx else 1 - fraction[:, 0])
+                if np.any((weight > 0) & ((yy < 0) | (yy >= grid_shape[0]) | (xx < 0) | (xx >= grid_shape[1]))):
+                    raise ValueError('A qualified receiver exceeds its unchanged source lattice.')
+                py.append(np.clip(yy, 0, grid_shape[0] - 1))
+                px.append(np.clip(xx, 0, grid_shape[1] - 1))
+                pw.append(weight)
+        patch = dict(gridShape=grid_shape, sourceBlocks=make_blocks(int(seed), initial, centre, spacing, grid_shape, tuple((int(value) for value in half)), sampler, tuple(shape)), metresPerTexel=spacing, targetRows=rows[ids], targetCols=cols[ids], patchRows=np.stack(py, 1), patchCols=np.stack(px, 1), patchWeights=np.stack(pw, 1), blend=blend)
+        patches.append(patch)
+        patch_ids.append(ids)
+        np.add.at(covered, ids, blend)
+    for current in context['contexts']:
+        if not current['requests']:
+            continue
+        support = source_uniform_support(profile, current['spacing'], regions)
+        ids = np.concatenate([request[5] for request in current['requests']])
+        blend = np.concatenate([request[4] for request in current['requests']])
+        half = int(np.ceil(current['radius'] / current['spacing'])) + support['filterRadiusPixels'] + 1
+        append_chart(current['seed'], current['initial'], current['centre'], current['spacing'], support, ids, blend, [half, half], 'cut-centred')
+    missing = np.flatnonzero(covered == 0)
+    canonical_values = source_canonical_receivers(points, triangles, neighbours, [(int(ordinals[index]), bary[index]) for index in missing])[0]
+    owners = np.asarray([value[0] for value in canonical_values])
+    canonical_bary = np.asarray([value[1] for value in canonical_values])
+    for seed in np.unique(owners):
+        selected = np.flatnonzero(owners == seed)
+        ids = missing[selected]
+        first, second, third = points[triangles[seed]]
+        edge = second - first
+        length = np.linalg.norm(edge)
+        along = np.dot(third - first, edge) / length
+        height2 = np.dot(third - first, third - first) - along * along
+        if length <= 0 or height2 <= 0:
+            raise ValueError('A required receiver has a collapsed native triangle.')
+        initial = np.array([[0.0, 0.0], [0.0, length], [-np.sqrt(height2), along]])
+        centre = initial.mean(0)
+        texture = uv[triangles[seed]] * [shape[1], shape[0]]
+        texture_area = abs(np.linalg.det(np.stack((texture[1] - texture[0], texture[2] - texture[0]), 1)))
+        if texture_area <= 0:
+            raise ValueError('A required receiver has a collapsed source UV metric.')
+        spacing = float(np.sqrt(np.linalg.norm(np.cross(second - first, third - first)) / texture_area))
+        support = source_uniform_support(profile, spacing, regions)
+        coordinates = canonical_bary[selected] @ initial
+        half = np.ceil(np.max(abs(coordinates - centre), axis=0) / spacing).astype(int) + support['filterRadiusPixels'] + 1
+        append_chart(int(seed), initial, centre, spacing, support, ids, np.minimum(wanted[ids], 1.0), half, 'known-receiver-triangle', direct=coordinates)
+    missing = np.flatnonzero(covered == 0)
+    if len(missing):
+        raise ValueError('Required native receivers remain unresolved: ' + str(len(missing)))
+    for patch, ids in zip(patches, patch_ids, strict=True):
+        patch['blend'] *= np.minimum(wanted[ids], 1.0) / covered[ids]
+        if np.any(patch['blend'] > 1 + 32 * np.finfo(float).eps):
+            raise ValueError('A native receiver blend exceeds its declared source support.')
+        np.clip(patch['blend'], 0, 1, out=patch['blend'])
+    return (patches, dict(initial_proof, requiredWitnesses=count, coveredWitnesses=int(np.count_nonzero(covered)), charts=len(patches), chartRecords=records,
+        allRequiredWitnessesCovered=True,completeEvaluationRequested=require_complete,finiteFilterHaloDeferredToCanonicalSupplier=True,
+        denseTapTablesRetained=False,retainedInverseLayoutBytes=retained_layout_bytes,
+        preparedArraysBytes=sum((value.nbytes for patch in patches for value in patch.values() if isinstance(value, np.ndarray))),
+        contextSeconds=context_seconds,preparationSeconds=time.perf_counter()-started,sourceSupplier=supplier_stats))
+
+def source_native_lattice(points, triangles, neighbours, seed, initial, centre, spacing, grid_shape, half, required=(), *, unresolved_edges=()):
+    """Certify the same finite native rays as integer rectangles, not fewer rays.
+
+    The sampler owns the immutable packed geometry/run result. Exported inverse
+    candidates preserve first original chunk, hop and native edge order.
+    """
+    import sys
+    import time
+    class CacheUnavailable(MemoryError):
+        pass
+    require(type(seed)is int and 0<=seed<len(triangles)and np.asarray(initial).shape==(3,2)and
+        np.asarray(centre).shape==(2,)and np.isfinite(initial).all()and np.isfinite(centre).all()and
+        np.isfinite(spacing)and spacing>0 and len(grid_shape)==len(half)==2 and
+        all(type(value)is int and value>0 for value in grid_shape)and all(type(value)is int for value in half),
+        'A native lattice needs its original finite seed, frame and integer coordinates.')
+
+    def frame(current, layout, centre):
+        inverse = np.linalg.inv(np.stack((layout[1] - layout[0], layout[2] - layout[0]), axis=1))
+        origin = inverse @ (centre - layout[0])
+        origin = np.r_[1 - origin.sum(), origin]
+        return (int(current), layout, inverse, origin)
+
+    def interval_targets(current_frame, low, high):
+        _, layout, inverse, _ = current_frame
+        lower = np.nextafter(low - layout[0], -np.inf)
+        upper = np.nextafter(high - layout[0], np.inf)
+        first_product=lower[:,None,:]*inverse[None,:,:]
+        last_product=upper[:,None,:]*inverse[None,:,:]
+        first=np.nextafter(np.minimum(first_product,last_product),-np.inf)
+        last=np.nextafter(np.maximum(first_product,last_product),np.inf)
+        lo=np.nextafter(first[:,:,0]+first[:,:,1],-np.inf)
+        hi=np.nextafter(last[:,:,0]+last[:,:,1],np.inf)
+        return (np.column_stack((np.nextafter(1-np.nextafter(hi[:,0]+hi[:,1],np.inf),-np.inf),lo)),
+                np.column_stack((np.nextafter(1-np.nextafter(lo[:,0]+lo[:,1],-np.inf),np.inf),hi)))
+
+    def decide_rectangles(current_frame, previous, low, high):
+        """The original independent enclosures, grouped for one fixed frame."""
+        lo, hi = interval_targets(current_frame, low, high)
+        n = len(low)
+        origin = current_frame[3]
+        inside = np.all(lo >= -1e-10, axis=1)
+        entered_low = np.zeros(n)
+        entered_high = np.zeros(n)
+        previous_valid = np.ones(n, bool)
+        if previous is not None:
+            old, corner = previous
+            ol, oh = interval_targets(old, low, high)
+            o = old[3][corner]
+            dl = np.nextafter(o - oh[:, corner], -np.inf)
+            dh = np.nextafter(o - ol[:, corner], np.inf)
+            previous_valid = ~((dl <= 0) & (dh >= 0))
+            with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
+                a = o / dl
+                b = o / dh
+            entered_low = np.maximum(0.0, np.nextafter(np.minimum(a, b), -np.inf))
+            entered_high = np.maximum(0.0, np.nextafter(np.maximum(a, b), np.inf))
+        dl = np.nextafter(origin - hi, -np.inf)
+        dh = np.nextafter(origin - lo, np.inf)
+        known = ~((dl <= 0) & (dh >= 0))
+        with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
+            a = origin / dl
+            b = origin / dh
+        rlo = np.nextafter(np.minimum(a, b), -np.inf)
+        rhi = np.nextafter(np.maximum(a, b), np.inf)
+        applicable = lo < 0
+        possible = applicable & ~(rhi < np.maximum(-1e-10, entered_low[:, None] - 1e-10))
+        good = ~inside & np.any(hi < -1e-10, axis=1) & previous_valid & ~np.any(applicable & ~known, axis=1)
+        good &= ~np.any((np.abs(origin) <= 1e-10) & (lo <= 1e-10) & (hi >= -1e-10), axis=1)
+        corners = np.full(n, -1, np.int8)
+        for corner in range(3):
+            selected = good & possible[:, corner] & (hi[:, corner] < 0) & (rlo[:, corner] >= np.maximum(-1e-10, entered_high - 1e-10))
+            ordered = ~possible | (np.maximum(0.0, rlo) > np.maximum(0.0, rhi[:, corner, None]) + 1e-12)
+            ordered[:, corner] = True
+            selected &= ordered.all(1)
+            corners[selected] = corner
+        return (inside, corners)
+
+    def plan(points, triangles, neighbours, seed, initial, centre, spacing, grid_shape, half, *, unresolved_edges=(), retain_outputs=True, selected_indices=(), region_receiver=None):
+        """Keep all original finite q; split only an unproved integer rectangle."""
+        started = time.perf_counter()
+        height, width = grid_shape
+        # Rectangle certification is a cache optimization. If it costs more
+        # steps than the original query batch, retain the bounded canonical
+        # ray walk instead of spending unbounded CPU on the cache itself.
+        interval_step_limit=max(source_filter_budget()['nativeQueries'],height*width)
+        frames = [dict(value=frame(seed, np.asarray(initial, float), centre), parent=-1, corner=-1, hop=0, first=height * width)]
+        children = {}
+        pending = [(0, np.array([[0, height, 0, width]], np.int64))]
+        regions = []
+        fallback = {}
+        steps = 0
+        splits = 0
+        maximum = 0
+        pending_count = 1
+        selected_indices = np.unique(np.asarray(selected_indices, np.int64))
+        sampled = {}
+        region_count = 0
+        fallback_count = 0
+        unresolved_count = 0
+
+        def emit(kind, identifier, rect, hop):
+            nonlocal region_count
+            region_count += 1
+            if region_receiver is not None:
+                region_receiver(kind, identifier, tuple(map(int, rect)), hop)
+            if retain_outputs:
+                regions.append((kind, identifier, tuple(map(int, rect)), hop))
+            if len(selected_indices):
+                y0, y1, x0, x1 = rect
+                lo, hi = np.searchsorted(selected_indices, [y0 * width + x0, (y1 - 1) * width + x1])
+                ids = selected_indices[lo:hi]
+                ids = ids[(ids % width >= x0) & (ids % width < x1)]
+                for index in ids:
+                    sampled[int(index)] = (kind, identifier, hop)
+
+        def mark(index, first):
+            frames[index]['first'] = min(frames[index]['first'], int(first))
+
+        def child(parent, corner, next_value=None):
+            key = (parent, corner)
+            if key not in children:
+                current, layout, _, _ = frames[parent]['value']
+                edge = frozenset((int(value) for at, value in enumerate(triangles[current]) if at != corner))
+                if next_value is None:
+                    following, next_layout, _ = source_native_unfold(points, triangles, neighbours, current, layout, edge)
+                    next_value = frame(following, next_layout, centre)
+                children[key] = len(frames)
+                frames.append(dict(value=next_value, parent=parent, corner=corner, hop=frames[parent]['hop'] + 1, first=height * width))
+            return children[key]
+
+        def coordinates(rect):
+            y0, y1, x0, x1 = rect
+            return (np.array([(x0 - half[0]) * spacing + centre[0], (y0 - half[1]) * spacing + centre[1]]), np.array([(x1 - 1 - half[0]) * spacing + centre[0], (y1 - 1 - half[1]) * spacing + centre[1]]))
+
+        def scalar(y, x):
+            nonlocal fallback_count,unresolved_count
+            index = y * width + x
+            query = np.array([(x - half[0]) * spacing + centre[0], (y - half[1]) * spacing + centre[1]])
+            chain = []
+            crossed = [None]
+
+            def captured_frame(current, layout, origin):
+                value = frame(current, layout, origin)
+                identifier = 0 if not chain else child(chain[-1], crossed[0], value)
+                chain.append(identifier)
+                mark(identifier, index)
+                return value
+
+            def captured_unfold(current, layout, edge):
+                crossed[0] = next((at for at, value in enumerate(triangles[current]) if int(value) not in edge))
+                return source_native_unfold(points, triangles, neighbours, current, layout, edge)
+            result = source_native_rays(points, triangles, neighbours, seed, initial, centre, query[None], unresolved_edges=unresolved_edges, retain_layouts=True, _frame=captured_frame, _unfold=captured_unfold)
+            fallback_count += 1
+            unresolved_count += len(result['failures'])
+            if retain_outputs:
+                fallback[index] = result
+            emit(0, -1, (y, y + 1, x, x + 1), 0)
+            if index in sampled:
+                sampled[index] = result
+        while pending:
+            identifier, todo = pending.pop()
+            pending_count -= len(todo)
+            node = frames[identifier]
+            mark(identifier, np.min(todo[:, 0] * width + todo[:, 2]))
+            current_frame = node['value']
+            parent = node['parent']
+            current = current_frame[0]
+            previous = None if parent < 0 else (frames[parent]['value'], node['corner'])
+            following = {}
+            while len(todo):
+                maximum = max(maximum, pending_count + len(todo))
+                split = []
+                for first in range(0, len(todo), source_filter_budget()['nativeQueries']):
+                    rects = todo[first:first + source_filter_budget()['nativeQueries']]
+                    steps += len(rects)
+                    if steps>interval_step_limit:
+                        raise CacheUnavailable('Native lattice certification exceeds its original query work allowance.')
+                    low = np.stack(((rects[:, 2] - half[0]) * spacing + centre[0], (rects[:, 0] - half[1]) * spacing + centre[1]), 1)
+                    high = np.stack(((rects[:, 3] - 1 - half[0]) * spacing + centre[0], (rects[:, 1] - 1 - half[1]) * spacing + centre[1]), 1)
+                    if node['hop'] > 2 * len(triangles):
+                        inside = np.zeros(len(rects), bool)
+                        corners = np.full(len(rects), -1)
+                    else:
+                        inside, corners = decide_rectangles(current_frame, previous, low, high)
+                    for rect in rects[inside]:
+                        emit(1, identifier, rect, node['hop'])
+                    unresolved = ~inside & (corners < 0)
+                    for corner in range(3):
+                        ids = ~inside & (corners == corner)
+                        if not ids.any():
+                            continue
+                        edge = frozenset((int(value) for at, value in enumerate(triangles[current]) if at != corner))
+                        key = (current, edge)
+                        if key in unresolved_edges:
+                            for rect in rects[ids]:
+                                emit(4, identifier, rect, node['hop'])
+                            continue
+                        if key not in neighbours:
+                            for rect in rects[ids]:
+                                emit(2, identifier, rect, node['hop'])
+                            continue
+                        try:
+                            next_identifier = child(identifier, corner)
+                        except ValueError:
+                            unresolved |= ids
+                        else:
+                            following.setdefault(next_identifier, []).append(rects[ids].copy())
+                    selected = rects[unresolved]
+                    heights = selected[:, 1] - selected[:, 0]
+                    widths = selected[:, 3] - selected[:, 2]
+                    leaves = (heights == 1) & (widths == 1)
+                    for rect in selected[leaves]:
+                        scalar(int(rect[0]), int(rect[2]))
+                    selected = selected[~leaves]
+                    heights = heights[~leaves]
+                    widths = widths[~leaves]
+                    splits += len(selected)
+                    if len(selected):
+                        a = selected.copy()
+                        b = selected.copy()
+                        horizontal = widths >= heights
+                        middle = (selected[:, 2] + selected[:, 3]) // 2
+                        a[horizontal, 3] = middle[horizontal]
+                        b[horizontal, 2] = middle[horizontal]
+                        middle = (selected[:, 0] + selected[:, 1]) // 2
+                        a[~horizontal, 1] = middle[~horizontal]
+                        b[~horizontal, 0] = middle[~horizontal]
+                        split.extend((a, b))
+                todo = np.concatenate(split) if split else np.empty((0, 4), np.int64)
+                estimated = len(frames) * 1200 + len(regions) * 160 + (pending_count + len(todo)) * 160 + len(fallback) * 4096 + len(sampled) * 4096
+                if estimated > source_filter_budget()['workBytes'] // 8:
+                    raise CacheUnavailable('Native lattice metadata exceeds its bounded work allowance.')
+            for next_identifier, parts in following.items():
+                rects = np.concatenate(parts)
+                pending.append((next_identifier, rects))
+                pending_count += len(rects)
+
+        def route(index):
+            result = []
+            while frames[index]['parent'] >= 0:
+                result.append(frames[index]['corner'])
+                index = frames[index]['parent']
+            return tuple(reversed(result))
+        ordered = sorted(range(len(frames)), key=lambda index: (frames[index]['first'] // source_filter_budget()['nativeQueries'], frames[index]['hop'], route(index)))
+        layouts = {}
+        for index in ordered:
+            value = frames[index]['value']
+            layouts.setdefault(value[0], {}).setdefault(value[1].tobytes(), value[1])
+        layouts = {key: list(value.values()) for key, value in layouts.items()}
+        compact_children = np.full((len(frames), 3), -1, np.int32)
+        for (parent, corner), identifier in children.items():
+            compact_children[parent, corner] = identifier
+        result = dict(frames=frames, regions=regions, fallback=fallback, layouts=layouts, sampled=sampled, children=compact_children)
+        seen = set()
+
+        def resident(value):
+            if id(value) in seen:
+                return 0
+            seen.add(id(value))
+            amount = sys.getsizeof(value)
+            if isinstance(value, dict):
+                amount += sum((resident(key) + resident(item) for key, item in value.items()))
+            elif isinstance(value, (list, tuple, set, frozenset)):
+                amount += sum((resident(item) for item in value))
+            elif isinstance(value, np.ndarray) and value.base is not None:
+                amount += resident(value.base)
+            return amount
+        resident_bytes = resident(result)
+        return (result, dict(elapsedSeconds=time.perf_counter() - started, latticeQueries=height * width, frameCount=len(frames), regions=region_count, intervalSteps=steps, rectangleSplits=splits, canonicalFallbackQueries=fallback_count, fallbackUnresolvedQueries=unresolved_count, peakPendingRectangles=maximum, estimatedMetadataBytes=len(frames) * 1200 + len(regions) * 160 + len(fallback) * 4096 + len(sampled) * 4096, retainedGeometryAndSelectedOutputBytes=resident_bytes, fullOutputMetadataRetained=retain_outputs, selectedOutputWitnesses=len(sampled)))
+
+    class Row:
+        __slots__ = ('data', 'count')
+
+        def __init__(self, data):
+            self.data = data
+            self.count = 0
+
+    class Runs:
+
+        def __init__(self, budget):
+            self.rows = {}
+            self.budget = budget
+            self.reserved = 0
+            self.peak = 0
+            self.insertions = 0
+            self.merges = 0
+            self.frozen = False
+            self.copy_work_bytes = 0
+            self.geometry = None
+
+        def emit(self, kind, identifier, rect, hop):
+            if self.frozen:
+                raise ValueError('A private native run table is immutable after sealing.')
+            y0, y1, x0, x1 = rect
+            label = 0 if kind == 0 else identifier << 3 | kind
+            for y in range(y0, y1):
+                self.insert(y, x0, x1, label)
+
+        def insert(self, y, first, last, label):
+            if self.frozen:
+                raise ValueError('A private native run table is immutable after sealing.')
+            if not first < last:
+                raise ValueError('A native run needs a nonempty original integer interval.')
+            if y not in self.rows:
+                amount = 512 + 8 * 12
+                if self.reserved + amount > self.budget:
+                    raise CacheUnavailable('Native row runs exceed their bounded storage before allocation.')
+                row = Row(np.empty((8, 3), np.int32))
+                self.rows[y] = row
+                self.reserved += amount
+                self.peak = max(self.peak, self.reserved)
+            row = self.rows[y]
+            n = row.count
+            data = row.data
+            at = int(np.searchsorted(data[:n, 0], first))
+            if at and data[at - 1, 1] > first or (at < n and data[at, 0] < last):
+                raise ValueError('Private native row runs overlap previously certified q.')
+            if at and data[at - 1, 1] == first and (data[at - 1, 2] == label):
+                data[at - 1, 1] = last
+                self.merges += 1
+                if at < n and data[at, 0] == last and (data[at, 2] == label):
+                    data[at - 1, 1] = data[at, 1]
+                    self.copy_work_bytes = max(self.copy_work_bytes, (n - at - 1) * 12)
+                    data[at:n - 1] = data[at + 1:n].copy()
+                    row.count -= 1
+                    self.merges += 1
+            elif at < n and data[at, 0] == last and (data[at, 2] == label):
+                data[at, 0] = first
+                self.merges += 1
+            else:
+                if n == len(data):
+                    growth = data.nbytes
+                    if self.reserved + growth > self.budget:
+                        raise CacheUnavailable('Native row runs exceed their bounded growth before allocation.')
+                    self.copy_work_bytes = max(self.copy_work_bytes, data.nbytes * 3)
+                    larger = np.empty((len(data) * 2, 3), np.int32)
+                    larger[:n] = data
+                    row.data = larger
+                    data = larger
+                    self.reserved += growth
+                    self.peak = max(self.peak, self.reserved)
+                self.copy_work_bytes = max(self.copy_work_bytes, (n - at) * 12)
+                data[at + 1:n + 1] = data[at:n].copy()
+                data[at] = (first, last, label)
+                row.count += 1
+            self.insertions += 1
+
+        def seal(self, height, width):
+            if len(self.rows) != height:
+                raise ValueError('Native row runs omit a required integer row.')
+            for y in range(height):
+                row = self.rows[y]
+                data = row.data[:row.count]
+                if not row.count or data[0, 0] != 0 or data[-1, 1] != width or (not np.all(data[1:, 0] == data[:-1, 1])):
+                    raise ValueError('Native row runs omit a required original lattice interval.')
+                self.copy_work_bytes = max(self.copy_work_bytes, row.data.nbytes + data.nbytes)
+                kept = data.copy()
+                kept.flags.writeable = False
+                self.reserved -= row.data.nbytes - kept.nbytes
+                row.data = kept
+            self.frozen = True
+
+        def bind(self, planned):
+            if not self.frozen:
+                raise ValueError('Native row runs need complete immutable coverage before binding frames.')
+            frames = planned['frames']
+            self.geometry = dict(owners=np.asarray([row['value'][0] for row in frames], np.int32), hops=np.asarray([row['hop'] for row in frames], np.int32), origins=np.asarray([row['value'][1][0] for row in frames]), inverses=np.asarray([row['value'][2] for row in frames]))
+            for value in self.geometry.values():
+                value.flags.writeable = False
+    rows = Runs(source_filter_budget()['nativeCacheBytes'])
+    try:
+        if max(grid_shape)>np.iinfo(np.int32).max:raise CacheUnavailable('Native lattice dimensions exceed bounded run indices.')
+        planned, proof = plan(points, triangles, neighbours, int(seed), initial, centre, spacing, tuple(grid_shape), tuple(half), unresolved_edges=unresolved_edges, retain_outputs=False, region_receiver=rows.emit)
+        rows.seal(*grid_shape)
+        rows.bind(planned)
+    except CacheUnavailable as error:
+        return None,None,dict(cacheUnavailable=True,reason=str(error),allOriginalLatticePoints=int(grid_shape[0])*int(grid_shape[1]))
+    entry = dict(rows={key: value.data for key, value in rows.rows.items()}, geometry=rows.geometry, shape=tuple(grid_shape), half=tuple(half))
+    selected = {}
+    for ordinal, values in planned['layouts'].items():
+        if required is None or ordinal in required:
+            selected[ordinal] = [value.copy() for value in values]
+    entry.update(layouts=selected,layoutRequests=None if required is None else tuple(sorted(required)))
+    for values in entry['layouts'].values():
+        for value in values:value.flags.writeable=False
+    unknown=sum(int((value[:,1]-value[:,0])[(value[:,2]&7)==4].sum())for value in entry['rows'].values())
+    proof.update(nativePointQueries=proof['canonicalFallbackQueries'],unknownQueries=unknown+proof['fallbackUnresolvedQueries'], allOriginalLatticePoints=int(grid_shape[0]) * int(grid_shape[1]), runCount=sum((value.count for value in rows.rows.values())), maximumRowCopyWorkBytes=rows.copy_work_bytes, fullPixelOutputMetadataRetained=False)
+    return (entry, selected, proof)
+
+def source_native_sampler(points,triangles,uv,neighbours,*,report=None):
+    """Own immutable geometry and bounded geometry/sample caches per operation."""
+    import material_fields as fields
+    import collections
+    import sys
+    import time
+    points=np.array(points,float,copy=True);triangles=np.array(triangles,copy=True);uv=np.array(uv,float,copy=True)
+    require(points.ndim==2 and points.shape[1]==3 and triangles.ndim==2 and triangles.shape[1]==3 and
+        triangles.dtype.kind in'iu'and np.all((triangles>=0)&(triangles<len(points)))and uv.shape==(len(points),2)and
+        all(np.isfinite(value).all()for value in(points,uv)),
+        'A native source sampler has inconsistent source geometry.')
+    neighbours={key:(int(value[0]),dict(value[1]))for key,value in neighbours.items()}
+    require(report is None or isinstance(report,dict),'A native sampler report must belong to its operation.')
+    if report is not None:report.update(sourceArrayBytes=points.nbytes+triangles.nbytes+uv.nbytes,nativeEdges=len(neighbours),
+        chartSuppliers=0,blockRequests=0,queries=0,nativeWalkQueries=0,peakQueries=0,peakTapBytes=0,
+        nativeWalkSeconds=0.,samplerSeconds=0.,cachedBlockReuses=0,cacheEvictions=0,peakCacheBytes=0,
+        defensiveCopyBytes=0,frameCacheHits=0,frameCacheMisses=0,unfoldCacheHits=0,unfoldCacheMisses=0,
+        geometryCacheEvictions=0,peakGeometryCacheBytes=0,
+        geometryQueryBatches=0,peakGeometryQueries=0)
+    if report is not None:report.update(latticeBuilds=0,latticeCacheHits=0,latticeCacheMisses=0,latticeBudgetFallbacks=0,
+        latticeLookupQueries=0,latticeNativeFallbackQueries=0,latticeOuterMissQueries=0,latticeBuildSeconds=0.,peakLatticeEntryBytes=0)
+    for value in(points,triangles,uv):value.flags.writeable=False
+    cache=collections.OrderedDict();cache_bytes=0;next_chart=0
+    geometry_cache=collections.OrderedDict();geometry_bytes=0
+    cache_allowance=min(source_filter_budget()['nativeCacheBytes'],source_filter_budget()['workBytes']//8)
+    # Filtering streams can replace the entire raw-tap cache. Keep reusable
+    # native frames separate so every later block need not invert/unfold them
+    # again. The two LRU allowances still share the original memory ceiling.
+    geometry_limit=cache_allowance//4
+    cache_limit=cache_allowance-geometry_limit
+    # Two ordered versions of each opposite edge use the helper's exact scalar
+    # dot/norm order. Only layout-independent native data belongs in these arrays.
+    static_bytes=len(triangles)*3*2*(3*8+8+1)
+    require(static_bytes<=source_filter_budget()['workBytes']//8,
+        'Native edge metadata exceeds its bounded work budget.')
+    native=np.empty((len(triangles),3,2,3))
+    third=np.empty((len(triangles),3,2),np.int64)
+    ready=np.zeros((len(triangles),3,2),bool)
+    static_bytes=native.nbytes+third.nbytes+ready.nbytes
+    if report is not None:report['nativeStaticBytes']=static_bytes
+
+    def size(value):
+        amount=sys.getsizeof(value)
+        if isinstance(value,dict):amount+=sum(size(key)+size(item)for key,item in value.items())
+        elif isinstance(value,(tuple,list)):amount+=sum(size(item)for item in value)
+        elif isinstance(value,np.ndarray):amount=max(amount,value.nbytes)
+        return amount
+
+    def retain(key,value,entry_bytes):
+        nonlocal cache_bytes
+        if cache_limit and entry_bytes+sys.getsizeof(cache)<=cache_limit:
+            cache[key]=(value,entry_bytes);cache_bytes+=entry_bytes
+            while cache and cache_bytes+sys.getsizeof(cache)>cache_limit:
+                _,(_,removed)=cache.popitem(last=False);cache_bytes-=removed
+                if report is not None:report['cacheEvictions']+=1
+            if not cache and sys.getsizeof(cache)>cache_limit:cache.clear()
+            report_cache_size()
+
+    def report_cache_size():
+        if report is not None:
+            geometry_size=geometry_bytes+sys.getsizeof(geometry_cache)if geometry_cache else 0
+            sample_size=cache_bytes+sys.getsizeof(cache)if cache else 0
+            report['peakGeometryCacheBytes']=max(report['peakGeometryCacheBytes'],geometry_size)
+            report['peakCacheBytes']=max(report['peakCacheBytes'],geometry_size+sample_size)
+
+    def fixed(key,factory,kind):
+        nonlocal geometry_bytes
+        if key in geometry_cache:
+            geometry_cache.move_to_end(key)
+            if report is not None:report[kind+'CacheHits']+=1
+            return geometry_cache[key][0]
+        result=factory()
+        if report is not None:report[kind+'CacheMisses']+=1
+        if geometry_limit:
+            entry_bytes=size(key)+size(result)+sys.getsizeof((None,0))+sys.getsizeof(0)+128
+            if entry_bytes+sys.getsizeof(geometry_cache)<=geometry_limit:
+                geometry_cache[key]=(result,entry_bytes);geometry_bytes+=entry_bytes
+                while geometry_cache and geometry_bytes+sys.getsizeof(geometry_cache)>geometry_limit:
+                    _,(_,removed)=geometry_cache.popitem(last=False);geometry_bytes-=removed
+                    if report is not None:report['geometryCacheEvictions']+=1
+                if not geometry_cache and sys.getsizeof(geometry_cache)>geometry_limit:geometry_cache.clear()
+                report_cache_size()
+        return result
+
+    def frame(current,layout,centre):
+        key=('frame',int(current),np.asarray(layout).tobytes(),np.asarray(centre).tobytes())
+        def create():
+            kept=np.array(layout,float,copy=True)
+            inverse=np.linalg.inv(np.stack((kept[1]-kept[0],kept[2]-kept[0]),axis=1))
+            origin=inverse@(centre-kept[0]);origin=np.r_[1-origin.sum(),origin]
+            for value in(kept,inverse,origin):value.flags.writeable=False
+            return int(current),kept,inverse,origin
+        return fixed(key,create,'frame')
+
+    def unfold(current,layout,edge):
+        ordered=tuple(int(value)for value in edge)
+        key=('unfold',int(current),np.asarray(layout).tobytes(),ordered)
+        def create():
+            connection=neighbours.get((current,frozenset(edge)))
+            if connection is None:
+                value=source_native_unfold(points,triangles,neighbours,current,layout,edge)
+                return value[0],value[1]
+            a,b=ordered;triangle=triangles[current]
+            ia=0 if triangle[0]==a else 1 if triangle[1]==a else 2
+            ib=0 if triangle[0]==b else 1 if triangle[1]==b else 2
+            corner=3-ia-ib;direction=int(ia>ib);index=(int(current),corner,direction)
+            following,mapping=connection;other=triangles[following];pa,pb=mapping[a],mapping[b]
+            if not ready[index]:
+                c=next(int(value)for value in other if value not in(pa,pb))
+                relative=points[c]-points[pa];native_edge=points[pb]-points[pa]
+                native[index]=np.linalg.norm(native_edge),np.dot(relative,native_edge),np.dot(relative,relative)
+                third[index]=c;ready[index]=True
+            native_length,along_dot,relative_dot=native[index];c=int(third[index])
+            origin=layout[ia];vector=layout[ib]-origin;length=np.linalg.norm(vector)
+            # Same np.isclose(... rtol=0, atol=1e-12) scalar contract, including
+            # equality/nonfinite behavior; no NumPy scalar-array construction.
+            if not(native_length==length or math.isfinite(length)and abs(native_length-length)<=1e-12):
+                raise ValueError('Native fan peer has different edge length.')
+            along=along_dot/length;height2=relative_dot-along*along
+            if height2<=0:raise ValueError('Native fan triangle is collapsed.')
+            tangent=vector/length;normal=np.array([-tangent[1],tangent[0]])
+            side=np.sign(np.dot(layout[corner]-origin,normal))
+            if side==0:raise ValueError('Native fan side is ambiguous.')
+            values={pa:origin,pb:layout[ib],c:origin+tangent*along-normal*side*np.sqrt(height2)}
+            result=np.array([values[int(value)]for value in other]);result.flags.writeable=False
+            return following,result
+        following,next_layout=fixed(key,create,'unfold')
+        return following,next_layout,dict(neighbours[(current,frozenset(edge))][1])
+
+    def queries(seed,initial,centre,values,*,unresolved_edges=(),retain_layouts=False):
+        values=np.asarray(values,float);limit=source_filter_budget()['nativeQueries']
+        require(values.ndim==2 and values.shape[1]==2,'Native queries need their finite two-dimensional chart coordinates.')
+        def evaluate(selected):
+            if report is not None:
+                report['geometryQueryBatches']+=1;report['peakGeometryQueries']=max(report['peakGeometryQueries'],len(selected))
+            return source_native_rays(points,triangles,neighbours,seed,initial,centre,selected,
+                unresolved_edges=unresolved_edges,retain_layouts=retain_layouts,_frame=frame,_unfold=unfold,_work_report=report)
+        if len(values)<=limit:return evaluate(values)
+        # Receiver metadata can contain more requests than one walk chunk.
+        # Keep each native work batch bounded and scatter every original index.
+        require(len(values)*33<=source_filter_budget()['workBytes']//8,
+            'Native receiver results exceed the bounded metadata work budget.')
+        result=dict(states=np.empty(len(values),np.uint8),triangles=np.empty(len(values),np.int32),
+            bary=np.empty((len(values),3)),hops=np.empty(len(values),np.int32),fanSamples={},failures={},
+            groups=0,peakPendingQueries=0,layouts={})
+        retained_reports=0
+        for first in range(0,len(values),limit):
+            part=evaluate(values[first:first+limit]);last=first+len(part['states'])
+            retained_reports+=size(part['fanSamples'])+size(part['failures'])+size(part['layouts'])
+            receiver_work=(retained_reports+len(values)*113+source_filter_budget()['nativeWaveBytes']+
+                source_filter_budget()['nativeCacheBytes']+static_bytes+source_filter_budget()['workBytes']//8)
+            require(receiver_work<=source_filter_budget()['workBytes'],
+                'Native receiver reports exceed their bounded temporary work budget.')
+            if report is not None:
+                report['peakReceiverReportBytes']=max(report.get('peakReceiverReportBytes',0),retained_reports+len(values)*113)
+                report['peakReceiverWorkBytes']=max(report.get('peakReceiverWorkBytes',0),receiver_work)
+            for name in('states','triangles','bary','hops'):result[name][first:last]=part[name]
+            for name in('fanSamples','failures'):
+                result[name].update((first+index,value)for index,value in part[name].items())
+            for current,layouts in part['layouts'].items():result['layouts'].setdefault(current,[]).extend(layouts)
+            result['groups']+=part['groups'];result['peakPendingQueries']=max(result['peakPendingQueries'],part['peakPendingQueries'])
+        return result
+
+    def lattice_key(seed,initial,centre,spacing,sampler,source_shape,unresolved_edges):
+        return ('lattice',int(seed),np.asarray(initial,float).tobytes(),np.asarray(centre,float).tobytes(),float(spacing),
+            json.dumps(sampler,sort_keys=True),tuple(source_shape),source_filter_budget()['nativeQueries'],
+            tuple(sorted((int(ordinal),tuple(sorted(map(int,edge))))for ordinal,edge in unresolved_edges)))
+
+    def store_lattice(key,entry,proof):
+        nonlocal cache_bytes
+        entry['proof']=dict(proof)
+        entry_bytes=size(key)+size(entry)+sys.getsizeof((None,0))+sys.getsizeof(0)+128
+        if entry_bytes+sys.getsizeof(cache)>cache_limit:
+            if report is not None:report['latticeBudgetFallbacks']+=1
+            return None
+        # Replacement is one ownership mutation, not a second charge for the key.
+        if key in cache:
+            _,old_bytes=cache.pop(key);cache_bytes-=old_bytes
+        retain(key,entry,entry_bytes)
+        if report is not None:report['peakLatticeEntryBytes']=max(report['peakLatticeEntryBytes'],entry_bytes)
+        return entry
+
+    def lattice(seed,initial,centre,spacing,grid_shape,half,sampler,source_shape,required,*,unresolved_edges=()):
+        """One finite-lattice owner for discovery and subsequent raw sampling."""
+        unresolved_edges=frozenset((int(ordinal),frozenset(map(int,edge)))for ordinal,edge in unresolved_edges)
+        key=lattice_key(seed,initial,centre,spacing,sampler,source_shape,unresolved_edges)
+        requested=None if required is None else set(map(int,required))
+        if key in cache:
+            entry=cache[key][0];old=entry['layoutRequests']
+            if entry['shape']==tuple(grid_shape)and entry['half']==tuple(half)and(
+                    old is None or requested is not None and requested<=set(old)):
+                cache.move_to_end(key)
+                if report is not None:report['latticeCacheHits']+=1
+                layouts={ordinal:[value.copy()for value in values]for ordinal,values in entry['layouts'].items()
+                    if requested is None or ordinal in requested}
+                return layouts,dict(entry['proof'],cacheHit=True,nativePointQueries=0)
+        if report is not None:report['latticeCacheMisses']+=1
+        if cache_limit:
+            phase=time.perf_counter()
+            entry,layouts,proof=source_native_lattice(points,triangles,neighbours,int(seed),initial,centre,float(spacing),
+                tuple(map(int,grid_shape)),tuple(map(int,half)),requested,unresolved_edges=unresolved_edges)
+            if report is not None:
+                report['latticeBuilds']+=1;report['latticeBuildSeconds']+=time.perf_counter()-phase
+            if entry is not None:
+                store_lattice(key,entry,proof)
+                return {ordinal:[value.copy()for value in values]for ordinal,values in layouts.items()},proof
+            if report is not None:report['latticeBudgetFallbacks']+=1
+        # An unavailable optimization does not turn any required q into exterior.
+        layouts={};unknown=0;total=int(np.prod(grid_shape));width=int(grid_shape[1]);fallback=0;retained_layout_bytes=0
+        for first in range(0,total,source_filter_budget()['nativeQueries']):
+            index=np.arange(first,min(total,first+source_filter_budget()['nativeQueries']))
+            values=np.stack(((index%width-half[0])*spacing+centre[0],(index//width-half[1])*spacing+centre[1]),1)
+            result=queries(int(seed),initial,centre,values,unresolved_edges=unresolved_edges,retain_layouts=requested if requested is not None else True)
+            unknown+=len(result['failures']);fallback+=len(values)
+            for ordinal,rows in result['layouts'].items():
+                entries=layouts.setdefault(ordinal,{})
+                for value in rows:
+                    identity=value.tobytes()
+                    if identity not in entries:
+                        require(retained_layout_bytes+value.nbytes<=source_filter_budget()['workBytes']//8,
+                            'Inverse-layout candidates exceed the bounded metadata work budget.')
+                        entries[identity]=value;retained_layout_bytes+=value.nbytes
+        return {ordinal:list(rows.values())for ordinal,rows in layouts.items()},dict(allOriginalLatticePoints=total,
+            nativePointQueries=fallback,unknownQueries=unknown,cacheUnavailable=True)
+
+    def lattice_samples(entry,seed,initial,centre,spacing,half,x,y,*,unresolved_edges=()):
+        count=len(x);values=np.stack(((x-half[0])*spacing+centre[0],(y-half[1])*spacing+centre[1]),1)
+        source_x=x-half[0]+entry['half'][0];source_y=y-half[1]+entry['half'][1]
+        labels=np.full(count,-1,np.int32)
+        within=(source_y>=0)&(source_y<entry['shape'][0])&(source_x>=0)&(source_x<entry['shape'][1])
+        for row_id in np.unique(source_y[within]):
+            ids=np.flatnonzero(within&(source_y==row_id));row=entry['rows'].get(int(row_id))
+            require(row is not None,'A cached native lattice lost a covered row.')
+            at=np.searchsorted(row[:,0],source_x[ids],side='right')-1
+            require(np.all(at>=0)and np.all(source_x[ids]<row[at,1]),'A cached native lattice lost a covered interval.')
+            labels[ids]=row[at,2]
+        result=dict(states=np.zeros(count,np.uint8),triangles=np.full(count,-1,np.int32),bary=np.zeros((count,3)),
+            hops=np.zeros(count,np.int32),fanSamples={},failures={},layouts={})
+        selected=np.flatnonzero(labels>0);owners=labels[selected]>>3;kinds=labels[selected]&7;geometry=entry['geometry']
+        require(np.all(owners<len(geometry['owners'])),'A cached native lattice has another frame owner.')
+        result['states'][selected]=kinds;result['hops'][selected]=geometry['hops'][owners]
+        ordinary=selected[kinds==1];at=labels[ordinary]>>3
+        inverse=geometry['inverses'][at];delta=values[ordinary]-geometry['origins'][at]
+        target=np.empty((len(ordinary),2));target[:,0]=delta[:,0]*inverse[:,0,0]+delta[:,1]*inverse[:,0,1]
+        target[:,1]=delta[:,0]*inverse[:,1,0]+delta[:,1]*inverse[:,1,1]
+        result['bary'][ordinary]=np.c_[1-target.sum(1),target];result['triangles'][ordinary]=geometry['owners'][at]
+        for index in selected[kinds==4]:result['failures'][int(index)]=dict(state='unresolved',reason='native-peer-closure-incomplete',hops=int(result['hops'][index]))
+        missing=np.flatnonzero(labels<=0)
+        if len(missing):
+            native_result=queries(int(seed),initial,centre,values[missing],unresolved_edges=unresolved_edges)
+            for name in('states','triangles','bary','hops'):result[name][missing]=native_result[name]
+            for name in('fanSamples','failures'):result[name].update((int(missing[index]),value)for index,value in native_result[name].items())
+        if report is not None:
+            report['latticeLookupQueries']+=count;report['latticeNativeFallbackQueries']+=len(missing)
+            report['latticeOuterMissQueries']+=int(np.count_nonzero(labels<0))
+            report['geometryQueryBatches']+=1;report['peakGeometryQueries']=max(report['peakGeometryQueries'],count)
+        return result,len(missing)
+
+    def prepare(seed,initial,centre,spacing,grid_shape,half,sampler,source_shape,*,unresolved_edges=()):
+        nonlocal next_chart
+        chart=next_chart;next_chart+=1
+        if report is not None:report['chartSuppliers']+=1
+        initial=np.array(initial,float,copy=True);centre=np.array(centre,float,copy=True)
+        require(initial.shape==(3,2)and centre.shape==(2,)and np.isfinite(initial).all()and np.isfinite(centre).all(),
+            'A native source sampler has an inconsistent chart frame.')
+        require(type(seed)is int and 0<=seed<len(triangles)and len(grid_shape)==len(half)==2 and
+            all(type(value)is int and value>0 for value in grid_shape)and
+            all(isinstance(value,(int,np.integer))and value>=0 for value in half)and np.isfinite(spacing)and spacing>0,
+            'A native source sampler has no finite source lattice.')
+        grid_shape=tuple(grid_shape);half=tuple(half)
+        unresolved_edges=frozenset((int(ordinal),frozenset(map(int,edge)))for ordinal,edge in unresolved_edges)
+        sampler=copy.deepcopy(sampler);source_shape=tuple(int(value)for value in source_shape)
+        mode=sampler['filterMode'];wrap=(sampler['wrapU'],sampler['wrapV'])
+        require(sampler.get('anisoLevel',1)<=1,'An anisotropic source needs its actual sampler footprint.')
+        scale=sampler.get('scale',(1.,1.));offset=sampler.get('offset',(0.,0.))
+        fields.texture_sampler_taps(np.empty((0,2)),source_shape,mode,wrap,scale=scale,offset=offset)
+        initial.flags.writeable=False;centre.flags.writeable=False
+        native_key=lattice_key(seed,initial,centre,spacing,sampler,source_shape,unresolved_edges)
+        preflight_request=[None]
+        def ensure_lattice(bounds,reserved_work_bytes=0):
+            preflight_request[0]=tuple(bounds)
+            if native_key in cache:
+                cache.move_to_end(native_key)
+                if report is not None:report['latticeCacheHits']+=1
+                return
+            y0,y1,x0,x1=bounds
+            if not cache_limit or (y1-y0)*(x1-x0)<=source_filter_budget()['nativeQueries']:return
+            limits=source_filter_budget()
+            preparation_work=limits['workBytes']//8+3*limits['nativeCacheBytes']+limits['nativeWaveBytes']+static_bytes
+            if preparation_work+reserved_work_bytes>limits['workBytes']:
+                if report is not None:report['latticeBudgetFallbacks']+=1
+                return
+            phase=time.perf_counter()
+            entry,_,proof=source_native_lattice(points,triangles,neighbours,int(seed),initial,centre,float(spacing),
+                (int(y1-y0),int(x1-x0)),(int(half[0]-x0),int(half[1]-y0)),(),unresolved_edges=unresolved_edges)
+            if report is not None:
+                report['latticeBuilds']+=1;report['latticeBuildSeconds']+=time.perf_counter()-phase
+                report['latticeCacheMisses']+=1
+            if entry is not None:store_lattice(native_key,entry,proof)
+            elif report is not None:report['latticeBudgetFallbacks']+=1
+        def blocks(bounds):
+            require(isinstance(bounds,(tuple,list))and len(bounds)==4 and all(type(value)is int for value in bounds),
+                'A native source sampler needs integer lattice bounds.')
+            y0,y1,x0,x1=bounds
+            require(0<=y0<y1<=grid_shape[0]and 0<=x0<x1<=grid_shape[1],'Native source bounds exceed the prepared lattice.')
+            width=x1-x0;count=(y1-y0)*width;limit=source_filter_budget()['nativeQueries']
+            if report is not None:report['blockRequests']+=1
+            # Preflight runs before the response allocates dense input fields.
+            # Direct bounded consumers reserve their one previous yielded block.
+            if preflight_request[0]!=tuple(bounds):ensure_lattice(bounds,source_filter_budget()['nativeTapBlockBytes'])
+            preflight_request[0]=None
+            active_entry=cache[native_key][0]if native_key in cache else None
+            try:
+                for first in range(0,count,limit):
+                    count_here=min(limit,count-first);key=(chart,tuple(bounds),first,count_here)
+                    if report is not None:
+                        report['queries']+=count_here;report['peakQueries']=max(report['peakQueries'],count_here)
+                    if key in cache:
+                        cache.move_to_end(key)
+                        if report is not None:report['cachedBlockReuses']+=1
+                        result={name:value.copy()if isinstance(value,np.ndarray)else value for name,value in cache[key][0].items()}
+                        if report is not None:report['defensiveCopyBytes']+=sum(value.nbytes for value in result.values()if isinstance(value,np.ndarray))
+                        yield result
+                        del result
+                        continue
+                    indices=np.arange(first,min(count,first+limit));y=indices//width+y0;x=indices%width+x0
+                    values=np.stack(((x-half[0])*spacing+centre[0],(y-half[1])*spacing+centre[1]),axis=1)
+                    walk_started=time.perf_counter()if report is not None else 0.
+                    if active_entry is None:
+                        walked=queries(seed,initial,centre,values,unresolved_edges=unresolved_edges);native_points=len(indices)
+                    else:
+                        if native_key in cache:cache.move_to_end(native_key)
+                        walked,native_points=lattice_samples(active_entry,seed,initial,centre,spacing,half,x,y,unresolved_edges=unresolved_edges)
+                    sample_started=time.perf_counter()if report is not None else 0.
+                    require(not walked['failures']and np.all(np.isin(walked['states'],[1,2,3])),
+                        'A bounded native source leaves required finite support unresolved.')
+                    fan_count=max((len(value['samples'])for value in walked['fanSamples'].values()),default=1)
+                    taps=(1 if mode==0 else 4)*max(1,fan_count)
+                    require(len(indices)*(taps*16+2)<=source_filter_budget()['nativeTapBlockBytes'],
+                        'A native sampler tap block exceeds its bounded temporary work budget.')
+                    rows=np.zeros((len(indices),taps),np.int32);cols=np.zeros_like(rows);weights=np.zeros((len(indices),taps))
+                    ordinary=np.flatnonzero(walked['states']==1)
+                    coordinates=np.einsum('ni,nij->nj',walked['bary'][ordinary],uv[triangles[walked['triangles'][ordinary]]])
+                    source_y,source_x,source_weight=fields.texture_sampler_taps(coordinates,source_shape,mode,wrap,scale=scale,offset=offset)
+                    rows[ordinary,:source_y.shape[1]]=source_y;cols[ordinary,:source_x.shape[1]]=source_x
+                    weights[ordinary,:source_weight.shape[1]]=source_weight
+                    fan=sample=None
+                    for index,fan in walked['fanSamples'].items():
+                        at=0
+                        for sample in fan['samples']:
+                            coordinates=np.asarray(sample['bary'])@uv[triangles[sample['triangle']]]
+                            source_y,source_x,source_weight=fields.texture_sampler_taps(coordinates[None,:],source_shape,mode,wrap,scale=scale,offset=offset)
+                            end=at+source_y.shape[1];rows[index,at:end]=source_y[0];cols[index,at:end]=source_x[0]
+                            weights[index,at:end]=source_weight[0]*sample['weight'];at=end
+                    block=dict(firstIndex=first,rows=rows,cols=cols,weights=weights,resolved=np.ones(len(indices),bool),outside=walked['states']==2)
+                    if report is not None:
+                        report['nativeWalkQueries']+=native_points
+                        report['peakTapBytes']=max(report['peakTapBytes'],rows.nbytes+cols.nbytes+weights.nbytes)
+                        report['nativeWalkSeconds']+=sample_started-walk_started
+                        report['samplerSeconds']+=time.perf_counter()-sample_started
+                    del walked,values,ordinary,coordinates,source_y,source_x,source_weight,fan,sample
+                    entry_bytes=size(key)+size(block)+sys.getsizeof((None,0))+sys.getsizeof(0)+128
+                    if cache_limit and entry_bytes+sys.getsizeof(cache)<=cache_limit:
+                        retained={name:value.copy()if isinstance(value,np.ndarray)else value for name,value in block.items()}
+                        for value in retained.values():
+                            if isinstance(value,np.ndarray):value.flags.writeable=False
+                        if report is not None:report['defensiveCopyBytes']+=sum(value.nbytes for value in retained.values()if isinstance(value,np.ndarray))
+                        retain(key,retained,entry_bytes)
+                        del retained
+                    del rows,cols,weights,indices,x,y
+                    yield dict(block)
+                    del block
+            finally:
+                if active_entry is not None and native_key not in cache:store_lattice(native_key,active_entry,active_entry['proof'])
+                active_entry=None
+        blocks.native_work_bytes=static_bytes+cache_allowance
+        blocks.prepare=ensure_lattice
+        return blocks
+    # These callables share this exact operation's immutable surface and LRUs.
+    # They never retain sampled color, a mutable ownership field, or a sampler.
+    prepare.queries=queries
+    prepare.unfold=unfold
+    prepare.lattice=lattice
+    return prepare
+
+
+def native_source_blocks(points,triangles,uv,neighbours,seed,initial,centre,spacing,grid_shape,half,sampler,source_shape,*,unresolved_edges=()):
+    """Prepare one chart when the caller does not share an operation sampler."""
+    return source_native_sampler(points,triangles,uv,neighbours)(seed,initial,centre,spacing,grid_shape,half,sampler,source_shape,
+        unresolved_edges=unresolved_edges)
+
+
+def rgb_gaussian_axis(values, kernel, radius, axis):
+    """One unchanged finite-kernel axis, shared by atlas and native strips."""
+    moved=np.moveaxis(values,axis,0);n=moved.shape[0]
+    if len(kernel)<=33:
+        padding=[(0,0)]*moved.ndim;padding[0]=(radius,radius)
+        padded=np.pad(moved,padding,mode='constant')
+        windows=np.lib.stride_tricks.sliding_window_view(padded,len(kernel),axis=0)
+        return np.moveaxis(np.einsum('...k,k->...',windows,kernel,optimize=False),0,axis)
+    matrix=moved.reshape(n,-1);length=1<<(n+len(kernel)-2).bit_length()
+    frequency=np.fft.rfft(kernel,n=length)[:,None];result=np.empty_like(matrix)
+    for first in range(0,matrix.shape[1],64):
+        spectrum=np.fft.rfft(matrix[:,first:first+64],n=length,axis=0)
+        spectrum*=frequency
+        convolution=np.fft.irfft(spectrum,n=length,axis=0)
+        result[:,first:first+64]=convolution[radius:radius+n]
+    return np.moveaxis(result.reshape(moved.shape),0,axis)
+
+
+def rgb_gaussian(values, sigma):
+    """Finite Gaussian convolution with direct windows or bounded FFT chunks."""
+    if sigma<.15:return values.copy()
+    radius=int(np.ceil(sigma*3));offsets=np.arange(-radius,radius+1)
+    kernel=np.exp(-(offsets/sigma)**2*.5);kernel/=kernel.sum()
+    out=values.astype(np.float64,copy=True)
+    for axis in(0,1):out=rgb_gaussian_axis(out,kernel,radius,axis)
     return out
 
-def rgb_physical_average(values, domain, metres_per_texel, sigma_metres, evaluation=None):
+
+def rgb_uniform_radius(sigma_metres,spacing):
+    require(np.isfinite(spacing)and spacing>0 and np.isfinite(sigma_metres)and sigma_metres>=0,
+        'A native uniform radius needs finite nonnegative metres and positive spacing.')
+    sigma=float(sigma_metres)/spacing
+    return 0 if sigma<.15 else int(np.ceil(3*sigma))
+
+
+def source_uniform_radius(settings,spacing):
+    fine=rgb_uniform_radius(settings['fineSigmaMetres'],spacing)
+    coarse=rgb_uniform_radius(settings['grainSigmaMetres'],spacing)
+    coherence=rgb_uniform_radius(settings['coherenceSigmaMetres'],spacing)
+    directed=0 if settings.get('fineCoherenceRetain',1.)==1 else fine+int(np.ceil(3*settings['coherenceSigmaMetres']/spacing))+1
+    return max(fine,coarse,fine+1+coherence,directed)
+
+
+def rgb_uniform_average(values,domain,spacing,sigma_metres,evaluation,*,source_block=None,reserved_work_bytes=0,report=None,packed=False):
+    """The same finite scalar-metric operator, with bounded output/input strips.
+
+    A large sigma is a larger finite halo, not a reason to change its physical
+    width. Check all working fields and FFT/strip/kernel buffers before allocating
+    them; retained decoded source/final atlas images are accounted separately.
+    """
+    shape=domain.shape
+    require(values.shape==shape and len(shape)==2 and evaluation.shape==shape and evaluation.dtype==np.bool_ and
+        np.isfinite(spacing)and spacing>0 and np.isfinite(sigma_metres)and sigma_metres>=0 and type(packed)is bool,
+        'A bounded uniform field has an invalid scalar sampling contract.')
+    sigma=float(sigma_metres)/spacing;radius=rgb_uniform_radius(sigma_metres,spacing);taps=2*radius+1
+    rows=min(shape[0],64+2*radius)
+    row_length=1<<max(0,rows+taps-2).bit_length();col_length=1<<max(0,shape[1]+taps-2).bit_length()
+    fft_length=max(row_length,col_length)
+    retained_work=values.nbytes+domain.nbytes+reserved_work_bytes
+    selected_count=int(np.count_nonzero(evaluation))
+    output_work=int(np.prod(shape))*(4 if packed else 13)+(selected_count*9+(shape[0]+1)*8 if packed else 0)
+    fft_work=64*(fft_length*24+(fft_length//2+1)*32)
+    strip_work=8*(6*rows*min(64,shape[1])+4*min(64,shape[0])*shape[1])
+    estimated_work=retained_work+output_work+fft_work+strip_work+taps*32
+    limit=source_filter_budget()['workBytes']
+    require(estimated_work<=limit,'The prepared uniform filter exceeds its bounded temporary work budget.')
+    offsets=np.arange(-radius,radius+1)
+    kernel=np.ones(1)if radius==0 else np.exp(-.5*(offsets/sigma)**2);kernel/=kernel.sum()
+    output_shape=(selected_count,)if packed else shape
+    output=np.zeros(output_shape);supported=np.zeros(output_shape,bool);selected_rows=np.flatnonzero(evaluation.any(axis=1));blocks=0
+    row_offsets=np.r_[0,np.cumsum(np.count_nonzero(evaluation,axis=1))]if packed else None
+    for block in np.unique(selected_rows//64):
+        target_rows=selected_rows[selected_rows//64==block]
+        y0=max(0,int(target_rows[0])-radius);y1=min(shape[0],int(target_rows[-1])+radius+1)
+        numerator=np.empty((len(target_rows),shape[1]));denominator=np.empty_like(numerator)
+        for x0 in range(0,shape[1],64):
+            x1=min(shape[1],x0+64);weights=domain[y0:y1,x0:x1]
+            source=values[y0:y1,x0:x1]if source_block is None else np.asarray(source_block(y0,y1,x0,x1),float)
+            require(source.shape==weights.shape and np.isfinite(source).all(),
+                'A bounded uniform source block changed its shape or finite values.')
+            numerator[:,x0:x1]=rgb_gaussian_axis(source*weights,kernel,radius,0)[target_rows-y0]
+            denominator[:,x0:x1]=rgb_gaussian_axis(weights,kernel,radius,0)[target_rows-y0];blocks+=1
+        numerator=rgb_gaussian_axis(numerator,kernel,radius,1);denominator=rgb_gaussian_axis(denominator,kernel,radius,1)
+        selected=evaluation[target_rows];valid=denominator>1e-14
+        np.divide(numerator,denominator,out=numerator,where=valid);numerator[~valid|~selected]=0.
+        if packed:
+            for at,row in enumerate(target_rows):
+                first,last=row_offsets[row:row+2]
+                output[first:last]=numerator[at,selected[at]];supported[first:last]=valid[at,selected[at]]
+        else:output[target_rows]=numerator;supported[target_rows]=valid&selected
+    if report is not None:report.update(estimatedTemporaryBytes=estimated_work,workBudgetBytes=limit,
+        reservedWorkingBytes=reserved_work_bytes,sourceBlocks=blocks,gaussianSigma=sigma,finiteKernelTaps=taps,
+        outputRows=len(selected_rows),fftColumns=64,packedOutputs=packed,spacingChanged=False,radiusTruncated=False)
+    return output,supported
+
+def source_neighbourhood_response(values,domain,evaluation,patch,operation,trailing,support_radius,reserved_work_bytes,packed_output=False):
+    """Validate and sample one dense or bounded native stencil before filtering."""
+    shape=domain.shape;streamed=isinstance(patch,dict)and'sourceBlocks'in patch
+    required={'metresPerTexel','targetRows','targetCols','patchRows','patchCols','patchWeights','blend'}
+    required|={'gridShape','sourceBlocks'}if streamed else{'rows','cols','weights','resolved','outside','requiredSupport'}
+    require(isinstance(patch,dict)and required<=set(patch)<=required|{'targetOrder'},'Unknown native RGB neighbourhood stencil.')
+    if streamed:
+        grid_shape=patch['gridShape']
+        require(isinstance(grid_shape,(tuple,list))and len(grid_shape)==2 and
+            all(type(value)is int and value>0 for value in grid_shape)and callable(patch['sourceBlocks']),
+            'A streamed source neighbourhood has no finite native grid or sampler.')
+        grid_shape=tuple(grid_shape)
+    else:
+        rows=np.asarray(patch['rows']);cols=np.asarray(patch['cols']);weights=np.asarray(patch['weights'],float)
+        require(rows.dtype.kind in'iu'and cols.dtype.kind in'iu'and rows.shape==cols.shape==weights.shape and rows.ndim==3,
+            'Source RGB neighbourhood taps differ.')
+        require(np.all((rows>=0)&(rows<shape[0]))and np.all((cols>=0)&(cols<shape[1]))and
+            np.isfinite(weights).all()and np.all(weights>=0)and np.all(weights.sum(2)<=1+32*np.finfo(float).eps),
+            'Source RGB neighbourhood taps exceed their source image.')
+        grid_shape=rows.shape[:2]
+        resolved=np.asarray(patch['resolved']);outside=np.asarray(patch['outside']);required_support=np.asarray(patch['requiredSupport'])
+        require(all(value.shape==grid_shape and value.dtype==np.bool_ for value in(resolved,outside,required_support)),
+            'Source RGB neighbourhood needs explicit native transport coverage.')
+        require(not np.any(required_support&~resolved),'A source RGB neighbourhood leaves finite filter support unresolved.')
+        geometry=weights.sum(2)
+        require(not np.any(outside&~resolved)and np.all(geometry[outside]==0)and
+            np.all(geometry[resolved&~outside]>0)and np.all(geometry[~resolved]==0),
+            'Source RGB neighbourhood geometry disagrees with its native boundary classification.')
+    spacing=patch['metresPerTexel']
+    require(type(spacing)in(int,float)and np.isfinite(spacing)and spacing>0,'Source RGB neighbourhood has no physical spacing.')
+    target_y=np.asarray(patch['targetRows']);target_x=np.asarray(patch['targetCols'])
+    sample_y=np.asarray(patch['patchRows']);sample_x=np.asarray(patch['patchCols']);sample_weight=np.asarray(patch['patchWeights'],float)
+    blend=np.asarray(patch['blend'],float)
+    require(target_y.dtype.kind in'iu'and target_x.dtype.kind in'iu'and target_y.shape==target_x.shape==blend.shape and
+        target_y.ndim==1 and sample_y.dtype.kind in'iu'and sample_x.dtype.kind in'iu'and
+        sample_y.shape==sample_x.shape==sample_weight.shape and sample_y.ndim==2 and len(sample_y)==len(target_y),
+        'Source RGB neighbourhood targets differ.')
+    require(np.all((target_y>=0)&(target_y<shape[0]))and np.all((target_x>=0)&(target_x<shape[1]))and
+        np.all((sample_y>=0)&(sample_y<grid_shape[0]))and np.all((sample_x>=0)&(sample_x<grid_shape[1]))and
+        np.isfinite(sample_weight).all()and np.all(sample_weight>=0)and
+        np.all(abs(sample_weight.sum(1)-1)<=32*np.finfo(float).eps)and
+        np.isfinite(blend).all()and np.all((blend>=0)&(blend<=1)),
+        'Source RGB neighbourhood target samples exceed their physical patch.')
+    target_order=np.asarray(patch['targetOrder'])if'targetOrder'in patch else None
+    if target_order is not None:require(target_order.dtype.kind in'iu'and target_order.shape==target_y.shape and np.all(target_order>=0),
+        'Native RGB tiles have invalid original receiver indices.')
+    selected=evaluation[target_y,target_x]&(blend>0)
+    if not selected.any():return None
+    target_y=target_y[selected];target_x=target_x[selected];sample_y=sample_y[selected];sample_x=sample_x[selected]
+    sample_weight=sample_weight[selected];blend=blend[selected]
+    if target_order is not None:target_order=target_order[selected]
+    limits=source_filter_budget();bounds=(0,grid_shape[0],0,grid_shape[1]);radius=None
+    if callable(support_radius):
+        radius=support_radius(spacing)
+        require(type(radius)is int and radius>=0,'A source filter has an invalid finite support.')
+    if streamed:
+        require(callable(support_radius),'A streamed source filter needs its declared finite support.')
+        positive=sample_weight>0
+        bounds=(max(0,int(sample_y[positive].min())-radius),min(grid_shape[0],int(sample_y[positive].max())+radius+1),
+            max(0,int(sample_x[positive].min())-radius),min(grid_shape[1],int(sample_x[positive].max())+radius+1))
+        grid_shape=(bounds[1]-bounds[0],bounds[3]-bounds[2])
+        # Zero interpolation weights do not own a tap in the cropped support.
+        # Keep their unused addresses valid without moving any positive tap.
+        sample_y=np.clip(sample_y-bounds[0],0,grid_shape[0]-1)
+        sample_x=np.clip(sample_x-bounds[2],0,grid_shape[1]-1)
+    cells=int(np.prod(grid_shape));channels=max(1,int(np.prod(values.shape[2:])))
+    output_channels=max(1,int(np.prod(trailing)))
+    scratch=64*1024*1024
+    if radius is not None:
+        fft_length=1<<max(0,max(grid_shape)+2*radius-1).bit_length()
+        fft_work=64*(fft_length*24+(fft_length//2+1)*32)
+        strip_work=8*(6*min(grid_shape[0],64+2*radius)*min(64,grid_shape[1])+4*min(64,grid_shape[0])*grid_shape[1])
+        scratch=max(scratch,fft_work+strip_work+(2*radius+1)*32)
+    # A packed frequency response retains its fine scalar field, while coarse
+    # and tensor outputs occupy only the requested interpolation taps.
+    output_work=cells*(8*(channels+2)+6)if packed_output else cells*(8*(channels+1+output_channels)+2)
+    estimated_work=reserved_work_bytes+output_work+scratch
+    if streamed:
+        native_work=reserved_work_bytes+cells*(8*(channels+1)+2)+max(3*limits['nativeTapBlockBytes'],limits['nativeWaveBytes']+limits['nativeTapBlockBytes'])+getattr(patch['sourceBlocks'],'native_work_bytes',0)
+        estimated_work=max(estimated_work,native_work)+limits['nativeCacheBytes']
+    if not streamed:estimated_work+=sum(value.nbytes for value in(rows,cols,weights,resolved,outside,required_support))
+    require(estimated_work<=limits['workBytes'],'The prepared native input exceeds its bounded temporary work budget.')
+    if streamed:
+        preflight=getattr(patch['sourceBlocks'],'prepare',None)
+        if callable(preflight):preflight(bounds,reserved_work_bytes=reserved_work_bytes)
+    denominator=np.zeros(grid_shape);current=np.zeros(grid_shape+values.shape[2:])
+    if streamed:
+        geometry=np.zeros(grid_shape,bool);first_index=0
+        for block in patch['sourceBlocks'](bounds):
+            require(isinstance(block,dict)and set(block)=={'firstIndex','rows','cols','weights','resolved','outside'},
+                'Unknown bounded native source block.')
+            source_rows=np.asarray(block['rows']);source_cols=np.asarray(block['cols']);source_weights=np.asarray(block['weights'],float)
+            require(source_rows.dtype.kind in'iu'and source_cols.dtype.kind in'iu'and source_rows.ndim==2 and
+                source_rows.shape==source_cols.shape==source_weights.shape and source_rows.shape[1]>0,
+                'Bounded native source block taps differ.')
+            count=len(source_rows)
+            require(type(block['firstIndex'])is int and block['firstIndex']==first_index and
+                0<count<=limits['nativeQueries']and first_index+count<=cells,
+                'Bounded native source blocks omit, repeat or exceed their required lattice.')
+            require(np.all((source_rows>=0)&(source_rows<shape[0]))and np.all((source_cols>=0)&(source_cols<shape[1]))and
+                np.isfinite(source_weights).all()and np.all(source_weights>=0)and
+                np.all(source_weights.sum(1)<=1+32*np.finfo(float).eps),
+                'Bounded native source block taps exceed their source image.')
+            resolved=np.asarray(block['resolved']);outside=np.asarray(block['outside']);amount=source_weights.sum(1)
+            require(resolved.dtype==np.bool_ and outside.dtype==np.bool_ and resolved.shape==outside.shape==(count,)and
+                resolved.all(),'A bounded source RGB neighbourhood leaves finite filter support unresolved.')
+            require(np.all(amount[outside]==0)and np.all(amount[~outside]>0),
+                'Bounded source geometry disagrees with its native boundary classification.')
+            geometry.ravel()[first_index:first_index+count]=amount>0
+            step=max(1,limits['gatherBytes']//max(1,source_rows.shape[1]*channels*8))
+            for at in range(0,count,step):
+                last=min(count,at+step);support=source_weights[at:last]*domain[source_rows[at:last],source_cols[at:last]]
+                block_denominator=support.sum(1);source=values[source_rows[at:last],source_cols[at:last]]
+                multiplier=support.reshape(support.shape+(1,)*(source.ndim-support.ndim));numerator=(source*multiplier).sum(1)
+                divisor=block_denominator.reshape(block_denominator.shape+(1,)*(numerator.ndim-block_denominator.ndim))
+                view=current.reshape((cells,)+values.shape[2:])[first_index+at:first_index+last]
+                np.divide(numerator,divisor,out=view,where=divisor>0)
+                denominator.ravel()[first_index+at:first_index+last]=block_denominator
+            first_index+=count
+        require(first_index==cells,'Bounded native source blocks omit their required lattice.')
+        del block,source_rows,source_cols,source_weights,resolved,outside,amount,support,block_denominator,source,multiplier,numerator,divisor,view
+    else:
+        block_rows=max(1,limits['gatherBytes']//max(1,rows.shape[1]*rows.shape[2]*channels*8))
+        for first in range(0,grid_shape[0],block_rows):
+            last=min(grid_shape[0],first+block_rows);source_rows=rows[first:last];source_cols=cols[first:last]
+            support=weights[first:last]*domain[source_rows,source_cols];block_denominator=support.sum(2)
+            source=values[source_rows,source_cols];multiplier=support.reshape(support.shape+(1,)*(source.ndim-support.ndim))
+            numerator=(source*multiplier).sum(2)
+            divisor=block_denominator.reshape(block_denominator.shape+(1,)*(numerator.ndim-block_denominator.ndim))
+            np.divide(numerator,divisor,out=current[first:last],where=divisor>0);denominator[first:last]=block_denominator
+        del source_rows,source_cols,support,block_denominator,source,multiplier,numerator,divisor
+    patch_evaluation=np.zeros(grid_shape,bool);patch_evaluation[sample_y[sample_weight>0],sample_x[sample_weight>0]]=True
+    if not streamed:require(not np.any(patch_evaluation&~required_support)and not np.any(patch_evaluation&~resolved),
+        'A source RGB neighbourhood leaves a positive evaluation tap unresolved or outside required support.')
+    require(np.all(np.sum(geometry[sample_y,sample_x]*sample_weight,axis=1)>0),
+        'A source RGB neighbourhood leaves an evaluation point without native geometry.')
+    filtered=np.asarray(operation(current,denominator,spacing,patch_evaluation),float)
+    expected=(int(np.count_nonzero(patch_evaluation)),)+trailing if packed_output else grid_shape+trailing
+    require(filtered.shape==expected and np.isfinite(filtered).all(),
+        'A source RGB neighbourhood returned inconsistent filter fields.')
+    if packed_output:
+        positive=sample_weight>0;flat=np.flatnonzero(patch_evaluation)
+        indices=np.searchsorted(flat,(sample_y*grid_shape[1]+sample_x)[positive])
+        response=np.zeros(sample_y.shape+trailing);response[positive]=filtered[indices]
+    else:response=filtered[sample_y,sample_x]
+    response=(response*sample_weight.reshape(sample_weight.shape+(1,)*len(trailing))).sum(1)
+    return target_y,target_x,response,blend,target_order
+
+
+def filter_source_neighbourhoods(values,domain,evaluation,neighbourhoods,operation,baseline,*,support_radius=None,packed_output=False):
+    """Filter bounded native inputs and scatter witnesses in their original order."""
+    shape=domain.shape;trailing=baseline.shape[2:]
+    require(values.shape[:2]==shape and baseline.shape[:2]==shape and evaluation.shape==shape and evaluation.dtype==np.bool_ and type(packed_output)is bool,
+        'Source RGB filter fields and evaluation differ.')
+    atlas_work=baseline.size*8+int(np.prod(shape))*8
+    require(atlas_work<=source_filter_budget()['workBytes'],'The source filter atlas exceeds its temporary work budget.')
+    accumulated=np.zeros_like(baseline,dtype=float);amount=np.zeros(shape)
+    response_order=None;staged=[];staged_bytes=0
+    for patch in neighbourhoods:
+        ordered=isinstance(patch,dict)and'targetOrder'in patch
+        if response_order is None:response_order=ordered
+        require(response_order==ordered,'Native RGB tiles mix original receiver ordering contracts.')
+        sampled=source_neighbourhood_response(values,domain,evaluation,patch,operation,trailing,support_radius,
+            atlas_work+staged_bytes,packed_output)
+        if sampled is None:continue
+        target_y,target_x,response,blend,target_order=sampled
+        weighted=response*blend.reshape(blend.shape+(1,)*len(trailing))
+        if ordered:
+            entry=(target_order,target_y,target_x,weighted,blend)
+            staged.append(entry);staged_bytes+=sum(value.nbytes for value in entry)
+        else:
+            np.add.at(accumulated,(target_y,target_x),weighted)
+            np.add.at(amount,(target_y,target_x),blend)
+    if staged:
+        original_order,target_rows,target_cols,weighted_response,target_weights=(
+            np.concatenate([entry[index]for entry in staged])for index in range(5))
+        sequence=np.argsort(original_order,kind='stable')
+        require(np.all(np.diff(original_order[sequence])>0),'Native RGB tiles repeat an original receiver index.')
+        np.add.at(accumulated,(target_rows[sequence],target_cols[sequence]),weighted_response[sequence])
+        np.add.at(amount,(target_rows[sequence],target_cols[sequence]),target_weights[sequence])
+    selected=amount>0
+    if not selected.any():return baseline,amount
+    result=baseline.copy();weight=np.minimum(amount[selected],1)
+    total=amount[selected].reshape(amount[selected].shape+(1,)*len(trailing))
+    weight=weight.reshape(weight.shape+(1,)*len(trailing))
+    result[selected]=baseline[selected]*(1-weight)+accumulated[selected]/total*weight
+    require(np.isfinite(result).all(),'A transported source RGB filter returned a nonfinite field.')
+    return result,amount
+
+
+def rgb_physical_average(values, domain, metres_per_texel, sigma_metres, evaluation=None, *, require_coverage=False,source_neighbourhoods=()):
     """Interpolate the source area-equivalent UV metric, not a global UV size.
 
     Local shear/anisotropy is reported by the source adapter; this scalar filter
     uses the actual surface-area-equivalent radius, not a geodesic blur claim.
     Only declared continuous skin participates in each normalized convolution.
     """
-    desired = sigma_metres / np.maximum(metres_per_texel, np.finfo(float).tiny)
     if evaluation is None:
         evaluation = domain > 0
+    if np.ndim(metres_per_texel)==0:
+        # A native patch is uniform in measured metres. It does not need the
+        # scale interpolation used by the spatially varying source UV metric.
+        spacing=float(metres_per_texel)
+        require(np.isfinite(spacing)and spacing>0,'A measured RGB support requires a positive physical UV metric.')
+        output,supported=rgb_uniform_average(values,domain,spacing,sigma_metres,evaluation)
+        transported=None
+        if source_neighbourhoods:
+            output,transported=filter_source_neighbourhoods(values,domain,evaluation,source_neighbourhoods,
+                lambda values,domain,metric,evaluation:rgb_physical_average(values,domain,metric,sigma_metres,evaluation,
+                    require_coverage=require_coverage),output,support_radius=lambda metric:rgb_uniform_radius(sigma_metres,metric))
+        if require_coverage:
+            missing=evaluation&~supported
+            if transported is not None:missing&=transported<1
+            count=int(np.count_nonzero(missing))
+            require(count==0,f'An RGB source reference leaves {count} target samples without filter support.')
+        return output
+    require(np.all(metres_per_texel[evaluation]>0),'A measured RGB support requires a positive physical UV metric.')
+    desired = np.divide(sigma_metres,metres_per_texel,out=np.zeros_like(metres_per_texel,dtype=float),where=metres_per_texel>0)
+    if source_neighbourhoods and np.any(desired[evaluation]>128):
+        # The array-metric implementation cannot supply this output. Its
+        # complete native evaluation replaces it; no texel or radius is lost.
+        output,transported=filter_source_neighbourhoods(values,domain,evaluation,source_neighbourhoods,
+            lambda value,weight,metric,wanted:rgb_physical_average(value,weight,metric,sigma_metres,wanted,
+                require_coverage=require_coverage),np.zeros_like(values,dtype=float),
+            support_radius=lambda metric:rgb_uniform_radius(sigma_metres,metric))
+        require(not np.any(evaluation&(transported<1-32*np.finfo(float).eps)),
+            'A native uniform RGB operation leaves required array-unsupported targets unresolved.')
+        return output
     levels = [0., .5, 1., 2., 4., 8., 16.]
     maximum = float(np.max(desired[evaluation]))
     require(maximum <= 128, 'RGB physical radius exceeds prepared image support.')
@@ -2689,6 +5145,8 @@ def rgb_physical_average(values, domain, metres_per_texel, sigma_metres, evaluat
         levels.append(levels[-1]*2)
     output = np.zeros_like(values, dtype=np.float64)
     lower = np.zeros_like(values, dtype=np.float64)
+    coverage = np.zeros_like(evaluation, dtype=bool) if require_coverage else None
+    lower_supported = None
     previous_sigma = 0.
     numerator = values * domain
     denominator = domain.copy()
@@ -2697,25 +5155,109 @@ def rgb_physical_average(values, domain, metres_per_texel, sigma_metres, evaluat
         numerator = rgb_gaussian(numerator, increment)
         denominator = rgb_gaussian(denominator, increment)
         current = np.divide(numerator, denominator, out=np.zeros_like(numerator), where=denominator > 1e-14)
+        supported = denominator > 1e-14 if require_coverage else None
         if index:
             before = levels[index-1]
             selected = (desired >= before) & (desired <= sigma) & evaluation
             # Interpolate variance: Gaussian scale is a physical variance.
             blend = np.clip((desired * desired - before * before) / (sigma * sigma - before * before), 0, 1)
             output[selected] = (lower * (1-blend) + current * blend)[selected]
+            if require_coverage:
+                # Both normalized samples must exist when they contribute.
+                # A missing adjacent UV chart is not a black reference color.
+                coverage[selected] = (((blend == 1) | lower_supported) &
+                                      ((blend == 0) | supported))[selected]
         lower = current
+        lower_supported = supported
         previous_sigma = sigma
         if sigma >= maximum:
             break
+    transported=None
+    if source_neighbourhoods:
+        output,transported=filter_source_neighbourhoods(values,domain,evaluation,source_neighbourhoods,
+            lambda values,domain,metric,evaluation:rgb_physical_average(values,domain,metric,sigma_metres,evaluation,
+                require_coverage=require_coverage),output,support_radius=lambda metric:rgb_uniform_radius(sigma_metres,metric))
+    if require_coverage:
+        missing=evaluation & ~coverage
+        if transported is not None:missing&=transported<1
+        count=int(np.count_nonzero(missing))
+        require(count == 0, f'An RGB source reference leaves {count} target samples without filter support.')
     return output
 
-def refine_rgb_structure(current, ownership, continuous_skin, protected_features, metres_per_texel, settings):
+
+def source_uniform_structure(log_luma,domain,spacing,settings,evaluation,*,report=None,packed=False):
+    """Evaluate the existing tensor at its requested lattice outputs only."""
+    shape=domain.shape;selected=np.asarray(evaluation)
+    require(log_luma.shape==shape==selected.shape and selected.dtype==np.bool_ and type(packed)is bool,
+        'A uniform frequency field needs its native input and boolean output domain.')
+    selected_count=int(np.count_nonzero(selected));cells=int(np.prod(shape))
+    selected_work=selected_count*8*26
+    final_work=log_luma.nbytes+domain.nbytes+cells+(selected_count*16 if packed else cells*17)+selected_work
+    require(final_work<=source_filter_budget()['workBytes'],
+        'The prepared frequency field exceeds its bounded temporary work budget.')
+    selected_y,selected_x=np.nonzero(selected);owned=domain>0
+    stages=[]
+    def average(sigma,wanted,*,source_block=None,reserved=0,packed=False):
+        record={}
+        supported_targets=owned if wanted is owned else wanted&owned
+        field=rgb_uniform_average(log_luma,domain,spacing,sigma,supported_targets,source_block=source_block,
+            reserved_work_bytes=reserved+selected_work,report=record,packed=packed)[0]
+        if packed:
+            response=np.zeros(int(np.count_nonzero(wanted)));response[domain[wanted]>0]=field;field=response
+        stages.append(record);return field
+    fine=average(settings['fineSigmaMetres'],owned)
+    coarse=average(settings['grainSigmaMetres'],selected,reserved=fine.nbytes,packed=True)
+    def gradient_source(kind):
+        def read(y0,y1,x0,x1):
+            y=np.arange(y0,y1)[:,None];x=np.arange(x0,x1)[None,:]
+            left,right=np.maximum(0,x-1),np.minimum(shape[1]-1,x+1)
+            before,after=np.maximum(0,y-1),np.minimum(shape[0]-1,y+1)
+            dx=(fine[y,right]-fine[y,left])/2;dy=(fine[after,x]-fine[before,x])/2
+            dx*=(x>0)&(x<shape[1]-1)&(domain[y,left]>0)&(domain[y,right]>0)
+            dy*=(y>0)&(y<shape[0]-1)&(domain[before,x]>0)&(domain[after,x]>0)
+            return dx*dx if kind=='xx'else dy*dy if kind=='yy'else dx*dy
+        return read
+    jxx=average(settings['coherenceSigmaMetres'],selected,source_block=gradient_source('xx'),reserved=fine.nbytes,packed=True)
+    jyy=average(settings['coherenceSigmaMetres'],selected,source_block=gradient_source('yy'),reserved=fine.nbytes,packed=True)
+    jxy=average(settings['coherenceSigmaMetres'],selected,source_block=gradient_source('xy'),reserved=fine.nbytes,packed=True)
+    energy=jxx+jyy
+    coherence=np.divide(np.sqrt(np.maximum(0,(jxx-jyy)**2+4*jxy*jxy)),energy,
+        out=np.ones_like(energy),where=energy>1e-16);coherence=np.clip(coherence,0,1)
+    removed=(fine[selected]-coarse)*(1-coherence*settings.get('coherenceRetain',1.))
+    fine_retain=settings.get('fineCoherenceRetain',1.)
+    if fine_retain!=1:
+        angle=.5*np.arctan2(2*jxy,jxx-jyy);tangent_x,tangent_y=-np.sin(angle),np.cos(angle)
+        radius=np.where(domain[selected]>0,settings['coherenceSigmaMetres']/spacing,0.)
+        numerator=np.zeros(len(selected_y));denominator=np.zeros_like(numerator)
+        for offset in np.linspace(-3.,3.,17):
+            sample_x=selected_x+tangent_x*radius*offset;sample_y=selected_y+tangent_y*radius*offset
+            x0,y0=np.floor(sample_x).astype(np.int64),np.floor(sample_y).astype(np.int64)
+            fraction_x,fraction_y=sample_x-x0,sample_y-y0;kernel=np.exp(-.5*offset*offset)
+            for step_y,weight_y in((0,1-fraction_y),(1,fraction_y)):
+                for step_x,weight_x in((0,1-fraction_x),(1,fraction_x)):
+                    sx,sy=x0+step_x,y0+step_y;valid=(sx>=0)&(sx<shape[1])&(sy>=0)&(sy<shape[0])
+                    sx,sy=np.clip(sx,0,shape[1]-1),np.clip(sy,0,shape[0]-1)
+                    weight=kernel*weight_x*weight_y*valid
+                    high=(log_luma[sy,sx]-fine[sy,sx])*domain[sy,sx]
+                    numerator+=high*weight;denominator+=domain[sy,sx]*weight
+        directed=np.divide(numerator,denominator,out=np.zeros_like(numerator),where=denominator>1e-14)
+        removed+=directed*coherence*(1-fine_retain)
+    del fine
+    if packed:output=np.stack((removed,coherence),axis=1)
+    else:
+        output=np.zeros(shape+(2,));output[selected,0]=removed;output[selected,1]=coherence
+    if report is not None:report.update(selectedOutputs=len(selected_y),stages=stages,
+        maximumEstimatedWorkBytes=max([final_work]+[row['estimatedTemporaryBytes']for row in stages]),
+        fullTensorArraysRetained=False,packedOutputs=packed,kernelOrThresholdChanged=False)
+    return output
+
+
+def refine_rgb_structure(current, ownership, continuous_skin, protected_features, metres_per_texel, settings, *, source_neighbourhoods=()):
     """One source-owned RGB operation. Alpha and the other material channels are inputs only.
 
-    Keep chromaticity, coarse pigment distribution, the finest retained detail,
-    directed structures and explicit pigment/anatomy exclusions. Remove only
-    the isotropic luminance band between the two declared physical scales.
-    This is a bounded artist operation, not a semantic freckle/noise classifier.
+    Keep chromaticity, coarse pigment distribution, the finest retained detail
+    and explicit pigment/anatomy exclusions. The source profile controls how
+    much directed structure remains inside the declared luminance band.
     """
     require(current.ndim == 3 and current.shape[2] == 4, 'RGB surface requires current RGBA.')
     shape = current.shape[:2]
@@ -2723,9 +5265,14 @@ def refine_rgb_structure(current, ownership, continuous_skin, protected_features
     require(np.isfinite(current).all() and np.all((current >= 0) & (current <= 1)), 'Invalid current skin RGBA.')
     require(all(np.isfinite(x).all() for x in (ownership, continuous_skin, protected_features, metres_per_texel)), 'Nonfinite RGB authoring ownership.')
     require(np.all(metres_per_texel[ownership > 0] > 0), 'RGB source has no positive physical UV metric.')
-    require(set(settings) == {'fineSigmaMetres', 'grainSigmaMetres', 'coherenceSigmaMetres', 'featherMetres'}, 'Unknown RGB frequency declaration.')
+    required={'fineSigmaMetres', 'grainSigmaMetres', 'coherenceSigmaMetres', 'featherMetres'}
+    require(required<=set(settings)<=required|{'coherenceRetain','fineCoherenceRetain'}, 'Unknown RGB frequency declaration.')
     require(0 < settings['fineSigmaMetres'] < settings['grainSigmaMetres'] <= settings['coherenceSigmaMetres'] < settings['featherMetres'], 'RGB frequency scales are not ordered physical distances.')
     require(all(type(v) in (int, float) and np.isfinite(v) for v in settings.values()), 'RGB frequency scales must be finite numbers.')
+    coherence_retain=settings.get('coherenceRetain',1.)
+    fine_coherence_retain=settings.get('fineCoherenceRetain',1.)
+    require(0<=coherence_retain<=1,'RGB coherence retention must be within zero and one.')
+    require(0<=fine_coherence_retain<=1,'RGB fine coherence retention must be within zero and one.')
     require(all(np.all((x >= 0) & (x <= 1)) for x in (ownership, continuous_skin, protected_features)), 'RGB masks exceed their source domain.')
     eligible = ownership * continuous_skin * (protected_features == 0)
     output = current.copy()
@@ -2733,23 +5280,79 @@ def refine_rgb_structure(current, ownership, continuous_skin, protected_features
         return output, dict(operation='preserve-source-pattern', affectedPixels=0)
     # Explicit features stay exact and are excluded from the averaging support.
     domain = ((ownership > 0) & (continuous_skin > 0) & (protected_features == 0)).astype(np.float64)
-    feathered = rgb_physical_average(domain, np.ones(shape), metres_per_texel, settings['featherMetres']/3, evaluation=domain > 0)
+    uniform_only=bool(source_neighbourhoods)and np.any((domain>0)&
+        (metres_per_texel<max(settings['coherenceSigmaMetres'],settings['featherMetres']/3)/128))
+    feathered=(np.zeros(shape)if uniform_only else
+        rgb_physical_average(domain,np.ones(shape),metres_per_texel,settings['featherMetres']/3,evaluation=domain>0))
+    if source_neighbourhoods:
+        # This is a geometric mask convolution: true exterior is zero rather
+        # than a colour donor. Pigment averages below exclude unowned support.
+        feathered,transported=filter_source_neighbourhoods(domain,np.ones(shape),domain>0,source_neighbourhoods,
+            lambda value,support,metric,evaluation:rgb_physical_average(value,np.ones(value.shape),metric,
+                settings['featherMetres']/3,evaluation=evaluation),feathered,
+            support_radius=lambda metric:rgb_uniform_radius(settings['featherMetres']/3,metric))
+        require(not uniform_only or not np.any((domain>0)&(transported<1-32*np.finfo(float).eps)),
+            'A native uniform skin feather leaves required targets unresolved.')
     eligible *= np.clip(feathered, 0, 1)
     rgb = current[:, :, :3]
     luma = np.einsum('...c,c->...', rgb, np.array([.2126, .7152, .0722]))
     log_luma = np.log(np.maximum(luma, 1/65535))
-    fine = rgb_physical_average(log_luma, domain, metres_per_texel, settings['fineSigmaMetres'])
-    coarse = rgb_physical_average(log_luma, domain, metres_per_texel, settings['grainSigmaMetres'])
-    dy, dx = np.gradient(fine)
-    jxx = rgb_physical_average(dx*dx, domain, metres_per_texel, settings['coherenceSigmaMetres'])
-    jyy = rgb_physical_average(dy*dy, domain, metres_per_texel, settings['coherenceSigmaMetres'])
-    jxy = rgb_physical_average(dx*dy, domain, metres_per_texel, settings['coherenceSigmaMetres'])
-    energy = jxx+jyy
-    coherence = np.divide(np.sqrt(np.maximum(0,(jxx-jyy)**2+4*jxy*jxy)), energy,
-                          out=np.ones_like(energy), where=energy > 1e-16)
-    coherence = np.clip(coherence, 0, 1)
-    band = fine-coarse
-    gain_delta = np.expm1(-band*(1-coherence)) * eligible
+    def source_structure(log_luma,domain,metres_per_texel,evaluation=None):
+        if np.ndim(metres_per_texel)==0 and evaluation is not None:
+            return source_uniform_structure(log_luma,domain,float(metres_per_texel),settings,evaluation)
+        shape=domain.shape
+        fine = rgb_physical_average(log_luma, domain, metres_per_texel, settings['fineSigmaMetres'])
+        coarse = rgb_physical_average(log_luma, domain, metres_per_texel, settings['grainSigmaMetres'])
+        dy, dx = np.gradient(fine)
+        # An unowned UV chart has no measured skin luminance. Its zero sentinel
+        # must not become a directed crease at the edge of a protected feature.
+        valid_x=np.zeros(shape,bool);valid_y=np.zeros(shape,bool)
+        valid_x[:,1:-1]=(domain[:,:-2]>0)&(domain[:,2:]>0)
+        valid_y[1:-1]=(domain[:-2]>0)&(domain[2:]>0)
+        dx*=valid_x;dy*=valid_y
+        jxx = rgb_physical_average(dx*dx, domain, metres_per_texel, settings['coherenceSigmaMetres'])
+        jyy = rgb_physical_average(dy*dy, domain, metres_per_texel, settings['coherenceSigmaMetres'])
+        jxy = rgb_physical_average(dx*dy, domain, metres_per_texel, settings['coherenceSigmaMetres'])
+        energy = jxx+jyy
+        coherence = np.divide(np.sqrt(np.maximum(0,(jxx-jyy)**2+4*jxy*jxy)), energy,
+                              out=np.ones_like(energy), where=energy > 1e-16)
+        coherence = np.clip(coherence, 0, 1)
+        band = fine-coarse
+        # Directional shading and isotropic grain share the same declared physical
+        # band. The source profile decides how much directional structure to retain;
+        # explicit anatomy and pigment exclusions remain outside this operation.
+        removed=band*(1-coherence*coherence_retain)
+        # The source profile may also attenuate coherent lines below the fine
+        # boundary. Estimate their residual along the native line tangent so an
+        # isotropic pore does not inherit a nearby crease's coherence ownership.
+        if fine_coherence_retain!=1:
+            angle=.5*np.arctan2(2*jxy,jxx-jyy)
+            tangent_x=-np.sin(angle);tangent_y=np.cos(angle)
+            grid_y,grid_x=np.indices(shape);high=(log_luma-fine)*domain
+            numerator=np.zeros(shape);denominator=np.zeros(shape)
+            radius=np.divide(settings['coherenceSigmaMetres'],metres_per_texel,out=np.zeros(shape),where=(domain>0)&(metres_per_texel>0))
+            for offset in np.linspace(-3.,3.,17):
+                sample_x=grid_x+tangent_x*radius*offset;sample_y=grid_y+tangent_y*radius*offset
+                x0=np.floor(sample_x).astype(np.int64);y0=np.floor(sample_y).astype(np.int64)
+                fraction_x=sample_x-x0;fraction_y=sample_y-y0;kernel=np.exp(-.5*offset*offset)
+                for step_y,weight_y in((0,1-fraction_y),(1,fraction_y)):
+                    for step_x,weight_x in((0,1-fraction_x),(1,fraction_x)):
+                        sx=x0+step_x;sy=y0+step_y;valid=(sx>=0)&(sx<shape[1])&(sy>=0)&(sy<shape[0])
+                        sx=np.clip(sx,0,shape[1]-1);sy=np.clip(sy,0,shape[0]-1)
+                        weight=kernel*weight_x*weight_y*valid
+                        numerator+=high[sy,sx]*weight;denominator+=domain[sy,sx]*weight
+            directed=np.divide(numerator,denominator,out=np.zeros(shape),where=denominator>1e-14)
+            removed+=directed*coherence*(1-fine_coherence_retain)
+        return np.dstack((removed,coherence))
+    structure=np.zeros(shape+(2,))if uniform_only else source_structure(log_luma,domain,metres_per_texel)
+    if source_neighbourhoods:
+        structure,transported=filter_source_neighbourhoods(log_luma,domain,domain>0,source_neighbourhoods,
+            lambda value,support,metric,evaluation:source_uniform_structure(value,support,metric,settings,evaluation,packed=True),structure,
+            support_radius=lambda metric:source_uniform_radius(settings,metric),packed_output=True)
+        require(not uniform_only or not np.any((domain>0)&(transported<1-32*np.finfo(float).eps)),
+            'A native uniform skin frequency field leaves required targets unresolved.')
+    removed=structure[:,:,0];coherence=structure[:,:,1]
+    gain_delta = np.expm1(-removed) * eligible
     # Project out the three regional color sums using a scalar gain only.
     # This preserves source chromaticity and the mean tint, rather than adding
     # a gray/white target or replacing native pigmentation with a flat value.
@@ -2777,59 +5380,354 @@ def refine_rgb_structure(current, ownership, continuous_skin, protected_features
                         sourceLinearRgbMean=rgb[eligible > 0].mean(axis=0).tolist(),
                         outputLinearRgbMean=changed[eligible > 0].mean(axis=0).tolist(),
                         coherenceQuantiles=np.quantile(coherence[eligible > 0], [.1,.5,.9]).tolist(),
-                        removedLogLumaBandRms=float(np.sqrt(np.mean((band*(1-coherence)*eligible)**2))),
+                        coherenceRetain=coherence_retain,
+                        fineCoherenceRetain=fine_coherence_retain,
+                        removedLogLumaBandRms=float(np.sqrt(np.mean((removed*eligible)**2))),
                         gamutLimitedPixels=gamut_pixels,alphaExact=True, protectedFeaturesExact=True,
                         localChromaticity='single multiplicative luminance gain; no palette/color target',
                         physicalMetric='source triangle area-equivalent metres per texel; anisotropy reported, no geodesic claim')
 
 
-def source_material_ownership(packet, bones, declaration):
-    """Evaluate the declared anatomical domain, independently of species and shader."""
-    require(set(declaration)=={'includeBranches','protectPrefixes'},'Unknown source material domain.')
-    require(all(isinstance(value,list)and value and all(isinstance(v,str)and v for v in value)
-                for value in declaration.values()),'A source material domain requires explicit bone ownership.')
-    branches={name.casefold()for name in declaration['includeBranches']}
-    prefixes=tuple(name.casefold()for name in declaration['protectPrefixes'])
-    included=np.array([bool(branches.intersection(name.casefold().split('/')))for name in bones])
-    protected=np.array([name.rsplit('/',1)[-1].casefold().startswith(prefixes)for name in bones])
-    require(included.any(),'The declared material domain is absent from its source skeleton.')
-    weights=np.asarray(packet['weights'],float).reshape(-1,4)
-    indices=np.asarray(packet['boneIndices'],int).reshape(-1,4)
-    influence=(weights*included[indices]).sum(axis=1)
-    exclusion=(weights*protected[indices]).sum(axis=1)
+
+def source_material_ownership(packet, bones, declaration, *, renderer_to_prefab=None,sample_triangle=None,sample_barycentric=None,_prepared=None,chart_source=None):
+    """Evaluate the source domain; one raster owns its immutable prepared inputs."""
+    prepared={}if _prepared is None else _prepared
+    require(isinstance(prepared,dict),'A source material preparation must be local to its raster.')
+    identity=(id(packet),id(bones),id(declaration),id(renderer_to_prefab),id(chart_source))
+    if not prepared:
+        required={'includeBranches','protectPrefixes'}
+        require(required<=set(declaration)<=required|{'protectSurfaceRadiusMetres','surfaceRegion','protectSourceCharts'},'Unknown source material domain.')
+        require(all(isinstance(declaration[key],list)and declaration[key] and
+                    all(isinstance(v,str)and v for v in declaration[key])for key in required),
+                'A source material domain requires explicit bone ownership.')
+        branches={name.casefold()for name in declaration['includeBranches']}
+        prefixes=tuple(name.casefold()for name in declaration['protectPrefixes'])
+        included=np.array([bool(branches.intersection((name or '').casefold().split('/')))for name in bones])
+        protected=np.array([(name or '').rsplit('/',1)[-1].casefold().startswith(prefixes)for name in bones])
+        require(included.any(),'The declared material domain is absent from its source skeleton.')
+        weights=np.asarray(packet['weights'],float).reshape(-1,4)
+        indices=np.asarray(packet['boneIndices'],int).reshape(-1,4)
+        vertices=np.asarray(packet['vertices'],float).reshape(-1,3)if 'vertices'in packet else None
+        limits=declaration.get('protectSurfaceRadiusMetres');limited_rows=[];region=None;frame=None
+        if limits is not None:
+            require(isinstance(limits,dict)and limits and all(isinstance(prefix,str)and prefix.casefold()in prefixes
+                    and isinstance(radius,list)and len(radius)==2 and all(type(v)in(int,float)and np.isfinite(v)for v in radius)
+                    and 0<=radius[0]<radius[1]for prefix,radius in limits.items()),
+                    'A protected source feature requires declared inner and outer physical radii.')
+            require(renderer_to_prefab is not None,'A physical feature limit requires its source renderer frame.')
+            frame=art.matrix(renderer_to_prefab);binds=np.asarray(packet['bindPoses'],float).reshape(-1,16)
+            require(vertices is not None and len(vertices)==len(weights)and len(binds)==len(bones)and np.isfinite(frame).all(),
+                    'A protected source feature has inconsistent skin or renderer coordinates.')
+            limited_bones=np.zeros(len(bones),dtype=bool)
+            for prefix,(inner,outer)in limits.items():
+                limited=np.array([bool(name)and name.rsplit('/',1)[-1].casefold().startswith(prefix.casefold())for name in bones])
+                if not limited.any():continue
+                require(not np.any(limited_bones&limited),'Protected source feature limits overlap on the same native bones.')
+                limited_bones|=limited;origins=np.zeros((len(bones),3))
+                for index in np.flatnonzero(limited):origins[index]=np.linalg.inv(art.matrix(binds[index]))[:3,3]
+                limited_rows.append((limited,origins,inner,outer))
+        if 'surfaceRegion'in declaration:
+            value=declaration['surfaceRegion']
+            require(isinstance(value,dict)and set(value)=={'coordinateDomain','ellipsoids'}and
+                    value['coordinateDomain']=='native-rest-prefab-dcc-metres'and isinstance(value['ellipsoids'],list)and value['ellipsoids'],
+                    'A local material region requires its source frame and physical support.')
+            require(renderer_to_prefab is not None,'A physical material region requires its source renderer frame.')
+            require(vertices is not None,'A physical material region requires its source surface positions.')
+            if frame is None:frame=art.matrix(renderer_to_prefab)
+            centers=[];radii=[];fractions=[];directions=[];normal_ranges=[];normal_selected=[]
+            for ellipsoid in value['ellipsoids']:
+                required={'center','radii','innerFraction'};normal_fields={'surfaceNormal','normalRange'}
+                require(isinstance(ellipsoid,dict)and required<=set(ellipsoid)<=required|normal_fields and
+                        (not normal_fields&set(ellipsoid)or normal_fields<=set(ellipsoid)),
+                        'A source material region has unknown support fields.')
+                center=np.asarray(ellipsoid['center'],float);radius=np.asarray(ellipsoid['radii'],float);inner=ellipsoid['innerFraction']
+                require(center.shape==radius.shape==(3,)and np.isfinite(center).all()and np.isfinite(radius).all()and
+                        np.all(radius>0)and type(inner)in(int,float)and np.isfinite(inner)and 0<=inner<1,
+                        'A source material region requires finite radii and a bounded inner fraction.')
+                centers.append(center);radii.append(radius);fractions.append(inner)
+                direction=np.asarray(ellipsoid.get('surfaceNormal',[0.,0.,1.]),float)
+                normal_range=np.asarray(ellipsoid.get('normalRange',[-1.,1.]),float)
+                require(direction.shape==(3,)and np.isfinite(direction).all()and np.linalg.norm(direction)>0 and
+                        normal_range.shape==(2,)and np.isfinite(normal_range).all()and -1<=normal_range[0]<normal_range[1]<=1,
+                        'A source material direction requires a finite normal and ordered cosine limits.')
+                directions.append(direction/np.linalg.norm(direction));normal_ranges.append(normal_range);normal_selected.append('surfaceNormal'in ellipsoid)
+            centers=np.asarray(centers);radii=np.asarray(radii)
+            region=(art.CONVERT@frame,centers,radii,np.asarray(fractions),np.min(centers-radii,axis=0),np.max(centers+radii,axis=0),
+                    np.asarray(directions),np.asarray(normal_ranges),np.asarray(normal_selected))
+            surface_normals=art.native_normals(packet,art.CONVERT@frame)if any(normal_selected)else None
+        else:surface_normals=None
+        chart_vertices=None;chart_triangles=None
+        resolved_declaration=declaration;chart_recovery=None
+        if 'protectSourceCharts'in declaration:
+            charts=declaration['protectSourceCharts']
+            require(isinstance(charts,dict)and charts and all(isinstance(key,str)and len(key)==64 and
+                    all(character in'0123456789abcdef'for character in key)and isinstance(value,list)and value
+                    for key,value in charts.items()),'Source chart protection requires mesh fingerprints and source-triangle anchors.')
+            identity_key=packet.get('sourceFingerprint')
+            topologies={}
+            def topology(source,slot):
+                key=(id(source),slot)
+                if key in topologies:return topologies[key]
+                require(type(slot)is int and 0<=slot<len(source['subMeshes']),'Source chart protection has an invalid material slot.')
+                triangles=np.asarray(source['subMeshes'][slot],int).reshape(-1,3)
+                source_count=len(source['vertices'])//3
+                require(source.get('vertexCount',source_count)==source_count and np.all((triangles>=0)&(triangles<source_count)),
+                        'Source chart protection has invalid native triangle indices.')
+                parents=np.arange(len(triangles));edge_owner={}
+                def root(index):
+                    while parents[index]!=index:parents[index]=parents[parents[index]];index=int(parents[index])
+                    return index
+                for index,triangle in enumerate(triangles):
+                    for first,last in zip(triangle,np.roll(triangle,1)):
+                        if first==last:continue
+                        edge=tuple(sorted((int(first),int(last))))
+                        if edge in edge_owner:parents[root(index)]=root(edge_owner[edge])
+                        else:edge_owner[edge]=index
+                for index in range(len(parents)):parents[index]=root(index)
+                topologies[key]=(triangles,parents);return triangles,parents
+            if identity_key not in charts and chart_source is not None:
+                require(isinstance(chart_source,dict)and set(chart_source)=={'source','native'},'Unknown source chart recovery authority.')
+                source=chart_source['source'];native=chart_source['native'];source_key=source.get('sourceFingerprint')
+                require(source_key in charts,'Source chart protection has no declaration for its retained native source identity.')
+                count=native['vertexCount']
+                require(all(value['vertexCount']>=count and len(value['uv'])==len(native['uv'])for value in(source,packet)),
+                        'Source chart recovery lost its native UV prefix.')
+                for value in(source,packet):
+                    for first,last in zip(native['uv'],value['uv'],strict=True):
+                        require((first['channel'],first['dimension'],first['values'])==
+                            (last['channel'],last['dimension'],last['values'][:len(first['values'])]),
+                            'Source chart recovery changed its native UV prefix.')
+                source_uv=np.asarray(next(value['values']for value in source['uv']if value['channel']==0),float).reshape(-1,4)[:,:2]
+                current_uv=np.asarray(next(value['values']for value in packet['uv']if value['channel']==0),float).reshape(-1,4)[:,:2]
+                recovered=[];bindings=[];claimed=set()
+                for anchor in charts[source_key]:
+                    profile_anchor(anchor,source,dict(bones=bones));slot=anchor['subMesh'];ordinal=anchor['triangleOrdinal']
+                    source_triangles,source_components=topology(source,slot)
+                    native_triangles,native_components=topology(native,slot)
+                    target_triangles,target_components=topology(packet,slot)
+                    owned=np.unique(source_triangles[source_components==source_components[ordinal]])
+                    source_prefix=owned[owned<count]
+                    native_candidates=np.flatnonzero(np.all(np.isin(native_triangles,source_prefix),axis=1))
+                    require(len(native_candidates)>0 and len(set(native_components[native_candidates]))==1,
+                            'A source chart has no unique native coarse component.')
+                    native_component=int(native_components[native_candidates[0]])
+                    native_vertices=np.unique(native_triangles[native_components==native_component])
+                    require(np.array_equal(np.sort(source_prefix),native_vertices),
+                            'A source chart changed its native indexed component ownership.')
+                    targets=[]
+                    for component in np.unique(target_components):
+                        candidate=np.unique(target_triangles[target_components==component]);prefix=candidate[candidate<count]
+                        if np.array_equal(prefix,native_vertices):targets.append(int(component))
+                    require(len(targets)==1,'A source chart has no unique recovered indexed component.')
+                    component=targets[0];require((slot,component)not in claimed,'Source chart recovery repeats one native chart.')
+                    claimed.add((slot,component))
+                    query=np.asarray(anchor['barycentric'],float)@source_uv[source_triangles[ordinal]]
+                    candidates=np.flatnonzero(target_components==component);tex=current_uv[target_triangles[candidates]]
+                    delta=np.stack((tex[:,1]-tex[:,0],tex[:,2]-tex[:,0]),axis=2);valid=abs(np.linalg.det(delta))>1e-12
+                    candidates=candidates[valid];delta=delta[valid];tex=tex[valid]
+                    bary=np.einsum('nij,nj->ni',np.linalg.inv(delta),query-tex[:,0]);bary=np.c_[1-bary.sum(1),bary]
+                    inside=np.flatnonzero(np.min(bary,axis=1)>=-1e-7)
+                    require(len(inside)>0,'A source chart anchor is absent from its recovered UV component.')
+                    selected=int(inside[0]);anchor_weights=np.maximum(bary[selected],0.);anchor_weights/=anchor_weights.sum()
+                    target=dict(type='sourceTriangle',subMesh=slot,triangleOrdinal=int(candidates[selected]),barycentric=anchor_weights.tolist())
+                    recovered.append(target);bindings.append(dict(source=anchor,target=target,nativeComponent=native_component))
+                resolved_declaration=copy.deepcopy(declaration)
+                resolved_declaration['protectSourceCharts'][identity_key]=recovered
+                charts=resolved_declaration['protectSourceCharts']
+                chart_recovery=dict(sourceFingerprint=source_key,nativeFingerprint=native['sourceFingerprint'],
+                    targetFingerprint=identity_key,nativeUvPrefixExact=True,indexedComponentsExact=True,anchors=bindings)
+            require(identity_key in charts,'Source chart protection has no declaration for this input mesh identity.')
+            require(vertices is not None and len(vertices)==len(weights)and 'subMeshes'in packet,
+                    'Source chart protection requires its actual indexed mesh.')
+            uvrows=[row for row in packet.get('uv',[])if row['channel']==0]
+            require(len(uvrows)==1,'Source chart protection requires its native UV channel.')
+            source_uv=np.asarray(uvrows[0]['values'],float).reshape(-1,4)[:,:2]
+            require(source_uv.shape==(len(vertices),2)and np.isfinite(source_uv).all(),
+                    'Source chart protection has inconsistent native UV coordinates.')
+            chart_vertices=np.zeros(len(vertices),bool);chart_triangles=set();chosen=set()
+            for anchor in charts[identity_key]:
+                require(isinstance(anchor,dict)and anchor.get('type')=='sourceTriangle',
+                        'Source chart protection requires an owned source-triangle anchor.')
+                profile_anchor(anchor,packet,dict(bones=bones))
+                slot=anchor['subMesh'];ordinal=anchor['triangleOrdinal']
+                triangles,components=topology(packet,slot);triangle=triangles[ordinal]
+                tex=source_uv[triangle]
+                require(abs(float(np.linalg.det(np.column_stack((tex[1]-tex[0],tex[2]-tex[0])))))>1e-12,
+                        'Source chart protection has a collapsed UV anchor.')
+                component=int(components[ordinal]);key=(slot,component)
+                require(key not in chosen,'Source chart protection repeats the same native chart.')
+                chosen.add(key);owned=triangles[components==component]
+                chart_vertices[np.unique(owned)]=True
+                chart_triangles.update(tuple(sorted(map(int,triangle)))for triangle in owned)
+        prepared.update(identity=identity,weights=weights,indices=indices,vertices=vertices,included=included,
+            protected=protected,limits=limited_rows,frame=frame,region=region,surfaceNormals=surface_normals,
+            protectedChartVertices=chart_vertices,protectedChartTriangles=chart_triangles,
+            resolvedDeclaration=resolved_declaration,chartRecovery=chart_recovery)
+    require(prepared['identity']==identity,'A source material preparation belongs to another surface or declaration.')
+    weights=prepared['weights'];indices=prepared['indices'];vertices=prepared['vertices']
+    require((sample_triangle is None)==(sample_barycentric is None),'A source sample needs its indexed triangle and barycentric coordinates.')
+    if sample_triangle is not None:
+        tri=np.asarray(sample_triangle,int);bary=np.asarray(sample_barycentric,float)
+        require(tri.shape==(3,)and bary.ndim==2 and bary.shape[1]==3 and np.isfinite(bary).all()and
+                np.all(bary>=-1e-7)and np.allclose(bary.sum(axis=1),1,rtol=0,atol=1e-6),'Invalid source surface samples.')
+        vertices=bary@vertices[tri]
+        weights=(weights[tri][None]*bary[:,:,None]).reshape(-1,12)
+        indices=np.broadcast_to(indices[tri],(len(bary),3,4)).reshape(-1,12)
+    influence=(weights*prepared['included'][indices]).sum(axis=1)
     smooth=lambda value:(lambda t:t*t*(3-2*t))(np.clip(value,0.,1.))
+    exclusion=(weights*prepared['protected'][indices]).sum(axis=1)
+    for limited,origins,inner,outer in prepared['limits']:
+        feature_weights=weights*limited[indices];feature_influence=feature_weights.sum(axis=1)
+        feature_origin=np.divide((feature_weights[:,:,None]*origins[indices]).sum(axis=1),feature_influence[:,None],
+            out=vertices.copy(),where=feature_influence[:,None]>0)
+        distance=np.linalg.norm((vertices-feature_origin)@prepared['frame'][:3,:3].T,axis=1)
+        exclusion-=feature_influence*smooth((distance-inner)/(outer-inner))
     result=smooth((influence-.5)*2)*(1-smooth(exclusion/.35))
-    require(np.any(result),'The declared source material domain has no owned surface.')
+    if prepared['protectedChartVertices']is not None:
+        # Indexed charts remain separate across UV seams and physically close
+        # surfaces. A triangle sample owns its chart even at a shared point.
+        if sample_triangle is None:result[prepared['protectedChartVertices']]=0
+        elif tuple(sorted(map(int,tri)))in prepared['protectedChartTriangles']:result[:]=0
+    if prepared['region']is not None:
+        frame,centers,radii,fractions,low,high,directions,normal_ranges,normal_selected=prepared['region'];source=art.points(vertices.ravel().tolist(),frame)
+        surface_normals=prepared['surfaceNormals']
+        if surface_normals is not None:
+            if sample_triangle is not None:surface_normals=bary@surface_normals[tri]
+            lengths=np.linalg.norm(surface_normals,axis=1)
+            require(np.all(lengths>1e-12),'A directed source region has unresolved surface normals.')
+            surface_normals=surface_normals/lengths[:,None]
+        owned=np.zeros(len(source));selected=np.flatnonzero(np.all((source>=low)&(source<=high),axis=1))
+        for begin in range(0,len(selected),2048):
+            ids=selected[begin:begin+2048];distance=np.linalg.norm((source[ids,None]-centers[None])/radii[None],axis=2)
+            weight=smooth((1-distance)/(1-fractions))
+            if surface_normals is not None:
+                facing=surface_normals[ids]@directions.T
+                normal_weight=smooth((facing-normal_ranges[:,0])/(normal_ranges[:,1]-normal_ranges[:,0]))
+                normal_weight[:,~normal_selected]=1;weight*=normal_weight
+            owned[ids]=np.max(weight,axis=1)
+        result*=owned
+    require(sample_triangle is not None or np.any(result),'The declared source material domain has no owned surface.')
     return result
 
 
-def refine_source_skin_material(pixels, ownership, metres_per_texel, profile, channel, *, normal_encoding=None):
+def source_skin_region_mode(region):
+    """Validate regional color declarations before resolving their source domains."""
+    required={'target','reference','protected','sourceLowFrequencySigmaMetres','strength'}
+    mode=region.get('reconstruction','luminance-gain')if isinstance(region,dict)else None
+    require(mode in('luminance-gain','adjacent-low-frequency-rgb','reference-mean-rgb'),
+            'Unknown source skin luminance region.')
+    local=mode!='reference-mean-rgb'
+    if local:required.add('referenceSigmaMetres')
+    limit='maximumLogGain'if mode=='luminance-gain'else'maximumLinearRgbDelta'
+    optional={'reconstruction'}|({'detailRetain'}if mode!='luminance-gain'else set())
+    require(required|{limit}<=set(region)<=required|{limit}|optional,'Unknown source skin luminance region.')
+    fine=region['sourceLowFrequencySigmaMetres'];broad=region.get('referenceSigmaMetres',fine)
+    strength=region['strength'];maximum=region[limit]
+    require(all(type(value)in(int,float)and np.isfinite(value)for value in(fine,broad,strength,maximum))and
+            0<fine<=broad and 0<=strength<=1 and maximum>0,
+            'A source skin luminance region requires ordered physical scales and bounded strength.')
+    if mode!='luminance-gain':
+        require(maximum<=1,'A source RGB reconstruction limit must be within linear LDR range.')
+        detail_retain=region.get('detailRetain',1.)
+        require(type(detail_retain)in(int,float)and np.isfinite(detail_retain)and 0<=detail_retain<=1,
+                'A source RGB detail retention must be within zero and one.')
+    return mode
+
+
+def refine_source_skin_material(pixels, ownership, metres_per_texel, profile, channel, *, normal_encoding=None,luminance_regions=(),source_neighbourhoods=()):
     """Refine an explicitly owned source surface in physical units before packing."""
     import material_fields as fields
     pixels=np.asarray(pixels,np.uint8);ownership=np.asarray(ownership,float);metric=np.asarray(metres_per_texel,float)
     required={'pigmentRetain','normalRetain','normalRadiusMetres','fineSigmaMetres','grainSigmaMetres','coherenceSigmaMetres','featherMetres'}
     micro={'microNormalRetain','microNormalRadiusMetres'}
-    require(set(profile) in (required,required|micro) and all(type(value)in(int,float)and np.isfinite(value)for value in profile.values()),
+    macro={'macroNormalRetain','macroNormalRadiusMetres'}
+    optional={'pigmentCoherenceRetain','pigmentFineCoherenceRetain'}
+    require(required<=set(profile)<=required|micro|macro|optional and
+            (not micro&set(profile)or micro<=set(profile)) and (not macro&set(profile)or macro<=set(profile)) and
+            all(type(value)in(int,float)and np.isfinite(value)for value in profile.values()),
             'A source skin finish requires finite declared physical scales and detail retention.')
     require(0<=profile['pigmentRetain']<=1 and 0<=profile['normalRetain']<=1 and profile['normalRadiusMetres']>0,
             'A source skin finish has invalid detail retention or normal radius.')
     require(not micro<=set(profile) or (0<=profile['microNormalRetain']<=1 and
             0<profile['microNormalRadiusMetres']<profile['normalRadiusMetres']),
             'Skin microdetail requires a smaller physical radius and bounded retention.')
+    require(not macro<=set(profile) or (0<=profile['macroNormalRetain']<=1 and
+            profile['macroNormalRadiusMetres']>profile['normalRadiusMetres']),
+            'Skin macrodetail requires a larger physical radius and bounded retention.')
+    require(0<=profile.get('pigmentCoherenceRetain',1)<=1,'Skin pigment coherence retention must be within zero and one.')
+    require(0<=profile.get('pigmentFineCoherenceRetain',1)<=1,'Skin pigment fine coherence retention must be within zero and one.')
     require(pixels.ndim==3 and pixels.shape[2]==4 and pixels.shape[:2]==ownership.shape==metric.shape and
             np.isfinite(ownership).all() and np.isfinite(metric).all() and np.all((ownership>=0)&(ownership<=1)) and
             np.all(metric[ownership>0]>0),'A source skin finish has inconsistent surface ownership or metric.')
     require(channel in('color','normal'),'Unknown source skin channel.')
+    require(not luminance_regions or channel=='color','Local luminance regions belong to the source color channel.')
     retained=profile['pigmentRetain']==1 if channel=='color' else (
-        profile['normalRetain']==1 and profile.get('microNormalRetain',1)==1)
-    if not np.any(ownership)or min(pixels.shape[:2])<4 or retained:
+        profile['normalRetain']==1 and profile.get('microNormalRetain',1)==1 and profile.get('macroNormalRetain',1)==1)
+    if not np.any(ownership)or min(pixels.shape[:2])<4 or (retained and not luminance_regions):
         return pixels.copy(),dict(affectedPixels=0,sourceRetained=True)
     result=pixels.copy();selected=ownership>0
     if channel=='color':
         current=pixels.astype(float)/255;current[:,:,:3]=fields.lookup[pixels[:,:,:3]]
         settings={name:profile[name]for name in('fineSigmaMetres','grainSigmaMetres','coherenceSigmaMetres','featherMetres')}
-        refined,proof=refine_rgb_structure(current,ownership,selected.astype(float),(~selected).astype(float),metric,settings)
+        settings['coherenceRetain']=profile.get('pigmentCoherenceRetain',1.)
+        settings['fineCoherenceRetain']=profile.get('pigmentFineCoherenceRetain',1.)
+        physical_filters=dict(source_neighbourhoods=source_neighbourhoods)if source_neighbourhoods else{}
+        refined,proof=(refine_rgb_structure(current,ownership,selected.astype(float),(~selected).astype(float),metric,settings,**physical_filters)
+                       if not retained else(current.copy(),dict(operation='preserve-source-pattern',affectedPixels=0)))
         linear=current[:,:,:3]+(refined[:,:,:3]-current[:,:,:3])*(1-profile['pigmentRetain'])
+        regions=[]
+        for region in luminance_regions:
+            mode=source_skin_region_mode(region)
+            limit='maximumLogGain'if mode=='luminance-gain'else'maximumLinearRgbDelta'
+            masks=[np.asarray(region[key],float)for key in('target','reference','protected')]
+            require(all(mask.shape==ownership.shape and np.isfinite(mask).all()and np.all((mask>=0)&(mask<=1))for mask in masks),
+                    'A source skin luminance region has inconsistent ownership.')
+            fine=region['sourceLowFrequencySigmaMetres'];broad=region.get('referenceSigmaMetres',fine);strength=region['strength'];maximum=region[limit]
+            target,reference,protected=masks;target=target*ownership*(1-protected);reference=reference*ownership*(1-protected)
+            if not source_neighbourhoods:
+                target[metric<broad/128]=0
+                if mode!='reference-mean-rgb':reference[metric<broad/128]=0
+            require(np.any(target)and np.any(reference),'A source skin luminance region has no resolved target or adjacent reference.')
+            before_region=linear.copy()
+            if mode=='luminance-gain':
+                source_luma=np.einsum('...c,c->...',current[:,:,:3],[.2126,.7152,.0722])
+                log_luma=np.log(np.maximum(source_luma,1/65535))
+                low=rgb_physical_average(log_luma,selected.astype(float),metric,fine,evaluation=target>0,**physical_filters)
+                adjacent=rgb_physical_average(log_luma,reference,metric,broad,evaluation=target>0,require_coverage=True,**physical_filters)
+                gain=np.exp(np.clip(adjacent-low,0,maximum)*target*strength)
+                upper=np.divide(1,np.max(linear,axis=2),out=np.full(ownership.shape,np.inf),where=np.max(linear,axis=2)>0)
+                gain=np.minimum(gain,upper);linear*=gain[:,:,None]
+                detail=dict(gainQuantiles=np.quantile(gain[target>0],[0,.5,.9,1]).tolist(),sourceChromaticityRetained=True)
+            else:
+                detail_retain=region.get('detailRetain',1.)
+                support=ownership*(1-protected)
+                low=np.stack([rgb_physical_average(current[:,:,axis],support,metric,fine,evaluation=target>0,**physical_filters)for axis in range(3)],axis=2)
+                if mode=='reference-mean-rgb':
+                    # A declared nonlocal reference owns a single surface color.
+                    # Weight native tissue by physical area rather than UV area;
+                    # no local filter is allowed to invent missing support.
+                    area=reference*metric**2;total=float(area.sum())
+                    require(np.isfinite(total)and total>0,'A source RGB reference has no finite physical area.')
+                    adjacent=np.einsum('ij,ijc->c',area/total,current[:,:,:3])
+                else:
+                    adjacent=np.stack([rgb_physical_average(current[:,:,axis],reference,metric,broad,evaluation=target>0,require_coverage=True,**physical_filters)for axis in range(3)],axis=2)
+                # Restore only the declared low-frequency skin field from its
+                # own declared native tissue. Fine residual retention is local
+                # to the declared surface; protected pigment is not filter support.
+                # The global stage has already changed this residual. Removing
+                # native detail again would invert rather than attenuate it.
+                residual=linear-low
+                delta=np.clip(adjacent-low-residual*(1-detail_retain),-maximum,maximum)*target[:,:,None]*strength
+                linear=np.clip(linear+delta,0,1)
+                detail=dict(linearRgbDeltaQuantiles=np.quantile(np.linalg.norm(delta[target>0],axis=1),[0,.5,.9,1]).tolist(),
+                    colorReference='physical-area-weighted native skin RGB'if mode=='reference-mean-rgb'else'adjacent native skin RGB',detailRetain=detail_retain,
+                    protectedFeaturesExcludedFromSupport=True)
+                if mode=='reference-mean-rgb':detail.update(referenceAreaMetresSquared=total,referenceLinearRgb=adjacent.tolist())
+            regions.append(dict(targetPixels=int(np.count_nonzero(target)),referencePixels=int(np.count_nonzero(reference)),
+                reconstruction=mode,sourceLowFrequencySigmaMetres=fine,
+                **(dict(referenceSigmaMetres=broad)if mode!='reference-mean-rgb'else{}),
+                protectedRegionExact=bool(np.array_equal(linear[protected==1],before_region[protected==1])),**detail))
+        if regions:proof['luminanceRegions']=regions
         srgb=np.where(linear<=.0031308,12.92*linear,1.055*np.maximum(linear,0)**(1/2.4)-.055)
         result[:,:,:3]=np.rint(np.clip(srgb,0,1)*255).astype(np.uint8)
         result[~selected]=pixels[~selected]
@@ -2840,26 +5738,42 @@ def refine_source_skin_material(pixels, ownership, metres_per_texel, profile, ch
         raw=pixels.astype(float)/255
         x=raw[:,:,0]*raw[:,:,3]*2-1;y=raw[:,:,1]*2-1
         normal=np.dstack((x,y,np.sqrt(np.maximum(0,1-x*x-y*y))))
-        averaged=np.stack([rgb_physical_average(normal[:,:,axis],selected.astype(float),metric,profile['normalRadiusMetres'])for axis in range(3)],axis=2)
-        averaged=normalise(averaged)
+        macro_active=profile.get('macroNormalRetain',1)!=1
+        averaged=(normal if profile['normalRetain']==1 else normalise(np.stack([
+            rgb_physical_average(normal[:,:,axis],selected.astype(float),metric,profile['normalRadiusMetres'])for axis in range(3)],axis=2)))
         if micro<=set(profile):
             # Keep pores in their own frequency band while softening larger creases.
-            smooth=np.stack([rgb_physical_average(normal[:,:,axis],selected.astype(float),metric,
-                profile['microNormalRadiusMetres'])for axis in range(3)],axis=2)
             target=normal+(averaged-normal)*(1-profile['normalRetain'])
-            target+=(normal-normalise(smooth))*(profile['microNormalRetain']-profile['normalRetain'])
-            desired=normalise(normal+(target-normal)*ownership[:,:,None])
+            if profile['microNormalRetain']!=profile['normalRetain']:
+                smooth=np.stack([rgb_physical_average(normal[:,:,axis],selected.astype(float),metric,
+                    profile['microNormalRadiusMetres'])for axis in range(3)],axis=2)
+                target+=(normal-normalise(smooth))*(profile['microNormalRetain']-profile['normalRetain'])
+            if not macro_active:desired=normalise(normal+(target-normal)*ownership[:,:,None])
         else:
-            desired=normalise(normal+(averaged-normal)*(ownership*(1-profile['normalRetain']))[:,:,None])
+            if macro_active:target=normal+(averaged-normal)*(1-profile['normalRetain'])
+            else:desired=normalise(normal+(averaged-normal)*(ownership*(1-profile['normalRetain']))[:,:,None])
+        if macro_active:
+            # The source normal map can retain broad sculpted hollows after
+            # the mesh itself has changed. Recenter this separate low band;
+            # preserve the wrinkle and pore bands already composed above.
+            coarse=np.stack([rgb_physical_average(normal[:,:,axis],selected.astype(float),metric,
+                profile['macroNormalRadiusMetres'])for axis in range(3)],axis=2)
+            flat=np.zeros_like(coarse);flat[:,:,2]=1
+            # Apply before the final normalization so broad and fine bands
+            # remain additive in the same decoded tangent-space source.
+            target+=(flat-normalise(coarse))*(1-profile['macroNormalRetain'])
+            desired=normalise(normal+(target-normal)*ownership[:,:,None])
         alpha=np.divide(desired[:,:,0]*.5+.5,raw[:,:,0],out=raw[:,:,3].copy(),where=raw[:,:,0]>0)
         representable=selected&(alpha>=0)&(alpha<=1)&(raw[:,:,0]>0)
         result[:,:,1][representable]=np.rint(np.clip(desired[:,:,1][representable]*.5+.5,0,1)*255).astype(np.uint8)
         result[:,:,3][representable]=np.rint(alpha[representable]*255).astype(np.uint8)
         require(np.array_equal(result[:,:,[0,2]],pixels[:,:,[0,2]]),'Skin normal refinement changed source carrier channels.')
         proof=dict(normalEncoding=normal_encoding,sourceCarriersExact=True,unrepresentablePixels=int(np.count_nonzero(selected&~representable)))
+        if macro<=set(profile):proof.update(macroNormalRetain=profile['macroNormalRetain'],macroNormalRadiusMetres=profile['macroNormalRadiusMetres'])
     require(np.array_equal(result[~selected],pixels[~selected]),'Skin refinement changed an unowned pixel.')
     proof.update(affectedPixels=int(np.count_nonzero(np.any(result!=pixels,axis=2))),unownedPixelsExact=True)
     return result,proof
+
 
 
 def material_surface(packet: 'dict[str, Any]', skin: 'dict[str, Any]', baked, region: 'np.ndarray', root, textures, slots=None):

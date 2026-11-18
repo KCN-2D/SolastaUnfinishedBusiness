@@ -651,6 +651,7 @@ public static class CustomModels
                  renderer.sharedMesh == CurrentRuntimeMesh && actual.SequenceEqual(runtimeBones));
         }
 
+
         internal static Dictionary<int, BoneWeight> ReadSkinWeights(Mesh mesh, IEnumerable<int> vertices)
         {
             var selected = vertices.ToHashSet();
@@ -1008,6 +1009,151 @@ public static class CustomModels
                 Fingerprint += ":boundary:" + BitConverter.ToString(hash.ComputeHash(stream)).Replace("-", "");
             }
         }
+        // Each native prefab owns its authored rest skeleton. Mesh bind poses can
+        // legitimately describe different bases for the same remapped actor bone.
+        internal sealed class NativePartRest
+        {
+            private readonly GameObject _part;
+            private readonly Dictionary<Component, (Transform[] Bones, Dictionary<Transform, Matrix4x4> Frames)> _owners;
+            private readonly Dictionary<Transform, (Transform Parent, Matrix4x4 Local)> _derivedBones = [];
+            internal NativePartRest(GameObject part,
+                Dictionary<Component, (Transform[] Bones, Dictionary<Transform, Matrix4x4> Frames)> owners)
+            { _part = part; _owners = owners; }
+
+            internal bool Contains(Component owner) => owner && _owners.ContainsKey(owner);
+            internal void BindDerivedBone(Transform parent, Transform bone, Matrix4x4 local)
+            {
+                PruneDerivedBones();
+                if (!_part || !parent || !bone || bone.parent != parent ||
+                    !_owners.Values.Any(owner => owner.Frames.ContainsKey(parent)) ||
+                    Enumerable.Range(0, 16).Any(index => float.IsNaN(local[index]) || float.IsInfinity(local[index])) ||
+                    local[3] != 0f || local[7] != 0f || local[11] != 0f || local[15] != 1f ||
+                    float.IsNaN(local.determinant) || float.IsInfinity(local.determinant) || local.determinant <= 0f)
+                    throw new InvalidOperationException("A generated native source bone requires its retained authored parent and declared local frame.");
+                if (_derivedBones.TryGetValue(bone, out var previous) &&
+                    (previous.Parent != parent || !previous.Local.Equals(local)))
+                    throw new InvalidOperationException("A generated native source bone changed its declared rest frame.");
+                _derivedBones[bone] = (parent, local);
+            }
+            internal IReadOnlyDictionary<Transform, Matrix4x4> Frames(Component owner, Transform graphics)
+            {
+                PruneDerivedBones();
+                if (!_part || !owner || !_owners.TryGetValue(owner, out var expected) ||
+                    !expected.Bones.SequenceEqual(SourceGraph.NativeVirtualBones(owner)))
+                    throw new InvalidOperationException("A native physical owner no longer has its captured source binding.");
+                var frame = RelativeFrame(_part.transform, graphics);
+                var result = expected.Frames.ToDictionary(pair => pair.Key, pair => frame * pair.Value);
+                foreach (var pair in _derivedBones)
+                    if (pair.Key && result.TryGetValue(pair.Value.Parent, out var parent))
+                        result.Add(pair.Key, parent * pair.Value.Local);
+                return result;
+            }
+            private void PruneDerivedBones()
+            {
+                foreach (var bone in _derivedBones.Keys.Where(bone => !bone).ToArray()) _derivedBones.Remove(bone);
+            }
+
+            internal static Matrix4x4 RelativeFrame(Transform target, Transform root)
+            {
+                var frame = Matrix4x4.identity;
+                for (var current = target; current != root; current = current.parent)
+                {
+                    if (!current) throw new InvalidOperationException("An authored native rest frame leaves its part owner.");
+                    frame = Matrix4x4.TRS(current.localPosition, current.localRotation, current.localScale) * frame;
+                }
+                return frame;
+            }
+        }
+
+        internal static NativePartRest CaptureNativePartRest(GraphicsCharacter graphics, GameObject source, GameObject instance) =>
+            SourceGraph.CaptureNativePartRest(graphics, source, instance);
+
+        internal sealed class RestDeformation
+        {
+            internal readonly string Key;
+            internal sealed class Group(IReadOnlyList<SkinnedMeshRenderer> renderers,
+                IReadOnlyDictionary<Transform, Matrix4x4> bones,
+                IReadOnlyDictionary<SkinnedMeshRenderer, (Mesh Source, Mesh Target)> surfaces,
+                IReadOnlyDictionary<SkinnedMeshRenderer, Transform[]> palettes, string key,
+                IReadOnlyList<SkinnedMeshRenderer> bodyRenderers, IReadOnlyList<SkinnedMeshRenderer> fieldRenderers,
+                bool bodySurface = false)
+            {
+                internal readonly string Key = key;
+                internal readonly bool BodySurface = bodySurface;
+                internal readonly IReadOnlyList<SkinnedMeshRenderer> Renderers = renderers.ToArray();
+                internal readonly IReadOnlyList<SkinnedMeshRenderer> BodyRenderers = bodyRenderers.ToArray();
+                internal readonly IReadOnlyList<SkinnedMeshRenderer> FieldRenderers = fieldRenderers.ToArray();
+                internal readonly IReadOnlyDictionary<Transform, Matrix4x4> Bones = bones.ToDictionary(pair => pair.Key, pair => pair.Value);
+                internal readonly IReadOnlyDictionary<SkinnedMeshRenderer, (Mesh Source, Mesh Target)> Surfaces =
+                    surfaces.ToDictionary(pair => pair.Key, pair => pair.Value);
+                internal readonly IReadOnlyDictionary<SkinnedMeshRenderer, Transform[]> Palettes =
+                    palettes.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray());
+
+                internal Matrix4x4 BoneFrame(Transform bone)
+                {
+                    if (bone && Bones.TryGetValue(bone, out var frame)) return frame;
+                    throw new InvalidOperationException("A physical surface bone has no authored owner rest binding.");
+                }
+
+                internal Matrix4x4[] SkinFrames(SkinnedMeshRenderer renderer, Mesh mesh)
+                {
+                    if (!Palettes.TryGetValue(renderer, out var palette))
+                        throw new InvalidOperationException("A physical surface has no retained renderer palette.");
+                    var poses = mesh.bindposes;
+                    if (palette.Length < poses.Length || poses.Length == 0)
+                        throw new InvalidOperationException("A physical surface has an incomplete authored skin layout.");
+                    return poses.Select((pose, index) => BoneFrame(palette[index]) * pose).ToArray();
+                }
+
+                internal static Vector3 SkinValue(Vector3 value, BoneWeight weights, Matrix4x4[] frames, bool point)
+                {
+                    var result = Vector3.zero;
+                    Add(weights.boneIndex0, weights.weight0); Add(weights.boneIndex1, weights.weight1);
+                    Add(weights.boneIndex2, weights.weight2); Add(weights.boneIndex3, weights.weight3);
+                    return result;
+                    void Add(int bone, float weight)
+                    {
+                        if (weight == 0f) return;
+                        if (float.IsNaN(weight) || float.IsInfinity(weight) || weight < 0f || bone < 0 || bone >= frames.Length)
+                            throw new InvalidOperationException("A physical surface has an invalid native skin influence.");
+                        result += (point ? frames[bone].MultiplyPoint3x4(value) : frames[bone].MultiplyVector(value)) * weight;
+                    }
+                }
+            }
+
+            internal readonly Func<Group, Transform, Vector3,
+                (Vector3 Position, Matrix4x4 Derivative)> Evaluate;
+            internal readonly IReadOnlyDictionary<SkinnedMeshRenderer,
+                IReadOnlyDictionary<(string Name, int Occurrence), float>> Channels;
+            internal readonly SourceGraph SurfaceSource;
+            internal readonly Func<Component, IReadOnlyDictionary<Transform, Matrix4x4>> NativeRest;
+            internal readonly IReadOnlyList<SkinnedMeshRenderer> BodySources;
+            internal readonly Func<IReadOnlyList<SkinnedMeshRenderer>, IReadOnlyList<SkinnedMeshRenderer>> SelectDetail;
+
+            internal RestDeformation(string key,
+                Func<Group, Transform, Vector3,
+                    (Vector3 Position, Matrix4x4 Derivative)> evaluate,
+                IReadOnlyDictionary<SkinnedMeshRenderer,
+                    IReadOnlyDictionary<(string Name, int Occurrence), float>> channels,
+                SourceGraph surfaceSource = null,
+                Func<Component, IReadOnlyDictionary<Transform, Matrix4x4>> nativeRest = null,
+                IReadOnlyList<SkinnedMeshRenderer> bodySources = null,
+                Func<IReadOnlyList<SkinnedMeshRenderer>, IReadOnlyList<SkinnedMeshRenderer>> selectDetail = null)
+            {
+                if (string.IsNullOrEmpty(key) || evaluate == null || channels == null)
+                    throw new ArgumentException("A native physical rest requires its source key, deformation and owned channels.");
+                Key = key;
+                Evaluate = evaluate;
+                SurfaceSource = surfaceSource;
+                NativeRest = nativeRest;
+                BodySources = bodySources?.ToArray() ?? [];
+                SelectDetail = selectDetail ?? throw new ArgumentNullException(nameof(selectDetail));
+                Channels = channels.ToDictionary(pair => pair.Key,
+                    pair => (IReadOnlyDictionary<(string Name, int Occurrence), float>)pair.Value.ToDictionary(
+                        channel => channel.Key, channel => channel.Value));
+            }
+        }
+
         internal static SourceGraph PrepareMeshes(GraphicsCharacter graphics,
             IReadOnlyDictionary<SkinnedMeshRenderer, (SkinMeshSource Source, Mesh Mesh)> changes) =>
             PrepareMeshes(graphics, changes, null, null);
@@ -1016,9 +1162,10 @@ public static class CustomModels
             IReadOnlyDictionary<SkinnedMeshRenderer, SurfaceBinding> bindings,
             Func<string, Func<UnityEngine.Object[]>, UnityEngine.Object[]> retainData,
             Func<UnityEngine.Object, Func<string>, string> sourceFingerprint = null,
-            Func<Mesh, Mesh, SurfaceBinding, SourceGraph.NativeSurfacePlan, SourceGraph.NativeSurfacePacket> preparedPacket = null)
+            Func<Mesh, Mesh, SurfaceBinding, SourceGraph.NativeSurfacePlan, SourceGraph.NativeSurfacePacket> preparedPacket = null,
+            RestDeformation restDeformation = null)
         {
-            return new SourceGraph(graphics, changes, bindings, retainData, sourceFingerprint, preparedPacket);
+            return new SourceGraph(graphics, changes, bindings, retainData, sourceFingerprint, preparedPacket, restDeformation);
         }
 
         internal static GraphicsCharacter NativeSourceGraphics(object deformer)
@@ -1032,7 +1179,131 @@ public static class CustomModels
             private static readonly Type CoreType = Type.GetType("MagicaCloth.CoreComponent, MagicaCloth", false);
             private static readonly Type VirtualType = Type.GetType("MagicaCloth.MagicaVirtualDeformer, MagicaCloth", false);
             private static readonly Type ClothBaseType = Type.GetType("MagicaCloth.BaseCloth, MagicaCloth", false);
+            private static readonly Type MeshClothType = Type.GetType("MagicaCloth.MagicaMeshCloth, MagicaCloth", false);
             private static readonly Type ManagerType = Type.GetType("MagicaCloth.MagicaPhysicsManager, MagicaCloth", false);
+            internal static Component[] NativePartClothConsumers(GameObject part) => !part || CoreType == null ? [] :
+                part.GetComponentsInChildren(CoreType).Cast<Component>().Where(component => component &&
+                    (ClothType?.IsInstanceOfType(component) == true || VirtualType?.IsInstanceOfType(component) == true ||
+                     MeshClothType?.IsInstanceOfType(component) == true)).ToArray();
+
+            internal static Component[] NativePartRestConsumers(GameObject part) => !part || VirtualType == null ? [] :
+                part.GetComponentsInChildren(VirtualType).Cast<Component>().Where(component => component).ToArray();
+
+            internal static Transform[] NativeVirtualBones(Component owner) =>
+                ((IEnumerable)Get(Get(owner, "Deformer"), "boneList")).Cast<Transform>().ToArray();
+
+            internal static NativePartRest CaptureNativePartRest(GraphicsCharacter graphics, GameObject source, GameObject instance)
+            {
+                if (!source || !instance || VirtualType == null) return null;
+                if (!graphics || !instance.transform.IsChildOf(graphics.transform))
+                    throw new InvalidOperationException("A native rest source has another part owner.");
+                var virtuals = NativePartRestConsumers(instance)
+                    .Select(target => (Original: CorrespondingSource(target), Target: target)).ToArray();
+                if (virtuals.Length == 0) return null;
+                var renderers = instance.GetComponentsInChildren<SkinnedMeshRenderer>().Where(renderer => renderer)
+                    .Select(target => (Original: (SkinnedMeshRenderer)CorrespondingSource(target), Target: target)).ToArray();
+                var owners = new Dictionary<Component, (Transform[] Bones, Dictionary<Transform, Matrix4x4> Frames)>();
+                Dictionary<Transform, Matrix4x4> bones = null;
+                foreach (var pair in virtuals)
+                {
+                    bones = new Dictionary<Transform, Matrix4x4>();
+                    var target = pair.Target;
+                    var sourceData = Get(Get(pair.Original, "Deformer"), "MeshData") as UnityEngine.Object;
+                    if (!sourceData || Get(Get(target, "Deformer"), "MeshData") as UnityEngine.Object != sourceData)
+                        throw new InvalidOperationException("A native instance changed its cloned virtual source data.");
+                    var originalBones = NativeVirtualBones(pair.Original); var actualBones = NativeVirtualBones(target);
+                    Map(originalBones, actualBones);
+                    foreach (var renderer in renderers)
+                    {
+                        var current = renderer.Target; var original = renderer.Original;
+                        if (!original.sharedMesh || current.sharedMesh != original.sharedMesh ||
+                            original.bones.Length < original.sharedMesh.bindposes.Length)
+                            throw new InvalidOperationException("A native part changed its cloned source mesh or authored palette schema.");
+                        Map(original.bones, current.bones);
+                    }
+                    // The factory retargets through this actor's native dictionary.
+                    // Auxiliary child bones can influence the body surface without
+                    // appearing in this garment's renderer or virtual palette.
+                    foreach (var original in source.GetComponentsInChildren<Transform>(true))
+                    {
+                        if (!graphics.BoneSwitchDictionary.TryGetValue(original.name, out var actual)) continue;
+                        var clone = CorrespondingInstance(original);
+                        if (!actual || !clone || clone.name != original.name)
+                            throw new InvalidOperationException("A native part changed its authored bone correspondence.");
+                        Add(original, actual);
+                    }
+                    owners.Add(target, (actualBones, bones));
+                }
+                return new NativePartRest(instance, owners);
+
+                void Map(Transform[] originals, Transform[] targets)
+                {
+                    if (originals.Length != targets.Length)
+                        throw new InvalidOperationException("A native part changed its source-to-instance palette layout.");
+                    for (var index = 0; index < originals.Length; index++)
+                    {
+                        if (!originals[index] || !targets[index])
+                            throw new InvalidOperationException("A native part has an incomplete original bone binding.");
+                        Add(originals[index], targets[index]);
+                    }
+                }
+                void Add(Transform original, Transform target)
+                {
+                    var frame = NativePartRest.RelativeFrame(original, source.transform);
+                    if (bones.TryGetValue(target, out var previous))
+                    {
+                        for (var component = 0; component < 16; component++)
+                            if (Mathf.Abs(previous[component] - frame[component]) > .00001f * Mathf.Max(1f, Mathf.Abs(previous[component])))
+                                throw new InvalidOperationException("A native prefab maps distinct authored rest bones to one actor bone.");
+                    }
+                    else
+                    {
+                        bones.Add(target, frame);
+                        // Native retargeting maps each bone through the factory
+                        // dictionary; it does not preserve prefab parent topology.
+                        // Authored ancestors are captured by those explicit mappings.
+                    }
+                }
+                Transform CorrespondingInstance(Transform original)
+                {
+                    var path = new Stack<int>();
+                    for (var current = original; current != source.transform; current = current.parent)
+                    {
+                        if (!current) throw new InvalidOperationException("An authored bone leaves its native part source.");
+                        path.Push(current.GetSiblingIndex());
+                    }
+                    var clone = instance.transform;
+                    foreach (var index in path)
+                    {
+                        if (index >= clone.childCount)
+                            throw new InvalidOperationException("A native part changed its cloned bone hierarchy.");
+                        clone = clone.GetChild(index);
+                    }
+                    return clone;
+                }
+                Component CorrespondingSource(Component targetComponent)
+                {
+                    var path = new Stack<int>();
+                    for (var current = targetComponent.transform; current != instance.transform; current = current.parent)
+                    {
+                        if (!current) throw new InvalidOperationException("A native instance component leaves its part hierarchy.");
+                        path.Push(current.GetSiblingIndex());
+                    }
+                    var original = source.transform;
+                    foreach (var index in path)
+                    {
+                        if (index >= original.childCount)
+                            throw new InvalidOperationException("A native instance has another source component hierarchy.");
+                        original = original.GetChild(index);
+                    }
+                    var originals = original.GetComponents(targetComponent.GetType());
+                    var targets = targetComponent.GetComponents(targetComponent.GetType());
+                    var ordinal = Array.IndexOf(targets, targetComponent);
+                    if (ordinal < 0 || ordinal >= originals.Length)
+                        throw new InvalidOperationException("A native instance has another source component layout.");
+                    return originals[ordinal];
+                }
+            }
             internal sealed class NativeSurfacePacket
             {
                 internal readonly Mesh Target;
@@ -2088,15 +2359,20 @@ public static class CustomModels
             private readonly HashSet<Component> _boundaryRenderOwners = [];
             private readonly Dictionary<NativeOwner, int[]> _boundaryClothVertices = [];
             private bool _applied, _started;
+            private bool _nativeRestartPending;
+            private Dictionary<SkinnedMeshRenderer, (Mesh Mesh, Transform[] Bones,
+                (string Name, int Occurrence)[] Channels, float[] Weights)> _nativeRestartBindings;
             private readonly Func<Mesh, Mesh, SurfaceBinding, NativeSurfacePlan, NativeSurfacePacket> _preparedPacket;
             private readonly Dictionary<SkinnedMeshRenderer, SurfaceBinding> _finishBindings;
             private readonly Dictionary<object, NativeSurfacePlan> _nativeSurfacePlans = new(new NativeDataReferences());
             private readonly Dictionary<object, NativeSurfaceFinishState> _nativeSurfaceFinishes = new(new NativeDataReferences());
 
-            internal void RefreshNativeSurfaceMaterials()
+            internal void RefreshNativeSurfaceMaterials(Func<object, bool> ownedByOverlay = null)
             {
                 foreach (var pair in _nativeSurfaceFinishes.ToArray())
                 {
+                    if (ownedByOverlay?.Invoke(pair.Key) == true)
+                    { pair.Value.Dispose(); _nativeSurfaceFinishes.Remove(pair.Key); continue; }
                     if (pair.Value.IsCurrent) pair.Value.RefreshMaterials();
                     else
                     {
@@ -2122,6 +2398,15 @@ public static class CustomModels
                         (target, expected) => PreparedFinishPacket(renderer, target, expected));
                 }
             }
+            internal static bool CanFinishNativeDeformer(object status) =>
+                status != null && !Flag(status, "IsDispose") && Flag(status, "IsInitSuccess");
+
+            internal static bool HasRegisteredVertexCount(object deformer, Mesh source, Mesh runtime)
+            {
+                var count = source.vertexCount;
+                return count == runtime.vertexCount && count == (int)Get(deformer, "VertexCount");
+            }
+
             internal bool BeginNativeSurfaceFinish(object deformer, int bufferIndex)
             {
                 if (!_applied || !_nativeSurfacePlans.TryGetValue(deformer, out var plan)) return false;
@@ -2145,6 +2430,943 @@ public static class CustomModels
             internal void EndNativeSurfaceFinish(object deformer, int bufferIndex, Exception failure)
             {
                 if (_nativeSurfaceFinishes.TryGetValue(deformer, out var state)) state.AfterFinish(bufferIndex, failure);
+            }
+
+            private readonly RestDeformation _restDeformation;
+
+            // Physical rest preparation uses the same native data transition as source replacement.
+            // Callers provide canonical source rest coordinates, never the current simulation result.
+            private sealed class PhysicalDataIdentity(int uid, string content, int nativeHash, int children)
+            {
+                internal readonly int Uid = uid, NativeHash = nativeHash, ChildCount = children;
+                internal readonly string Content = content;
+                internal readonly List<WeakReference<UnityEngine.Object>> Assets = [];
+            }
+            private sealed class PhysicalDataStamp(PhysicalDataIdentity identity, string fingerprint)
+            { internal readonly PhysicalDataIdentity Identity = identity; internal readonly string Fingerprint = fingerprint; }
+            private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<UnityEngine.Object, PhysicalDataStamp>
+                PhysicalDataStamps = new();
+            private static readonly Dictionary<int, PhysicalDataIdentity> PhysicalDataIdentities = new();
+
+            private static void AssignPhysicalDataIdentity(UnityEngine.Object data)
+            {
+                if (PhysicalDataStamps.TryGetValue(data, out _))
+                    throw new InvalidOperationException("An immutable physical native data identity was assigned twice.");
+                foreach (var pair in PhysicalDataIdentities.ToArray())
+                {
+                    pair.Value.Assets.RemoveAll(weak => !weak.TryGetTarget(out var asset) || !asset);
+                    if (pair.Value.Assets.Count == 0) PhysicalDataIdentities.Remove(pair.Key);
+                }
+                var content = HashNativeData(data); var nativeHash = (int)Invoke(data, "GetDataHash");
+                var children = Optional(data, "childDataList") is IList list ? list.Count : 0;
+                if (children > 64) throw new InvalidOperationException("A physical native source exceeds its six-bit child identity layout.");
+                var manager = (bool)InvokeStatic(ManagerType, "IsInstance") ? Get(GetStatic(ManagerType, "Instance"), "Mesh") : null;
+                var virtuals = manager == null ? null : (IDictionary)Get(manager, "sharedVirtualMeshIdToIndexDict");
+                var childIds = manager == null ? null : (IDictionary)Get(manager, "sharedChildMeshIdToSharedVirtualMeshIndexDict");
+                for (var attempt = 0; attempt < 256; attempt++)
+                {
+                    using var hash = CreateAssetSha256();
+                    var bytes = hash.ComputeHash(System.Text.Encoding.UTF8.GetBytes(content + ":" + attempt.ToString(CultureInfo.InvariantCulture)));
+                    var uid = BitConverter.ToInt32(bytes, 0); if (uid == 0) continue;
+                    PhysicalDataIdentities.TryGetValue(uid, out var existing);
+                    var same = existing != null && existing.Content == content && existing.NativeHash == nativeHash && existing.ChildCount == children;
+                    if (existing != null && !same || !same && virtuals?.Contains(uid) == true) continue;
+                    var candidateChildren = Enumerable.Range(0, children).Select(index => unchecked((long)uid << ((16 + index) & 63))).ToHashSet();
+                    if (candidateChildren.Count != children) continue;
+                    if (!same && candidateChildren.Any(child => childIds?.Contains(child) == true)) continue;
+                    if (PhysicalDataIdentities.Values.Any(identity => identity.Uid != uid && Enumerable.Range(0, identity.ChildCount)
+                            .Any(index => candidateChildren.Contains(unchecked((long)identity.Uid << ((16 + index) & 63)))))) continue;
+                    var identity = existing ?? new PhysicalDataIdentity(uid, content, nativeHash, children);
+                    // Installed MagicaCloth verifies nonzero SaveDataHash and structure. Its computed
+                    // hash describes counts, so the owned immutable rest content supplies its shared UID.
+                    Put(data, "SaveDataHash", uid);
+                    if (Convert.ToInt32(Invoke(data, "VerifyData")) != 0)
+                        throw new InvalidOperationException("A derived physical data identity did not retain native structural verification.");
+                    PhysicalDataStamps.Add(data, new PhysicalDataStamp(identity, HashNativeData(data)));
+                    identity.Assets.Add(new WeakReference<UnityEngine.Object>(data));
+                    PhysicalDataIdentities[uid] = identity;
+                    return;
+                }
+                throw new InvalidOperationException("A derived physical source could not reserve a distinct native shared identity.");
+            }
+
+            private static bool HasNativeDataIdentity(UnityEngine.Object data)
+            {
+                var uid = (int)Get(data, "SaveDataHash"); if (uid == 0) return false;
+                if (!PhysicalDataStamps.TryGetValue(data, out var stamp)) return (int)Invoke(data, "GetDataHash") == uid;
+                return stamp.Identity.Uid == uid && stamp.Identity.NativeHash == (int)Invoke(data, "GetDataHash") &&
+                    stamp.Fingerprint == HashNativeData(data) && Convert.ToInt32(Invoke(data, "VerifyData")) == 0;
+            }
+
+            private static UnityEngine.Object CloneMutableNativeData(UnityEngine.Object original)
+            {
+                var result = ScriptableObject.CreateInstance(original.GetType());
+                var copies = new Dictionary<object, object>(new NativeDataReferences()) { [original] = result };
+                try
+                {
+                    foreach (var field in NativeDataFields(original.GetType()))
+                        field.SetValue(result, Clone(field.GetValue(original)));
+                    return result;
+                }
+                catch { UnityEngine.Object.Destroy(result); throw; }
+
+                object Clone(object value)
+                {
+                    if (value == null || value is string) return value;
+                    var type = value.GetType();
+                    if (type.IsValueType && NativeDataPureValue(type)) return value;
+                    if (copies.TryGetValue(value, out var existing)) return existing;
+                    if (value is UnityEngine.Object)
+                        throw new InvalidOperationException("Mutable physical rest data contains an external asset reference.");
+                    if (value is Array array)
+                    {
+                        if (array.Rank != 1) throw new InvalidOperationException("A physical rest channel has an unsupported array rank.");
+                        var clone = Array.CreateInstance(type.GetElementType(), array.Length);
+                        copies.Add(value, clone);
+                        for (var index = 0; index < array.Length; index++) clone.SetValue(Clone(array.GetValue(index)), index);
+                        return clone;
+                    }
+                    if (value is IList list)
+                    {
+                        var clone = (IList)Activator.CreateInstance(type);
+                        copies.Add(value, clone);
+                        foreach (var item in list) clone.Add(Clone(item));
+                        return clone;
+                    }
+                    if (type.Assembly != DeformerType.Assembly)
+                        throw new InvalidOperationException("A physical rest channel has an unsupported serialized owner: " + type.FullName);
+                    var copied = Activator.CreateInstance(type);
+                    copies.Add(value, copied);
+                    foreach (var field in NativeDataFields(type)) field.SetValue(copied, Clone(field.GetValue(value)));
+                    return copied;
+                }
+            }
+
+            private static Mesh BakePhysicalRest(Mesh original,
+                IReadOnlyDictionary<(string Name, int Occurrence), float> channels)
+            {
+                if (!original || channels == null) throw new ArgumentException("A physical rest mesh has no source or owned channels.");
+                var available = PhysicalWeightChannels(original);
+                if (channels.Any(pair => !Finite(pair.Value) || !available.Contains(pair.Key)))
+                    throw new InvalidOperationException("An owned physical rest channel differs from its mesh schema.");
+                Mesh result = null;
+                try
+                {
+                    RacesContext.ReadNativeRestMesh(original, source =>
+                    {
+                        // A baked native proxy is readable; the original still owns
+                        // the bind palette, skin weights and blend-shape schema.
+                        result = UnityEngine.Object.Instantiate(source);
+                        result.name = original.name;
+                        if (source != original)
+                        {
+                            result.bindposes = original.bindposes;
+                            result.boneWeights = original.boneWeights;
+                            if (result.indexFormat != original.indexFormat)
+                            {
+                                result.indexFormat = original.indexFormat;
+                                result.subMeshCount = source.subMeshCount;
+                                for (var submesh = 0; submesh < source.subMeshCount; submesh++)
+                                    result.SetIndices(source.GetIndices(submesh), source.GetTopology(submesh), submesh, false);
+                            }
+                            for (var channel = 0; channel < 8; channel++)
+                            {
+                                var attribute = (UnityEngine.Rendering.VertexAttribute)((int)UnityEngine.Rendering.VertexAttribute.TexCoord0 + channel);
+                                if (original.HasVertexAttribute(attribute) != result.HasVertexAttribute(attribute) ||
+                                    original.HasVertexAttribute(attribute) && original.GetVertexAttributeDimension(attribute) != result.GetVertexAttributeDimension(attribute))
+                                    throw new InvalidOperationException("A readable physical rest proxy changed its native UV dimensions.");
+                            }
+                        }
+                        var positions = source.vertices; var normals = source.normals; var tangents = source.tangents;
+                        if (positions.Length != source.vertexCount || normals.Length != positions.Length || tangents.Length != positions.Length)
+                            throw new InvalidOperationException("A physical source mesh has incomplete geometric channels.");
+                        var dp = new Vector3[positions.Length]; var dn = new Vector3[positions.Length]; var dt = new Vector3[positions.Length];
+                        if (source != original)
+                        {
+                            result.ClearBlendShapes();
+                            for (var channel = 0; channel < original.blendShapeCount; channel++)
+                                for (var frame = 0; frame < original.GetBlendShapeFrameCount(channel); frame++)
+                                {
+                                    original.GetBlendShapeFrameVertices(channel, frame, dp, dn, dt);
+                                    result.AddBlendShapeFrame(original.GetBlendShapeName(channel),
+                                        original.GetBlendShapeFrameWeight(channel, frame), dp, dn, dt);
+                                }
+                            var intended = original.boneWeights.Select((weight, index) => (weight, index))
+                                .ToDictionary(value => value.index, value => value.weight);
+                            VerifySkinEncoding(result, intended);
+                        }
+                        if (!original.GetBonesPerVertex().SequenceEqual(result.GetBonesPerVertex()) ||
+                            !original.GetAllBoneWeights().Select(weight => (weight.boneIndex, weight.weight))
+                                .SequenceEqual(result.GetAllBoneWeights().Select(weight => (weight.boneIndex, weight.weight))) ||
+                            RacesContext.CharacterModelCurrentFingerprint(result) != RacesContext.CharacterModelFingerprint(original))
+                            throw new InvalidOperationException("A readable physical rest clone changed its original mesh layout or channels.");
+                        for (var channel = 0; channel < available.Length; channel++)
+                        {
+                            if (!channels.TryGetValue(available[channel], out var weight) || weight == 0f) continue;
+                            var count = original.GetBlendShapeFrameCount(channel);
+                            if (count == 0) throw new InvalidOperationException("An owned physical channel has no frames.");
+                            var first = -1; var second = 0; var firstWeight = 0f;
+                            var secondWeight = original.GetBlendShapeFrameWeight(channel, 0);
+                            if (secondWeight > 0f && weight <= secondWeight) { }
+                            else if (original.GetBlendShapeFrameWeight(channel, count - 1) < 0f &&
+                                     weight >= original.GetBlendShapeFrameWeight(channel, count - 1))
+                            { first = count - 1; second = -1; firstWeight = original.GetBlendShapeFrameWeight(channel, first); secondWeight = 0f; }
+                            else if (count > 1)
+                            {
+                                second = 1;
+                                while (second < count - 1 && weight > original.GetBlendShapeFrameWeight(channel, second)) second++;
+                                first = second - 1; firstWeight = original.GetBlendShapeFrameWeight(channel, first);
+                                secondWeight = original.GetBlendShapeFrameWeight(channel, second);
+                            }
+                            if (!Finite(firstWeight) || !Finite(secondWeight) || firstWeight == secondWeight)
+                                throw new InvalidOperationException("An owned physical channel has an invalid interpolation interval.");
+                            var factor = (weight - firstWeight) / (secondWeight - firstWeight);
+                            Accumulate(first, 1f - factor); Accumulate(second, factor);
+
+                            void Accumulate(int frame, float amount)
+                            {
+                                if (frame < 0 || amount == 0f) return;
+                                original.GetBlendShapeFrameVertices(channel, frame, dp, dn, dt);
+                                for (var vertex = 0; vertex < positions.Length; vertex++)
+                                {
+                                    positions[vertex] += dp[vertex] * amount; normals[vertex] += dn[vertex] * amount;
+                                    var tangent = tangents[vertex]; var delta = dt[vertex] * amount;
+                                    tangent.x += delta.x; tangent.y += delta.y; tangent.z += delta.z; tangents[vertex] = tangent;
+                                }
+                            }
+                        }
+                        if (positions.Any(value => !Finite(value)) || normals.Any(value => !Finite(value) || value.sqrMagnitude == 0f) ||
+                            tangents.Any(value => !Finite((Vector3)value) || ((Vector3)value).sqrMagnitude == 0f))
+                            throw new InvalidOperationException("A physical rest mesh has nonfinite or singular geometric channels.");
+                        // Keep normal and tangent sums unnormalized, as Unity does before its final skin/surface normalization.
+                        // Unrelated facial or garment channels keep their original deltas and renderer weights.
+                        result.vertices = positions; result.normals = normals; result.tangents = tangents;
+                        if (!result.isReadable || !result.vertices.SequenceEqual(positions) || !result.normals.SequenceEqual(normals) ||
+                            !result.tangents.SequenceEqual(tangents))
+                            throw new InvalidOperationException("The native physical source did not retain its exact prepared rest surface.");
+                        var bounds = original.bounds;
+                        foreach (var position in positions) bounds.Encapsulate(position);
+                        result.bounds = bounds;
+                        return true;
+                    });
+                    return result;
+                }
+                catch { UnityEngine.Object.Destroy(result); throw; }
+            }
+
+            private static NativeSurfacePlan RebasePhysicalRestSurface(NativeSurfacePlan plan, Mesh target)
+            {
+                if (!target || target.vertexCount != plan.TargetCount)
+                    throw new InvalidOperationException("A physical fine surface has a different source topology.");
+                var positions = target.vertices; var normals = target.normals; var tangents = target.tangents;
+                var frame = plan.SourceFrame; var normalFrame = frame.inverse.transpose;
+                var p = positions.Select(frame.MultiplyPoint3x4).ToArray();
+                var n = normals.Select(value => normalFrame.MultiplyVector(value).normalized).ToArray();
+                var t = tangents.Select((value, index) =>
+                {
+                    var direction = frame.MultiplyVector((Vector3)value);
+                    return (direction - n[index] * Vector3.Dot(n[index], direction)).normalized;
+                }).ToArray();
+                var points = new NativeSurfacePoint[plan.Points.Length];
+                for (var index = 0; index < points.Length; index++)
+                {
+                    var point = plan.Points[index]; var bary = point.Bary;
+                    var position = p[point.A] * bary.x + p[point.B] * bary.y + p[point.C] * bary.z;
+                    var normal = (n[point.A] * bary.x + n[point.B] * bary.y + n[point.C] * bary.z).normalized;
+                    var tangent = t[point.A] * bary.x + t[point.B] * bary.y + t[point.C] * bary.z;
+                    tangent = (tangent - normal * Vector3.Dot(normal, tangent)).normalized;
+                    if (point.Hand == 2f)
+                    {
+                        tangent = GeometryUnit(p[point.B] - p[point.A]);
+                        normal = GeometryUnit(Vector3.Cross(p[point.B] - p[point.A], p[point.C] - p[point.A]));
+                    }
+                    if (normal.sqrMagnitude < .99f || tangent.sqrMagnitude < .99f)
+                        throw new InvalidOperationException("A physical fine surface has a singular source rest frame.");
+                    var bitangent = Vector3.Cross(normal, tangent) * (point.Hand == 2f ? 1f : point.Hand);
+                    Vector3 Coordinates(Vector3 value) => new(Vector3.Dot(value, tangent), Vector3.Dot(value, bitangent), Vector3.Dot(value, normal));
+                    points[index] = new NativeSurfacePoint(point.Index, point.A, point.B, point.C, point.Bary,
+                        Coordinates(p[point.Index] - position), Coordinates(n[point.Index]), Coordinates(t[point.Index]), point.Hand, point.TangentHand);
+                }
+                return new NativeSurfacePlan(points, plan.NativeCount, plan.TargetCount, plan.SourceFrame);
+            }
+
+            private static UnityEngine.Object DeformVirtualRest(UnityEngine.Object original, Transform[] bones,
+                RestDeformation.Group group, RestDeformation deformation)
+            {
+                var result = CloneMutableNativeData(original);
+                try
+                {
+                    var weights = (Array)Get(result, "vertexWeightList");
+                    for (var index = 0; index < weights.Length; index++)
+                    {
+                        var weight = weights.GetValue(index);
+                        var parent = (int)Get(weight, "parentIndex");
+                        if (parent < 0 || parent >= bones.Length || !bones[parent])
+                            throw new InvalidOperationException("A physical virtual source has an invalid native bone.");
+                        var point = (Vector3)Get(weight, "localPos");
+                        var target = deformation.Evaluate(group, bones[parent], point);
+                        ValidatePhysicalDerivative(target.Derivative);
+                        var normal = target.Derivative.inverse.transpose.MultiplyVector((Vector3)Get(weight, "localNor"));
+                        var tangent = target.Derivative.MultiplyVector((Vector3)Get(weight, "localTan"));
+                        if (!Finite(target.Position) || !Finite(normal) || !Finite(tangent) ||
+                            normal.sqrMagnitude == 0f || tangent.sqrMagnitude == 0f)
+                            throw new InvalidOperationException("A physical virtual rest has a singular deformed frame.");
+                        Put(weight, "localPos", target.Position);
+                        Put(weight, "localNor", normal.normalized);
+                        Put(weight, "localTan", tangent.normalized);
+                        weights.SetValue(weight, index);
+                    }
+                    Invoke(result, "CreateVerifyData");
+                    return result;
+                }
+                catch { UnityEngine.Object.Destroy(result); throw; }
+            }
+
+            private sealed class PhysicalRestFrames(Vector3[] positions, Vector3[] normals, Vector3[] tangents)
+            {
+                internal readonly Vector3[] Positions = positions, Normals = normals, Tangents = tangents;
+                internal Quaternion Rotation(int index)
+                {
+                    var normal = Normals[index]; var tangent = Tangents[index];
+                    if (!Finite(normal) || !Finite(tangent) || normal.sqrMagnitude == 0f ||
+                        Vector3.Cross(normal, tangent).sqrMagnitude == 0f)
+                        throw new InvalidOperationException("A physical virtual vertex has a singular native rest rotation.");
+                    return Quaternion.LookRotation(normal, tangent);
+                }
+            }
+
+            private static PhysicalRestFrames ReadPhysicalVirtualRest(UnityEngine.Object data, Matrix4x4[] boneRest)
+            {
+                var count = (int)Get(data, "vertexCount"); var info = (uint[])Get(data, "vertexInfoList");
+                var weights = (Array)Get(data, "vertexWeightList"); var skinned = (bool)Get(data, "isSkinning");
+                var positions = new Vector3[count]; var normals = new Vector3[count]; var tangents = new Vector3[count];
+                for (var vertex = 0; vertex < count; vertex++)
+                {
+                    var start = skinned ? (int)(info[vertex] & 0x0fffffff) : vertex;
+                    var length = skinned ? (int)(info[vertex] >> 28) : 1;
+                    if (length == 0 || start < 0 || start > weights.Length - length)
+                        throw new InvalidOperationException("A physical virtual rest has an invalid skin influence span.");
+                    for (var offset = 0; offset < length; offset++)
+                    {
+                        var weight = weights.GetValue(start + offset); var parent = skinned ? (int)Get(weight, "parentIndex") : 0;
+                        var factor = skinned ? (float)Get(weight, "weight") : 1f;
+                        if (parent < 0 || parent >= boneRest.Length || !Finite(factor) || factor < 0f)
+                            throw new InvalidOperationException("A physical virtual rest has an invalid canonical bone influence.");
+                        var basis = boneRest[parent];
+                        positions[vertex] += basis.MultiplyPoint3x4((Vector3)Get(weight, "localPos")) * factor;
+                        // Match installed MagicaCloth: position uses TransformPoint; the rest frame uses TransformDirection.
+                        normals[vertex] += basis.rotation * (Vector3)Get(weight, "localNor") * factor;
+                        tangents[vertex] += basis.rotation * (Vector3)Get(weight, "localTan") * factor;
+                    }
+                }
+                return new PhysicalRestFrames(positions, normals, tangents);
+            }
+
+            private static void ReprojectOwnedPhysicalChild(object original, object owned, PhysicalRestFrames parent,
+                PhysicalRestFrames target, float metric, Vector3 scaleSign)
+            {
+                var info = (uint[])Get(owned, "vertexInfoList"); var weights = (Array)Get(owned, "vertexWeightList");
+                if (ReferenceEquals(original, owned) || ReferenceEquals(Get(original, "vertexWeightList"), weights) ||
+                    info.Length != target.Positions.Length || target.Normals.Length != info.Length || target.Tangents.Length != info.Length ||
+                    !Finite(metric) || metric <= 0f || scaleSign.x is not (-1f or 1f) ||
+                    scaleSign.y is not (-1f or 1f) || scaleSign.z is not (-1f or 1f))
+                    throw new InvalidOperationException("A physical render child does not own a complete rest correspondence.");
+                for (var vertex = 0; vertex < info.Length; vertex++)
+                {
+                    var start = (int)(info[vertex] & 0x0fffffff); var count = (int)(info[vertex] >> 28);
+                    if (start < 0 || start > weights.Length - count)
+                        throw new InvalidOperationException("A physical render child has an invalid virtual influence span.");
+                    for (var offset = 0; offset < count; offset++)
+                    {
+                        var index = start + offset; var weight = weights.GetValue(index); var anchor = (int)Get(weight, "parentIndex");
+                        if (anchor < 0 || anchor >= parent.Positions.Length)
+                            throw new InvalidOperationException("A physical render child references a missing virtual rest point.");
+                        var inverse = Quaternion.Inverse(parent.Rotation(anchor));
+                        Put(weight, "localPos", Vector3.Scale(inverse * (target.Positions[vertex] - parent.Positions[anchor]), scaleSign) / metric);
+                        Put(weight, "localNor", Vector3.Scale(inverse * target.Normals[vertex], scaleSign));
+                        Put(weight, "localTan", Vector3.Scale(inverse * target.Tangents[vertex], scaleSign));
+                        weights.SetValue(weight, index);
+                    }
+                }
+            }
+
+            private static void ValidatePhysicalRestConstraints(object clothData, Vector3[] positions)
+            {
+                var use = ((IEnumerable)Get(clothData, "useVertexList")).Cast<int>().ToArray();
+                foreach (var row in (IEnumerable)Get(clothData, "structDistanceDataList"))
+                {
+                    var first = Convert.ToInt32(Get(row, "vertexIndex"));
+                    var second = Convert.ToInt32(Get(row, "targetVertexIndex"));
+                    if (first < 0 || first >= use.Length || second < 0 || second >= use.Length ||
+                        use[first] < 0 || use[first] >= positions.Length || use[second] < 0 || use[second] >= positions.Length)
+                        throw new InvalidOperationException("A native physical constraint has no canonical source vertex correspondence.");
+                    var expected = (float)Get(row, "length");
+                    var actual = (positions[use[first]] - positions[use[second]]).magnitude;
+                    if (!Finite(expected) || !Finite(actual) || Mathf.Abs(actual - expected) > .00001f + .0001f * expected)
+                        throw new InvalidOperationException(FormattableString.Invariant(
+                            $"The rebuilt physical constraints do not match their rest positions: {(clothData as UnityEngine.Object)?.name}, vertices {first}/{second}, expected {expected:R}, actual {actual:R}."));
+                }
+            }
+
+            private static UnityEngine.Object RebuildClothRest(NativeOwner owner, UnityEngine.Object original,
+                Vector3[] positions, Vector3[] normals, Vector3[] tangents, int[] lines, int[] triangles,
+                Vector3 referenceScale)
+            {
+                if (positions.Length == 0 || normals.Length != positions.Length || tangents.Length != positions.Length)
+                    throw new ArgumentException("Physical cloth rest channels have different vertex counts.");
+                var originalKey = HashNativeData(original);
+                var selection = Optional(owner.Component, "ClothSelection");
+                var selectedKey = selection == null ? null : HashNativeData(selection);
+                var result = CloneMutableNativeData(original);
+                try
+                {
+                    // Topology, useVertexList, selectionData and the paint selection remain owned copies.
+                    // The native builder replaces all rest distances, angles and penetration constraints.
+                    Invoke(result, "CreateConstraintData", owner.Component,
+                        Get(owner.Component, "clothParams"), Get(owner.Component, "teamData"), positions.Length,
+                        positions.ToList(), normals.ToList(), tangents.ToList(), lines.ToList(), triangles.ToList());
+                    // Constraint positions and their initial scale share graphics-local units.
+                    Put(result, "initScale", referenceScale);
+                    ValidatePhysicalRestConstraints(result, positions);
+                    Invoke(result, "CreateVerifyData");
+                    if (HashNativeData(original) != originalKey ||
+                        !ReferenceEquals(Optional(owner.Component, "ClothSelection"), selection) ||
+                        selection != null && HashNativeData(selection) != selectedKey ||
+                        !((IEnumerable)Get(original, "useVertexList")).Cast<int>()
+                            .SequenceEqual(((IEnumerable)Get(result, "useVertexList")).Cast<int>()) ||
+                        !((IEnumerable)Get(original, "selectionData")).Cast<int>()
+                            .SequenceEqual(((IEnumerable)Get(result, "selectionData")).Cast<int>()))
+                        throw new InvalidOperationException("Physical cloth rebuilding changed its immutable source selection.");
+                    return result;
+                }
+                catch { UnityEngine.Object.Destroy(result); throw; }
+            }
+
+            private sealed class ClothRestBinding(NativeOwner owner, UnityEngine.Object replacement)
+            {
+                internal NativeOwner Owner => owner;
+                internal bool Applied { get; private set; }
+                private readonly UnityEngine.Object _original = (UnityEngine.Object)owner.ClothData;
+                private readonly object _selection = owner.ClothSelection;
+                private readonly string _originalKey = HashNativeData(owner.ClothData);
+                private readonly string _replacementKey = HashNativeData(replacement);
+                private readonly Dictionary<string, object> _replacementIdentity = SaveFields(replacement, "dataHash", "dataVersion");
+
+                internal void Apply()
+                {
+                    if (!owner.Component) throw new InvalidOperationException("A physical cloth owner was destroyed before its prepared rest was applied.");
+                    Validate(false);
+                    Put(owner.Component, "clothData", replacement);
+                    Applied = true;
+                }
+
+                internal void Restore()
+                {
+                    if (!Applied) { Validate(false); return; }
+                    Validate(true);
+                    if (owner.Component) Put(owner.Component, "clothData", _original);
+                    Applied = false;
+                }
+
+                internal void Validate(bool installed, bool validateContent = true)
+                {
+                    if (!_original || !replacement || owner.Component && (!ReferenceEquals(Optional(owner.Component, "ClothData"),
+                            installed ? replacement : _original) ||
+                        !ReferenceEquals(Optional(owner.Component, "ClothSelection"), _selection)))
+                        throw new InvalidOperationException("A different source owns the physical cloth rest binding.");
+                    ValidateSavedFields(_original, owner.ClothDataIdentity);
+                    ValidateSavedFields(replacement, _replacementIdentity);
+                    if (validateContent && (HashNativeData(_original) != _originalKey || HashNativeData(replacement) != _replacementKey))
+                        throw new InvalidOperationException("The physical cloth rest content changed.");
+                }
+            }
+
+            private sealed class CapsuleRestBinding(Component component, PhysicalCapsuleGeometry prepared)
+            {
+                internal readonly PhysicalCapsuleGeometry Prepared = prepared;
+                private readonly Vector3 _originalCenter = (Vector3)Get(component, "Center");
+                private readonly object _originalAxis = Get(component, "AxisMode");
+                private readonly float _originalLength = (float)Get(component, "Length");
+                private readonly float _originalStart = (float)Get(component, "StartRadius");
+                private readonly float _originalEnd = (float)Get(component, "EndRadius");
+                private Vector3 _appliedCenter;
+                private float _appliedLength, _appliedStart, _appliedEnd;
+                private bool _applied;
+
+                internal void ApplyPrepared() => Apply(Prepared.Center, Prepared.Length, Prepared.Start, Prepared.End);
+                internal void ValidateCurrent() => Validate(_applied);
+
+                internal void Apply(Vector3 center, float length, float start, float end)
+                {
+                    Validate(_applied);
+                    if (!Finite(center) || !Finite(length) || !Finite(start) || !Finite(end) ||
+                        length < 0f || start < 0f || end < 0f)
+                        throw new ArgumentException("A deformed native capsule has invalid dimensions.");
+                    var previousCenter = _applied ? _appliedCenter : _originalCenter;
+                    var previousLength = _applied ? _appliedLength : _originalLength;
+                    var previousStart = _applied ? _appliedStart : _originalStart;
+                    var previousEnd = _applied ? _appliedEnd : _originalEnd;
+                    try { Write(center, length, start, end); }
+                    catch (Exception failure)
+                    {
+                        try { Write(previousCenter, previousLength, previousStart, previousEnd); }
+                        catch (Exception rollback)
+                        { throw new AggregateException("Native capsule preparation and rollback failed.", failure, rollback); }
+                        throw;
+                    }
+                    _appliedCenter = center; _appliedLength = length; _appliedStart = start; _appliedEnd = end;
+                    _applied = true;
+                }
+
+                internal void Restore()
+                {
+                    if (!_applied) return;
+                    Validate(true);
+                    if (component) Write(_originalCenter, _originalLength, _originalStart, _originalEnd);
+                    _applied = false;
+                }
+
+                internal void Validate(bool installed)
+                {
+                    if (!component) return;
+                    if (!Equals(Get(component, "AxisMode"), _originalAxis) ||
+                        !((Vector3)Get(component, "Center")).Equals(installed ? _appliedCenter : _originalCenter) ||
+                        (float)Get(component, "Length") != (installed ? _appliedLength : _originalLength) ||
+                        (float)Get(component, "StartRadius") != (installed ? _appliedStart : _originalStart) ||
+                        (float)Get(component, "EndRadius") != (installed ? _appliedEnd : _originalEnd))
+                        throw new InvalidOperationException("A different source owns the native capsule parameters.");
+                }
+
+                private void Write(Vector3 center, float length, float start, float end)
+                {
+                    // CompleteJobs is required by the owning SourceGraph transition before this call.
+                    Put(component, "Center", center); Put(component, "Length", length);
+                    Put(component, "StartRadius", start); Put(component, "EndRadius", end);
+                    Invoke(component, "OnValidate");
+                }
+            }
+
+            private readonly List<ClothRestBinding> _physicalClothRest = [];
+            private readonly Dictionary<Component, CapsuleRestBinding> _physicalCapsules = [];
+            private readonly Dictionary<SkinnedMeshRenderer, IReadOnlyDictionary<(string Name, int Occurrence), float>> _physicalChannels = [];
+
+            internal bool ConsumesPhysicalChannels(SkinnedMeshRenderer renderer) =>
+                _applied && renderer && _physicalChannels.ContainsKey(renderer);
+
+            internal SkinMeshSource OriginalSource(SkinnedMeshRenderer renderer) =>
+                _changes.TryGetValue(renderer, out var change) ? change.Source : null;
+            internal Mesh OriginalMesh(SkinnedMeshRenderer renderer) => OriginalSource(renderer)?.Original;
+            internal bool HasSurfaceSource => _restDeformation?.SurfaceSource != null;
+
+            internal bool DependsOnPart(GameObject part, IReadOnlyCollection<Component> components,
+                IReadOnlyCollection<Material> materials = null)
+            {
+                if (_skins.Any(skin => !skin.Renderer || !skin.Original || !skin.Replacement) ||
+                    _physicalCapsules.Keys.Any(collider => !collider)) return true;
+                bool Within(Component component) => component && (components.Contains(component) ||
+                    part && component.transform.IsChildOf(part.transform));
+                bool Bones(IEnumerable<Transform> bones) => bones != null && bones.Any(Within);
+                if (_skins.Any(skin => Within(skin.Renderer) || Within(skin.RootBone) ||
+                        Bones(skin.Bones) || Bones(skin.ReplacementBones) ||
+                        materials != null && skin.Deformer != null && _nativeSurfacePlans.ContainsKey(skin.Deformer) &&
+                        skin.Renderer.sharedMaterials.Any(materials.Contains)) ||
+                    _paletteBindings.Values.Any(binding => binding.PaletteSource is { } donor && Within(donor.Renderer)) ||
+                    _boundaryVirtualOwners.Any(Within) || _boundaryRenderOwners.Any(Within) ||
+                    _boundaryClothVertices.Keys.Any(owner => !owner.Component || Within(owner.Component)) ||
+                    _physicalCapsules.Keys.Any(Within)) return true;
+                foreach (var owner in _owners)
+                {
+                    if (!owner.Component) return true;
+                    if (Within(owner.Component) || Within(owner.Parent) || Within(owner.Target) || owner.Children.Any(Within)) return true;
+                    if (owner.Order == 1 && Bones(((IEnumerable)Get(owner.Deformer, "boneList")).Cast<Transform>())) return true;
+                    if (owner.Order != 0) continue;
+                    var team = Get(owner.Component, "teamData");
+                    foreach (var name in new[] { "colliderList", "addColliderList" })
+                        if (((IEnumerable)Get(team, name)).Cast<object>().OfType<Component>().Any(Within)) return true;
+                }
+                // The lower model graph owns the surface plans consumed by this
+                // physical graph. Its source lease must outlive the upper owner.
+                return _restDeformation != null &&
+                    (_restDeformation.BodySources.Any(renderer => !renderer || Within(renderer)) ||
+                     _restDeformation.SurfaceSource?.DependsOnPart(part, components, materials) == true);
+            }
+
+            internal bool KeepsPhysicalRest()
+            {
+                if (!_applied || _restDeformation == null || !_graphics ||
+                    _skins.Any(skin => !skin.Renderer || !skin.Original || !skin.Replacement) || _owners.Any(owner => !owner.Component)) return false;
+                try
+                {
+                    // Verified native rest data stays immutable between transitions.
+                    // Poll its owners and version here; hash the content at Apply/Restore.
+                    ValidateSources(true, false); ValidateRelations(true);
+                    if (_skins.Any(skin => skin.Superseded)) return false;
+                    if (!CurrentPhysicalColliders(_physicalClothRest.Select(rest => rest.Owner)).SetEquals(_physicalCapsules.Keys)) return false;
+                    foreach (var pair in _physicalChannels)
+                    {
+                        var channels = PhysicalWeightChannels(pair.Key.sharedMesh);
+                        foreach (var channel in pair.Value.Keys)
+                        {
+                            var index = Array.IndexOf(channels, channel);
+                            if (index < 0 || pair.Key.GetBlendShapeWeight(index) != 0f) return false;
+                        }
+                    }
+                    return true;
+                }
+                catch (InvalidOperationException) { return false; }
+            }
+
+            internal bool HasPhysicalSources(IReadOnlyList<SkinnedMeshRenderer> bodies,
+                IEnumerable<SkinnedMeshRenderer> consumers) => _restDeformation != null &&
+                bodies.SequenceEqual(_restDeformation.BodySources) &&
+                consumers.All(renderer => _skins.Any(skin => skin.Renderer == renderer));
+
+            internal bool IsPhysicalOverlayOf(SkinnedMeshRenderer renderer, Mesh original, SkinMeshSource current) =>
+                _applied && _changes.TryGetValue(renderer, out var change) && change.Source.Original == original &&
+                _installed.TryGetValue(renderer, out var installed) && current != null && current.Original == installed.Original &&
+                current.OwnerCurrent && current.AcceptsCurrentMesh();
+
+            private static string PhysicalRestKey(string text)
+            {
+                using var hash = CreateAssetSha256();
+                return "physical-rest:2:" + BitConverter.ToString(hash.ComputeHash(System.Text.Encoding.UTF8.GetBytes(text))).Replace("-", "");
+            }
+
+            private Matrix4x4 RendererCanonicalFrame(Transform target)
+            {
+                var frame = Matrix4x4.identity;
+                for (var current = target; current != _graphics.transform; current = current.parent)
+                {
+                    if (!current) throw new InvalidOperationException("A physical source frame leaves its graphics owner.");
+                    frame = Matrix4x4.TRS(current.localPosition, current.localRotation, current.localScale) * frame;
+                }
+                return frame;
+            }
+
+            private Vector3 ClothReferenceScale(NativeOwner owner)
+            {
+                var influence = Invoke(Get(owner.Component, "clothParams"), "GetInfluenceTarget") as Transform;
+                var scale = RendererCanonicalFrame(influence ? influence : owner.Component.transform).lossyScale;
+                if (!Finite(scale) || scale.sqrMagnitude == 0f)
+                    throw new InvalidOperationException("A physical cloth has an invalid canonical influence scale.");
+                return scale;
+            }
+
+            private static PhysicalRestFrames ReadPhysicalSurface(Mesh mesh, SkinnedMeshRenderer renderer,
+                RestDeformation.Group group) =>
+                RacesContext.ReadNativeRestMesh(mesh, source =>
+                {
+                    var positions = source.vertices; var normals = source.normals; var tangents = source.tangents;
+                    if (normals.Length != positions.Length || tangents.Length != positions.Length)
+                        throw new InvalidOperationException("A physical source-to-target surface has incomplete normal frames.");
+                    var frames = group.SkinFrames(renderer, mesh);
+                    var inverses = frames.Select(frame => frame.inverse.transpose).ToArray();
+                    var weights = ReadSkinWeights(mesh, Enumerable.Range(0, positions.Length));
+                    var p = positions.Select((value, index) => RestDeformation.Group.SkinValue(value, weights[index], frames, true)).ToArray();
+                    var n = normals.Select((value, index) => RestDeformation.Group.SkinValue(value, weights[index], inverses, false).normalized).ToArray();
+                    var t = tangents.Select((value, index) =>
+                    {
+                        var direction = RestDeformation.Group.SkinValue((Vector3)value, weights[index], frames, false);
+                        return (direction - n[index] * Vector3.Dot(n[index], direction)).normalized;
+                    }).ToArray();
+                    return new PhysicalRestFrames(p, n, t);
+                });
+
+            private void PreparePhysicalRest(Func<string, Func<UnityEngine.Object[]>, UnityEngine.Object[]> retainData,
+                Func<UnityEngine.Object, Func<string>, string> sourceFingerprint)
+            {
+                if (_restDeformation == null || _restDeformation.Channels.Count == 0) return;
+                if (retainData == null) throw new InvalidOperationException("A physical rest requires its existing derived-data owner.");
+                bool Supported(NativeOwner owner)
+                {
+                    var consumers = _owners.Where(cloth => cloth.Order == 0 && cloth.Parent == owner.Component && !cloth.PreservesRejectedCloth).ToArray();
+                    return consumers.Length != 0 && consumers.All(cloth =>
+                        !(bool)Get(Get(cloth.Component, "clothParams"), "UsePenetration") ||
+                        Convert.ToInt32(Invoke(Get(cloth.Component, "clothParams"), "GetPenetrationMode")) == 0);
+                }
+                var physicalDeformers = new HashSet<object>(_owners.Where(owner => owner.Order == 1 && Supported(owner))
+                    .SelectMany(owner => owner.Children).Select(component => Get(component, "Deformer")));
+                var surfaces = new Dictionary<SkinnedMeshRenderer, (Mesh Source, Mesh Target)>();
+                foreach (var skin in _skins)
+                {
+                    if (skin.Renderer is not SkinnedMeshRenderer renderer) continue;
+                    var original = skin.Replacement;
+                    var surface = original;
+                    if (_restDeformation.Channels.TryGetValue(renderer, out var channels) && channels.Count != 0)
+                    {
+                        var declaration = new JArray(RacesContext.CharacterModelFingerprint(original),
+                            new JArray(channels.OrderBy(pair => pair.Key.Name, StringComparer.Ordinal).ThenBy(pair => pair.Key.Occurrence)
+                                .Select(pair => new JArray(pair.Key.Name, pair.Key.Occurrence, pair.Value))));
+                        var target = retainData(PhysicalRestKey(declaration.ToString(Formatting.None)),
+                            () => [BakePhysicalRest(original, channels)]);
+                        if (target.Length != 1 || target[0] is not Mesh physical)
+                            throw new InvalidOperationException("A retained physical source does not match its mesh payload.");
+                        surface = physical;
+                        if (skin.Deformer != null && physicalDeformers.Contains(skin.Deformer))
+                        {
+                            skin.Replacement = physical;
+                            _physicalChannels.Add(renderer, channels);
+                            if (_changes.TryGetValue(renderer, out var change)) _changes[renderer] = (change.Source, physical);
+                        }
+                    }
+                    // Non-cloth targets inform the shared body field without consuming
+                    // the renderer's native or supplemental presentation channels.
+                    surfaces.Add(renderer, (original, surface));
+                    if (_physicalChannels.ContainsKey(renderer) && skin.Deformer != null && _restDeformation.SurfaceSource?._nativeSurfacePlans.TryGetValue(skin.Deformer, out var plan) == true)
+                        _nativeSurfacePlans[skin.Deformer] = RebasePhysicalRestSurface(plan, skin.Replacement);
+                }
+                var frames = _skins.ToDictionary(skin => skin.Renderer, skin => RendererCanonicalFrame(skin.Renderer.transform));
+                var palettes = _skins.Where(skin => skin.Renderer is SkinnedMeshRenderer).ToDictionary(
+                    skin => (SkinnedMeshRenderer)skin.Renderer, skin => skin.ReplacementBones ?? skin.Bones);
+                string Fingerprint(UnityEngine.Object data) => sourceFingerprint == null ? HashNativeData(data) :
+                    sourceFingerprint(data, () => HashNativeData(data));
+                foreach (var owner in _owners.Where(owner => owner.Order == 1))
+                {
+                    var children = owner.Children.Select(component => _skins.Single(skin => ReferenceEquals(skin.Deformer, Get(component, "Deformer")))).ToArray();
+                    if (!children.Any(skin => skin.Renderer is SkinnedMeshRenderer renderer && _physicalChannels.ContainsKey(renderer))) continue;
+                    var renderers = children.Select(skin => skin.Renderer).OfType<SkinnedMeshRenderer>().ToArray();
+                    var bones = _restDeformation.NativeRest?.Invoke(owner.Component) ??
+                        throw new InvalidOperationException("A physical cloth owner has no authored native rest source.");
+                    var sourceData = _data.SingleOrDefault(data => ReferenceEquals(data.Deformer, owner.Deformer));
+                    var source = sourceData?.Replacement ?? Get(owner.Deformer, "MeshData") as UnityEngine.Object;
+                    var sourceChildren = children.Select(skin => (_data.SingleOrDefault(data => ReferenceEquals(data.Deformer, skin.Deformer))?.Replacement ??
+                        Get(skin.Deformer, "MeshData")) as UnityEngine.Object).ToArray();
+                    var cloths = _owners.Where(cloth => cloth.Order == 0 && cloth.Parent == owner.Component && !cloth.PreservesRejectedCloth).ToArray();
+                    var clothScales = cloths.ToDictionary(cloth => cloth, ClothReferenceScale);
+                    var nativeBones = ((IEnumerable)Get(owner.Deformer, "boneList")).Cast<Transform>().ToArray();
+                    var nativeRest = nativeBones.Select(bone => bones.TryGetValue(bone, out var frame) ? frame :
+                        throw new InvalidOperationException("A virtual physical source has no canonical original bone.")).ToArray();
+                    // Physical interpolation follows authored bases and their actual
+                    // parent relation, independently of animated local bone spacing.
+                    var boneKeys = bones.Keys.ToDictionary(bone => bone,
+                        bone => PhysicalRestKey(PhysicalBoneKey(bone, bones).ToString(Formatting.None)));
+                    var boneKey = new JArray(new JArray(nativeBones.Select(bone => boneKeys[bone])),
+                        new JArray(boneKeys.Values.OrderBy(value => value, StringComparer.Ordinal)));
+                    var fieldSources = _restDeformation.BodySources.Concat(renderers).Where(surfaces.ContainsKey).Distinct().ToArray();
+                    // Select each actual subset once. The evaluator and the key
+                    // consume these same retained body/child field roles.
+                    var bodyRenderers = _restDeformation.SelectDetail(_restDeformation.BodySources.Where(surfaces.ContainsKey).ToArray());
+                    var fieldRenderers = _restDeformation.SelectDetail(renderers.Where(surfaces.ContainsKey).ToArray());
+                    var paletteKey = new JArray(fieldSources.Select(renderer =>
+                    {
+                        var surface = surfaces[renderer]; var count = surface.Source.bindposes.Length;
+                        if (!palettes.TryGetValue(renderer, out var palette) || palette.Length < count)
+                            throw new InvalidOperationException("A physical source key has an incomplete renderer palette layout.");
+                        return new JArray(_restDeformation.BodySources.Contains(renderer),
+                            renderers.Contains(renderer), bodyRenderers.Contains(renderer), fieldRenderers.Contains(renderer),
+                            RacesContext.CharacterModelFingerprint(surface.Source),
+                            RacesContext.CharacterModelFingerprint(surface.Target),
+                            _restDeformation.Channels.TryGetValue(renderer, out var physicalChannels)
+                                ? new JArray(physicalChannels.OrderBy(pair => pair.Key.Name, StringComparer.Ordinal)
+                                    .ThenBy(pair => pair.Key.Occurrence).Select(pair =>
+                                        new JArray(pair.Key.Name, pair.Key.Occurrence, pair.Value))) : new JArray(),
+                            new JArray(Enumerable.Range(0, count).Select(index =>
+                            {
+                                if (!boneKeys.TryGetValue(palette[index], out var serializedKey))
+                                    throw new InvalidOperationException("A physical source key has no authored palette bone frame.");
+                                return serializedKey;
+                            })));
+                    }));
+                    var ownerKey = PhysicalRestKey(new JArray(Fingerprint(source), boneKey, paletteKey,
+                        new JArray(children.Select((skin, index) => new JArray(Fingerprint(sourceChildren[index]),
+                            RacesContext.CharacterModelFingerprint(surfaces[(SkinnedMeshRenderer)skin.Renderer].Source),
+                            RacesContext.CharacterModelFingerprint(skin.Replacement),
+                            new JArray(frames[skin.Renderer].lossyScale.x, frames[skin.Renderer].lossyScale.y,
+                                frames[skin.Renderer].lossyScale.z))))).ToString(Formatting.None));
+                    var group = new RestDeformation.Group(renderers, bones, surfaces, palettes, ownerKey, bodyRenderers, fieldRenderers);
+                    PreparePhysicalCapsules(cloths, new RestDeformation.Group(renderers, bones, surfaces, palettes, ownerKey, bodyRenderers, fieldRenderers, true), retainData, boneKeys);
+                    var key = PhysicalRestKey(new JArray(_restDeformation.Key, group.BodySurface, ownerKey,
+                        new JArray(children.Select((skin, index) => new JArray(Fingerprint(sourceChildren[index]), RacesContext.CharacterModelFingerprint(skin.Replacement)))),
+                        new JArray(cloths.Select(cloth => new JArray(Fingerprint((UnityEngine.Object)cloth.ClothData),
+                            JsonUtility.ToJson(Get(cloth.Component, "clothParams")),
+                            new JArray(clothScales[cloth].x, clothScales[cloth].y, clothScales[cloth].z))))).ToString(Formatting.None));
+                    var derived = retainData(key, Create);
+                    if (derived.Length != 1 + children.Length + cloths.Length)
+                        throw new InvalidOperationException("A retained physical native graph has another source layout.");
+                    Replace(owner.Deformer, derived[0]);
+                    for (var index = 0; index < children.Length; index++) Replace(children[index].Deformer, derived[index + 1]);
+                    for (var index = 0; index < cloths.Length; index++) _physicalClothRest.Add(new ClothRestBinding(cloths[index], derived[1 + children.Length + index]));
+
+                    void Replace(object deformer, UnityEngine.Object replacement)
+                    {
+                        var previous = _data.SingleOrDefault(data => ReferenceEquals(data.Deformer, deformer));
+                        var original = previous?.Original ?? (UnityEngine.Object)Get(deformer, "MeshData");
+                        if (previous != null) _data.Remove(previous);
+                        _data.Add(new NativeData(deformer, original, replacement));
+                    }
+                    UnityEngine.Object[] Create()
+                    {
+                        var created = new List<UnityEngine.Object>();
+                        try
+                        {
+                            var virtualData = DeformVirtualRest(source, nativeBones, group, _restDeformation); created.Add(virtualData);
+                            var targetRest = ReadPhysicalVirtualRest(virtualData, nativeRest);
+                            var targetChildren = (IList)Get(virtualData, "childDataList"); var originalChildren = (IList)Get(source, "childDataList");
+                            for (var index = 0; index < children.Length; index++)
+                            {
+                                var skin = children[index]; var data = CloneMutableNativeData(sourceChildren[index]); created.Add(data);
+                                RebuildRenderData(data, skin.Replacement); AssignPhysicalDataIdentity(data);
+                                var matrix = frames[skin.Renderer]; var scale = matrix.lossyScale; var baseScale = (Vector3)Get(data, "baseScale");
+                                var metric = baseScale.magnitude > 0f ? scale.magnitude / baseScale.magnitude : 1f;
+                                ReprojectOwnedPhysicalChild(originalChildren[index], targetChildren[index], targetRest,
+                                    ReadPhysicalSurface(skin.Replacement, (SkinnedMeshRenderer)skin.Renderer, group), metric,
+                                    new Vector3(Mathf.Sign(scale.x), Mathf.Sign(scale.y), Mathf.Sign(scale.z)));
+                                var prediction = typeof(object).GetMethod("MemberwiseClone", Fields).Invoke(skin.Deformer, null);
+                                SourceMesh.SetValue(prediction, skin.Replacement); Put(prediction, "MeshData", data);
+                                Put(targetChildren[index], "childDataHash", (int)Invoke(prediction, "GetDataHash"));
+                            }
+                            Invoke(virtualData, "CreateVerifyData"); AssignPhysicalDataIdentity(virtualData);
+                            foreach (var cloth in cloths)
+                            {
+                                var data = RebuildClothRest(cloth, (UnityEngine.Object)cloth.ClothData,
+                                    targetRest.Positions, targetRest.Normals, targetRest.Tangents,
+                                    (int[])Get(virtualData, "lineList"), (int[])Get(virtualData, "triangleList"), clothScales[cloth]);
+                                created.Add(data);
+                                AssignPhysicalDataIdentity(data);
+                            }
+                            return created.ToArray();
+                        }
+                        catch { foreach (var data in created) if (data) UnityEngine.Object.Destroy(data); throw; }
+                    }
+                }
+            }
+
+            private static JArray PhysicalBoneKey(Transform bone, IReadOnlyDictionary<Transform, Matrix4x4> bones)
+            {
+                if (!bones.TryGetValue(bone, out var frame))
+                    throw new InvalidOperationException("A physical cache dependency has no authored bone basis.");
+                var parents = new JArray();
+                for (var parent = bone.parent; parent; parent = parent.parent)
+                    if (bones.TryGetValue(parent, out var basis))
+                        parents.Add(new JArray(parent.name, new JArray(Enumerable.Range(0, 16).Select(index => basis[index]))));
+                return new JArray(bone.name, new JArray(Enumerable.Range(0, 16).Select(index => frame[index])), parents);
+            }
+
+            private sealed class PhysicalCapsuleGeometry(Vector3 center, float length, float start, float end)
+            {
+                internal readonly Vector3 Center = center;
+                internal readonly float Length = length, Start = start, End = end;
+                internal JObject ToJson() => new()
+                {
+                    ["center"] = new JArray(Center.x, Center.y, Center.z),
+                    ["length"] = Length, ["start"] = Start, ["end"] = End
+                };
+                internal static PhysicalCapsuleGeometry Read(JObject value)
+                {
+                    var center = (JArray)value["center"];
+                    return new PhysicalCapsuleGeometry(new Vector3((float)center[0], (float)center[1], (float)center[2]),
+                        (float)value["length"], (float)value["start"], (float)value["end"]);
+                }
+                internal bool Same(PhysicalCapsuleGeometry other) => Center.Equals(other.Center) &&
+                    Length == other.Length && Start == other.Start && End == other.End;
+            }
+
+            private static void ValidatePhysicalDerivative(Matrix4x4 derivative)
+            {
+                for (var component = 0; component < 16; component++)
+                    if (!Finite(derivative[component])) throw new InvalidOperationException("A physical body field has a nonfinite derivative.");
+                var determinant = derivative.determinant;
+                if (!Finite(determinant) || determinant <= 0f || derivative.m30 != 0f ||
+                    derivative.m31 != 0f || derivative.m32 != 0f || derivative.m33 != 1f)
+                    throw new InvalidOperationException("A physical body field reverses or collapses its native rest frame.");
+            }
+
+            private HashSet<Component> CurrentPhysicalColliders(IEnumerable<NativeOwner> cloths)
+            {
+                // The factory copies garment colliders onto the actor's real bones,
+                // then destroys the imported garment skeleton at the end of the frame.
+                var nativeColliders = new HashSet<Component>();
+                foreach (var name in new[] { "ShapeCapsuleCollidersPerBodySlot", "ArmorCapsuleCollidersPerBodySlot" })
+                    foreach (var slot in (Get(_graphics, name) as IEnumerable)?.Cast<object>() ?? [])
+                        foreach (var component in (slot as IEnumerable)?.Cast<object>().OfType<Component>() ?? [])
+                            if (component) nativeColliders.Add(component);
+                var colliders = new HashSet<Component>();
+                foreach (var cloth in cloths)
+                {
+                    if (!(bool)Get(Get(cloth.Component, "clothParams"), "UseCollision")) continue;
+                    var team = Get(cloth.Component, "teamData");
+                    foreach (var name in new[] { "colliderList", "addColliderList" })
+                        foreach (var value in (Optional(team, name) as IEnumerable)?.Cast<object>() ?? [])
+                            if (value is Component component && component && nativeColliders.Contains(component) &&
+                                component.transform.IsChildOf(_graphics.transform))
+                                colliders.Add(component);
+                }
+                return colliders;
+            }
+
+            private void PreparePhysicalCapsules(NativeOwner[] cloths, RestDeformation.Group group,
+                Func<string, Func<UnityEngine.Object[]>, UnityEngine.Object[]> retainData,
+                IReadOnlyDictionary<Transform, string> boneKeys)
+            {
+                foreach (var collider in CurrentPhysicalColliders(cloths))
+                {
+                    if (collider.GetType().FullName != "MagicaCloth.MagicaCapsuleCollider")
+                        throw new InvalidOperationException("A body-owned physical collider has an unsupported native geometry schema.");
+                    var anchor = collider.transform;
+                    var local = Matrix4x4.identity;
+                    while (anchor && !group.Bones.ContainsKey(anchor))
+                    {
+                        local = Matrix4x4.TRS(anchor.localPosition, anchor.localRotation, anchor.localScale) * local;
+                        anchor = anchor.parent;
+                    }
+                    if (!anchor) throw new InvalidOperationException("A body collider has no canonical source bone ancestor.");
+                    var source = new PhysicalCapsuleGeometry((Vector3)Get(collider, "Center"),
+                        (float)Get(collider, "Length"), (float)Get(collider, "StartRadius"), (float)Get(collider, "EndRadius"));
+                    var axis = (Vector3)Invoke(collider, "GetLocalDir");
+                    var key = PhysicalRestKey(new JArray(_restDeformation.Key, group.BodySurface, group.Key,
+                        boneKeys[anchor],
+                        new JArray(Enumerable.Range(0, 16).Select(index => local[index])),
+                        (int)Convert.ChangeType(Get(collider, "AxisMode"), typeof(int)), source.ToJson()).ToString(Formatting.None));
+                    var prepared = retainData(key, () => [new TextAsset(Deform().ToJson().ToString(Formatting.None))]);
+                    if (prepared.Length != 1 || prepared[0] is not TextAsset metadata)
+                        throw new InvalidOperationException("A retained physical collider has another geometry payload.");
+                    var geometry = PhysicalCapsuleGeometry.Read(JObject.Parse(metadata.text));
+                    if (_physicalCapsules.TryGetValue(collider, out var previous))
+                    {
+                        if (!previous.Prepared.Same(geometry))
+                            throw new InvalidOperationException("Shared body cloth consumers disagree on their collider rest geometry.");
+                    }
+                    else _physicalCapsules.Add(collider, new CapsuleRestBinding(collider, geometry));
+
+                    PhysicalCapsuleGeometry Deform()
+                    {
+                        var inverse = local.inverse;
+                        (Vector3 Position, Matrix4x4 Derivative) At(Vector3 point)
+                        {
+                            var target = _restDeformation.Evaluate(group, anchor, local.MultiplyPoint3x4(point));
+                            ValidatePhysicalDerivative(target.Derivative);
+                            var result = (inverse.MultiplyPoint3x4(target.Position), inverse * target.Derivative * local);
+                            if (!Finite(result.Item1)) throw new InvalidOperationException("A physical collider has a nonfinite rest point.");
+                            ValidatePhysicalDerivative(result.Item2);
+                            return result;
+                        }
+                        var first = At(source.Center - axis * source.Length).Position;
+                        var last = At(source.Center + axis * source.Length).Position;
+                        var center = (first + last) * .5f;
+                        var length = Vector3.Dot(last - first, axis) * .5f;
+                        if (length < 0f) throw new InvalidOperationException("A physical body field reverses its capsule axis.");
+                        var dilation = 0f; var residual = 0f;
+                        for (var sample = 0; sample <= 8; sample++)
+                        {
+                            var fraction = sample / 8f;
+                            var target = At(source.Center + axis * Mathf.Lerp(-source.Length, source.Length, fraction));
+                            var gram = target.Derivative.transpose * target.Derivative;
+                            var bound = 0f;
+                            for (var row = 0; row < 3; row++)
+                            {
+                                var sum = 0f;
+                                for (var column = 0; column < 3; column++) sum += Mathf.Abs(gram[row, column]);
+                                bound = Mathf.Max(bound, sum);
+                            }
+                            dilation = Mathf.Max(dilation, Mathf.Sqrt(bound));
+                            residual = Mathf.Max(residual, (target.Position - (center + axis * Mathf.Lerp(-length, length, fraction))).magnitude);
+                        }
+                        // The native collider keeps its authored axis. Its radii cover
+                        // the transported section and any centerline curvature.
+                        return new PhysicalCapsuleGeometry(center, length,
+                            source.Start * dilation + residual, source.End * dilation + residual);
+                    }
+                }
             }
 
             private sealed class NativeOwner(Component component, object deformer, int order)
@@ -2179,6 +3401,51 @@ public static class CustomModels
                     "clothParamDataHashList", "meshDataHash", "meshDataVersion", "springDataHash", "springDataVersion");
                 internal readonly Dictionary<string, object> DeformerVerification = deformer == null ? [] :
                     SaveFields(deformer, "renderDeformerHashList", "renderDeformerVersion");
+                private readonly object _colliderTeam = order == 0 ? Get(component, "teamData") : null;
+                private Component[] _runtimeColliders = [];
+
+                internal void DisposeNative()
+                {
+                    if (Order == 0)
+                    {
+                        ValidateColliderTeam();
+                        _runtimeColliders = ((IEnumerable)Get(_colliderTeam, "addColliderList"))
+                            .Cast<object>().OfType<Component>().Where(collider => collider).Distinct().ToArray();
+                    }
+                    try { Invoke(Component, "TacticalDispose"); }
+                    catch (Exception failure)
+                    {
+                        try { RestoreRuntimeColliders(false); }
+                        catch (Exception rollback)
+                        { throw new AggregateException("Native cloth disposal and collider membership restoration failed.", failure, rollback); }
+                        throw;
+                    }
+                    RestoreRuntimeColliders(false);
+                }
+
+                internal void RestoreRuntimeColliders(bool register)
+                {
+                    if (Order != 0 || !Component) return;
+                    ValidateColliderTeam();
+                    // Team disposal clears added membership, and Team.Init only
+                    // registers authored colliders. Keep membership while stopped,
+                    // then use the cloth API to recreate particles after Init.
+                    foreach (var collider in _runtimeColliders)
+                    {
+                        if (!collider) continue;
+                        // BaseCloth.AddCollider creates a particle before its list's
+                        // duplicate check. An already registered team keeps its particle.
+                        var createParticle = register && !((IDictionary)Get(collider, "particleDict"))
+                            .Contains(Get(Component, "teamId"));
+                        Invoke(createParticle ? Component : _colliderTeam, "AddCollider", collider);
+                    }
+                }
+
+                private void ValidateColliderTeam()
+                {
+                    if (_colliderTeam == null || !ReferenceEquals(Get(Component, "teamData"), _colliderTeam))
+                        throw new InvalidOperationException("A native cloth consumer changed its runtime collider team.");
+                }
             }
             private sealed class NativeData(object deformer, UnityEngine.Object original, UnityEngine.Object replacement)
             {
@@ -2191,7 +3458,7 @@ public static class CustomModels
             {
                 internal readonly Renderer Renderer = renderer;
                 internal readonly Mesh Original = original;
-                internal readonly Mesh Replacement = replacement;
+                internal Mesh Replacement = replacement;
                 internal readonly object Deformer = deformer;
                 internal readonly Transform[] Bones = renderer is SkinnedMeshRenderer skin ? skin.bones : [];
                 internal Transform[] ReplacementBones;
@@ -2206,14 +3473,18 @@ public static class CustomModels
 
             internal IReadOnlyDictionary<SkinnedMeshRenderer, SkinMeshSource> Installed => _installed;
             internal bool IsApplied => _applied;
+            internal bool OwnsNativeDeformer(object deformer) => _started &&
+                _skins.Any(skin => ReferenceEquals(skin.Deformer, deformer));
 
             internal SourceGraph(GraphicsCharacter graphics,
                 IReadOnlyDictionary<SkinnedMeshRenderer, (SkinMeshSource Source, Mesh Mesh)> changes,
                 IReadOnlyDictionary<SkinnedMeshRenderer, SurfaceBinding> bindings,
                 Func<string, Func<UnityEngine.Object[]>, UnityEngine.Object[]> retainData,
                 Func<UnityEngine.Object, Func<string>, string> sourceFingerprint,
-                Func<Mesh, Mesh, SurfaceBinding, NativeSurfacePlan, NativeSurfacePacket> preparedPacket = null)
+                Func<Mesh, Mesh, SurfaceBinding, NativeSurfacePlan, NativeSurfacePacket> preparedPacket = null,
+                RestDeformation restDeformation = null)
             {
+                _restDeformation = restDeformation;
                 _preparedPacket = preparedPacket;
                 _graphics = graphics;
                 _changes = changes.ToDictionary(pair => pair.Key, pair => pair.Value);
@@ -2291,6 +3562,7 @@ public static class CustomModels
                                 _finishBindings.Add(renderer, binding);
                             }
                 }
+                PreparePhysicalRest(retainData, sourceFingerprint);
                 foreach (var skin in _skins.Where(skin => skin.Deformer != null && skin.Original != skin.Replacement &&
                              !_data.Any(data => ReferenceEquals(data.Deformer, skin.Deformer))))
                     if (skin.Original.vertexCount != skin.Replacement.vertexCount ||
@@ -4200,13 +5472,13 @@ public static class CustomModels
             {
                 if (value == null) return 0;
                 var type = value.GetType();
-                if (type.IsValueType) return Marshal.SizeOf(type);
+                if (type.IsValueType) return NativeDataValueSize(type);
                 if (!seen.Add(value)) return 0;
                 if (value is string text) return 24L + 2L * text.Length;
                 if (value is Array array)
                 {
                     var element = type.GetElementType();
-                    if (element.IsValueType) return 24L + (long)array.Length * Marshal.SizeOf(element);
+                    if (element.IsValueType) return 24L + (long)array.Length * NativeDataValueSize(element);
                     var bytes = 24L + (long)array.Length * IntPtr.Size;
                     foreach (var item in array) bytes += SerializedBytes(item, seen);
                     return bytes;
@@ -4222,6 +5494,7 @@ public static class CustomModels
                     return 24L + NativeDataFields(type).Sum(field => SerializedBytes(field.GetValue(value), seen));
                 throw new InvalidOperationException("Unsupported native source data memory channel: " + type.FullName);
             }
+            private static int NativeDataValueSize(Type type) => Marshal.SizeOf(type.IsEnum ? Enum.GetUnderlyingType(type) : type);
             internal sealed class NativeDataNode
             {
                 internal byte[] NativeDataHeader;
@@ -4245,12 +5518,12 @@ public static class CustomModels
                     Own(128);
                     if (value == null) return new NativeDataNode();
                     var type = value.GetType();
-                    if (type.IsValueType && NativeDataPureValue(type)) { Own(Marshal.SizeOf(type.IsEnum ? Enum.GetUnderlyingType(type) : type)); return new NativeDataNode { Value = value }; }
+                    if (type.IsValueType && NativeDataPureValue(type)) { Own(NativeDataValueSize(type)); return new NativeDataNode { Value = value }; }
                     if (value is Array array && type == type.GetElementType().MakeArrayType() && NativeDataPureValue(type.GetElementType()))
                     {
                         if (!copies.TryGetValue(value, out var copy))
                         {
-                            Own(24L + (long)array.Length * Marshal.SizeOf(type.GetElementType()));
+                            Own(24L + (long)array.Length * NativeDataValueSize(type.GetElementType()));
                             copies.Add(value, copy = array.Clone());
                         }
                         if (ReferenceEquals(copy, value)) throw new InvalidOperationException("A packet array aliases the native source.");
@@ -4492,15 +5765,30 @@ public static class CustomModels
                     if (!runtimeType && !type.IsValueType)
                         return Expression.Call(dispatch, writerParameter, Expression.Convert(value, typeof(object)));
                     var body = new List<Expression> { CallBytes(Header(type)) };
-                    if (type == typeof(bool) || type == typeof(int) || type == typeof(uint) || type == typeof(ulong))
-                        body.Add(Call(value));
-                    else if (type == typeof(float))
+                    if (type == typeof(float))
                     {
                         var finite = Expression.AndAlso(Expression.Not(Expression.Call(typeof(float), nameof(float.IsNaN), null, value)),
                             Expression.Not(Expression.Call(typeof(float), nameof(float.IsInfinity), null, value)));
                         body.Add(Expression.IfThen(Expression.Not(finite), Error("A native source binding has a nonfinite scalar.")));
                         body.Add(Call(value));
                     }
+                    else if (type == typeof(double))
+                    {
+                        var finite = Expression.AndAlso(Expression.Not(Expression.Call(typeof(double), nameof(double.IsNaN), null, value)),
+                            Expression.Not(Expression.Call(typeof(double), nameof(double.IsInfinity), null, value)));
+                        body.Add(Expression.IfThen(Expression.Not(finite), Error("A native source binding has a nonfinite scalar.")));
+                        body.Add(Call(value));
+                    }
+                    else if (type.IsEnum)
+                    {
+                        // Keep the existing native-enum field encoding and its exact underlying width.
+                        var field = type.GetField("value__", Fields);
+                        body.Add(CallBytes(Encode(field.DeclaringType.FullName + ":" + field.Name)));
+                        body.Add(Build(Expression.Convert(value, Enum.GetUnderlyingType(type))));
+                    }
+                    else if ((type.IsPrimitive || type == typeof(decimal) || type == typeof(string)) &&
+                             typeof(BinaryWriter).GetMethod(nameof(BinaryWriter.Write), new[] { type }) != null)
+                        body.Add(Call(value));
                     else if (type == typeof(Vector2) || type == typeof(Vector3))
                     {
                         body.Add(Call(Expression.Field(value, "x"))); body.Add(Call(Expression.Field(value, "y")));
@@ -4522,7 +5810,8 @@ public static class CustomModels
                     {
                         body.Add(Expression.Call(itemsDispatch, writerParameter, Expression.Convert(value, typeof(IList))));
                     }
-                    else if (type.Assembly == DeformerType.Assembly)
+                    else if (type.Assembly == DeformerType.Assembly ||
+                             type.IsValueType && !type.IsPrimitive && NativeDataPureValue(type) && NativeDataFields(type).Any())
                     {
                         foreach (var field in NativeDataFields(type))
                         {
@@ -4561,7 +5850,7 @@ public static class CustomModels
                 if (managerMesh == null || !prospectiveVirtualData)
                     throw new ArgumentNullException(nameof(prospectiveVirtualData));
                 var uid = (int)Get(prospectiveVirtualData, "SaveDataHash");
-                if (uid == 0 || (int)Invoke(prospectiveVirtualData, "GetDataHash") != uid)
+                if (!HasNativeDataIdentity(prospectiveVirtualData))
                     throw new InvalidOperationException("Prospective native mesh data has no current native verification identity.");
                 var virtualIds = (IDictionary)Get(managerMesh, "sharedVirtualMeshIdToIndexDict");
                 var childIds = (IDictionary)Get(managerMesh, "sharedChildMeshIdToSharedVirtualMeshIndexDict");
@@ -4959,6 +6248,8 @@ public static class CustomModels
                     CompleteJobs(); DisposeOwners();
                     ClearWeights();
                     foreach (var data in _data) Put(data.Deformer, "MeshData", data.Replacement);
+                    foreach (var rest in _physicalClothRest) rest.Apply();
+                    foreach (var rest in _physicalCapsules.Values) rest.ApplyPrepared();
                     foreach (var skin in _skins)
                     {
                         if (skin.Deformer != null) SourceMesh.SetValue(skin.Deformer, skin.Replacement);
@@ -4990,13 +6281,86 @@ public static class CustomModels
 
             internal void Restore(bool restart)
             {
-                if (!_started) return;
+                if (!_started)
+                {
+                    if (restart && _nativeRestartPending) RestartNativeOwners();
+                    else if (!restart) { _nativeRestartPending = false; _nativeRestartBindings = null; }
+                    return;
+                }
                 ValidateSources(true);
                 CaptureNativeInitialization();
                 if (_applied)
                     foreach (var skin in _skins) CaptureWeights(skin);
                 _applied = false;
                 RestoreCore(restart); _applied = _started = false;
+            }
+            internal void RestoreWithNativeOwner(bool restart, Action restoreOwner)
+            {
+                if (restoreOwner == null) throw new ArgumentNullException(nameof(restoreOwner));
+                if (!_started && !_nativeRestartPending) { restoreOwner(); return; }
+                // Validate and return this graph before the outer presentation
+                // owner replaces its palette. Native Init must see that palette.
+                if (_started) Restore(false);
+                // The outer owner can finish a synchronous palette mutation after
+                // stopping this graph, then explicitly restart from its final binding.
+                _nativeRestartPending = true;
+                _nativeRestartBindings = null;
+                restoreOwner();
+                if (!restart) return;
+                _nativeRestartBindings = _skins.Where(skin => !skin.Superseded && skin.Renderer is SkinnedMeshRenderer)
+                    .Select(skin => (SkinnedMeshRenderer)skin.Renderer)
+                    .ToDictionary(renderer => renderer, renderer => (renderer.sharedMesh, renderer.bones.ToArray(),
+                        PhysicalWeightChannels(renderer.sharedMesh),
+                        Enumerable.Range(0, renderer.sharedMesh.blendShapeCount).Select(renderer.GetBlendShapeWeight).ToArray()));
+                ValidateNativeRestartBindings(false);
+                RestartNativeOwners();
+            }
+            private void RestartNativeOwners()
+            {
+                if (_nativeRestartBindings == null)
+                    throw new InvalidOperationException("A native restart requires its presentation owner to finish restoring.");
+                try
+                {
+                    ValidateNativeRestartBindings(false);
+                    InitOwners(true);
+                    RestoreNativeRestartWeights();
+                    ValidateNativeRestartBindings(true);
+                    ValidateRestoredOwners();
+                    ValidateRelations(false);
+                    _nativeRestartPending = false; _nativeRestartBindings = null;
+                }
+                catch (Exception failure)
+                {
+                    try
+                    {
+                        CompleteJobs(); DisposeOwners(); RestoreVerification(); RestoreNativeRestartWeights();
+                        foreach (var pair in _nativeRestartBindings)
+                            if (pair.Key) pair.Key.bones = pair.Value.Bones.ToArray();
+                        ValidateNativeRestartBindings(false);
+                        ValidateRestoredOwners(); ValidateRelations(false);
+                    }
+                    catch (Exception cleanup) { throw new AggregateException("Native owner restart and stopped-source recovery failed.", failure, cleanup); }
+                    throw;
+                }
+            }
+            private void RestoreNativeRestartWeights()
+            {
+                foreach (var pair in _nativeRestartBindings)
+                {
+                    if (!pair.Key) continue;
+                    if (!pair.Key.sharedMesh || !PhysicalWeightChannels(pair.Key.sharedMesh).SequenceEqual(pair.Value.Channels))
+                        throw new InvalidOperationException("A native owner restart changed its presentation channel layout.");
+                    for (var index = 0; index < pair.Value.Weights.Length; index++)
+                        pair.Key.SetBlendShapeWeight(index, pair.Value.Weights[index]);
+                }
+            }
+            private void ValidateNativeRestartBindings(bool initialized)
+            {
+                var current = Capture(_graphics, _nativeRestartBindings.Keys);
+                if (current == null || _nativeRestartBindings.Any(pair => !current.TryGetValue(pair.Key, out var value) ||
+                        value.Original != pair.Value.Mesh || !value.OwnerCurrent || !value.AcceptsCurrentMesh() ||
+                        (initialized ? !value.MatchesBones(pair.Value.Bones) : !pair.Key.bones.SequenceEqual(pair.Value.Bones))))
+                    throw new InvalidOperationException("A restored native owner did not retain its presentation owner's source mesh and palette.");
             }
             private void RestoreCore(bool restart)
             {
@@ -5006,6 +6370,8 @@ public static class CustomModels
                 DisposeOwners();
                 ClearWeights();
                 foreach (var data in _data) Put(data.Deformer, "MeshData", data.Original);
+                foreach (var rest in _physicalClothRest) rest.Restore();
+                foreach (var rest in _physicalCapsules.Values) rest.Restore();
                 foreach (var skin in _skins)
                 {
                     if (skin.Deformer != null) SourceMesh.SetValue(skin.Deformer, skin.Original);
@@ -5026,6 +6392,10 @@ public static class CustomModels
             private void ValidateRestoredState()
             {
                 ValidateSources(false);
+                ValidateRestoredOwners();
+            }
+            private void ValidateRestoredOwners()
+            {
                 foreach (var owner in _owners)
                 {
                     if (!owner.Component) continue;
@@ -5056,7 +6426,7 @@ public static class CustomModels
                     }
                 foreach (var owner in _owners.OrderBy(owner => owner.Order))
                     if (owner.Component && !owner.PreservesRejectedCloth && (owner.Initialized || Flag(Get(owner.Component, "Status"), "IsInitStart")))
-                        Invoke(owner.Component, "TacticalDispose");
+                        owner.DisposeNative();
                 foreach (var owner in _owners.Where(owner => owner.Order == 1))
                     ((IList)Get(owner.Deformer, "sharedChildMeshIndexList")).Clear();
             }
@@ -5094,6 +6464,7 @@ public static class CustomModels
                                 $"({owner.Component.GetInstanceID()}): verify={Invoke(owner.Component, "VerifyData")}; originalVerify={owner.VerificationResult}; " +
                                 $"init={Get(status, "init")}; initStart={Get(status, "initStart")}; initError={Get(status, "initError")}; " +
                                 $"disposed={Get(status, "dispose")}; active={owner.Component.gameObject.activeInHierarchy}.");
+                        owner.RestoreRuntimeColliders(true);
                     }
                 }
                 finally
@@ -5198,6 +6569,8 @@ public static class CustomModels
                         if (!own.TryGetValue(channel, out var value) &&
                             !(original != null && original.TryGetValue(channel, out value)) &&
                             !(foreign != null && foreign.TryGetValue(channel, out value))) value = 0f;
+                        if (_physicalChannels.TryGetValue(renderer, out var consumed) && consumed.TryGetValue(channel, out var desired))
+                            value = installed ? 0f : desired;
                         renderer.SetBlendShapeWeight(index, value);
                     }
                 }
@@ -5209,8 +6582,10 @@ public static class CustomModels
                 Invoke(Get(manager, "Compute"), "CompleteJob");
             }
 
-            private void ValidateSources(bool installed)
+            private void ValidateSources(bool installed, bool validateContent = true)
             {
+                foreach (var rest in _physicalClothRest) rest.Validate(rest.Applied, validateContent);
+                foreach (var rest in _physicalCapsules.Values) rest.ValidateCurrent();
                 ValidateBoundaryOwners();
                 foreach (var owner in _owners)
                 {
@@ -5452,6 +6827,8 @@ public static class CustomModels
             => CapturePrefab(graphics.gameObject, renderers);
 
         internal static HashSet<UnityEngine.Object> NativePrefabData(GameObject prefab) => SourceGraph.NativePrefabData(prefab);
+        internal static Component[] NativePartClothConsumers(GameObject part) => SourceGraph.NativePartClothConsumers(part);
+        internal static Component[] NativePartRestConsumers(GameObject part) => SourceGraph.NativePartRestConsumers(part);
         internal static void PrepareNativeMetadata() => SourceGraph.PrepareNativeMetadata();
         internal static IEnumerator PrepareNativeFingerprint(UnityEngine.Object source, Func<bool> current, Action<string> receive) =>
             SourceGraph.PrepareNativeFingerprint(source, current, receive);

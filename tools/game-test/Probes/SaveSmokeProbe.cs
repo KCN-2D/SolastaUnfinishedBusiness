@@ -767,18 +767,34 @@ public static class GameTestSaveSmokeProbe
 
     private static IEnumerator DismissStartupMessage()
     {
+        // Show sets Showing after OnBeginShow; wait for the native input-ready
+        // state before inspecting the serialized action buttons.
+        yield return null;
         var modal = Gui.GuiService.GetScreen<MessageModal>();
-        if (!modal.Visible) yield break;
+        if (!modal || (!modal.Visible && !modal.Showing && !modal.Hiding)) yield break;
         var end = Time.realtimeSinceStartup + 15f;
-        while (modal.Showing && Time.realtimeSinceStartup < end) yield return null;
-        var dismiss = modal.GetComponentsInChildren<Button>(false).FirstOrDefault(button =>
-            button.gameObject.activeInHierarchy && button.IsInteractable() &&
-            Enumerable.Range(0, button.onClick.GetPersistentEventCount()).Any(index =>
-                button.onClick.GetPersistentMethodName(index) == "OnValidateCb" || button.onClick.GetPersistentMethodName(index) == "OnCancelCb"));
+        var ready = typeof(MessageModal).GetField("readyToReceiveInput", Flags) ??
+            throw new MissingFieldException(typeof(MessageModal).FullName, "readyToReceiveInput");
+        while (modal && (modal.Visible || modal.Showing || modal.Hiding) &&
+               (modal.Showing || modal.Hiding || !(bool)ready.GetValue(modal)) && Time.realtimeSinceStartup < end)
+            yield return null;
+        if (!modal || !modal.Visible) yield break;
+        if (modal.Showing || modal.Hiding || !(bool)ready.GetValue(modal))
+            throw new BlockedConditionException("The startup message did not become ready for native input.");
+        // These are the same native actions used by MessageModal.AutotestAcknowledge.
+        var dismiss = new[] { "validateButton", "cancelButton" }.Select(name =>
+            (Button)(typeof(MessageModal).GetField(name, Flags) ??
+                throw new MissingFieldException(typeof(MessageModal).FullName, name)).GetValue(modal))
+            .FirstOrDefault(button => button && button.gameObject.activeInHierarchy && button.enabled && button.IsInteractable());
         if (!dismiss) throw new BlockedConditionException("The startup message has no known native dismissal button.");
+        var title = ((GuiLabel)typeof(MessageModal).GetField("titleLabel", Flags).GetValue(modal)).TMP_Text.text;
+        log("INFO: native startup message title=" + title + "; action=" + dismiss.name + "; ready=" + ready.GetValue(modal));
+        yield return Capture("StartupMessage");
         yield return Click(dismiss, "native startup message dismissal");
-        while (modal.Visible && Time.realtimeSinceStartup < end) yield return null;
-        if (modal.Visible) throw new BlockedConditionException("The native startup message did not close.");
+        end = Time.realtimeSinceStartup + 15f;
+        while (modal && (modal.Visible || modal.Showing || modal.Hiding) && Time.realtimeSinceStartup < end) yield return null;
+        if (modal && (modal.Visible || modal.Showing || modal.Hiding))
+            throw new BlockedConditionException("The native startup message did not close.");
     }
 
     private static IEnumerator DismissTutorial()

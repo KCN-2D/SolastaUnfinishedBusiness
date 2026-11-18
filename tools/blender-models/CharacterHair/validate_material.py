@@ -3,8 +3,9 @@ import argparse
 import hashlib
 import json
 import math
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import random
+import re
 import UnityPy
 
 
@@ -107,9 +108,14 @@ def main():
     assert report["bundleSha256"] == reference(bundle)["sha256"]
     original, original_shader, original_properties = material(args.baseline)
     current, shader, properties = material(bundle)
-    assert current is not None and current.m_Name == "SourceGroomNativeHair"
-    assert original is None or original.m_Name == current.m_Name
-    assert shader.m_ParsedForm.m_Name == original_shader.m_ParsedForm.m_Name == "KCN/SourceGroom/NativeHair"
+    assert len(recipe['materials'])==1, 'One material contract is required.'
+    declared=recipe['materials'][0]
+    assert current is not None and current.m_Name == declared['name']
+    for asset in recipe['assets']:
+        assert reference(args.recipe.parent/asset['path'])['sha256']==asset['sha256'], 'A declared shader source changed.'
+    source=args.recipe.parent/declared['shader']
+    shader_names=re.findall(r'\bShader\s+"([^"]+)"',source.read_text('utf-8-sig'))
+    assert len(shader_names)==1 and shader.m_ParsedForm.m_Name==shader_names[0], 'The compiled shader differs from its source declaration.'
     colors=lambda m:{k:(v.r,v.g,v.b,v.a) for k,v in m.m_SavedProperties.m_Colors}
     textures=lambda m:{k:(v.m_Texture.m_FileID,v.m_Texture.m_PathID,v.m_Scale.x,v.m_Scale.y,v.m_Offset.x,v.m_Offset.y) for k,v in m.m_SavedProperties.m_TexEnvs}
     authored_floats = {item['name']: item['value'] for item in recipe['materials'][0]['properties'] if item['kind'] == 'float'}
@@ -137,7 +143,9 @@ def main():
     culling=[(p['name'],'<compiled>',p['cull']) for p in actual_passes]
     assert all(p['cull']==0 and p['alphaToMask']==0 for p in actual_passes)
     assert report["materials"][0]["shaderSupported"] and report["materials"][0]["renderQueue"] == 2450
-    asset = next(name for name in report["assetNames"] if name.endswith("/sourcegroomnativehair.mat"))
+    material_assets=[name for name in report['assetNames']if PurePosixPath(name).suffix.casefold()=='.mat'and PurePosixPath(name).stem.casefold()==declared['name'].casefold()]
+    assert len(material_assets)==1, 'The recipe material has no unique compiled asset address.'
+    asset=material_assets[0]
     result = {"status": "PASS_SHADER_MATERIAL_AND_BRDF_CONTRACTS", "bundle": reference(bundle),
               "baselineBundle": reference(args.baseline), "report": reference(args.report),
               "recipe": reference(args.recipe),

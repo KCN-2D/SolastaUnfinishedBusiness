@@ -67,6 +67,20 @@ try {
     $plan = [IO.File]::ReadAllText($PlanPath) | ConvertFrom-Json
     if ($plan.schemaVersion -ne 1) { throw '必須検証の設定形式が不正です。' }
     . (Join-Path $repositoryRoot 'tools/game-test/GameTest.Common.ps1')
+    $workDirectories = @()
+    if ($plan.PSObject.Properties['workDirectories']) {
+        $workRoots = @($script:GameTestArtifactRoot,(Join-Path $repositoryRoot 'tools/asset-authoring/workspace'))
+        foreach ($directory in @($plan.workDirectories)) {
+            $directory = Get-GtPath $directory
+            if (-not @($workRoots | Where-Object { $directory -ne $_ -and (Test-GtWithin $directory $_) }).Count) {
+                throw '継続作業の保持先は、生成物の管理フォルダー内へ指定してください。'
+            }
+            Assert-GtPlainPath $directory
+            if (-not [IO.Directory]::Exists($directory)) { throw "継続作業の保持先が存在しません：$directory" }
+            $workDirectories += $directory
+        }
+        $workDirectories = @($workDirectories | Sort-Object -Unique)
+    }
     $evidenceRoot = Get-GtPath $plan.artifactRoot
     if (-not (Test-GtWithin $evidenceRoot $script:GameTestArtifactRoot) -or $evidenceRoot -eq $script:GameTestArtifactRoot) { throw '必須検証の証跡先が不正です。' }
     [void][IO.Directory]::CreateDirectory($evidenceRoot)
@@ -121,16 +135,28 @@ try {
         $verificationChanged = $false
         $cachePath = Join-Path $evidenceRoot 'RequiredChecks.json'
         $cached = if ([IO.File]::Exists($cachePath)) { Read-GtObject $cachePath } else { $null }
-        $buildDirectory = $plan.buildDirectory
-        if ($cached -and $cached.status -eq 'PASS') { $buildDirectory = $cached.buildDirectory }
-        $build = if ($buildDirectory -and [IO.File]::Exists((Join-Path $buildDirectory 'Build.json'))) { Read-GtObject (Join-Path $buildDirectory 'Build.json') } else { $null }
-        $sameInputs = $build -and $build.status -eq 'PASS' -and
-            (Test-GtSourceContent $build.environment.source $environment.source) -and
-            $build.environment.gameExe -ieq $environment.gameExe -and $build.environment.gameSha256 -ieq $environment.gameSha256 -and
-            ($build.environment.assemblies | ConvertTo-Json -Depth 8 -Compress) -ceq ($environment.assemblies | ConvertTo-Json -Depth 8 -Compress) -and
-            ($build.environment.buildInputs | ConvertTo-Json -Depth 8 -Compress) -ceq ($environment.buildInputs | ConvertTo-Json -Depth 8 -Compress) -and
-            ($build.environment.sdks | ConvertTo-Json -Compress) -ceq ($environment.sdks | ConvertTo-Json -Compress)
-        if (-not $sameInputs) {
+        $zipPath = Join-Path $script:GameTestBuildRoot 'SolastaUnfinishedBusiness.zip'
+        $formalOutput = Join-Path $script:GameTestBuildRoot 'Output/SolastaUnfinishedBusiness'
+        $cachedSourceCurrent = $cached -and $cached.status -eq 'PASS' -and (Test-GtSourceContent $cached.source $environment.source)
+        $candidates = @(if ($cachedSourceCurrent) { $cached.buildDirectory }
+            if (-not $cachedSourceCurrent -or $cached.buildDirectory -ine $plan.buildDirectory) { $plan.buildDirectory })
+        $build = $null
+        foreach ($directory in $candidates) {
+            if (-not $directory -or -not [IO.File]::Exists((Join-Path $directory 'Build.json'))) { continue }
+            $candidate = Read-GtObject (Join-Path $directory 'Build.json')
+            if ($candidate.status -eq 'PASS' -and
+                (Test-GtSourceContent $candidate.environment.source $environment.source) -and
+                $candidate.environment.gameExe -ieq $environment.gameExe -and $candidate.environment.gameSha256 -ieq $environment.gameSha256 -and
+                ($candidate.environment.assemblies | ConvertTo-Json -Depth 8 -Compress) -ceq ($environment.assemblies | ConvertTo-Json -Depth 8 -Compress) -and
+                ($candidate.environment.buildInputs | ConvertTo-Json -Depth 8 -Compress) -ceq ($environment.buildInputs | ConvertTo-Json -Depth 8 -Compress) -and
+                ($candidate.environment.sdks | ConvertTo-Json -Compress) -ceq ($environment.sdks | ConvertTo-Json -Compress) -and
+                (Test-GtBuildPayload $candidate $directory $formalOutput $zipPath)) {
+                $build = $candidate
+                $buildDirectory = $directory
+                break
+            }
+        }
+        if (-not $build) {
             $verificationChanged = $true
             $output = Invoke-CheckProcess 'powershell.exe' @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',
                 (Join-Path $repositoryRoot 'tools/game-test/New-GameTestBuild.ps1'),'-GameExePath',$plan.gameExe,'-EvidenceRoot',(Join-Path $evidenceRoot 'Builds'))
@@ -139,7 +165,7 @@ try {
             if ($build.status -ne 'PASS') { throw '正式ビルドが成功していません。' }
         }
         $nativePath = $plan.native.result
-        if ($cached -and $cached.status -eq 'PASS') { $nativePath = $cached.nativeResult }
+        if ($cachedSourceCurrent) { $nativePath = $cached.nativeResult }
         $inputCase = Read-GtObject $plan.native.casePath
         $nativeFiles = @($plan.native.casePath,$plan.native.validator) + @($plan.native.sources) + @($plan.native.references)
         if ($inputCase.initialState.PSObject.Properties['settingsFile']) { $nativeFiles += $inputCase.initialState.settingsFile }
@@ -178,15 +204,48 @@ try {
         if ($plan.native.PSObject.Properties['requirements']) {
             Assert-GtRequiredEvidence (Split-Path -Parent $nativePath) $plan.native.requirements
         }
-        $zipPath = Join-Path $repositoryRoot 'tools/CustomBuildLocal/SolastaUnfinishedBusiness.zip'
         if ((Get-GtHash $zipPath) -ine $build.zipSha256) { throw '配布ZIPと正式ビルドの内容が一致していません。' }
         $cleanupPath = Join-Path $evidenceRoot 'RunRequiredCleanup.ps1'
-        $cleanup = '$p=Get-Content -LiteralPath $args[0] -Raw|ConvertFrom-Json; if($p.pruneRuns){& $p.runner -ArtifactRoot $p.root -PruneSuperseded -KeepLatestPerCase 1 -PreserveDirectory @($p.preserve) -Apply}; & $p.workspaceRunner -PreserveDirectory @($p.preserve) -Apply'
+        $cleanup = '$p=Get-Content -LiteralPath $args[0] -Raw|ConvertFrom-Json; if($p.pruneRuns){& $p.runner -ArtifactRoot $p.root -PruneSuperseded -KeepLatestPerCase 1 -PreserveDirectory @($p.preserve) -Apply}; if($p.pruneWorkspace){& $p.workspaceRunner -PreserveDirectory @($p.preserve) -Apply}'
         [IO.File]::WriteAllText($cleanupPath,$cleanup,[Text.UTF8Encoding]::new($true))
         $cleanupPlan = Join-Path $evidenceRoot 'RequiredCleanup.json'
-        Write-GtJson $cleanupPlan ([ordered]@{runner=(Join-Path $repositoryRoot 'tools/game-test/Clear-GameTestArtifacts.ps1');workspaceRunner=(Join-Path $repositoryRoot 'tools/Clear-ToolStorage.ps1');root=$evidenceRoot;pruneRuns=$verificationChanged;preserve=@($buildDirectory,(Split-Path -Parent $nativePath))})
-        [void](Invoke-CheckProcess 'powershell.exe' @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$cleanupPath,$cleanupPlan))
-        Write-GtJson $cachePath ([ordered]@{schemaVersion=1;status='PASS';utc=[datetime]::UtcNow.ToString('O');buildDirectory=$buildDirectory;nativeResult=$nativePath;nativeInputs=$nativeInputs;source=$environment.source;packageSha256=$build.zipSha256;event=$eventName})
+        $cleanupSourcePaths = @($PSCommandPath,(Join-Path $repositoryRoot 'tools/Clear-ToolStorage.ps1'),
+            (Join-Path $repositoryRoot 'tools/game-test/Clear-GameTestArtifacts.ps1'),
+            (Join-Path $repositoryRoot 'tools/asset-authoring/resource_storage.py'),
+            (Join-Path $repositoryRoot 'tools/asset-authoring/UnityAssetBuild/BackgroundEditor.ps1'))
+        $cleanupSources = @($cleanupSourcePaths | ForEach-Object { [ordered]@{path=$_;sha256=(Get-GtHash $_)} })
+        # Wrapper changes revalidate the check contracts; cleanup reuse follows its own owners.
+        $cleanupOwners = @($cleanupSources | Where-Object { $_.path -ine $PSCommandPath })
+        $cachedCleanupOwners = if ($cached -and $cached.PSObject.Properties['cleanupSources']) {
+            @($cached.cleanupSources | Where-Object { $_.path -ine $PSCommandPath })
+        } else { @() }
+        $cleanupCurrent = $cached -and $cached.status -eq 'PASS' -and $cached.PSObject.Properties['cleanupSources'] -and
+            $cached.PSObject.Properties['workDirectories'] -and $cached.PSObject.Properties['cleanupCompletedUtc'] -and
+            ($cachedCleanupOwners | ConvertTo-Json -Compress) -ceq ($cleanupOwners | ConvertTo-Json -Compress) -and
+            (ConvertTo-Json -InputObject @($cached.workDirectories) -Compress) -ceq (ConvertTo-Json -InputObject $workDirectories -Compress)
+        if ($cleanupCurrent) {
+            # Every registered producer start/resume rewrites this record, even for unchanged paths.
+            $registeredWork = Join-Path $script:GameTestArtifactRoot 'StorageReferences.json'
+            $cleanupCurrent = [IO.File]::Exists($registeredWork)
+            if ($cleanupCurrent) {
+                Assert-GtPlainPath $registeredWork
+                $completed = ConvertTo-GtUtcDate $cached.cleanupCompletedUtc
+                $cleanupCurrent = [IO.File]::GetLastWriteTimeUtc($registeredWork) -le $completed
+                foreach ($directory in $workDirectories) {
+                    if ([IO.Directory]::GetLastWriteTimeUtc($directory) -gt $completed) { $cleanupCurrent = $false; break }
+                }
+            }
+        }
+        $cleanupCompletedUtc = if ($cleanupCurrent) { $cached.cleanupCompletedUtc } else { $null }
+        if ($verificationChanged -or -not $cleanupCurrent) {
+            Write-GtJson $cleanupPlan ([ordered]@{runner=(Join-Path $repositoryRoot 'tools/game-test/Clear-GameTestArtifacts.ps1');
+                workspaceRunner=(Join-Path $repositoryRoot 'tools/Clear-ToolStorage.ps1');root=$evidenceRoot;
+                pruneRuns=$verificationChanged;pruneWorkspace=-not $cleanupCurrent;
+                preserve=@($buildDirectory,(Split-Path -Parent $nativePath))+$workDirectories})
+            [void](Invoke-CheckProcess 'powershell.exe' @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$cleanupPath,$cleanupPlan))
+            if (-not $cleanupCurrent) { $cleanupCompletedUtc = [datetime]::UtcNow.ToString('O') }
+        }
+        Write-GtJson $cachePath ([ordered]@{schemaVersion=1;status='PASS';utc=[datetime]::UtcNow.ToString('O');buildDirectory=$buildDirectory;nativeResult=$nativePath;nativeInputs=$nativeInputs;source=$environment.source;packageSha256=$build.zipSha256;event=$eventName;workDirectories=$workDirectories;cleanupSources=$cleanupSources;cleanupCompletedUtc=$cleanupCompletedUtc})
         if ($CodexHook) { Write-Output '{}' } else { Write-Output "必須検証成功: $cachePath" }
     } finally { Pop-Location }
     exit 0

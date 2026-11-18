@@ -312,9 +312,9 @@ function Get-GtManifest([string] $Directory) {
     })
 }
 
-function Assert-GtManifest([string] $Directory, [object[]] $Manifest) {
+function Get-GtManifestMismatch([string] $Directory, [object[]] $Manifest) {
     $actual = @(Get-GtManifest $Directory)
-    if ($actual.Count -ne $Manifest.Count) { throw "Manifest file count differs: $Directory" }
+    if ($actual.Count -ne $Manifest.Count) { return "Manifest file count differs: $Directory" }
     $expectedByPath = [Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
     foreach ($entry in $Manifest) {
         if ($expectedByPath.ContainsKey($entry.path)) { throw "Duplicate manifest path: $($entry.path)" }
@@ -324,9 +324,26 @@ function Assert-GtManifest([string] $Directory, [object[]] $Manifest) {
         if (-not $expectedByPath.ContainsKey($entry.path) -or
             $entry.sha256 -ne $expectedByPath[$entry.path].sha256 -or
             $entry.size -ne $expectedByPath[$entry.path].size) {
-            throw "Manifest mismatch: $($entry.path)"
+            return "Manifest mismatch: $($entry.path)"
         }
     }
+}
+
+function Assert-GtManifest([string] $Directory, [object[]] $Manifest) {
+    $mismatch = Get-GtManifestMismatch $Directory $Manifest
+    if ($mismatch) { throw $mismatch }
+}
+
+function Test-GtBuildPayload($Build, [string]$BuildDirectory, [string]$FormalOutput, [string]$Archive) {
+    if (-not [IO.File]::Exists($Archive) -or (Get-GtHash $Archive) -ine $Build.zipSha256) { return $false }
+    $stage = Get-GtPath (Join-Path $BuildDirectory $Build.stage)
+    if ($stage -eq $BuildDirectory -or -not (Test-GtWithin $stage $BuildDirectory)) { throw 'Invalid staging path.' }
+    foreach ($directory in @($stage, $FormalOutput)) {
+        if (-not [IO.Directory]::Exists($directory)) { return $false }
+        # Path and IO errors remain actionable. Only a retired or mismatched payload is a cache miss.
+        if (Get-GtManifestMismatch $directory @($Build.manifest)) { return $false }
+    }
+    return $true
 }
 
 function Get-GtCompletedBuild([IO.DirectoryInfo] $Directory) {
@@ -417,7 +434,7 @@ function Copy-GtBuildStage([string] $Source, [string] $BuildDirectory, [object[]
         if ($usePrevious) {
             if (Test-Path -LiteralPath $destination) { throw "Staging destination already exists: $destination" }
             New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
-            try { New-Item -ItemType HardLink -Path $destination -Target $previousFile -ErrorAction Stop | Out-Null }
+            try { New-Item -ItemType HardLink -Path ('\\?\'+$destination) -Target ('\\?\'+$previousFile) -ErrorAction Stop | Out-Null }
             catch {
                 # A partial creation is not overwritten: doing so could write through the borrowed inode.
                 if (Test-Path -LiteralPath $destination) { throw "Hard-link creation left an unexpected staging entry: $destination. $($_.Exception.Message)" }
@@ -456,13 +473,13 @@ function Clear-GtSupersededBuildAssets {
     $current=Get-GtPath $BuildDirectory
     if(-not(Test-GtWithin $current $script:GameTestArtifactRoot)){throw 'Build asset retention is limited to artifact builds.'}
     $parent=Split-Path -Parent $current
-    Assert-GtPlainPath $current;Assert-GtTree $parent
-    $references=Read-GtStorageReferences $ReferencePath
     $report=[ordered]@{schemaVersion=1;status='NOT_RUN';releasedFiles=0;releasedLogicalBytes=0L;retained=@();released=@()}
     $game=Get-VerificationProcessState -Name Solasta
     if(-not $game.querySucceeded -or $game.matches.Count){$report.status='RETAINED_GAME_NOT_STOPPED';return $report}
     $lock=Enter-GtLock
     try {
+        Assert-GtPlainPath $current;Assert-GtTree $parent
+        $references=Read-GtStorageReferences $ReferencePath
         $records=@(Get-GtCompletedBuilds $parent)
         foreach($invalid in @($records|Where-Object error)){$report.retained+=@{path=$invalid.path;reason='unrecognized-build-receipt'}}
         $builds=@($records|Where-Object {-not $_.error})
@@ -471,8 +488,10 @@ function Clear-GtSupersededBuildAssets {
             if($build.path -eq $current -or $build.path -in $newest){$report.retained+=@{path=$build.path;reason='current-or-latest-build'};continue}
             $modelRoot=Get-GtPath (Join-Path $build.path 'Stage/SolastaUnfinishedBusiness/BlenderModels')
             if(-not(Test-GtWithin $modelRoot $build.path)){throw 'A build model root escaped its build.'}
-            $explicit=@($references.paths|Where-Object {(Test-GtWithin $_ $build.path)-or(Test-GtWithin $build.path $_)})
-            if($explicit.Count){$report.retained+=@{path=$build.path;reason='declared-input-reference'};continue}
+            if(Test-GtStorageReferenceOverlap $build.path $references){
+                $report.retained+=@{path=$build.path;reason='declared-input-reference'}
+                continue
+            }
             $markerPath=Join-Path $build.path 'BuildAssetRelease.json'
             try {
                 $entries=@($build.receipt.manifest|Where-Object {$_.path.StartsWith('BlenderModels/',[StringComparison]::Ordinal)})
@@ -925,7 +944,7 @@ function Get-GtToolRun([string]$Path,$Result) {
         $caseId=if($storageReport){'@ToolStorage'}else{'@ToolContracts'}
         if($storageReport){
             foreach($entry in Get-ChildItem -LiteralPath $Path -Force){
-                if($entry.PSIsContainer -or $entry.Name -cnotmatch '^(Directory|Result|ResourceLifecycle|RetainedInputs|ReferencesBefore|ResourcePayloads-[01])\.json$|^ResourceStorage\.log$'){
+                if($entry.PSIsContainer -or $entry.Name -cnotmatch '^(Directory|Result|ResourceLifecycle|RetainedInputs|ReferencesBefore|ResourcePayloads-[01]|StorageInventory)\.json$|^(ResourceStorage|StorageInventory)\.log$'){
                     throw 'Storage report contains unowned files.'
                 }
             }
@@ -1002,7 +1021,24 @@ function Read-GtStorageReferences([string[]]$ReferencePath) {
         }
         [ordered]@{path=$manifestPath;sha256=Get-GtHash $manifestPath}
     })
-    return [pscustomobject]@{paths=$paths;inputs=$inputs}
+    $ancestors=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach($entry in $paths){
+        $parent=$entry
+        while($parent -and $ancestors.Add($parent)){
+            $parent=[IO.Path]::GetDirectoryName($parent)
+        }
+    }
+    return [pscustomobject]@{paths=$paths;ancestors=$ancestors;inputs=$inputs}
+}
+
+function Test-GtStorageReferenceOverlap([string]$Path,$References) {
+    $candidate=Get-GtPath $Path
+    if($References.ancestors.Contains($candidate)){return $true}
+    while($candidate){
+        if($References.paths.Contains($candidate)){return $true}
+        $candidate=[IO.Path]::GetDirectoryName($candidate)
+    }
+    return $false
 }
 
 function Assert-GtStorageReferences($References) {
@@ -1055,7 +1091,8 @@ function Clear-GtNativeUserData {
         [void](Get-GtRuntimeRun (Split-Path -Parent $runtimePath) (Read-GtObject $runtimePath))
     }
     function Test-NativeReleaseReference($Companion,[string[]]$PreservedDirectories){
-        foreach($path in @($references.paths)+@($PreservedDirectories)){
+        if(Test-GtStorageReferenceOverlap $Companion.path $references){return $true}
+        foreach($path in $PreservedDirectories){
             $resolved=Get-GtPath $path
             if((Test-GtWithin $resolved $Companion.path) -or (Test-GtWithin $Companion.path $resolved)){return $true}
         }
