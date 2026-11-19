@@ -2409,6 +2409,8 @@ def validate_owned_groom_surface(receipt,inputs,verified):
                     if skin is None or skin['sourceFingerprint']!=native['sourceFingerprint']:
                         raise ValueError('A composed groom lost its original center skin authority.')
                     options['surface_skin']=skin
+                if row['composition'].get('retainedFittedFibers'):
+                    options['retain_fitted_fibers']=True
                 packet,attachment,facts=converter.compose_finished_source_groom(old,export_current_mesh(donor.objects[identifier]),binding,**options)
                 if support_proof is not None:facts['authoredSupport']=support_proof
                 if packet!=converter.read(pinned(row['packet']))or facts!=row['composition']:raise ValueError('A composed groom changed retained support or finished fibers.')
@@ -2592,12 +2594,13 @@ def validate_compiled_groom_atlas(operation):
 def validate_groom_material_defaults(receipt):
     import tempfile
     import character_resources as resources
-    for key in ('source','target','beforePreset','afterPreset'):
-        reference=receipt[key];checked_source_path(reference['path'])
+    older = receipt.get('olderPresets', [])
+    for reference in (*(receipt[key] for key in ('source','target','beforePreset','afterPreset')), *older):
+        checked_source_path(reference['path'])
         if sha(reference['path'])!=reference['sha256']:raise ValueError('A groom material preset input changed.')
     with tempfile.TemporaryDirectory(prefix='groom-preset-',dir=Path(receipt['target']['path']).parent)as directory:
         replay=resources.retune_groom_defaults(dict(source=receipt['source']['path'],sha256=receipt['source']['sha256'],
-            target=str(Path(directory)/'saved.bundle'),before=receipt['beforePreset'],after=receipt['afterPreset'],
+            target=str(Path(directory)/'saved.bundle'),before=receipt['beforePreset'],after=receipt['afterPreset'],older=older,
             materializeInheritedDefaults=receipt.get('materializeInheritedDefaults',False)))
         if not replay['changed']or replay['sha256']!=receipt['sha256']or replay['materialFloatUpdates']!=receipt['materialFloatUpdates']:
             raise ValueError('A groom material changed beyond its matching previous defaults.')
@@ -8838,64 +8841,90 @@ def groom_retained_support(row,profile):
 
 def prepare_groom_designs():
     """Compile source-proven groom surfaces against their current prefab fitting."""
-    import importlib.util
-    from mesh_recipe_codec import encode_recipe
+    from concurrent.futures import ProcessPoolExecutor
     import character_resources as resources
     parser=argparse.ArgumentParser();parser.add_argument('--source',type=Path,required=True);parser.add_argument('--generations',nargs='+',type=Path,required=True)
-    parser.add_argument('--output',type=Path,required=True);args=parser.parse_args();source=checked_catalog_path(args.source);output=checked_catalog_path(args.output)
+    parser.add_argument('--output',type=Path,required=True)
+    parser.add_argument('--workers',type=int,choices=range(1,9),default=6)
+    args=parser.parse_args();source=checked_catalog_path(args.source);output=checked_catalog_path(args.output)
     if output.exists()or not any(output.is_relative_to(ROOT/p)for p in('tools/asset-authoring/workspace','tools/game-test/artifacts')):raise ValueError('Groom recipes require a new authoring workspace.')
     output.mkdir(parents=True);rows=[];recipes=[];generations=[];modes=set()
+    jobs, assets = [], set()
     converter_path=output/'ProducerSources/GenerateFlowCoverageSweptProfile.py';converter_path.parent.mkdir()
     converter_path.write_bytes((ROOT/'tools/blender-models/CharacterHair/GenerateFlowCoverageSweptProfile.py').read_bytes())
     retained=resource_producer_archives(output,[Path(__file__),Path(resources.__file__),
         Path(sys.modules['mesh_recipe_codec'].__file__),Path(sys.modules['collect_sources'].__file__),Path(asset_names.__file__)])
+    for path in args.generations:
+        generation = read(path)
+        if generation['status'] not in ('PASS_SOURCE_GROOM_NUMERIC_PROOFS_RENDER_PENDING','PASS_CURVED_CORE_NUMERIC_PROOFS_RENDER_PENDING'):
+            raise ValueError('Every source groom requires completed physical proofs.')
+        modes.add('source-fibers-only' if generation['status'] == 'PASS_SOURCE_GROOM_NUMERIC_PROOFS_RENDER_PENDING' else 'source-owned-core')
+        members = {row['asset'] for row in generation['rows']}
+        if len(members) != 1 or assets.intersection(members):
+            raise ValueError('A source design generation must own one distinct, complete groom.')
+        asset = members.pop()
+        assets.add(asset)
+        receipt = dict(path=str(path.resolve()),sha256=sha(path))
+        jobs.append((source,output,converter_path,asset,receipt))
+        generations.append(receipt)
+    if len(modes)!=1:raise ValueError('A groom recipe batch requires one declared surface ownership policy.')
+    with ProcessPoolExecutor(max_workers=args.workers,max_tasks_per_child=4) as pool:
+        for member_rows, recipe in pool.map(prepare_groom_design_asset,jobs):
+            rows.extend(member_rows)
+            recipes.append(recipe)
+    write(output/'Plan.json',dict(mode=next(iter(modes)),retainedSourceInputs=retained,source=dict(path=str((source/'ResourceAssembly.json').resolve()),sha256=sha(source/'ResourceAssembly.json')),
+        generations=generations,rows=rows,recipes=recipes,producer=dict(path=str(converter_path.resolve()),sha256=sha(converter_path))))
+
+
+def prepare_groom_design_asset(job):
+    import importlib.util
+    from mesh_recipe_codec import encode_recipe
+    import character_resources as resources
+
+    source, output, converter_path, asset, receipt = job
+    path = Path(receipt['path'])
+    generation = read(path)
+    if sha(path) != receipt['sha256'] or any(row['asset'] != asset for row in generation['rows']):
+        raise ValueError('A complete source groom changed after the batch was admitted.')
     converter_spec=importlib.util.spec_from_file_location('source_groom_attachment_'+sha(converter_path)[:12],converter_path)
     if converter_spec is None or converter_spec.loader is None:raise ValueError('The groom fitting producer is unavailable.')
     converter=importlib.util.module_from_spec(converter_spec);converter_spec.loader.exec_module(converter)
-    for path in args.generations:
-        generation=read(path)
-        if generation['status']not in('PASS_SOURCE_GROOM_NUMERIC_PROOFS_RENDER_PENDING','PASS_CURVED_CORE_NUMERIC_PROOFS_RENDER_PENDING'):
-            raise ValueError('Every source groom requires completed physical proofs.')
-        modes.add('source-fibers-only'if generation['status']=='PASS_SOURCE_GROOM_NUMERIC_PROOFS_RENDER_PENDING'else'source-owned-core')
-        producer=Path(generation['generatorPath'])
-        if sha(producer)!=generation['generatorSha256']:raise ValueError('The numeric groom producer changed.')
-        spec=importlib.util.spec_from_file_location('source_groom_'+sha(producer)[:12],producer)
-        if spec is None or spec.loader is None:raise ValueError('The numeric groom producer is unavailable.')
-        owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner)
-        meshes=[];assets={row['asset']for row in generation['rows']}
-        if len(assets)!=1:raise ValueError('A source design generation must own one complete groom.')
-        asset=next(iter(assets));folder=output/asset;folder.mkdir()
-        files={row['standaloneResource']['file']for row in generation['rows']}
-        if len(files)!=1:raise ValueError('A source groom has multiple prefab owners.')
-        current_path=source/'Catalog'/next(iter(files));current_digest=sha(current_path)
-        current=resources.load_serialized_bundle(current_path,in_memory=True)[1]
-        required=resources.groom_mesh_identifiers(current);seen=set()
-        for row in generation['rows']:
-            numeric=owner.prove_row(row,generation['profile'])
-            if numeric['declaredZeroFine']:raise ValueError('The declared fine source surface is empty.')
-            identifier=int(row['standaloneResource']['meshPathId']);seen.add(identifier)
-            if identifier not in required:raise ValueError('A source groom mesh has no current renderer.')
-            if current_digest!=row['standaloneResource']['sha256']:raise ValueError('The retained groom fitting source changed before compilation.')
-            raw=owner.read(row['generatedPacket']);native=owner.read(row['nativePacketPath']);binding=owner.decode_binding(row['bindingPath'])
-            support=groom_retained_support(row,generation['profile'])
-            old=export_current_mesh(current.objects[identifier]);packet,attachment,facts=converter.standalone_cloth_attachment(raw,native,binding,old,retained_support=support)
-            tag=asset_names.source_label(row['manifestEntry']['authoredMeshAsset']);packet_path=folder/(tag+'.json.gz')
-            with gzip.open(packet_path,'wt',encoding='utf-8')as stream:json.dump(packet,stream,separators=(',',':'))
-            attachment_path=folder/(tag+'.cloth.bytes');converter.encode_legacy_binding(attachment,attachment_path)
-            compiled=dict(packet,name=row['manifestEntry']['authoredMeshAsset']);meshes.append(recipe_mesh(compiled))
-            pin=lambda value:dict(path=str(Path(value).resolve()),sha256=sha(value))
-            rows.append(dict(asset=asset,lod=row['lod'],mesh=identifier,packet=pin(packet_path),clothBinding=pin(attachment_path),
-                rawPacket=pin(row['generatedPacket']),native=pin(row['nativePacketPath']),binding=pin(row['bindingPath']),
-                numeric=numeric,attachment=facts,source=pin(current_path),generation=pin(path),compiledName=compiled['name'],
-                sourceTerminalField=row.get('sourceTerminalField'),materials=row['materials'],retainedSupport=support,
-                carrierSurface=facts.get('compiledCarrierSurface')))
-        if seen!=required:raise ValueError('A groom source design omitted an owning LOD.')
-        recipe=folder/'MeshRecipe.json';encode_recipe(dict(schemaVersion=1,bundleName=asset.lower()+'_source_fibers.bundle',meshes=meshes),recipe,'Data/m.bin')
-        recipes.append(str(recipe.resolve()));generations.append(dict(path=str(path.resolve()),sha256=sha(path)))
-        print('Prepared complete source groom:',asset,flush=True)
-    if len(modes)!=1:raise ValueError('A groom recipe batch requires one declared surface ownership policy.')
-    write(output/'Plan.json',dict(mode=next(iter(modes)),retainedSourceInputs=retained,source=dict(path=str((source/'ResourceAssembly.json').resolve()),sha256=sha(source/'ResourceAssembly.json')),
-        generations=generations,rows=rows,recipes=recipes,producer=dict(path=str(converter_path.resolve()),sha256=sha(converter_path))))
+    producer=Path(generation['generatorPath'])
+    if sha(producer)!=generation['generatorSha256']:raise ValueError('The numeric groom producer changed.')
+    spec=importlib.util.spec_from_file_location('source_groom_'+sha(producer)[:12],producer)
+    if spec is None or spec.loader is None:raise ValueError('The numeric groom producer is unavailable.')
+    owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner)
+    meshes, rows = [], []
+    folder = output / asset
+    folder.mkdir()
+    files={row['standaloneResource']['file']for row in generation['rows']}
+    if len(files)!=1:raise ValueError('A source groom has multiple prefab owners.')
+    current_path=source/'Catalog'/next(iter(files));current_digest=sha(current_path)
+    current=resources.load_serialized_bundle(current_path,in_memory=True)[1]
+    required=resources.groom_mesh_identifiers(current);seen=set()
+    for row in generation['rows']:
+        numeric=owner.prove_row(row,generation['profile'])
+        if numeric['declaredZeroFine']:raise ValueError('The declared fine source surface is empty.')
+        identifier=int(row['standaloneResource']['meshPathId']);seen.add(identifier)
+        if identifier not in required:raise ValueError('A source groom mesh has no current renderer.')
+        if current_digest!=row['standaloneResource']['sha256']:raise ValueError('The retained groom fitting source changed before compilation.')
+        raw=owner.read(row['generatedPacket']);native=owner.read(row['nativePacketPath']);binding=owner.decode_binding(row['bindingPath'])
+        support=groom_retained_support(row,generation['profile'])
+        old=export_current_mesh(current.objects[identifier]);packet,attachment,facts=converter.standalone_cloth_attachment(raw,native,binding,old,retained_support=support)
+        tag=asset_names.source_label(row['manifestEntry']['authoredMeshAsset']);packet_path=folder/(tag+'.json.gz')
+        with gzip.open(packet_path,'wt',encoding='utf-8')as stream:json.dump(packet,stream,separators=(',',':'))
+        attachment_path=folder/(tag+'.cloth.bytes');converter.encode_legacy_binding(attachment,attachment_path)
+        compiled=dict(packet,name=row['manifestEntry']['authoredMeshAsset']);meshes.append(recipe_mesh(compiled))
+        pin=lambda value:dict(path=str(Path(value).resolve()),sha256=sha(value))
+        rows.append(dict(asset=asset,lod=row['lod'],mesh=identifier,packet=pin(packet_path),clothBinding=pin(attachment_path),
+            rawPacket=pin(row['generatedPacket']),native=pin(row['nativePacketPath']),binding=pin(row['bindingPath']),
+            numeric=numeric,attachment=facts,source=pin(current_path),generation=receipt,compiledName=compiled['name'],
+            sourceTerminalField=row.get('sourceTerminalField'),materials=row['materials'],retainedSupport=support,
+            carrierSurface=facts.get('compiledCarrierSurface')))
+    if seen!=required:raise ValueError('A groom source design omitted an owning LOD.')
+    recipe=folder/'MeshRecipe.json';encode_recipe(dict(schemaVersion=1,bundleName=asset.lower()+'_source_fibers.bundle',meshes=meshes),recipe,'Data/m.bin')
+    print('Prepared complete source groom:',asset,flush=True)
+    return rows, str(recipe.resolve())
 
 
 def groom_primary_atlas(atlas_path,report_path):
@@ -8912,8 +8941,12 @@ def groom_primary_atlas(atlas_path,report_path):
         raise ValueError('A primary atlas lost its declared material property roles.')
     if atlas.get('status')!='PRIMARY_LOCK_ATLAS_PREPARED_RENDER_REVIEW_PENDING'or atlas.get('materialPurpose')!='primary-lock'or atlas.get('tileEndModes')!=['continuous-body']*8+['owned-free-tip']*8:
         raise ValueError('A primary atlas lost its explicit material and physical-end purpose.')
-    recipe_pin=atlas.get('recipe')
-    if not isinstance(recipe_pin,dict)or pin(recipe_pin.get('path',''))!=recipe_pin or recipe_pin['sha256']!=atlas.get('recipeSha256'):
+    declared_recipe = atlas.get('recipe')
+    if (not isinstance(declared_recipe,dict) or set(declared_recipe) != {'path','sha256'}
+            or not isinstance(declared_recipe['path'],str) or not Path(declared_recipe['path']).is_absolute()):
+        raise ValueError('A primary atlas requires an absolute recipe pin.')
+    recipe_pin = pin(declared_recipe['path'])
+    if recipe_pin['sha256'] != declared_recipe['sha256'] or recipe_pin['sha256'] != atlas.get('recipeSha256'):
         raise ValueError('A primary atlas recipe pin changed.')
     if Path(recipe_pin['path']).parent!=Path(atlas_pin['path']).parent:raise ValueError('A primary atlas recipe escaped its owned receipt directory.')
     recipe=read(recipe_pin['path']);textures=recipe.get('textures',[])
@@ -9091,12 +9124,14 @@ def groom_fine_material_slots(file,mesh,finished,*,primary_vertices=(),source_pu
 
 def prepare_groom_composition():
     """Assemble declared carrier and fine surfaces inside their source allocation."""
-    import importlib.util
-    from mesh_recipe_codec import encode_recipe
+    from concurrent.futures import ProcessPoolExecutor
     import character_resources as resources
     parser=argparse.ArgumentParser();parser.add_argument('--source',type=Path,required=True);parser.add_argument('--fibers',type=Path,required=True)
     parser.add_argument('--plan',type=Path,required=True);parser.add_argument('--output',type=Path,required=True)
-    parser.add_argument('--primary-atlas',type=Path);parser.add_argument('--primary-atlas-report',type=Path);args=parser.parse_args()
+    parser.add_argument('--primary-atlas',type=Path);parser.add_argument('--primary-atlas-report',type=Path)
+    parser.add_argument('--retain-fitted-fibers', nargs='+', default=[])
+    parser.add_argument('--workers',type=int,choices=range(1,5),default=4)
+    args=parser.parse_args()
     source=checked_catalog_path(args.source);fibers=checked_catalog_path(args.fibers);output=checked_catalog_path(args.output)
     if output.exists()or not any(output.is_relative_to(ROOT/p)for p in('tools/asset-authoring/workspace','tools/game-test/artifacts')):raise ValueError('Groom composition requires a new authoring workspace.')
     pin=lambda path:dict(path=str(Path(path).resolve()),sha256=sha(path))
@@ -9110,11 +9145,13 @@ def prepare_groom_composition():
     producer.write_bytes((ROOT/'tools/blender-models/CharacterHair/GenerateFlowCoverageSweptProfile.py').read_bytes())
     retained=resource_producer_archives(output,[Path(__file__),Path(resources.__file__),Path(sys.modules['mesh_recipe_codec'].__file__)],
         [*baseline.get('retainedSourceInputs',[]),*finished.get('retainedSourceInputs',[]),*plan.get('retainedSourceInputs',[])])
-    spec=importlib.util.spec_from_file_location('source_groom_composition_'+sha(producer)[:12],producer)
-    if spec is None or spec.loader is None:raise ValueError('The source composition producer is unavailable.')
-    owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner)
     groups=collections.defaultdict(list)
-    for row in plan['rows']:groups[Path(row['source']['path']).name].append(row)
+    fitted_assets = set(args.retain_fitted_fibers)
+    if fitted_assets - {row['asset'] for row in plan['rows']}:
+        raise ValueError('A fitted groom was not declared in the source plan.')
+    for row in plan['rows']:
+        if not fitted_assets or row['asset'] in fitted_assets:
+            groups[Path(row['source']['path']).name].append(row)
     fine_atlas=None
     texture=finished.get('groomVertexFrames',{}).get('textures')
     if texture is not None:
@@ -9127,54 +9164,16 @@ def prepare_groom_composition():
         if old_pin['sha256']!=previous['sha256']or new_pin['sha256']!=texture['sha256']:raise ValueError('A composed groom atlas input changed.')
         compatibility=resources.verify_groom_texture_replacement(old_pin,new_pin,[pin(source/'Catalog'/name)for name in groups])
         fine_atlas=dict(source=old_pin,target=new_pin,compatibility=compatibility)
-    rows=[];recipes=[]
-    for name,entries in groups.items():
-        old_path=source/'Catalog'/name;fine_path=fibers/'Catalog'/name
-        old=resources.load_serialized_bundle(old_path,in_memory=True)[1];fine=resources.load_serialized_bundle(fine_path,in_memory=True)[1]
-        for file in(old,fine):
-            formats={(dict(file.objects[k].read_typetree()['m_SavedProperties']['m_Floats']).get('_SupportInVertexFrame'),dict(file.objects[k].read_typetree()['m_SavedProperties']['m_Floats']).get('_FlowInVertexFrame'))for k in resources.groom_material_identifiers(file)}
-            if formats!={(1.,2.)}:raise ValueError('Composition requires the same completed vertex-frame representation.')
-        if {r['mesh']for r in entries}!=resources.groom_mesh_identifiers(old)or resources.groom_mesh_identifiers(old)!=resources.groom_mesh_identifiers(fine):raise ValueError('A source composition omitted an actual LOD.')
-        asset=entries[0]['asset'];folder=output/asset;folder.mkdir();meshes=[]
-        for entry in entries:
-            if sha(entry['clothBinding']['path'])!=entry['clothBinding']['sha256']:raise ValueError('The fine attachment source changed.')
-            original=export_current_mesh(old.objects[entry['mesh']]);attachment=owner.decode_binding(entry['clothBinding']['path'])
-            support=None;support_proof=None;carrier=None
-            if entry.get('carrierSurface')is not None:
-                if entry['carrierSurface']!=entry['attachment'].get('compiledCarrierSurface')or not entry.get('retainedSupport',{}).get('carrierSurface'):
-                    raise ValueError('The reconstructed groom lost its proven fitting range.')
-                if sha(entry['native']['path'])!=entry['native']['sha256']:raise ValueError('The reconstructed groom native source changed.')
-                carrier=dict(native=owner.read(entry['native']['path']),surface=entry['carrierSurface'],materials=entry['materials'],
-                    maximumSupportOffsetMetres=entry['retainedSupport']['maximumSupportOffsetMetres'])
-            elif entry.get('sourceTerminalField')is not None:
-                if sha(entry['native']['path'])!=entry['native']['sha256']:raise ValueError('The terminal groom native source changed.')
-                support,support_proof=owner.authored_terminal_support(owner.read(entry['native']['path']),original,
-                    attachment['matrix'],entry['materials'],entry['sourceTerminalField'])
-            finished_mesh=export_current_mesh(fine.objects[entry['mesh']])
-            primary_vertices=[i for i,row in enumerate(attachment['vertices'])if row.get('role')=='primary-lock']
-            if primary_vertices and primary_atlas is None:raise ValueError('A primary groom requires its owned atlas receipt and Unity report.')
-            source_purposes=[{key:value for key,value in row.items()if key!='file'}for row in baseline.get('groomSourceDesigns',{}).get('materialPurposes',[])if row['file']==name]
-            material_slots=groom_fine_material_slots(old,entry['mesh'],finished_mesh,primary_vertices=primary_vertices,source_purposes=source_purposes)
-            fine_slots=[{key:value for key,value in row.items()if key!='purpose'}for row in material_slots if row.get('purpose','fine')=='fine']
-            primary_slots=[{key:value for key,value in row.items()if key!='purpose'}for row in material_slots if row.get('purpose')=='primary']
-            skin=entry['attachment'].get('surfaceSkin')
-            if skin is not None:
-                if sha(entry['native']['path'])!=entry['native']['sha256']or skin['sourceFingerprint']!=owner.read(entry['native']['path'])['sourceFingerprint']:
-                    raise ValueError('A groom composition changed its native center skin authority.')
-            packet,binding,proof=owner.compose_finished_source_groom(original,finished_mesh,
-                attachment,vertex_capacity=original['vertexCount'],authored_support=support,fine_material_slots=fine_slots,carrier_replacement=carrier,
-                **(dict(primary_material_slots=primary_slots)if primary_vertices else{}),
-                **(dict(surface_skin=skin)if skin is not None else{}))
-            if support_proof is not None:proof['authoredSupport']=support_proof
-            tag=asset+'_LOD'+str(entry['lod']);packet_path=folder/(tag+'.json.gz');binding_path=folder/(tag+'.cloth.bytes')
-            with gzip.open(packet_path,'wt',encoding='utf-8')as stream:json.dump(packet,stream,separators=(',',':'))
-            owner.encode_legacy_binding(binding,binding_path);compiled_name=tag+'_SourceFibers';meshes.append(recipe_mesh(dict(packet,name=compiled_name)))
-            rows.append(dict(asset=asset,lod=entry['lod'],mesh=entry['mesh'],source=pin(old_path),fibers=pin(fine_path),binding=entry['clothBinding'],
-                packet=pin(packet_path),clothBinding=pin(binding_path),compiledName=compiled_name,composition=proof,
-                materialSlots=material_slots,sourceSlots=len(finished_mesh['subMeshes']),native=entry['native'],materials=entry['materials'],sourceTerminalField=entry.get('sourceTerminalField'),
-                carrierSurface=entry.get('carrierSurface'),retainedSupport=entry.get('retainedSupport')))
-        recipe=folder/'MeshRecipe.json';encode_recipe(dict(schemaVersion=1,bundleName=asset.lower()+'_source_fibers.bundle',meshes=meshes),recipe,'Data/m.bin');recipes.append(str(recipe.resolve()))
-        print('Prepared retained source support:',asset,flush=True)
+    source_purposes = collections.defaultdict(list)
+    for row in baseline.get('groomSourceDesigns', {}).get('materialPurposes', []):
+        source_purposes[row['file']].append({key: value for key, value in row.items() if key != 'file'})
+    jobs = [(source, fibers, output, producer, name, entries, source_purposes[name], primary_atlas is not None, bool(fitted_assets))
+            for name, entries in groups.items()]
+    rows, recipes = [], []
+    with ProcessPoolExecutor(max_workers=args.workers,max_tasks_per_child=4) as pool:
+        for members, recipe in pool.map(prepare_groom_composition_asset, jobs):
+            rows.extend(members)
+            recipes.append(recipe)
     prepared=dict(mode='retained-source-support',source=pin(source/'ResourceAssembly.json'),fibers=pin(fibers/'ResourceAssembly.json'),
         finePlan=pin(args.plan),producer=pin(producer),rows=rows,recipes=recipes,fineAtlas=fine_atlas,retainedSourceInputs=retained)
     has_primary=any(any(slot.get('purpose')=='primary'for slot in row['materialSlots'])for row in rows)
@@ -9184,14 +9183,84 @@ def prepare_groom_composition():
     write(output/'Plan.json',prepared)
 
 
+def prepare_groom_composition_asset(job):
+    import importlib.util
+    from mesh_recipe_codec import encode_recipe
+    import character_resources as resources
+
+    source, fibers, output, producer, name, entries, source_purposes, has_primary_atlas, retain_fitted_fibers = job
+    pin = lambda path: dict(path=str(Path(path).resolve()),sha256=sha(path))
+    spec=importlib.util.spec_from_file_location('source_groom_composition_'+sha(producer)[:12],producer)
+    if spec is None or spec.loader is None:raise ValueError('The source composition producer is unavailable.')
+    owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner)
+    rows = []
+    old_path=source/'Catalog'/name;fine_path=fibers/'Catalog'/name
+    old_pin, fine_pin = pin(old_path), pin(fine_path)
+    if any(row['source']['sha256'] != old_pin['sha256'] for row in entries):
+        raise ValueError('The retained source groom fitting changed before composition.')
+    old=resources.load_serialized_bundle(old_path,in_memory=True)[1];fine=resources.load_serialized_bundle(fine_path,in_memory=True)[1]
+    for file in(old,fine):
+        formats={(dict(file.objects[k].read_typetree()['m_SavedProperties']['m_Floats']).get('_SupportInVertexFrame'),dict(file.objects[k].read_typetree()['m_SavedProperties']['m_Floats']).get('_FlowInVertexFrame'))for k in resources.groom_material_identifiers(file)}
+        if formats!={(1.,2.)}:raise ValueError('Composition requires the same completed vertex-frame representation.')
+    if {r['mesh']for r in entries}!=resources.groom_mesh_identifiers(old)or resources.groom_mesh_identifiers(old)!=resources.groom_mesh_identifiers(fine):raise ValueError('A source composition omitted an actual LOD.')
+    asset=entries[0]['asset'];folder=output/asset;folder.mkdir();meshes=[]
+    for entry in entries:
+        if sha(entry['clothBinding']['path'])!=entry['clothBinding']['sha256']:raise ValueError('The fine attachment source changed.')
+        original=export_current_mesh(old.objects[entry['mesh']]);attachment=owner.decode_binding(entry['clothBinding']['path'])
+        support=None;support_proof=None;carrier=None
+        if entry.get('carrierSurface')is not None:
+            if entry['carrierSurface']!=entry['attachment'].get('compiledCarrierSurface')or not entry.get('retainedSupport',{}).get('carrierSurface'):
+                raise ValueError('The reconstructed groom lost its proven fitting range.')
+            if sha(entry['native']['path'])!=entry['native']['sha256']:raise ValueError('The reconstructed groom native source changed.')
+            carrier=dict(native=owner.read(entry['native']['path']),surface=entry['carrierSurface'],materials=entry['materials'],
+                maximumSupportOffsetMetres=entry['retainedSupport']['maximumSupportOffsetMetres'])
+        elif entry.get('sourceTerminalField')is not None:
+            if sha(entry['native']['path'])!=entry['native']['sha256']:raise ValueError('The terminal groom native source changed.')
+            support,support_proof=owner.authored_terminal_support(owner.read(entry['native']['path']),original,
+                attachment['matrix'],entry['materials'],entry['sourceTerminalField'])
+        finished_mesh=export_current_mesh(fine.objects[entry['mesh']])
+        primary_vertices=[i for i,row in enumerate(attachment['vertices'])if row.get('role')=='primary-lock']
+        if primary_vertices and not has_primary_atlas:raise ValueError('A primary groom requires its owned atlas receipt and Unity report.')
+        material_slots=groom_fine_material_slots(old,entry['mesh'],finished_mesh,primary_vertices=primary_vertices,source_purposes=source_purposes)
+        fine_slots=[{key:value for key,value in row.items()if key!='purpose'}for row in material_slots if row.get('purpose','fine')=='fine']
+        primary_slots=[{key:value for key,value in row.items()if key!='purpose'}for row in material_slots if row.get('purpose')=='primary']
+        skin=entry['attachment'].get('surfaceSkin')
+        if skin is not None:
+            if sha(entry['native']['path'])!=entry['native']['sha256']or skin['sourceFingerprint']!=owner.read(entry['native']['path'])['sourceFingerprint']:
+                raise ValueError('A groom composition changed its native center skin authority.')
+        packet,binding,proof=owner.compose_finished_source_groom(original,finished_mesh,
+            attachment,vertex_capacity=original['vertexCount'],authored_support=support,fine_material_slots=fine_slots,carrier_replacement=carrier,
+            retain_fitted_fibers=retain_fitted_fibers,
+            **(dict(primary_material_slots=primary_slots)if primary_vertices else{}),
+            **(dict(surface_skin=skin)if skin is not None else{}))
+        if support_proof is not None:proof['authoredSupport']=support_proof
+        if proof.get('retainedFittedFibers'):
+            material_slots = []
+        tag=asset+'_LOD'+str(entry['lod']);packet_path=folder/(tag+'.json.gz');binding_path=folder/(tag+'.cloth.bytes')
+        with gzip.open(packet_path,'wt',encoding='utf-8')as stream:json.dump(packet,stream,separators=(',',':'))
+        owner.encode_legacy_binding(binding,binding_path);compiled_name=tag+'_SourceFibers';meshes.append(recipe_mesh(dict(packet,name=compiled_name)))
+        rows.append(dict(asset=asset,lod=entry['lod'],mesh=entry['mesh'],source=old_pin,fibers=fine_pin,binding=entry['clothBinding'],
+            packet=pin(packet_path),clothBinding=pin(binding_path),compiledName=compiled_name,composition=proof,
+            materialSlots=material_slots,sourceSlots=len(finished_mesh['subMeshes']),native=entry['native'],materials=entry['materials'],sourceTerminalField=entry.get('sourceTerminalField'),
+            carrierSurface=entry.get('carrierSurface'),retainedSupport=entry.get('retainedSupport')))
+    recipe=folder/'MeshRecipe.json';encode_recipe(dict(schemaVersion=1,bundleName=asset.lower()+'_source_fibers.bundle',meshes=meshes),recipe,'Data/m.bin')
+    print('Prepared retained source support:',asset,flush=True)
+    return rows, str(recipe.resolve())
+
+
 def bind_groom_designs():
+    from concurrent.futures import ProcessPoolExecutor
     import character_resources as resources
     parser=argparse.ArgumentParser();parser.add_argument('--source',type=Path,required=True);parser.add_argument('--plan',type=Path,required=True)
     parser.add_argument('--report',type=Path,required=True);parser.add_argument('--output',type=Path,required=True)
-    parser.add_argument('--assets',nargs='*',default=[]);args=parser.parse_args()
+    parser.add_argument('--assets',nargs='*',default=[])
+    parser.add_argument('--workers',type=int,choices=range(1,9),default=6)
+    args=parser.parse_args()
     source=checked_catalog_path(args.source);output=checked_catalog_path(args.output)
     if output.exists()or not any(output.is_relative_to(ROOT/p)for p in('tools/asset-authoring/workspace','tools/game-test/artifacts')):raise ValueError('Groom binding requires a new authoring workspace.')
-    plan=read(args.plan);report=read(args.report)
+    plan_bytes, report_bytes = args.plan.read_bytes(), args.report.read_bytes()
+    plan = json.loads(plan_bytes.decode('utf-8-sig'))
+    report = json.loads(report_bytes.decode('utf-8-sig'))
     if plan.get('sharedTextures'):raise ValueError('New fine textures require dedicated material slots; shared carrier atlases are retained.')
     if not report.get('success'):raise ValueError('The groom mesh build failed.')
     compiled={Path(row['bundlePath']).name:row for row in report.get('bundles')or[report]}
@@ -9210,51 +9279,36 @@ def bind_groom_designs():
         [*assembly.get('retainedSourceInputs',[]),*plan.get('retainedSourceInputs',[]),*donor.get('retainedSourceInputs',[])])
     resource_original=dict(path=str(Path(resources.__file__).resolve()),sha256=sha(resources.__file__))
     resource_archive=next(record['archive']for record in assembly['retainedSourceInputs']if record['original']==resource_original)
+    composed = plan.get('mode') == 'retained-source-support'
+    producer = Path(plan['producer']['path'])
+    if sha(producer) != plan['producer']['sha256']:
+        raise ValueError('A proven groom fitting producer changed.')
+    report_pin = dict(path=str(args.report.resolve()), sha256=hashlib.sha256(report_bytes).hexdigest())
+    design_pin = dict(path=str(args.plan.resolve()), sha256=hashlib.sha256(plan_bytes).hexdigest())
+    stage = output / 'Binding'
+    stage.mkdir()
+    jobs = []
+    for bundle in manifest['bundles']:
+        name = bundle['file']
+        if name not in groups:
+            continue
+        rows = groups[name]
+        child = compiled[rows[0]['asset'].lower() + '_source_fibers.bundle']
+        jobs.append((source/'Catalog'/name, stage/name, bundle['sha256'], rows, composed, producer, child))
+    with ProcessPoolExecutor(max_workers=args.workers,max_tasks_per_child=4) as pool:
+        prepared_members = dict(pool.map(bind_groom_design_asset,jobs))
+    if any(sha(pin['path']) != pin['sha256'] for pin in (design_pin, report_pin)):
+        raise ValueError('A groom design or Unity report changed while its bundles were prepared.')
     for bundle in manifest['bundles']:
         name=bundle['file'];target=catalog/name
         if name not in groups:target.hardlink_to(source/'Catalog'/name);continue
-        rows=groups[name];composed=plan.get('mode')=='retained-source-support';generation_pin=None;producer=Path(plan['producer']['path'])
-        if not composed:
-            generations={json.dumps(row['generation'],sort_keys=True)for row in rows}
-            if len(generations)!=1:raise ValueError('A groom prefab has different numeric generations.')
-            generation_pin=json.loads(next(iter(generations)))
-            if sha(generation_pin['path'])!=generation_pin['sha256']:raise ValueError('A proven groom generation changed.')
-        if sha(producer)!=plan['producer']['sha256']:raise ValueError('A proven groom fitting producer changed.')
-        import importlib.util
-        spec=importlib.util.spec_from_file_location('source_groom_binding_'+sha(producer)[:12],producer)
-        if spec is None or spec.loader is None:raise ValueError('The groom binding producer is unavailable.')
-        owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner)
-        current=resources.load_serialized_bundle(source/'Catalog'/name,in_memory=True)[1]
-        child=compiled[rows[0]['asset'].lower()+'_source_fibers.bundle'];compiled_path=Path(child['bundlePath'])
-        if not child.get('success')or sha(compiled_path)!=child['bundleSha256']:raise ValueError('A compiled groom bundle changed.')
-        saved=resources.load_serialized_bundle(compiled_path,in_memory=True)[1];meshes={obj.peek_name():obj for obj in saved.objects.values()if obj.type.name=='Mesh'}
-        replacements=[];authorities=[]
-        for row in rows:
-            if row['source']['sha256']!=bundle['sha256']:raise ValueError('A groom source fitting changed before binding.')
-            packet=owner.read(row['packet']['path']);attachment=owner.decode_binding(row['clothBinding']['path']);old=export_current_mesh(current.objects[row['mesh']])
-            mesh=meshes[row['compiledName']]
-            if export_current_mesh(mesh)['sourceFingerprint']!=packet['sourceFingerprint']:raise ValueError('Unity changed a source groom mesh.')
-            skin=row.get('composition',row.get('attachment',{})).get('surfaceSkin')
-            if skin is not None:
-                if sha(row['native']['path'])!=row['native']['sha256']or skin['sourceFingerprint']!=owner.read(row['native']['path'])['sourceFingerprint']:
-                    raise ValueError('A groom binding changed its native center skin authority.')
-                owner.validate_surface_skin(old,packet,skin,binding=attachment);attachment['surfaceSkin']=skin
-            replacements.append(dict(sourceFingerprint=old['sourceFingerprint'],sourcePathIds=[row['mesh']],packet=packet,binding=attachment,compiledTree=mesh.read_typetree()))
-            authorities.append(dict(row,compiledBundle=dict(path=str(compiled_path.resolve()),sha256=sha(compiled_path))))
-        if {row['mesh']for row in rows}!=resources.groom_mesh_identifiers(current):raise ValueError('A groom binding omits a renderer-owned LOD.')
-        updates=[]
-        for identifier in ([]if composed else sorted(resources.groom_material_identifiers(current))):
-            values=dict(current.objects[identifier].read_typetree()['m_SavedProperties']['m_Floats'])
-            updates.append(dict(pathId=identifier,values={key:dict(before=values[key],after=0.)for key in('_SupportInVertexFrame','_FlowInVertexFrame')}))
-        slot_updates=[]
-        if composed:
-            for row in rows:
-                count=len(export_current_mesh(current.objects[row['mesh']])['subMeshes'])
-                added=[{key:value[key]for key in('sourceSlot','targetSlot')}for value in row.get('materialSlots',[])if value['targetSlot']>=count]
-                if added:slot_updates.append(dict(meshPathId=row['mesh'],slots=added))
-        receipt=resources.prepare_standalone_part(source/'Catalog'/name,bundle['sha256'],target,replacements,
-            export_mesh=export_current_mesh,material_updates=updates,material_slot_updates=slot_updates)
-        if slot_updates:receipt['materialSlotUpdates']=slot_updates
+        rows = groups[name]
+        receipt, authorities, generation_pin = prepared_members.pop(name)
+        bound = stage / name
+        if sha(bound) != receipt['target']['sha256']:
+            raise ValueError('A staged groom binding changed before catalog assembly.')
+        bound.replace(target)
+        receipt['target']['path'] = str(target.resolve())
         if composed:
             atlas=plan.get('fineAtlas')
             for reference in((atlas['source'],atlas['target'])if atlas is not None else()):
@@ -9330,10 +9384,10 @@ def bind_groom_designs():
                 receipt['objectsAdded']=sorted(set(receipt.get('objectsAdded',[]))|set(texture_receipt.get('objectsAdded',[])))
                 receipt['changedObjects']=sorted(set(receipt['changedObjects'])|set(texture_receipt.get('objectsAdded',[]))|
                     {value['pathId']for value in texture_receipt['materialUpdates']}|{texture_receipt['metadataObject']})
-        receipt.update(file=name,rows=authorities,generation=generation_pin,engineReport=dict(path=str(args.report.resolve()),sha256=sha(args.report)),
-            designPlan=dict(path=str(args.plan.resolve()),sha256=sha(args.plan)),designFiles=sorted(groups))
+        receipt.update(file=name,rows=authorities,generation=generation_pin,engineReport=report_pin,
+            designPlan=design_pin,designFiles=sorted(groups))
         if composed:
-            receipt['composition']=dict(plan=dict(path=str(args.plan.resolve()),sha256=sha(args.plan)),fibers=plan['fibers'])
+            receipt['composition']=dict(plan=design_pin,fibers=plan['fibers'])
         for row in rows:
             material_purposes=[value for value in material_purposes if(value['file'],value['mesh'])!=(name,row['mesh'])]
             if composed and row.get('materialSlots')and 'sourceSlots'in row:
@@ -9347,6 +9401,7 @@ def bind_groom_designs():
                 resource_archive])))
         if composed:parameter_receipts.append((path,receipt,proof['appearanceFinishing'][-1]))
         bundle['sha256']=proof['sha256'];print('Bound source groom:',name,flush=True)
+    stage.rmdir()
     write(catalog/RESOURCE_FILES['manifest'],manifest)
     for path,receipt,operation in parameter_receipts:
         receipt['parameterCatalogs']=dict(source=dict(path=str((source/'Catalog'/RESOURCE_FILES['manifest']).resolve()),sha256=sha(source/'Catalog'/RESOURCE_FILES['manifest'])),
@@ -9355,12 +9410,62 @@ def bind_groom_designs():
     assembly.update(catalogSha256=sha(catalog/RESOURCE_FILES['manifest']),bytes=sum(row['bytes']for row in assembly['proofs']),artAccepted=False,
         preparedSource=dict(assembly=dict(path=str((source/'ResourceAssembly.json').resolve()),sha256=sha(source/'ResourceAssembly.json')),
             catalog=dict(path=str((source/(Path('Catalog')/RESOURCE_FILES['manifest'])).resolve()),sha256=sha(source/(Path('Catalog')/RESOURCE_FILES['manifest'])))),
-        groomSourceDesigns=dict(plan=dict(path=str(args.plan.resolve()),sha256=sha(args.plan)),bundles=len(groups),review='pending'))
+        groomSourceDesigns=dict(plan=design_pin,bundles=len(groups),review='pending'))
     if material_purposes:
         keys=[(row['file'],row['mesh'])for row in material_purposes]
         if len(set(keys))!=len(keys):raise ValueError('A groom material-purpose ledger repeats a mesh owner.')
         assembly['groomSourceDesigns']['materialPurposes']=sorted(material_purposes,key=lambda row:(row['file'],row['mesh']))
     write(output/'ResourceAssembly.json',assembly)
+
+
+def bind_groom_design_asset(job):
+    import importlib.util
+    import character_resources as resources
+
+    source, target, source_sha, rows, composed, producer, child = job
+    generation_pin = None
+    if not composed:
+        generations={json.dumps(row['generation'],sort_keys=True)for row in rows}
+        if len(generations)!=1:raise ValueError('A groom prefab has different numeric generations.')
+        generation_pin=json.loads(next(iter(generations)))
+        if sha(generation_pin['path'])!=generation_pin['sha256']:raise ValueError('A proven groom generation changed.')
+    spec=importlib.util.spec_from_file_location('source_groom_binding_'+sha(producer)[:12],producer)
+    if spec is None or spec.loader is None:raise ValueError('The groom binding producer is unavailable.')
+    owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner)
+    current=resources.load_serialized_bundle(source,in_memory=True)[1]
+    compiled_path=Path(child['bundlePath'])
+    if not child.get('success')or sha(compiled_path)!=child['bundleSha256']:raise ValueError('A compiled groom bundle changed.')
+    saved=resources.load_serialized_bundle(compiled_path,in_memory=True)[1];meshes={obj.peek_name():obj for obj in saved.objects.values()if obj.type.name=='Mesh'}
+    replacements=[];authorities=[];source_slot_counts={}
+    for row in rows:
+        if row['source']['sha256']!=source_sha:raise ValueError('A groom source fitting changed before binding.')
+        packet=owner.read(row['packet']['path']);attachment=owner.decode_binding(row['clothBinding']['path']);old=export_current_mesh(current.objects[row['mesh']])
+        source_slot_counts[row['mesh']]=len(old['subMeshes'])
+        mesh=meshes[row['compiledName']]
+        if export_current_mesh(mesh)['sourceFingerprint']!=packet['sourceFingerprint']:raise ValueError('Unity changed a source groom mesh.')
+        skin=row.get('composition',row.get('attachment',{})).get('surfaceSkin')
+        if skin is not None:
+            if sha(row['native']['path'])!=row['native']['sha256']or skin['sourceFingerprint']!=owner.read(row['native']['path'])['sourceFingerprint']:
+                raise ValueError('A groom binding changed its native center skin authority.')
+            owner.validate_surface_skin(old,packet,skin,binding=attachment);attachment['surfaceSkin']=skin
+        replacements.append(dict(sourceFingerprint=old['sourceFingerprint'],sourcePathIds=[row['mesh']],packet=packet,binding=attachment,compiledTree=mesh.read_typetree()))
+        authorities.append(dict(row,compiledBundle=dict(path=str(compiled_path.resolve()),sha256=child['bundleSha256'])))
+    if {row['mesh']for row in rows}!=resources.groom_mesh_identifiers(current):raise ValueError('A groom binding omits a renderer-owned LOD.')
+    updates=[]
+    for identifier in ([]if composed else sorted(resources.groom_material_identifiers(current))):
+        values=dict(current.objects[identifier].read_typetree()['m_SavedProperties']['m_Floats'])
+        updates.append(dict(pathId=identifier,values={key:dict(before=values[key],after=0.)for key in('_SupportInVertexFrame','_FlowInVertexFrame')}))
+    slot_updates=[]
+    if composed:
+        for row in rows:
+            count=source_slot_counts[row['mesh']]
+            added=[{key:value[key]for key in('sourceSlot','targetSlot')}for value in row.get('materialSlots',[])if value['targetSlot']>=count]
+            if added:slot_updates.append(dict(meshPathId=row['mesh'],slots=added))
+    receipt=resources.prepare_standalone_part(source,source_sha,target,replacements,
+        export_mesh=export_current_mesh,material_updates=updates,material_slot_updates=slot_updates)
+    if slot_updates:receipt['materialSlotUpdates']=slot_updates
+    print('Prepared native groom binding:',source.name,flush=True)
+    return source.name, (receipt, authorities, generation_pin)
 
 
 def prepare_groom_frame_resources():
@@ -9375,7 +9480,7 @@ def prepare_groom_frame_resources():
     parser.add_argument('--files',nargs='*',default=[])
     parser.add_argument('--shader-only',action='store_true')
     parser.add_argument('--preset-only',action='store_true')
-    parser.add_argument('--before-preset',type=Path)
+    parser.add_argument('--before-preset',type=Path,action='append',default=[])
     parser.add_argument('--after-preset',type=Path)
     parser.add_argument('--workers',type=int,choices=range(1,5),default=2)
     args=parser.parse_args()
@@ -9428,9 +9533,14 @@ def prepare_groom_frame_resources():
     else:pins.extend(dict(path=str(Path(path).resolve()),sha256=sha(path))for path in (args.shader_report,shader_path,args.shader_validation))
     presets=None
     if args.before_preset:
-        presets={key:dict(path=str(path.resolve()),sha256=sha(path))for key,path in(('before',args.before_preset),('after',args.after_preset))}
-        for pin in presets.values():resources.read_compiled_groom_defaults(pin)
-        pins.extend(presets.values())
+        previous = [dict(path=str(path.resolve()), sha256=sha(path)) for path in args.before_preset]
+        latest = dict(path=str(args.after_preset.resolve()), sha256=sha(args.after_preset))
+        for pin in [*previous, latest]:
+            resources.read_compiled_groom_defaults(pin)
+        presets = dict(before=previous[0], after=latest)
+        if len(previous) > 1:
+            presets['older'] = previous[1:]
+        pins.extend([*previous, latest])
     texture=None
     if args.texture_report is not None:
         texture=read(args.texture_report)

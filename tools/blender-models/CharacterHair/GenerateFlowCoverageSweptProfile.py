@@ -4,6 +4,7 @@ for key in ('OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS'):
     os.environ[key]='1'
 from pathlib import Path
 from typing import Any, TypedDict
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import argparse
 import ast
 import collections
@@ -730,10 +731,13 @@ def validate_carrier_settings(settings):
         if set(settings)-{'primaryLoft'}!={'sourceSurface','fineDonationFraction'}or type(settings['fineDonationFraction'])not in(int,float)or not np.isfinite(settings['fineDonationFraction'])or not 0<settings['fineDonationFraction']<1:
             raise ValueError('A source carrier requires its complete surface and fine allocation.')
         surface=settings['sourceSurface'];fields={'widthMetres','heightMetres','patternRadiusPixels'}
-        if not isinstance(surface,dict)or set(surface)-{'overlapLay'}!=fields or any(type(surface[name])not in(int,float)or not np.isfinite(surface[name])for name in fields):
+        if not isinstance(surface,dict)or set(surface)-{'overlapLay','secondaryRidgeFraction'}!=fields or any(type(surface[name])not in(int,float)or not np.isfinite(surface[name])for name in fields):
             raise ValueError('A source carrier surface requires finite physical dimensions and a pattern footprint.')
         if not 0<surface['heightMetres']<=surface['widthMetres']*.5 or type(surface['patternRadiusPixels'])is not int or not 0<=surface['patternRadiusPixels']<=8:
             raise ValueError('A source carrier has an invalid physical surface profile.')
+        secondary = surface.get('secondaryRidgeFraction', 0.)
+        if type(secondary) not in (int, float) or not 0. <= secondary <= .5:
+            raise ValueError('A secondary lock ridge must be shallower than the principal ridge.')
         overlap=surface.get('overlapLay')
         if 'overlapLay'in surface:
             limits={'minimumClearanceMetres','maximumTravelMetres','maximumGapMetres','rootBlendMetres'}
@@ -1756,8 +1760,8 @@ def _carrier_segment_distance(points,segments):
         result=np.minimum(result,np.linalg.norm(delta-f[:,:,None]*edge[None],axis=2).min(axis=1))
     return result
 
-def _carrier_profile_offsets(positions,normal_field,source,bary,phase,*,segments,protected,width,height,height_limits=None):
-    """Evaluate the same source-owned profile for vertices or error probes."""
+def _carrier_profile_offsets(positions,normal_field,source,bary,phase,*,segments,protected,width,height,secondary=0.):
+    """Raise smaller overlapping-looking ridges within each source lock."""
     source=np.asarray(source,int);bary=np.asarray(bary,float)
     base=np.einsum('ni,nij->nj',bary,positions[0,source])
     distance=_carrier_segment_distance(base,segments);fraction=np.clip(distance/(width*.25),0,1)
@@ -1767,8 +1771,17 @@ def _carrier_profile_offsets(positions,normal_field,source,bary,phase,*,segments
         centers=positions[0,protected[start:start+64]]
         point_distance=np.minimum(point_distance,np.linalg.norm(base[:,None,:]-centers[None,:,:],axis=2).min(axis=1))
     fraction=np.clip(point_distance/(width*.25),0,1);fade*=fraction*fraction*(3-2*fraction)
-    lift=height*(1-np.cos(2*np.pi*np.asarray(phase)/width))*.5*fade
-    if height_limits is not None:lift=np.minimum(lift,np.einsum('ni,ni->n',bary,height_limits[source]))
+    cycle = np.remainder(np.asarray(phase) / width, 1.)
+    if secondary:
+        # Two unequal rounds break up a wide sheet. Both meet with a flat
+        # derivative, and the period still matches across transported edges.
+        shoulder = 2. / 3.
+        primary = cycle < shoulder
+        cycle = np.where(primary, cycle / shoulder, (cycle - shoulder) / (1. - shoulder))
+        amplitude = np.where(primary, 1., secondary)
+    else:
+        amplitude = 1.
+    lift = height * amplitude * np.sin(np.pi * cycle)**2 * fade
     normal=unit(np.einsum('ni,pnij->pnj',bary,normal_field[:,source]))
     return lift,normal*lift[None,:,None]
 
@@ -1907,7 +1920,8 @@ def prepare_source_curved_core(native,positions,normals,tangents,materials,selec
         parents=np.repeat(source,len(_CARRIER_SAMPLES),axis=0);bary=np.tile(_CARRIER_SAMPLES,(len(source),1))
         values=np.asarray([_CARRIER_SAMPLES@phase[int(face)]for face in chosen]).ravel()
         _,raw=_carrier_profile_offsets(positions,field,parents,bary,values,segments=np.asarray([positions[0,edge]for edge in held]).reshape(-1,2,3),
-            protected=np.asarray(sorted(protected),int),width=settings['widthMetres'],height=settings['heightMetres'])
+            protected=np.asarray(sorted(protected),int),width=settings['widthMetres'],height=settings['heightMetres'],
+            secondary=settings.get('secondaryRidgeFraction', 0.))
         samples,sharing=_carrier_shared_source_samples(raw.reshape(len(positions),len(source),6,3),source,physical,held_edges,held_vertices)
         if overlap is not None:
             samples += np.einsum('si,ptij->ptsj', _CARRIER_SAMPLES, lay[:, source])
@@ -3845,7 +3859,40 @@ def standalone_cloth_attachment(packet,native,binding,attachment_source=None,*,r
     return result,attachment,facts
 
 
-def compose_finished_source_groom(source,finished,attachment,*,vertex_capacity=None,authored_support=None,fine_material_slots=None,primary_material_slots=None,carrier_replacement=None,surface_skin=None):
+def retain_fitted_ribbons(source, fine, support_vertices, carrier_vertices, carrier_triangles, replaced_triangles, stride, vertex_capacity):
+    """Fit complete source ribbons beside the new support, with edge strands first."""
+    groom = np.asarray(next(channel['values'] for channel in source['uv'] if channel['channel'] == 2)).reshape(-1, 4)
+    if not fine.any() or np.any(groom[fine, 2] >= 48.5):
+        raise ValueError('Fitted ribbon retention requires analytic source fibers.')
+    vertex_roles = np.column_stack((groom[fine, 2] < 32.5, np.abs(groom[fine, 3])))
+    _, groups = np.unique(vertex_roles, axis=0, return_inverse=True)
+    by_vertex = np.full(source['vertexCount'], -1, dtype=int)
+    by_vertex[fine] = groups
+    vertices = np.bincount(groups)
+    faces = np.zeros(len(vertices), dtype=int)
+    source_triangles = 0
+    for indices in source['subMeshes']:
+        triangles = np.asarray(indices, dtype=int).reshape(-1, 3)
+        source_triangles += len(triangles)
+        membership = by_vertex[triangles]
+        ribbons = membership[np.any(membership >= 0, axis=1)]
+        if not np.all(ribbons == ribbons[:, :1]):
+            raise ValueError('A fitted source triangle mixes ribbon ranks or support.')
+        faces += np.bincount(ribbons[:, 0], minlength=len(vertices))
+
+    source_bytes = source['vertexCount'] * stride + source_triangles * (6 if source['indexFormat'] == 0 else 12)
+    support_triangles = source_triangles - int(faces.sum()) - replaced_triangles + carrier_triangles
+    base_vertices = support_vertices + carrier_vertices
+    left_bytes = source_bytes - base_vertices * stride - support_triangles * 6
+    left_vertices = vertex_capacity - base_vertices
+    accepted = min(np.searchsorted(np.cumsum(vertices), left_vertices, side='right'),
+                   np.searchsorted(np.cumsum(vertices * stride + faces * 6), left_bytes, side='right'))
+    if not accepted:
+        raise ValueError('The reconstructed support has no capacity for a complete fitted ribbon.')
+    return fine & (by_vertex < accepted)
+
+
+def compose_finished_source_groom(source,finished,attachment,*,vertex_capacity=None,authored_support=None,fine_material_slots=None,primary_material_slots=None,carrier_replacement=None,surface_skin=None,retain_fitted_fibers=False):
     """Replace declared owned render surfaces while retaining source drivers and materials."""
     def roles(packet):
         channel=next(u for u in packet['uv']if u['channel']==2)
@@ -3853,13 +3900,14 @@ def compose_finished_source_groom(source,finished,attachment,*,vertex_capacity=N
         return np.asarray(channel['values']).reshape(-1,4)[:,2]
     owned_fine=lambda value:(value>=17)&(value<64.5)
     old_fine=owned_fine(roles(source));new_fine=owned_fine(roles(finished))
+    retain_fitted_fibers = retain_fitted_fibers and old_fine.any()
     new_primary=np.asarray([row.get('role')=='primary-lock'for row in attachment['vertices']],bool)
     if new_primary.shape!=new_fine.shape or np.any(new_primary&~((roles(finished)>=48.5)&(roles(finished)<64.5))):
         raise ValueError('A primary surface lost its explicit atlas-card vertex owner.')
     if new_primary.any()and primary_material_slots is None:
         raise ValueError('A primary surface requires its dedicated material purpose.')
-    dedicated=fine_material_slots is not None or primary_material_slots is not None
     replacement_triangles=set();carrier_ids=np.zeros(finished['vertexCount'],bool);native_count=0;carrier_counts=None;carrier_facts=None
+    retained_fibers = np.zeros(source['vertexCount'], dtype=bool)
     if carrier_replacement is not None:
         if authored_support is not None:raise ValueError('A reconstructed carrier cannot also apply a retained-support deformation.')
         native=carrier_replacement['native'];surface=carrier_replacement['surface'];native_count=native['vertexCount']
@@ -3874,8 +3922,18 @@ def compose_finished_source_groom(source,finished,attachment,*,vertex_capacity=N
         primary=surface['flowCarrierCells'].get('model')=='primary-loft'
         if len(carrier_counts)!=len(native['subMeshes'])or(primary and not np.array_equal(carrier_ids,new_primary)or not primary and np.any(new_fine[carrier_ids])):
             raise ValueError('Carrier replacement aliases its fine or material domain.')
+        if retain_fitted_fibers:
+            if primary or type(vertex_capacity) is not int:
+                raise ValueError('Retaining fitted ribbons requires reconstructed support and its capacity.')
+            retained_fibers = retain_fitted_ribbons(source, old_fine, len(keep), int(carrier_ids.sum()),
+                sum(carrier_counts), len(replacement_triangles), carrier_budget['vertexAndPhysicalCostPerVertexBytes'],
+                min(vertex_capacity, carrier_budget['maximumFinalVertices']))
+            keep = np.sort(np.concatenate((keep, np.flatnonzero(retained_fibers))))
+            new_fine[:] = False
+            fine_material_slots = None
         added=np.flatnonzero(new_fine|carrier_ids)
     else:keep=np.flatnonzero(~old_fine);added=np.flatnonzero(new_fine)
+    dedicated=fine_material_slots is not None or primary_material_slots is not None
     assert len(added)and len(keep)and len(attachment['vertices'])==finished['vertexCount']
     assert source['bindPoses']==finished['bindPoses']
     identities=lambda value:[(s['name'],[f['weight']for f in s['frames']])for s in value['shapes']]
@@ -3904,7 +3962,7 @@ def compose_finished_source_groom(source,finished,attachment,*,vertex_capacity=N
     old_map=np.full(source['vertexCount'],-1,int);old_map[keep]=np.arange(len(keep))
     new_map=np.full(finished['vertexCount'],-1,int);new_map[added]=np.arange(len(added))+len(keep)
     if carrier_replacement is not None:new_map[:native_count]=old_map[:native_count]
-    slots=[];retained_triangles=0;fine_triangles=0;primary_triangles=0
+    slots=[];retained_triangles=0;fine_triangles=0;primary_triangles=0;retained_fiber_triangles=0
     fine_slots={};primary_slots={};targets=set()
     if dedicated:
         for purpose,declaration,lookup in(('fine',fine_material_slots,fine_slots),('primary',primary_material_slots,primary_slots)):
@@ -3917,12 +3975,13 @@ def compose_finished_source_groom(source,finished,attachment,*,vertex_capacity=N
         slots=[[]for _ in range(max([len(source['subMeshes']),*[b+1 for b in targets]]))]
     for slot,(a,b)in enumerate(zip(source['subMeshes'],finished['subMeshes'])):
         old_tri=np.asarray(a,int).reshape(-1,3);new_tri=np.asarray(b,int).reshape(-1,3)
-        for tri,mask in((old_tri,old_fine),(new_tri,new_fine)):
+        for tri,mask in((old_tri,old_fine),(old_tri,retained_fibers),(new_tri,new_fine)):
             assert np.all(np.all(mask[tri],axis=1)|np.all(~mask[tri],axis=1)),'A source triangle mixes owned fine and retained support.'
         primary_mask=new_primary[new_tri]
         if np.any(np.any(primary_mask,axis=1)&~np.all(primary_mask,axis=1)):
             raise ValueError('A source triangle mixes primary and fine material purposes.')
         core=old_tri[np.all(~old_fine[old_tri],axis=1)]
+        fitted=old_tri[np.all(retained_fibers[old_tri],axis=1)]
         fine=new_tri[np.all(new_fine[new_tri]&~primary_mask,axis=1)]
         primary=new_tri[np.all(primary_mask,axis=1)]
         if carrier_replacement is not None:
@@ -3933,6 +3992,9 @@ def compose_finished_source_groom(source,finished,attachment,*,vertex_capacity=N
             if len(carrier)and not np.all(carrier_ids[carrier]|(carrier<native_count)):raise ValueError('Carrier triangles reference an unowned finished surface.')
             rendered_core=old_map[core]if surface['flowCarrierCells'].get('model')=='primary-loft'else np.concatenate((old_map[core],new_map[carrier]))
         else:rendered_core=old_map[core]
+        if len(fitted):
+            rendered_core = np.concatenate((rendered_core, old_map[fitted]))
+            retained_fiber_triangles += len(fitted)
         if np.any(rendered_core<0):raise ValueError('Carrier composition omitted a retained driver or render vertex.')
         if not dedicated:slots.append(np.concatenate((rendered_core,new_map[fine])).ravel().tolist())
         else:
@@ -3985,15 +4047,19 @@ def compose_finished_source_groom(source,finished,attachment,*,vertex_capacity=N
     proof=dict(retainedSourceVertices=len(keep),retainedSourceTriangles=retained_triangles,
         addedFineVertices=int(new_fine.sum()),addedFineTriangles=fine_triangles,sourceSupportAndAllStoredFramesExact=not bool(np.any(changed_support[keep])),
         finishedFineChannelsAndAllStoredFramesExact=True,sourceCoreTopologyExact=not replacement_triangles,sourceClothRowsRetained=True,
-        replacedOwnedFineVertices=int(old_fine.sum()),composedVertices=count,retainedVertexCapacity=vertex_capacity,
+        replacedOwnedFineVertices=int(old_fine.sum()-retained_fibers.sum()),composedVertices=count,retainedVertexCapacity=vertex_capacity,
         authoredSupportVertices=int(changed_support[keep].sum()),sourceReferenceFingerprint=source['sourceFingerprint'])
     if fine_material_slots is not None:proof['fineMaterialSlots']=copy.deepcopy(fine_material_slots)
     if primary_material_slots is not None:
         proof.update(primaryMaterialSlots=copy.deepcopy(primary_material_slots),addedPrimaryVertices=int(new_primary.sum()),
             addedPrimaryTriangles=primary_triangles,materialPurposesRetainSourcePrefix=True)
+    if retained_fiber_triangles:
+        proof['retainedFittedFibers'] = dict(vertices=int(retained_fibers.sum()), triangles=retained_fiber_triangles)
     if surface_skin is not None:
         if carrier_replacement is not None and surface_skin['sourceFingerprint']!=carrier_replacement['native']['sourceFingerprint']:
             raise ValueError('A composed surface skin changed its original native authority.')
+        if retain_fitted_fibers:
+            skin_rows = {index: row for index, row in skin_rows.items() if carrier_ids[index]}
         if any(new_map[index]<0 for index in skin_rows):raise ValueError('Composition omitted an explicitly skinned owned surface.')
         proof['surfaceSkin']=dict(sourceVertexCount=surface_skin['sourceVertexCount'],sourceFingerprint=surface_skin['sourceFingerprint'],
             vertices=[dict(vertex=int(new_map[index]),surface=copy.deepcopy(skin_rows[index]))for index in sorted(skin_rows)])
@@ -6562,6 +6628,7 @@ def main():
     parser.add_argument('--curved-core',action='store_true')
     parser.add_argument('--layered-atlas-cards',action='store_true')
     parser.add_argument('--designs',type=Path)
+    parser.add_argument('--workers',type=int,choices=range(1,9))
     args=parser.parse_args();HERE=args.workspace.resolve();assert any(HERE.is_relative_to(ROOT/p)for p in('tools/game-test/artifacts','tools/asset-authoring/workspace')),'Use an ignored authoring workspace.';output=Path(args.output).resolve()
     assert output.is_relative_to(HERE)and output!=HERE
     source=(args.atlas_profile or Path(__file__))if args.strand_atlas else(args.core_multiplicity_from or args.core_repair_from or args.input)
@@ -6569,9 +6636,62 @@ def main():
     source=Path(source).resolve(strict=True)
     sys.path.insert(0,str(ROOT/'tools/asset-authoring'))
     from resource_storage import resource_operation,owned_resource_work
+    if args.workers is not None:
+        if (not all((args.designs,args.layered_atlas_cards,args.soft_coverage_pilot,args.native_hair_domain))
+                or any((args.strand_atlas,args.curved_core,args.core_repair_from,args.core_multiplicity_from))):
+            parser.error('--workers requires a native layered groom design.')
+        assets = args.asset or sorted({row['asset'] for row in read(source)['rows']})
+        if not assets or len(set(assets)) != len(assets):
+            parser.error('A batch requires distinct native groom assets.')
+        jobs = [(asset, output / str(index)) for index, asset in enumerate(assets, 1)]
+        summary = output / 'Batch.json'
+        receipts = [directory / stage / 'Generation.json' for _,directory in jobs for stage in ('Raw','Curved')]
+        with resource_operation(),owned_resource_work('generate-groom-surfaces',source,output,source_role='receipt',
+                metadata_outputs=[summary,*receipts]):
+            return generate_groom_batch(args,output,jobs,summary)
     metadata=[output/name for name in(('Atlas.json','MeshRecipe.json')if args.strand_atlas else('Generation.json',))]
     with resource_operation(),owned_resource_work('generate-groom-surfaces',source,output,source_role='receipt',metadata_outputs=metadata):
         return generate_owned(args,output,parser)
+
+
+def generate_groom_batch(args, output, jobs, summary):
+    """Compile disjoint groom sources under a single storage lease."""
+    if output.exists() and any(output.iterdir()):
+        raise ValueError('Use a fresh batch directory.')
+    output.mkdir(parents=True, exist_ok=True)
+    succeeded = {}
+    failed = {}
+    with ProcessPoolExecutor(max_workers=min(args.workers,len(jobs))) as pool:
+        futures = {pool.submit(generate_groom_asset,args,asset,directory,PROFILE): asset for asset,directory in jobs}
+        for future in as_completed(futures):
+            asset = futures[future]
+            try:
+                succeeded[asset] = str(future.result())
+            except Exception as error:
+                failed[asset] = str(error)
+                print(f'{asset}: {error}',file=sys.stderr,flush=True)
+    summary.write_text(json.dumps(dict(generations=succeeded,failed=failed),indent=2),encoding='utf-8')
+    if failed:
+        raise ValueError(f'{len(failed)} groom assets did not finish. See {summary}.')
+
+
+def generate_groom_asset(args, asset, directory, profile):
+    global HERE
+    HERE = args.workspace.resolve()
+    sys.path.insert(0,str(ROOT/'tools/asset-authoring'))
+    PROFILE.clear()
+    PROFILE.update(copy.deepcopy(profile))
+    directory.mkdir()
+    raw = directory / 'Raw'
+    generate_owned(argparse.Namespace(**dict(vars(args),asset=[asset])),raw,None)
+    curved = directory / 'Curved'
+    core_args = argparse.Namespace(**dict(vars(args),input=raw/'Generation.json',asset=None,lod=None,
+        soft_coverage_pilot=False,native_hair_domain=False,domain_contract=None,layered_atlas_cards=False,
+        visible_shell_refinement=False,designs=None,curved_core=True))
+    PROFILE.clear()
+    PROFILE.update(copy.deepcopy(profile))
+    generate_owned(core_args,curved,None)
+    return curved / 'Generation.json'
 
 
 def generate_owned(args,output,parser):
@@ -6610,11 +6730,20 @@ def generate_owned(args,output,parser):
             maximumAddedPhysicalAndVertexBytesByLod=[8*1024*1024,4*1024*1024,1024*1024],
             targetLengthLimitsMetres=[.025,.05],targetLengthExtentFraction=.18)
     design_pin=None
+    inputs=None
     if args.designs:
         if not args.soft_coverage_pilot or not args.native_hair_domain or len(args.asset or [])!=1:
             argument_error('Source designs require one declared asset with native-domain fine coverage.')
         design = read(args.designs)
-        authored_ranges = design['assets'].get(args.asset[0])
+        inputs = read(Path(args.input).resolve(strict=True))
+        categories = {row['category'] for row in inputs['rows'] if row['asset'] == args.asset[0]}
+        if len(categories) != 1:
+            argument_error('The declared groom must resolve to one native renderer category.')
+        category = categories.pop()
+        category_ranges = design.get('categories', {})
+        authored_ranges = design.get('assets', {}).get(args.asset[0], category_ranges.get(category))
+        if category_ranges and authored_ranges is None:
+            argument_error('The resolved groom category has no design ranges: ' + category)
         if args.layered_atlas_cards:
             values = dict(design['layeredAtlasCards'], **(authored_ranges or {}))
         else:
@@ -6648,7 +6777,7 @@ def generate_owned(args,output,parser):
         if not args.layered_atlas_cards:
             PROFILE.update(maximumRibbonsByLod=[900,300,90],maximumAddedVerticesByLod=[12000,4500,1500],
                 maximumAddedPhysicalAndVertexBytesByLod=[4*1024*1024,2*1024*1024,512*1024],targetPoissonCoverage=.85)
-        design_pin=dict(path=str(args.designs.resolve()),sha256=sha(args.designs),asset=args.asset[0])
+        design_pin=dict(path=str(args.designs.resolve()),sha256=sha(args.designs),asset=args.asset[0],category=category)
     assert output.is_relative_to(HERE.resolve())and output!=HERE.resolve()
     output.mkdir(exist_ok=True)
     assert not any(output.iterdir()),'Use a fresh numeric candidate directory.'
@@ -6661,7 +6790,7 @@ def generate_owned(args,output,parser):
         source=Path(args.core_repair_from).resolve();assert source.is_file()and source.is_relative_to(HERE.resolve())
         core_repair_from(source,output,args.restore_core_geometry);return
     input_path=Path(args.input).resolve();assert input_path.is_file()and input_path.is_relative_to(HERE.resolve())
-    inputs=read(input_path)
+    if inputs is None:inputs=read(input_path)
     if args.curved_core:
         assert not args.core_repair_from and not args.core_multiplicity_from
         assert not args.soft_coverage_pilot and not args.visible_shell_refinement and not args.native_hair_domain

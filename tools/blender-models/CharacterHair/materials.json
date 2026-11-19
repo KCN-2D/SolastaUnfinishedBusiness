@@ -16,7 +16,7 @@
     },
     {
       "path": "SourceGroomProgram.cginc",
-      "sha256": "f07de6537b9e2366cbd61d89f4fe412a7072273113af2c84648744d42467f8ea"
+      "sha256": "be3164e1c3eb88321cf41f08991f21ce681529af502c4d9362e588c8552e3db8"
     }
   ],
   "materials": [
@@ -82,7 +82,7 @@
         {
           "name": "_FiberColorStrength",
           "kind": "float",
-          "value": 0.34
+          "value": 0.44
         },
         {
           "name": "_FiberAlphaCutoff",
@@ -117,12 +117,12 @@
         {
           "name": "_CoreReliefStrength",
           "kind": "float",
-          "value": 0.55
+          "value": 0.85
         },
         {
           "name": "_FineReliefStrength",
           "kind": "float",
-          "value": 0.5
+          "value": 0.6
         },
         {
           "name": "_CoreGroomPigmentStrength",
@@ -157,7 +157,7 @@
         {
           "name": "_CoreSmoothnessScale",
           "kind": "float",
-          "value": 0.52
+          "value": 0.42
         },
         {
           "name": "_NativeGrooveStrength",

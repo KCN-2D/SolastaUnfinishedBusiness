@@ -100,7 +100,7 @@ NPCの組には、実際の服装で取得した表示記録を`display`の`path
 
 Unityの共通入口`Invoke-UnityAssetBuild.ps1 -MeshRecipePath`には、`Plan.json`の`jobs[].recipe.path`を配列で渡せます。8件程度ずつ実行すると、個別bundleと個別の照合結果を維持したまま`BuildPipeline`の呼び出しをまとめられます。完了したbundle、SHA256、子reportのパスを記録して中断箇所から再開します。
 
-`Invoke-ModelBuild.ps1 -PlanPath <Plan.jsonの配列> -OutputDirectory <完了結果の保存先> -GuiProjectPath <Unity project> -UnityPath <Unity.exe>`は、共通入口を8件ずつ呼び出して結果を`Actual.json`へ記録します。入力のSHA256を確認し、同じ引数で再実行すると完了分を再利用します。保存先に`STOP`ファイルを置くと現在の組の完了後にEditorを通常終了します。再開前にそのファイルを除去します。
+`Invoke-ModelBuild.ps1 -PlanPath <Plan.jsonの配列> -OutputDirectory <完了結果の保存先> -GuiProjectPath <Unity project> -UnityPath <Unity.exe>`は、共通入口でレシピをまとめて処理し、`Actual.json`と`unity-report.json`に結果を保存します。同じ引数で再開できます。プランを変更した場合は新しい保存先と`-ReuseResultPath <前回のActual.json>`を指定すると、制作入力・Editor・成果物を照合して一致するレシピを再利用します。`-ValidateOnly`でプランと入力を検査できます。途中で停止する場合は保存先に`STOP`を置き、現在の組とEditorの終了を待ちます。再開時は`STOP`を除去します。
 
 `finalize --plan <Plan.json> --results <完了結果.json> --destination <候補catalog>`で、生成したbundleのMesh fingerprintと参照先を照合し、新しいcatalogへまとめます。複数のPlanは`--plan`を繰り返して指定します。
 

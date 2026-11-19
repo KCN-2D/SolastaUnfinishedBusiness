@@ -2813,21 +2813,34 @@ def retune_groom_defaults(job: dict[str, Any]) -> dict[str, Any]:
     """Migrate matching preset values, retaining source-specific material values."""
     source,target=Path(job['source']),Path(job['target'])
     if digest(source)!=job['sha256']:raise ValueError('The groom preset source changed.')
-    before=read_compiled_groom_defaults(job['before']);after=read_compiled_groom_defaults(job['after'])
-    changed={key:(value,after[key])for key,value in before.items()if key in after and abs(value-after[key])>1e-7}
+    older = job.get('older', [])
+    previous = [read_compiled_groom_defaults(reference) for reference in (job['before'], *older)]
+    after = read_compiled_groom_defaults(job['after'])
+    changed = defaultdict(set)
+    for preset in previous:
+        for key, value in preset.items():
+            if key in after and abs(value - after[key]) > 1e-7:
+                changed[key].add(value)
     _,file=load_serialized_bundle(source,in_memory=True);updates=[]
     materialize_inherited=job.get('materializeInheritedDefaults',False)
     for identifier in sorted(groom_material_identifiers(file)):
         values=dict(file.objects[identifier].read_typetree()['m_SavedProperties']['m_Floats'])
-        selected={key:dict(before=values.get(key),after=value[1])for key,value in changed.items()
-                  if (abs(values[key]-value[0])<=1e-6 if key in values else materialize_inherited)}
+        selected = {}
+        for key, prior_values in changed.items():
+            actual = values.get(key)
+            matches = materialize_inherited if actual is None else any(abs(actual - value) <= 1e-6 for value in prior_values)
+            if matches:
+                selected[key] = dict(before=actual, after=after[key])
         if selected:updates.append(dict(pathId=identifier,values=selected))
     if not updates:
         if not target.exists():target.hardlink_to(source)
         return dict(file=source.name,sha256=job['sha256'],bytes=source.stat().st_size,changed=False)
     receipt=prepare_standalone_part(source,job['sha256'],target,[],export_mesh=None,material_updates=updates)
-    return dict(file=source.name,sha256=receipt['target']['sha256'],bytes=target.stat().st_size,changed=True,
+    result = dict(file=source.name,sha256=receipt['target']['sha256'],bytes=target.stat().st_size,changed=True,
         beforePreset=job['before'],afterPreset=job['after'],materializeInheritedDefaults=materialize_inherited,**receipt)
+    if older:
+        result['olderPresets'] = older
+    return result
 
 
 def prepare_native_cloth_state(trees: dict[int, dict[str, Any]]) -> list[dict[str, Any]]:

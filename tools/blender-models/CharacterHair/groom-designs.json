@@ -2,10 +2,7 @@
   "schemaVersion": 1,
   "units": "metres in the original prefab frame",
   "layeredAtlasCards": {
-    "widthMetres": [0.0018,0.0042],
-    "liftMetres": [0.00025,0.0011],
-    "targetLengthLimitsMetres": [0.06,0.12],
-    "targetLengthExtentFraction": 0.6,
+    "targetLengthExtentFraction": 0.18,
     "targetPoissonCoverage": 0.985,
     "assumedMeasuredMaskCoverage": 0.8,
     "fringeFraction": 0.18,
@@ -16,14 +13,15 @@
     "exteriorCoverageRefinement": true,
     "candidateAttemptFactor": 3,
     "lockSection": {
-      "heightFraction": 0.065,
+      "heightFraction": 0.11,
       "maximumSourceWidthFraction": 0.5
     },
     "carrierSurface": {
       "fineDonationFraction": 0.64,
       "sourceSurface": {
-        "widthMetres": 0.0037,
-        "heightMetres": 0.00046,
+        "widthMetres": 0.0084,
+        "heightMetres": 0.0017,
+        "secondaryRidgeFraction": 0.4,
         "patternRadiusPixels": 3,
         "overlapLay": {
           "minimumClearanceMetres": 0.0015,
@@ -52,20 +50,16 @@
     "rootTaper": 0.02,
     "tipTaper": 0.04
   },
-  "assets": {
-    "Dwarf_Female_HairShape_H": {"widthMetres":[0.0008,0.0015],"liftMetres":[0.0007,0.0020],"targetLengthLimitsMetres":[0.010,0.024]},
-    "Elf_Female_HairShape_H": {"widthMetres":[0.0006,0.0012],"liftMetres":[0.0006,0.0017],"targetLengthLimitsMetres":[0.012,0.028]},
-    "Gnome_Female_HairShape_H": {"widthMetres":[0.0006,0.0012],"liftMetres":[0.0006,0.0016],"targetLengthLimitsMetres":[0.009,0.021]},
-    "Halfling_Female_HairShape_H": {"widthMetres":[0.0007,0.0013],"liftMetres":[0.0006,0.0018],"targetLengthLimitsMetres":[0.010,0.024]},
-    "Human_Female_HairShape_H": {"widthMetres":[0.0007,0.0014],"liftMetres":[0.0007,0.0020],"targetLengthLimitsMetres":[0.012,0.028]},
-    "Elf_Male_HairShape_H": {"widthMetres":[0.0007,0.0013],"liftMetres":[0.0006,0.0018],"targetLengthLimitsMetres":[0.010,0.024]},
-    "Halfling_Male_HairShape_H": {"widthMetres":[0.0007,0.0013],"liftMetres":[0.0006,0.0017],"targetLengthLimitsMetres":[0.009,0.022]},
-    "Human_Male_HairShape_H": {"widthMetres":[0.0008,0.0015],"liftMetres":[0.0007,0.0020],"targetLengthLimitsMetres":[0.010,0.025]},
-    "Human_Male_BeardShape_C": {"widthMetres":[0.0006,0.0011],"liftMetres":[0.0004,0.0014],"targetLengthLimitsMetres":[0.006,0.014]},
-    "Human_Male_BeardShape_D": {"widthMetres":[0.0006,0.0012],"liftMetres":[0.0004,0.0015],"targetLengthLimitsMetres":[0.006,0.016]},
-    "Human_Male_BeardShape_P": {"widthMetres":[0.0006,0.0012],"liftMetres":[0.0004,0.0015],"targetLengthLimitsMetres":[0.008,0.018]},
-    "Dwarf_Male_BeardShape_A": {"widthMetres":[0.0008,0.0016],"liftMetres":[0.0005,0.0018],"targetLengthLimitsMetres":[0.010,0.024]},
-    "Dwarf_Male_BeardShape_B": {"widthMetres":[0.0008,0.0015],"liftMetres":[0.0005,0.0017],"targetLengthLimitsMetres":[0.009,0.022]},
-    "Dwarf_Male_BeardShape_D": {"widthMetres":[0.0007,0.0014],"liftMetres":[0.0005,0.0016],"targetLengthLimitsMetres":[0.009,0.020]}
+  "categories": {
+    "Hair": {
+      "widthMetres": [0.00085, 0.0018],
+      "liftMetres": [0.00065, 0.0018],
+      "targetLengthLimitsMetres": [0.009, 0.028]
+    },
+    "Beard": {
+      "widthMetres": [0.0006, 0.0015],
+      "liftMetres": [0.0004, 0.0014],
+      "targetLengthLimitsMetres": [0.006, 0.021]
+    }
   }
 }

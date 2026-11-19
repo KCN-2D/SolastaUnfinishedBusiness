@@ -730,7 +730,14 @@ if ($ValidateOnly) {
         sha256=$(if($meshJob){$meshInputHash}else{(Get-FileHash -LiteralPath $sourceFile -Algorithm SHA256).Hash.ToLowerInvariant()})
         kind=$(if($meshBatch){'mesh-batch-templates'}elseif($meshJob){'mesh-templates'}elseif($materialJob){'materials'}else{'rig'})
         bundleName=$bundleName;colorSpace=$ColorSpace;dependencyCount=$materialInputs.Count;appsStarted=0;outputsCreated=0
-        inputs=@($meshInputs | ForEach-Object { [pscustomobject]@{path=$_.source;sha256=$_.sha256;bundleName=$_.recipe.bundleName} })
+        inputs=@(foreach ($meshInput in $meshInputs) {
+            $sourceBundles = @(if ($meshInput.recipe.PSObject.Properties['sourceBundles']) { $meshInput.recipe.sourceBundles })
+            [pscustomobject]@{
+                path=$meshInput.source;sha256=$meshInput.sha256;bundleName=$meshInput.recipe.bundleName
+                meshes=$meshInput.recipe.meshes.Count;sourceBundles=$sourceBundles.Count
+                sourceAssets=@($sourceBundles | ForEach-Object { $_.assets }).Count
+            }
+        })
     }
     return
 }

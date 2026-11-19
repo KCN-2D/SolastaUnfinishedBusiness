@@ -31,6 +31,7 @@
             fixed Alpha;
             float3 FiberDirection;
             half FiberAnisotropy;
+            half FiberVariation;
         };
 
 
@@ -80,7 +81,9 @@
             // broadens their longitudinal distribution; it must not mix a
             // solid-surface GGX lobe back into the opaque lock underneath them.
             float fiberRoughness=lerp(perceptualRoughness,roughness,saturate(s.FiberAnisotropy));
-            float fiberHalfAngle=dot(t,h);
+            // Small changes in fiber tilt stagger the highlight along a lock.
+            // The filtered strand signal keeps the shift stable at a distance.
+            float fiberHalfAngle=dot(t,h)+0.11*s.FiberVariation*s.FiberAnisotropy;
             float fiberDistribution=SourceGroomFiberDistribution(fiberHalfAngle,fiberRoughness);
             float internalDistribution=SourceGroomFiberDistribution(
                 abs(fiberHalfAngle)-0.11,min(fiberRoughness+0.23,1));
@@ -245,7 +248,7 @@
                 // The opaque support represents strand bundles. Its normal
                 // bands stay resolvable at portrait size; separate transparent
                 // fibers retain the atlas's individual-strand coordinates.
-                float2 normalScale=i.groomRoleAndSign.x<0.5 ? float2(0.2,0.2) : float2(1,1);
+                float2 normalScale=i.groomRoleAndSign.x<0.5 ? float2(0.45,0.45) : float2(1,1);
                 float2 normalCoordinates=atlasCard?groomCoordinates:frac(i.sourceAndGroom.zw*normalScale);
                 float2 normalUV=origin+float2(0.04,0.025)*0.25+normalCoordinates*groomSampleScale;
                 float2 normalDx=dUVdx*normalScale,normalDy=dUVdy*normalScale;
@@ -270,7 +273,9 @@
             {
                 clip(groom.a - _FiberAlphaCutoff);
             }
-            if(atlasCard && mask<=0.5)clip(groom.a-_FineAlphaCutoff);
+            // Atlas alpha represents fractional strand coverage. Use its
+            // midpoint at each mip so thin ends retain their authored width.
+            if(atlasCard && mask<=0.5)clip(groom.a-0.5);
             // New fine32 sheets own measured alpha; native core and legacy scalp
             // coverage retain their original alpha rule and separate cutoff.
             if(airy && mask<=0.5)
@@ -360,15 +365,15 @@
                     // authored flow and fade at their projected Nyquist limit.
                     float wave=sin(i.sourceAndGroom.zw.y*(2*UNITY_PI*0.37))*0.075;
                     float3 cycles=i.groomRoleAndSign.x<0.5
-                        ? float3(0.7,1.9,4.3) : float3(7,19,43);
+                        ? float3(1.35,3.6,8.1) : float3(7,19,43);
                     float waveDerivative=cos(i.sourceAndGroom.zw.y*(2*UNITY_PI*0.37))*(0.075*2*UNITY_PI*0.37);
                     float3 footprint=max(abs(dUVdx.x*cycles+waveDerivative*dUVdx.y),
                         abs(dUVdy.x*cycles+waveDerivative*dUVdy.y));
                     float3 visibility=saturate(1-2*footprint);
                     float3 phase=(i.sourceAndGroom.zw.x*cycles+wave+tile*0.61803399)*(2*UNITY_PI);
-                    float variation=dot(sin(phase)*visibility,float3(0.6,0.3,0.1));
+                    float variation=dot(sin(phase)*visibility,float3(0.50,0.32,0.18));
                     strandVariation=variation;
-                    strandOcclusion*=1-0.13*_CoreResponse*fineWeight*saturate(-strandVariation);
+                    strandOcclusion*=1-0.19*_CoreResponse*fineWeight*saturate(-strandVariation);
                     float3 groomPigment=groom.rgb;
                     // Core alpha is intentionally intact: transparent groom gaps
                     // must not stamp full-strength dark pigment onto that core.
@@ -389,7 +394,7 @@
             // forward passes. It is filtered before minification and never
             // changes native pigment alpha, geometry, native dye or metal masks.
             float lusterScale=i.groomRoleAndSign.x<0.5 ? _CoreSmoothnessScale : 1;
-            float strandLuster=saturate(_FiberSmoothness*lusterScale+0.08*strandVariation
+            float strandLuster=saturate(_FiberSmoothness*lusterScale+0.12*strandVariation
                 +0.035*(groom.a-0.5));
             o.Smoothness = mask <= 0.5 ? lerp(_FiberSmoothness,strandLuster,_CoreResponse) : _Smoothness;
             o.Occlusion = strandOcclusion;
@@ -406,6 +411,7 @@
             // The measured groom coordinates supply the fiber direction on both
             // the opaque support and the individual sheets.
             o.FiberAnisotropy=axisCoherence*_FiberAnisotropy*(i.groomRoleAndSign.x<0.5 ? (fineCoordinates ? _CoreAnisotropyScale : 0) : 1);
+            o.FiberVariation=strandVariation*_CoreResponse;
 
             o.Emission = SGNativeEmission(mul(unity_WorldToObject,float4(i.worldPos,1)).xyz, i.worldPos.y, _DisolveValue,
                 _CharacterHeight, _CharacterPosY, _DisolveNoiseScale, _EmissionColor.rgb,

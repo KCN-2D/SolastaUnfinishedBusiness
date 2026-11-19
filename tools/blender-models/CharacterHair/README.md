@@ -48,6 +48,8 @@ geometryと法線だけを仕上げる場合は、shaderの引数を省略しま
 
 入力にはnative packet・材質・profileを持つ`Input`/`CompletedGroup`を指定し、新しい作業先へ生成します。
 
+`groom-designs.json`の断面と毛束寸法は元のrendererの区分から選びます。複数のモデルを生成する場合は同じ入力へ`--workers 4`を渡します。`--asset`で対象を指定でき、完了した形状の`Generation.json`の場所は`Batch.json`に記録されます。レシピの準備と組み合わせでも`--workers`で同時処理数を指定できます。
+
 `CharacterFaces/build_models.py`の`prepare-groom-inputs --source <毛流れの制作元> --census <髪・ヒゲの原本Census.json> --native-index <原本索引JSON> --contact-census <頭部の原本Census.json> --domain-contract <材質の範囲の照合結果> --output <新しい入力先>`は、catalogのGroom参照と実rendererの材質slotから原本を抽出し、骨、全LOD、元のUVと毛流れを照合します。原本索引から材質のsamplerとcloth固定点を収め、頭部のCensusで根元と肌の接触を検証します。一部だけ制作する場合は`--assets <原本名 ...>`を指定します。原本MeshはCharacterFacesの`extract --native-index`で取得します。
 
 原本ごとの毛束の幅・浮き上がり・長さは`groom-designs.json`で管理します。生成時は`--asset <原本名> --designs <groom-designs.json> --soft-coverage-pilot --native-hair-domain --domain-contract <照合結果>`を加えます。制作済みの資源へ収める際は、元の三角形との対応を使って既存の頭皮へのフィットを引き継ぎ、全物理フレームの面の向きを確認します。
@@ -62,7 +64,9 @@ geometryと法線だけを仕上げる場合は、shaderの引数を省略しま
 
 毛束の頂点フレームを仕上げた後、`prepare-groom-composition --source <元の制作済み資源> --fibers <仕上げた毛束の資源> --plan <毛束のPlan.json> --output <組合せ用レシピ先>`で、曲面・装飾・全物理フレームを組み合わせます。主束を組み合わせる場合は、生成した`Atlas.json`を`--primary-atlas`、そのUnity生成reportを`--primary-atlas-report`へ指定します。根元・装飾・残す細束は原本の材質と画像を保持し、置き換えた主束と新しい細毛をそれぞれ専有の材質slotへ収めます。同じshaderとゲームの色選択を使い、再制作時は用途ごとの専有slotを再利用します。このレシピもUnity制作入口と`bind-groom-designs`へ渡します。肌の調整済み資源を元にする場合も同じ手順です。
 
-材質の既定値も更新する場合は、`refine-groom-frames`へ`--before-preset <変更前の材質bundle> --after-preset <変更後の材質bundle>`を組で渡します。変更前の既定値と一致する値を更新し、各原本の個別設定を保持します。
+元の細毛を活かして曲面を作り直す場合は、`prepare-groom-composition`へ`--retain-fitted-fibers <原本名 ...>`を渡します。使える頂点数と容量の範囲で、輪郭の細毛を優先して毛束単位で保持します。
+
+材質の既定値も更新する場合は、`refine-groom-frames`へ`--before-preset <変更前の材質bundle> --after-preset <変更後の材質bundle>`を渡します。過去の既定値が混在している場合は`--before-preset`を繰り返し指定できます。対象の既定値と一致する値を更新し、各原本の個別設定を保持します。
 
 ```powershell
 & <NumPyとPillowのあるPython> .\tools\blender-models\CharacterHair\GenerateFlowCoverageSweptProfile.py `
