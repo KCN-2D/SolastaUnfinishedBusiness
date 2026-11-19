@@ -730,10 +730,17 @@ def validate_carrier_settings(settings):
         if set(settings)-{'primaryLoft'}!={'sourceSurface','fineDonationFraction'}or type(settings['fineDonationFraction'])not in(int,float)or not np.isfinite(settings['fineDonationFraction'])or not 0<settings['fineDonationFraction']<1:
             raise ValueError('A source carrier requires its complete surface and fine allocation.')
         surface=settings['sourceSurface'];fields={'widthMetres','heightMetres','patternRadiusPixels'}
-        if not isinstance(surface,dict)or set(surface)!=fields or any(type(surface[name])not in(int,float)or not np.isfinite(surface[name])for name in fields):
+        if not isinstance(surface,dict)or set(surface)-{'overlapLay'}!=fields or any(type(surface[name])not in(int,float)or not np.isfinite(surface[name])for name in fields):
             raise ValueError('A source carrier surface requires finite physical dimensions and a pattern footprint.')
         if not 0<surface['heightMetres']<=surface['widthMetres']*.5 or type(surface['patternRadiusPixels'])is not int or not 0<=surface['patternRadiusPixels']<=8:
             raise ValueError('A source carrier has an invalid physical surface profile.')
+        overlap=surface.get('overlapLay')
+        if 'overlapLay'in surface:
+            limits={'minimumClearanceMetres','maximumTravelMetres','maximumGapMetres','rootBlendMetres'}
+            if not isinstance(overlap,dict)or set(overlap)!=limits or any(type(value)not in(int,float)or not np.isfinite(value)or value<=0 for value in overlap.values()):
+                raise ValueError('A source carrier overlap requires its clearance, travel, gap and root blend.')
+            if not overlap['minimumClearanceMetres']<overlap['maximumTravelMetres']<overlap['maximumGapMetres']:
+                raise ValueError('A source carrier overlap exceeds its backing layer depth.')
         if 'primaryLoft'in settings:
             primary=settings['primaryLoft'];fields={'maximumSourceWidthFraction','minimumPrimaryWidthMetres','taperMetres','heightFraction'}
             if not isinstance(primary,dict)or set(primary)!=fields or any(type(value)not in(int,float)or not np.isfinite(value)or value<=0 for value in primary.values())or primary['maximumSourceWidthFraction']>1 or primary['heightFraction']>.25 or primary['minimumPrimaryWidthMetres']>=surface['widthMetres']or primary['taperMetres']>.15:
@@ -848,13 +855,20 @@ class SourceShellBvh:
         self.root=build(np.arange(len(self.triangles)))
 
     def blocked(self,points,directions,minimum_distance=.000002):
+        return np.isfinite(self._trace(points,directions,minimum_distance,np.inf,any_hit=True))
+
+    def nearest(self,points,directions,minimum_distance,maximum_distance):
+        return self._trace(points,directions,minimum_distance,maximum_distance,any_hit=False)
+
+    def _trace(self,points,directions,minimum_distance,maximum_distance,*,any_hit):
         points=np.asarray(points,dtype=np.float64);directions=np.asarray(directions,dtype=np.float64)
         assert points.shape==directions.shape and points.ndim==2 and points.shape[1]==3
         assert np.isfinite(points).all() and np.isfinite(directions).all() and np.all(np.linalg.norm(directions,axis=1)>.999)
-        hit=np.zeros(len(points),bool)
+        hit=np.full(len(points),np.inf)
         stack=[(self.root,np.arange(len(points)))]
         while stack:
-            node,ids=stack.pop();ids=ids[~hit[ids]]
+            node,ids=stack.pop()
+            if any_hit:ids=ids[~np.isfinite(hit[ids])]
             if not len(ids):continue
             lo,hi,faces,left,right=self.nodes[node];o=points[ids];d=directions[ids]
             parallel=np.abs(d)<1e-14
@@ -863,6 +877,7 @@ class SourceShellBvh:
             lower=np.where(parallel,-np.inf,np.minimum(a,b));upper=np.where(parallel,np.inf,np.maximum(a,b))
             reaches=~np.any(parallel&((o<lo-1e-12)|(o>hi+1e-12)),axis=1)
             reaches&=upper.min(axis=1)>=np.maximum(lower.max(axis=1),minimum_distance)
+            reaches&=lower.max(axis=1)<=np.minimum(hit[ids],maximum_distance)
             ids=ids[reaches]
             if not len(ids):continue
             if faces is None:
@@ -873,8 +888,8 @@ class SourceShellBvh:
             t=points[ids,None,:]-tri[None,:,0,:];u=np.einsum('ntj,ntj->nt',t,p)*inv
             q=np.cross(t,e1[None,:,:]);v=np.einsum('nj,ntj->nt',directions[ids],q)*inv
             distance=np.einsum('tj,ntj->nt',e2,q)*inv
-            valid&=(u>=-1e-10)&(v>=-1e-10)&(u+v<=1+1e-10)&(distance>minimum_distance)
-            hit[ids[np.any(valid,axis=1)]]=True
+            valid&=(u>=-1e-10)&(v>=-1e-10)&(u+v<=1+1e-10)&(distance>minimum_distance)&(distance<=maximum_distance)
+            hit[ids]=np.minimum(hit[ids],np.where(valid,distance,np.inf).min(axis=1))
         return hit
 
 def source_shell_stratum(positions,eligible) -> 'tuple[SourceShellBvh, np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict[str, Any]]':
@@ -1758,7 +1773,106 @@ def _carrier_profile_offsets(positions,normal_field,source,bary,phase,*,segments
     return lift,normal*lift[None,:,None]
 
 
-def prepare_source_curved_core(native,positions,normals,tangents,materials,selected_faces,physical,contact,settings,*,native_positions):
+def lay_overlapping_locks(positions, native_positions, slots, selected_faces, domains, uv, physical,
+                         terminal, contact, contacts, settings):
+    """Lay broad locks toward an opaque layer or a proven clearance above the head."""
+    offsets = np.zeros_like(positions)
+    empty = dict(movedPhysicalGroups=0, maximumLayMetres=0.)
+    if not len(contacts):
+        return offsets, empty
+    clearance = settings['minimumClearanceMetres']
+    selected = np.concatenate([triangles[mask] for triangles, mask in zip(slots, selected_faces)])
+    backed = [triangle for triangles, domain in zip(slots, domains) if domain is not None
+              for triangle in triangles if domain.hair(uv[triangle])]
+    head_clearance = contact.get('headClearanceMetres')
+    if not len(selected) or not backed and head_clearance is None:
+        return offsets, empty
+
+    backing = np.asarray(backed, int)
+    _, representatives = np.unique(physical, return_index=True)
+    held = np.unique(np.concatenate([triangles[~mask].ravel() for triangles, mask in zip(slots, selected_faces)]))
+    eligible = np.zeros(len(representatives), bool)
+    eligible[physical[selected]] = True
+    eligible[physical[held]] = False
+    eligible[physical[terminal['protected']]] = False
+    groups = np.flatnonzero(eligible)
+    anchors = representatives[groups]
+    if not len(anchors):
+        return offsets, empty
+
+    # Rays travel toward the rooted volume, with one direction per welded
+    # point and fitting. Constrain each sample against both source surfaces.
+    directions = unit(np.median(positions[:, contacts], axis=1)[:, None, :] - positions[:, anchors])
+    valid = np.all(np.linalg.norm(directions, axis=2) > .999, axis=0)
+    maximum = settings['maximumTravelMetres']
+    limit = np.zeros(len(groups))
+    if len(backing):
+        limit[valid] = maximum
+        for fits in (positions, native_positions):
+            for fitted, inward in zip(fits, directions):
+                active = np.flatnonzero(limit > 0.)
+                if not len(active):
+                    break
+                shell = SourceShellBvh(fitted[backing])
+                distances = shell.nearest(fitted[anchors[active]], inward[active], clearance, settings['maximumGapMetres'])
+                limit[active] = np.minimum(limit[active], np.where(np.isfinite(distances), distances - clearance, 0.))
+    head_supported = 0
+    if head_clearance is not None:
+        bounds = np.asarray(head_clearance, float)
+        if bounds.shape != (len(physical),) or not np.isfinite(bounds).all() or np.any(bounds < 0.):
+            raise ValueError("A withdrawn lock needs finite head clearance from its source fit inventory.")
+        fit_change = np.linalg.norm(positions[:, anchors] - native_positions[:, anchors], axis=2).max(axis=0)
+        free_space = bounds[anchors] - fit_change - contact['settings']['contactMarginMetres']
+        head_limit = np.clip(free_space * .7, 0., maximum)
+        head_supported = int(np.count_nonzero(valid & (head_limit > limit)))
+        limit[valid] = np.maximum(limit[valid], head_limit[valid])
+
+    root = terminal['rootDistance'][anchors] / settings['rootBlendMetres']
+    root = np.clip(root, 0., 1.)
+    # Retain part of the gap so moving both layers cannot flatten their overlap.
+    travel_limit = np.zeros(len(representatives))
+    travel_limit[groups] = limit * root * root * (3. - 2. * root)
+    edges = np.concatenate([physical[selected[:, pair]] for pair in ((0, 1), (1, 2), (2, 0))])
+    edges = np.unique(np.sort(edges, axis=1), axis=0)
+    edges = edges[edges[:, 0] != edges[:, 1]]
+    neighbours = np.bincount(edges.ravel(), minlength=len(representatives))
+    amounts = travel_limit.copy()
+    for _ in range(3):
+        total = np.bincount(edges[:, 0], weights=amounts[edges[:, 1]], minlength=len(amounts))
+        total += np.bincount(edges[:, 1], weights=amounts[edges[:, 0]], minlength=len(amounts))
+        average = np.divide(total, neighbours, out=amounts.copy(), where=neighbours > 0)
+        amounts = np.minimum(travel_limit, (amounts + average) * .5)
+    # Extend contact and backing bounds across the welded surface with a
+    # bounded slope, so a local clearance change cannot add a hard fold.
+    shape_edges = positions[:, representatives[edges]]
+    edge_lengths = np.linalg.norm(shape_edges[:, :, 1] - shape_edges[:, :, 0], axis=2).min(axis=0)
+    slope = maximum / (2. * settings['rootBlendMetres'])
+    adjacency = [[] for _ in representatives]
+    for (first, second), change in zip(edges, edge_lengths * slope):
+        adjacency[first].append((second, change))
+        adjacency[second].append((first, change))
+    queue = list(zip(amounts.tolist(), range(len(amounts))))
+    heapq.heapify(queue)
+    while queue:
+        amount, point = heapq.heappop(queue)
+        if amount != amounts[point]:
+            continue
+        for neighbour, change in adjacency[point]:
+            allowed = amount + change
+            if allowed >= amounts[neighbour]:
+                continue
+            amounts[neighbour] = allowed
+            heapq.heappush(queue, (allowed, neighbour))
+    group_offsets = np.zeros((len(positions), len(representatives), 3))
+    group_offsets[:, groups] = directions * amounts[groups][None, :, None]
+    return group_offsets[:, physical], dict(movedPhysicalGroups=int(np.count_nonzero(amounts)),
+        maximumLayMetres=float(amounts.max()), opaqueBackingTriangles=len(backing),
+        headClearanceGroups=head_supported, maximumTravelSlope=float(slope),
+        verifiedFits=len(positions) + len(native_positions))
+
+
+def prepare_source_curved_core(native,positions,normals,tangents,materials,selected_faces,physical,contact,settings,*,
+                               native_positions,terminal=None,displacement_scale=1.):
     """Own source-pattern curves without treating texture charts as hair tips."""
     for field in('protectedVertexIds','contactVertexIds','fixedVertexIds'):
         if any(type(index)is not int or not 0<=index<native['vertexCount']for index in contact.get(field,[])):
@@ -1767,6 +1881,14 @@ def prepare_source_curved_core(native,positions,normals,tangents,materials,selec
     actual=set(map(int,contact['contactVertexIds']))
     uv=np.asarray(next(row['values']for row in native['uv']if row['channel']==0)).reshape(-1,4)[:,:2]
     slots=[np.asarray(flat,int).reshape(-1,3)for flat in native['subMeshes']]
+    overlap = settings.get('overlapLay')
+    if overlap is not None:
+        if terminal is None or overlap['maximumTravelMetres'] > contact['settings']['maximumSupportOffsetMetres']:
+            raise ValueError('A source carrier overlap requires the rooted and bounded support domain.')
+        domains = [SourceHairDomain(material) if material['shader'] == 'Custom/FakeAnisoHair' else None
+                   for material in materials]
+        lay, overlap_proof = lay_overlapping_locks(positions, native_positions, slots, selected_faces,
+            domains, uv, physical, terminal, contact, np.asarray(sorted(actual), int), overlap)
     total=np.zeros((len(positions),int(physical.max())+1,3))
     for triangles in slots:
         p=positions[:,triangles];cross=np.cross(p[:,:,1]-p[:,:,0],p[:,:,2]-p[:,:,0])
@@ -1787,6 +1909,12 @@ def prepare_source_curved_core(native,positions,normals,tangents,materials,selec
         _,raw=_carrier_profile_offsets(positions,field,parents,bary,values,segments=np.asarray([positions[0,edge]for edge in held]).reshape(-1,2,3),
             protected=np.asarray(sorted(protected),int),width=settings['widthMetres'],height=settings['heightMetres'])
         samples,sharing=_carrier_shared_source_samples(raw.reshape(len(positions),len(source),6,3),source,physical,held_edges,held_vertices)
+        if overlap is not None:
+            samples += np.einsum('si,ptij->ptsj', _CARRIER_SAMPLES, lay[:, source])
+            sharing['overlapLay'] = dict(overlap_proof,
+                maximumLayMetres=overlap_proof['maximumLayMetres']*displacement_scale,
+                maximumTravelSlope=overlap_proof['maximumTravelSlope']*displacement_scale)
+        samples *= displacement_scale
         normal_edges={tuple(sorted(map(int,physical[edge])))for edge,reason in cuts if reason in('preserved-material-or-alpha-domain-boundary','native-nonmanifold-source-boundary')}
         normal_vertices=set(map(int,physical[list(actual)]))
         for parent in source:
@@ -2283,6 +2411,7 @@ def source_contact_vertices(native,renderer_to_prefab,heads,margin):
     points=native_frames(native,renderer_to_prefab)[0]
     names=[None]+[shape['name'].casefold()for shape in native['shapes']for frame in shape['frames']]
     protected=np.zeros(native['vertexCount'],bool);confirmed=np.zeros(native['vertexCount'],bool);checks=0;queries=0;unresolved=[]
+    clearance = np.full(native['vertexCount'], np.inf)
     for name,positions in zip(names,points):
         selected=[spheres for identity,spheres in prepared if name==identity]
         if not selected:
@@ -2292,7 +2421,9 @@ def source_contact_vertices(native,renderer_to_prefab,heads,margin):
             for centers,radii,triangles in spheres:
                 checks+=1
                 for first in range(0,len(positions),128):
-                    distance=np.linalg.norm(positions[first:first+128,None,:]-centers[None,:,:],axis=2)-radii
+                    batch=slice(first,first+128)
+                    distance=np.linalg.norm(positions[batch,None,:]-centers[None,:,:],axis=2)-radii
+                    clearance[batch] = np.minimum(clearance[batch], np.maximum(0., distance.min(axis=1)))
                     candidates=distance<=margin;near=candidates.any(axis=1)
                     protected[first:first+128]|=near
                     for local in np.flatnonzero(near&~confirmed[first:first+128]):
@@ -2303,7 +2434,8 @@ def source_contact_vertices(native,renderer_to_prefab,heads,margin):
         protectedVertices=int(protected.sum()),contactMarginMetres=margin,unresolvedFittings=unresolved,
         distanceOwner='conservative native triangle bounding spheres',allStoredHeadFramesIncluded=True,
         confirmedContactVertexIds=np.flatnonzero(confirmed).tolist(),confirmedContactVertices=int(confirmed.sum()),
-        contactDistanceOwner='closest points on the declared native Head triangles',narrowPhaseQueries=queries)
+        contactDistanceOwner='closest points on the declared native Head triangles',narrowPhaseQueries=queries,
+        minimumHeadClearanceMetres=clearance.tolist())
 
 
 def source_curve_paths(center,length,trace,first_sign=-1):
@@ -3110,6 +3242,7 @@ def retained_core_owners(native,current,matrix,materials,maximum_offset):
             stats['recoveredWireBoundaryCoordinates']+=int((near_zero&(corners!=0)).sum()+(near_one&(corners!=1)).sum())
             corners=np.where(near_zero,0,np.where(near_one,1,corners))
             inside=np.all((corners>=-2e-6)&(corners<=1+2e-6),axis=(1,2))
+            inside&=np.any(corners>0,axis=2).all(axis=1)
             candidates=candidates[inside];corners=corners[inside]
             if not len(candidates):stats['unresolvedChildUv']+=1;continue
             corners=np.maximum(corners,0);corners/=corners.sum(axis=2,keepdims=True)
@@ -3137,7 +3270,7 @@ def retained_core_owners(native,current,matrix,materials,maximum_offset):
     return owners,dict(stats,sourceParentPartitions=len(owners),maximumPhysicalOffsetMetres=float(maximum_offset))
 
 
-def retained_carrier_face_mask(native,current,matrix,materials,maximum_offset):
+def retained_carrier_domain(native,current,matrix,materials,maximum_offset):
     """Own only complete, qualified retained child partitions with valid fits."""
     owners,proof=retained_core_owners(native,current,matrix,materials,maximum_offset)
     positions=native_frames(current,matrix)[0];uv=np.asarray(next(u['values']for u in native['uv']if u['channel']==0)).reshape(-1,4)[:,:2]
@@ -3160,7 +3293,12 @@ def retained_carrier_face_mask(native,current,matrix,materials,maximum_offset):
             mask[face]=True;checked+=len(children)*len(positions)
         masks.append(mask)
     return masks,dict(proof,retainedChildPhysicalSamplesChecked=checked,heldNativeFaces=dict(reasons),
-        selectedNativeFaces=sum(int(mask.sum())for mask in masks),existingSourceUnchanged=True)
+        selectedNativeFaces=sum(int(mask.sum())for mask in masks),existingSourceUnchanged=True),owners
+
+
+def retained_carrier_face_mask(native,current,matrix,materials,maximum_offset):
+    masks,proof,_=retained_carrier_domain(native,current,matrix,materials,maximum_offset)
+    return masks,proof
 
 
 def carrier_render_faces(surface):
@@ -3175,10 +3313,10 @@ def carrier_render_faces(surface):
     return replacement
 
 
-def retained_carrier_allocation(native,current,matrix,materials,source_faces,maximum_offset):
+def retained_carrier_allocation(native,current,matrix,materials,source_faces,maximum_offset,*,prepared=None):
     """Reserve all source vertices still used outside the declared carrier faces."""
-    masks,domain=retained_carrier_face_mask(native,current,matrix,materials,maximum_offset)
-    owners,_=retained_core_owners(native,current,matrix,materials,maximum_offset);replaced=set()
+    masks,domain,owners=prepared if prepared is not None else retained_carrier_domain(native,current,matrix,materials,maximum_offset)
+    replaced=set()
     if len(source_faces)!=len(native['subMeshes']):raise ValueError('Carrier allocation omitted native material owners.')
     for slot,faces in enumerate(source_faces):
         triangles=np.asarray(native['subMeshes'][slot],int).reshape(-1,3)
@@ -4616,7 +4754,8 @@ def primary_core_packet(entry,current,native,binding,settings):
     source_p,source_n,source_t,source_b=native_frames(native,entry['rendererToPrefab'])
     native_hand=np.asarray(native['tangents']).reshape(-1,4)[:,3]
     contact=entry['sourceContactDomain'];protected=np.zeros(count,bool);protected[contact['protectedVertexIds']]=True
-    masks,domain_proof=retained_carrier_face_mask(native,reference,entry['rendererToPrefab'],entry['materials'],contact['settings']['maximumSupportOffsetMetres'])
+    carrier_domain=retained_carrier_domain(native,reference,entry['rendererToPrefab'],entry['materials'],contact['settings']['maximumSupportOffsetMetres'])
+    masks,domain_proof,_=carrier_domain
     source_triangles=[np.asarray(flat,int).reshape(-1,3)for flat in native['subMeshes']]
     lookups=[{tuple(sorted(map(int,tri))):face for face,tri in enumerate(triangles)}for triangles in source_triangles]
     old_uv=np.asarray(next(u['values']for u in current['uv']if u['channel']==2)).reshape(-1,4)
@@ -4625,7 +4764,7 @@ def primary_core_packet(entry,current,native,binding,settings):
     # Their stencils do not prove opaque coverage of a whole native triangle.
     render_replacement=[[]for _ in source_triangles]
     budget,source_keep,replaced,_=retained_carrier_allocation(native,reference,entry['rendererToPrefab'],entry['materials'],
-        render_replacement,contact['settings']['maximumSupportOffsetMetres'])
+        render_replacement,contact['settings']['maximumSupportOffsetMetres'],prepared=carrier_domain)
     available=max(0,int(budget['maximumAddedVertices'])-(len(keep)-count))
     lofts,capacity=admit_primary_lofts(planned['lofts'],available)
     if not lofts:raise ValueError('The retained source has no capacity for a complete primary lock beside its coverage and fine fibers.')
@@ -4876,7 +5015,8 @@ def curved_core_row(entry, output):
         carrier_guides=guide_source['guides']if guide_source is not None else None
         if not source_surface and not carrier_guides:raise ValueError('Carrier reconstruction has no admitted complete physical guide.')
         reference=retained_groom_reference(entry,native)
-        retained_face_mask,carrier_domain_proof=retained_carrier_face_mask(native,reference,entry['rendererToPrefab'],entry['materials'],contact['settings']['maximumSupportOffsetMetres'])
+        carrier_domain=retained_carrier_domain(native,reference,entry['rendererToPrefab'],entry['materials'],contact['settings']['maximumSupportOffsetMetres'])
+        retained_face_mask,carrier_domain_proof,_=carrier_domain
         if not source_surface:
             preferred_width=float(PROFILE['widthMetres'][1])*2**int(entry['lod'])*carrier_settings['widthMultiplier']
             settings=dict(carrier_settings,terminalRegionMetres=contact['settings']['terminalRegionLengthMetres'])
@@ -4917,7 +5057,7 @@ def curved_core_row(entry, output):
     assert any(np.any(s) for s in selected_faces), 'No complete native hair-only core domain.'
     if source_surface:
         fitted_p=native_position_frames(reference,entry['rendererToPrefab'])[:,:count]-matrix[:3,3]
-        prepared_source=prepare_source_curved_core(native,fitted_p,frame_n,frame_t,entry['materials'],selected_faces,physical_groups,contact,source_surface,native_positions=frame_p)
+        prepared_source=prepare_source_curved_core(native,fitted_p,frame_n,frame_t,entry['materials'],selected_faces,physical_groups,contact,source_surface,native_positions=frame_p,terminal=carrier_terminal)
         selected_keys=[{tuple(sorted(map(int,tri)))for tri in triangles[selected]}for triangles,selected in zip(slot_triangles,selected_faces)]
         metric_report=[dict(mode='source-Main-pattern-local-edge-phase',sourceVertices=count)]
     else:coordinates, metric_report = physical_core_coordinates(frame_p[0], coordinates, slot_triangles, selected_faces)
@@ -4937,12 +5077,12 @@ def curved_core_row(entry, output):
     carrier_budget=None
     if carrier_settings is not None:
         carrier_budget=retained_carrier_allocation(native,reference,entry['rendererToPrefab'],entry['materials'],
-            [np.flatnonzero(selected).tolist()for selected in selected_faces],contact['settings']['maximumSupportOffsetMetres'])[0]
+            [np.flatnonzero(selected).tolist()for selected in selected_faces],contact['settings']['maximumSupportOffsetMetres'],prepared=carrier_domain)[0]
     added_limit=int(carrier_budget['maximumAddedVertices']if carrier_budget is not None else entry['addedVertexLimit'])
     retained_support,maximum_count,headroom=curved_vertex_capacity(
         count,current['vertexCount'],int(entry['addedVertices']),added_limit,allow_reallocation=carrier_settings is not None)
-    budget, donation_groups = curved_core_budget(headroom, [len(indices) for _, _, indices in removable], fraction)
-    removable = [removable[index] for index in donation_groups]
+    donation_sizes = [len(indices) for _, _, indices in removable]
+    budget, donation_groups = curved_core_budget(headroom, donation_sizes, fraction)
     # A zero-edge-split partition still owns every selected source corner and
     # one centroid per face. Count both before distributing the fine budget.
     minimum_core=sum(int(np.sum(selected))+len(np.unique(triangles[selected]))
@@ -4961,7 +5101,8 @@ def curved_core_row(entry, output):
             # only the samples required above its existing spatial resolution.
             shared_native_corners=True;coordinates=source_coordinates.copy();minimum_core=0
             metric_report=[dict(mode='native-source-field-and-corners-shared-without-channel-mutation',sourceVertices=count)]
-    assert budget > 0, 'No source-owned interior fine allocation can be reassigned.'
+    if not source_surface:
+        assert budget > 0, 'No source-owned interior fine allocation can be reassigned.'
     lod = int(entry['lod'])
     preferred = float(PROFILE['widthMetres'][1]) * 2 ** lod
     maximum_width=None
@@ -4987,10 +5128,31 @@ def curved_core_row(entry, output):
                                 reusable_vertices=range(count)if shared_native_corners else(),
                                 positions=frame_p[0],physical_groups=physical_groups,subdivide_small_faces=not adaptive_resolution)
 
-    try:
-        plan = partition(preferred)
-    except OverflowError:
-        if source_surface:raise
+    displacement_scale = 1.
+    if source_surface:
+        try:
+            plan = partition(preferred)
+        except OverflowError:
+            # Use complete interior fibers for extra capacity. If necessary,
+            # lower displacement while keeping the same chord and pose checks.
+            budget, donation_groups = curved_core_budget(headroom, donation_sizes, (1. + fraction) * .5)
+            for displacement_scale in (1., .5, .25, .125):
+                if displacement_scale != 1.:
+                    prepared_source = prepare_source_curved_core(native, fitted_p, frame_n, frame_t, entry['materials'],
+                        selected_faces, physical_groups, contact, source_surface, native_positions=frame_p,
+                        terminal=carrier_terminal, displacement_scale=displacement_scale)
+                try:
+                    plan = partition(preferred)
+                    break
+                except OverflowError:
+                    if displacement_scale == .125:
+                        raise
+    else:
+        try:
+            plan = partition(preferred)
+        except OverflowError:
+            plan = None
+    if plan is None:
         low, high = preferred, preferred
         for _ in range(8):
             high = min(high*2.,maximum_width)if maximum_width is not None else high*2.
@@ -5022,7 +5184,8 @@ def curved_core_row(entry, output):
             owner=record['geometrySurface'];pp[:,index]-=np.einsum('i,pij->pj',owner['barycentric'],fitting_delta[:,owner['triangle']])
         positions,normals,tangents=pp[0],nn[0],tt[0]
         curvature_proof=dict(allStoredPosesAndBinary32ChannelsChecked=True,sourcePatternQuadratic=True,sourceFittingAppliedInAuthoringOnce=True,
-            prefixDeltaSubtractedForExistingFittingOwner=True,normalApproximationAccepted=False,slots=values['proofs'])
+            prefixDeltaSubtractedForExistingFittingOwner=True,normalApproximationAccepted=False,
+            retainedDisplacementScale=displacement_scale,slots=values['proofs'])
         evaluation['tuftDerivativeProof']=dict(mode='source-quadratic',sourceDomainCoverageExact=True,sourceFittingOwner='retain_source_fitting')
     else:
         positions, normals, tangents = evaluate_curved_core(evaluation, frame_p[0], frame_n[0], frame_t[0], coordinates)
@@ -5034,9 +5197,10 @@ def curved_core_row(entry, output):
     positions, normals, tangents = pp[0], nn[0], tt[0]
     remove = set()
     required_donation=max(0,len(positions)-headroom)
-    for _, _, indices in removable:
+    for index in donation_groups:
         if len(remove) >= required_donation:
             break
+        _, _, indices = removable[index]
         remove.update(indices)
     assert len(remove)+headroom >= len(positions)
     keep = np.asarray([i for i in range(current['vertexCount']) if i not in remove], dtype=int)
@@ -6277,6 +6441,7 @@ def generate(entry,output) -> 'dict[str, Any]':
         contactProtection=contact_proof,sourceTerminalField=terminal_field,
         sourceContactDomain=(dict(nativeFingerprint=native['sourceFingerprint'],protectedVertexIds=np.flatnonzero(protected).tolist(),
             contactVertexIds=contact_proof['confirmedContactVertexIds'],fixedVertexIds=list(fixed_vertices),
+            headClearanceMetres=contact_proof['minimumHeadClearanceMetres'],
             distanceBasis=terminal_domain['distanceBasis'],settings=copy.deepcopy(terminal_settings))
                              if carrier_settings is not None else None),
         carrierGuides=(dict(nativeFingerprint=native['sourceFingerprint'],guides=carrier_guides,
@@ -6448,7 +6613,14 @@ def generate_owned(args,output,parser):
     if args.designs:
         if not args.soft_coverage_pilot or not args.native_hair_domain or len(args.asset or [])!=1:
             argument_error('Source designs require one declared asset with native-domain fine coverage.')
-        design=read(args.designs);values=design['layeredAtlasCards']if args.layered_atlas_cards else design['assets'][args.asset[0]]
+        design = read(args.designs)
+        authored_ranges = design['assets'].get(args.asset[0])
+        if args.layered_atlas_cards:
+            values = dict(design['layeredAtlasCards'], **(authored_ranges or {}))
+        else:
+            if authored_ranges is None:
+                argument_error('This asset has no authored groom ranges.')
+            values = authored_ranges
         fields={'widthMetres','liftMetres','targetLengthLimitsMetres'}
         if args.layered_atlas_cards:
             fields|={'targetLengthExtentFraction','targetPoissonCoverage','assumedMeasuredMaskCoverage','fringeFraction','fringeWidthMetres','fringeLengthMetres','fringeLiftMetres','retainedSourceBudget','exteriorCoverageRefinement','candidateAttemptFactor'}

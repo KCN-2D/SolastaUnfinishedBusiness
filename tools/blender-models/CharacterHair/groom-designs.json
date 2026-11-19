@@ -8,34 +8,40 @@
     "targetLengthExtentFraction": 0.6,
     "targetPoissonCoverage": 0.985,
     "assumedMeasuredMaskCoverage": 0.8,
-    "fringeFraction": 0.1,
-    "fringeWidthMetres": [0.00025,0.00065],
+    "fringeFraction": 0.18,
+    "fringeWidthMetres": [0.00024,0.0006],
     "fringeLengthMetres": [0.018,0.05],
     "fringeLiftMetres": [0.0005,0.0015],
     "retainedSourceBudget": true,
     "exteriorCoverageRefinement": true,
     "candidateAttemptFactor": 3,
     "lockSection": {
-      "heightFraction": 0.12,
-      "maximumSourceWidthFraction": 0.85
+      "heightFraction": 0.065,
+      "maximumSourceWidthFraction": 0.5
     },
     "carrierSurface": {
-      "fineDonationFraction": 0.6,
+      "fineDonationFraction": 0.64,
       "sourceSurface": {
-        "widthMetres": 0.012,
-        "heightMetres": 0.0009,
-        "patternRadiusPixels": 2
+        "widthMetres": 0.0037,
+        "heightMetres": 0.00046,
+        "patternRadiusPixels": 3,
+        "overlapLay": {
+          "minimumClearanceMetres": 0.0015,
+          "maximumTravelMetres": 0.008,
+          "maximumGapMetres": 0.032,
+          "rootBlendMetres": 0.022
+        }
       }
     },
     "supportTerminals": {
       "contactMarginMetres": 0.003,
       "minimumRootDistanceMetres": 0.012,
-      "terminalRegionLengthMetres": 0.009,
-      "maximumRetreatMetres": 0.006,
-      "maximumSupportOffsetMetres": 0.008,
-      "maximumRetreatRootFraction": 0.3,
+      "terminalRegionLengthMetres": 0.015,
+      "maximumRetreatMetres": 0.009,
+      "maximumSupportOffsetMetres": 0.009,
+      "maximumRetreatRootFraction": 0.34,
       "minimumRetainedAreaFraction": 0.25,
-      "terminalSeedFraction": 0.35
+      "terminalSeedFraction": 0.52
     }
   },
   "strandAtlas": {

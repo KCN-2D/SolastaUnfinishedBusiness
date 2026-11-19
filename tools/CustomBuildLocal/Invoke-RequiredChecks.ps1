@@ -167,11 +167,18 @@ try {
         $nativePath = $plan.native.result
         if ($cachedSourceCurrent) { $nativePath = $cached.nativeResult }
         $inputCase = Read-GtObject $plan.native.casePath
+        $saveScenario = $true
+        if ($plan.native.PSObject.Properties['saveScenario']) {
+            $saveScenario = $plan.native.saveScenario
+            if ($saveScenario -isnot [bool]) { throw 'Save scenario selection must be a Boolean.' }
+        }
+        $observation = $inputCase.observation.enabled
+        if ($observation -isnot [bool]) { throw 'Observation selection must be a Boolean.' }
         $nativeFiles = @($plan.native.casePath,$plan.native.validator) + @($plan.native.sources) + @($plan.native.references)
         if ($inputCase.initialState.PSObject.Properties['settingsFile']) { $nativeFiles += $inputCase.initialState.settingsFile }
         if ($inputCase.initialState.PSObject.Properties['savePath']) { $nativeFiles += $inputCase.initialState.savePath }
         if ($inputCase.initialState.PSObject.Properties['nativePreferences']) { $nativeFiles += @($inputCase.initialState.nativePreferences | ForEach-Object path) }
-        $nativeInputs = [ordered]@{adapter=$plan.native.adapter;type=$plan.native.type;files=@($nativeFiles | Sort-Object -Unique | ForEach-Object { [ordered]@{path=$_;sha256=(Get-GtHash $_)} })}
+        $nativeInputs = [ordered]@{adapter=$plan.native.adapter;type=$plan.native.type;saveScenario=$saveScenario;observation=$observation;files=@($nativeFiles | Sort-Object -Unique | ForEach-Object { [ordered]@{path=$_;sha256=(Get-GtHash $_)} })}
         if ($plan.native.PSObject.Properties['requirements']) { $nativeInputs['requirements'] = $plan.native.requirements }
         $native = if ([IO.File]::Exists($nativePath)) { Read-GtObject $nativePath } else { $null }
         $nativeBuildPath = if ($native) { Join-Path (Split-Path -Parent $nativePath) 'Build.json' } else { $null }
@@ -191,10 +198,42 @@ try {
             $gameDirectory = Split-Path -Parent $plan.gameExe
             # Array parameters are bound in a child PowerShell script, not flattened by -File.
             $runnerPath = Join-Path $evidenceRoot 'RunRequiredNative.ps1'
-            $runner = '$p=Get-Content -LiteralPath $args[0] -Raw|ConvertFrom-Json; & $p.runner -CasePath $p.casePath -BuildDirectory $p.buildDirectory -GameExePath $p.gameExe -AuthorizedGameDirectory $p.gameDirectory -EvidenceRoot $p.evidenceRoot -ScenarioAdapter $p.adapter -ScenarioSource @($p.sources) -ScenarioType $p.type -ScenarioValidator $p.validator -ScenarioReferencePath @($p.references) -ScenarioObservation $false -Deploy -Launch -RequireNonInputDesktop'
+            $runner = @'
+$ErrorActionPreference = 'Stop'
+try {
+    $plan = Get-Content -LiteralPath $args[0] -Raw | ConvertFrom-Json
+    $native = @{
+        CasePath = $plan.casePath
+        BuildDirectory = $plan.buildDirectory
+        GameExePath = $plan.gameExe
+        AuthorizedGameDirectory = $plan.gameDirectory
+        EvidenceRoot = $plan.evidenceRoot
+        ScenarioAdapter = $plan.adapter
+        ScenarioSource = @($plan.sources)
+        ScenarioType = $plan.type
+        ScenarioValidator = $plan.validator
+        ScenarioReferencePath = @($plan.references)
+        ScenarioObservation = $plan.observation
+        ScenarioSaveScenario = $plan.saveScenario
+        Deploy = $true
+        Launch = $true
+        RequireNonInputDesktop = $true
+    }
+    & $plan.runner @native
+} catch {
+    [Console]::Error.WriteLine(($_ | Out-String).Trim())
+    exit 1
+}
+'@
             [IO.File]::WriteAllText($runnerPath,$runner,[Text.UTF8Encoding]::new($true))
             $runPlanPath = Join-Path $evidenceRoot 'RequiredNative.json'
-            Write-GtJson $runPlanPath ([ordered]@{runner=(Join-Path $repositoryRoot 'tools/game-test/Invoke-GameTest.ps1');casePath=$plan.native.casePath;buildDirectory=$buildDirectory;gameExe=$plan.gameExe;gameDirectory=$gameDirectory;evidenceRoot=$plan.native.evidenceRoot;adapter=$plan.native.adapter;sources=$plan.native.sources;type=$plan.native.type;validator=$plan.native.validator;references=$plan.native.references})
+            Write-GtJson $runPlanPath ([ordered]@{
+                runner=(Join-Path $repositoryRoot 'tools/game-test/Invoke-GameTest.ps1')
+                casePath=$plan.native.casePath;buildDirectory=$buildDirectory;gameExe=$plan.gameExe
+                gameDirectory=$gameDirectory;evidenceRoot=$plan.native.evidenceRoot;adapter=$plan.native.adapter
+                sources=$plan.native.sources;type=$plan.native.type;validator=$plan.native.validator
+                references=$plan.native.references;observation=$observation;saveScenario=$saveScenario
+            })
             $output = Invoke-CheckProcess 'powershell.exe' @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$runnerPath,$runPlanPath)
             $nativeDirectory = [string]($output | Select-Object -Last 1)
             $nativePath = Join-Path $nativeDirectory 'Result.json'
@@ -224,16 +263,14 @@ try {
             ($cachedCleanupOwners | ConvertTo-Json -Compress) -ceq ($cleanupOwners | ConvertTo-Json -Compress) -and
             (ConvertTo-Json -InputObject @($cached.workDirectories) -Compress) -ceq (ConvertTo-Json -InputObject $workDirectories -Compress)
         if ($cleanupCurrent) {
-            # Every registered producer start/resume rewrites this record, even for unchanged paths.
+            # Producers refresh this registry when managed work starts or resumes.
+            # Evidence written inside an already protected directory does not change cleanup ownership.
             $registeredWork = Join-Path $script:GameTestArtifactRoot 'StorageReferences.json'
             $cleanupCurrent = [IO.File]::Exists($registeredWork)
             if ($cleanupCurrent) {
                 Assert-GtPlainPath $registeredWork
                 $completed = ConvertTo-GtUtcDate $cached.cleanupCompletedUtc
                 $cleanupCurrent = [IO.File]::GetLastWriteTimeUtc($registeredWork) -le $completed
-                foreach ($directory in $workDirectories) {
-                    if ([IO.Directory]::GetLastWriteTimeUtc($directory) -gt $completed) { $cleanupCurrent = $false; break }
-                }
             }
         }
         $cleanupCompletedUtc = if ($cleanupCurrent) { $cached.cleanupCompletedUtc } else { $null }

@@ -2685,9 +2685,11 @@ def prepare_standalone_part(source_path, expected_sha256, target_path, replaceme
             raise ValueError('A declared material owner is missing or repeated.')
         material_ids.add(key);pairs=trees[key]['m_SavedProperties']['m_Floats'];values=dict(pairs)
         for name,value in update['values'].items():
-            if name not in values or values[name]!=value['before']or type(value['after'])not in(int,float)or not math.isfinite(value['after']):
+            if values.get(name)!=value['before']or type(value['after'])not in(int,float)or not math.isfinite(value['after']):
                 raise ValueError('A declared material float changed or has an invalid replacement.')
-        trees[key]['m_SavedProperties']['m_Floats']=[(name,update['values'][name]['after']if name in update['values']else value)for name,value in pairs]
+        replaced=[(name,update['values'][name]['after']if name in update['values']else value)for name,value in pairs]
+        replaced.extend((name,value['after'])for name,value in update['values'].items()if name not in values)
+        trees[key]['m_SavedProperties']['m_Floats']=replaced
         material_proofs.append(dict(pathId=key,values=copy.deepcopy(update['values'])))
     renderer_materials=[];material_clones={};slot_meshes=set();preload_bindings=[];next_id=1
     for update in material_slot_updates:
@@ -2789,12 +2791,22 @@ def native_cloth_reference_mismatches(trees: dict[int, dict[str, Any]]) -> list[
 
 
 def read_compiled_groom_defaults(reference: dict[str, str]) -> dict[str, float]:
-    path=Path(reference['path'])
-    if digest(path)!=reference['sha256']:raise ValueError('A compiled groom preset changed.')
-    _,file=load_serialized_bundle(path,in_memory=True)
-    materials=[obj for obj in file.objects.values()if obj.type.name=='Material']
-    if len(materials)!=1:raise ValueError('A groom preset requires one compiled material.')
-    return dict(materials[0].read_typetree()['m_SavedProperties']['m_Floats'])
+    path = Path(reference['path']).resolve()
+    fingerprint = digest(path)
+    if fingerprint != reference['sha256']:
+        raise ValueError('A compiled groom preset changed.')
+    return dict(compiled_groom_defaults(path, fingerprint))
+
+
+@lru_cache(maxsize=8)
+def compiled_groom_defaults(path: Path, fingerprint: str) -> tuple[tuple[str, float], ...]:
+    _, file = load_serialized_bundle(path, in_memory=True)
+    if digest(path) != fingerprint:
+        raise ValueError('A compiled groom preset changed while being read.')
+    materials = [obj for obj in file.objects.values() if obj.type.name == 'Material']
+    if len(materials) != 1:
+        raise ValueError('A groom preset requires one compiled material.')
+    return tuple(materials[0].read_typetree()['m_SavedProperties']['m_Floats'])
 
 
 def retune_groom_defaults(job: dict[str, Any]) -> dict[str, Any]:
@@ -2804,17 +2816,18 @@ def retune_groom_defaults(job: dict[str, Any]) -> dict[str, Any]:
     before=read_compiled_groom_defaults(job['before']);after=read_compiled_groom_defaults(job['after'])
     changed={key:(value,after[key])for key,value in before.items()if key in after and abs(value-after[key])>1e-7}
     _,file=load_serialized_bundle(source,in_memory=True);updates=[]
+    materialize_inherited=job.get('materializeInheritedDefaults',False)
     for identifier in sorted(groom_material_identifiers(file)):
         values=dict(file.objects[identifier].read_typetree()['m_SavedProperties']['m_Floats'])
-        selected={key:dict(before=values[key],after=value[1])for key,value in changed.items()
-                  if key in values and abs(values[key]-value[0])<=1e-6}
+        selected={key:dict(before=values.get(key),after=value[1])for key,value in changed.items()
+                  if (abs(values[key]-value[0])<=1e-6 if key in values else materialize_inherited)}
         if selected:updates.append(dict(pathId=identifier,values=selected))
     if not updates:
         if not target.exists():target.hardlink_to(source)
         return dict(file=source.name,sha256=job['sha256'],bytes=source.stat().st_size,changed=False)
     receipt=prepare_standalone_part(source,job['sha256'],target,[],export_mesh=None,material_updates=updates)
     return dict(file=source.name,sha256=receipt['target']['sha256'],bytes=target.stat().st_size,changed=True,
-        beforePreset=job['before'],afterPreset=job['after'],**receipt)
+        beforePreset=job['before'],afterPreset=job['after'],materializeInheritedDefaults=materialize_inherited,**receipt)
 
 
 def prepare_native_cloth_state(trees: dict[int, dict[str, Any]]) -> list[dict[str, Any]]:

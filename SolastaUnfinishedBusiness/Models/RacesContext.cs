@@ -67,6 +67,8 @@ internal static class RacesContext
         if (_characterModelCatalog == null) _characterModelCatalogAttempted = false;
         Morphotypes.Load();
         LoadBodyShapeFields();
+        _ = CustomModels.SkinMeshSource.StartNativeMetadataPreparation()
+            .ContinueWith(failed => _ = failed.Exception, TaskContinuationOptions.OnlyOnFaulted);
 
         LoadRace(RaceBattlebornBuilder.RaceBattleborn);
         LoadRace(RaceBolgrifBuilder.RaceBolgrif);
@@ -249,28 +251,50 @@ internal static class RacesContext
         owner.BindDerivedBone(renderer, parent, bone, local);
     }
 
-    internal static bool ApplyBodyShape(GraphicsCharacter graphics)
-    {
-        if (_bodyShapesUnloading) return true;
-        if (DeferBodyShapeDuringCreation(graphics))
-            return graphics.GetComponent<BodyShapePresentation>() is not { HasSources: true };
-        var character = graphics?.RulesetCharacter;
-        if (!UsesBodyShapeAppearance(character))
-        {
-            return true;
-        }
+    private static GraphicsCharacter _bodyShapePreview;
 
-        if (!TryGetRaceIdentity(character, out var race, out var subRace))
+    internal static GraphicsCharacter EnterBodyShapePreview(GraphicsCharacter graphics)
+    {
+        var previous = _bodyShapePreview;
+        _bodyShapePreview = graphics;
+        return previous;
+    }
+
+    internal static void CommitBodyShapePreview(GraphicsCharacter graphics)
+    {
+        if (graphics) graphics.GetComponent<BodyShapePresentation>()?.CommitPreview();
+    }
+
+    internal static void PrepareBodyShapePreview(GraphicsCharacter graphics)
+    {
+        if (!_bodyShapesUnloading && graphics && UsesBodyShapeAppearance(graphics.RulesetCharacter))
         {
-            return true;
+            var owner = graphics.GetComponent<BodyShapePresentation>() ?? graphics.gameObject.AddComponent<BodyShapePresentation>();
+            owner.Bind(graphics);
+            owner.EnablePreview();
         }
+    }
+
+    private readonly struct BodyShapeSelection(BodyShapeField field, float value, float defaultValue,
+        bool hasNativeShape, bool supplemental)
+    {
+        internal readonly BodyShapeField Field = field;
+        internal readonly float Value = value;
+        internal readonly float DefaultValue = defaultValue;
+        internal readonly bool HasNativeShape = hasNativeShape;
+        internal readonly bool Supplemental = supplemental;
+    }
+
+    private static bool TryGetBodyShapeSelection(GraphicsCharacter graphics, out BodyShapeSelection selection)
+    {
+        selection = default;
+        var character = graphics?.RulesetCharacter;
+        if (!UsesBodyShapeAppearance(character) || !TryGetRaceIdentity(character, out var race, out var subRace))
+            return false;
 
         var enabled = SettingsContext.GuiModManagerInstance.EnableAllRaceBodyShapes;
         var presentation = subRace?.RacePresentation ?? race.RacePresentation;
-        if (presentation == null)
-        {
-            return true;
-        }
+        if (presentation == null) return false;
 
         var originallyAvailable = HasNativeBodyShape(presentation);
         var value = (float)presentation.DefaultMusculature;
@@ -279,23 +303,43 @@ internal static class RacesContext
             BodyShapeFinite(savedValue)) value = Mathf.Clamp(savedValue, 0f, 100f);
         var supplemental = enabled || originallyAvailable;
         var field = supplemental ? GetBodyShapeField(character.Sex == CreatureSex.Female ? 1 : 0) : null;
+        selection = new BodyShapeSelection(field, value, presentation.DefaultMusculature, originallyAvailable, supplemental);
+        return true;
+    }
+
+    internal static bool TryPreviewBodyShape(GraphicsCharacter graphics) =>
+        !_bodyShapesUnloading && _bodyShapePreview == graphics &&
+        TryGetBodyShapeSelection(graphics, out var selection) &&
+        graphics.GetComponent<BodyShapePresentation>()?.TryPreview(graphics, selection) == true;
+
+    internal static bool ApplyBodyShape(GraphicsCharacter graphics)
+    {
+        if (_bodyShapesUnloading) return true;
+        if (DeferBodyShapeDuringCreation(graphics))
+            return graphics.GetComponent<BodyShapePresentation>() is not { HasSources: true };
+        if (!TryGetBodyShapeSelection(graphics, out var selection)) return true;
         var previous = graphics.GetComponent<BodyShapePresentation>();
-        if (previous?.KeepsBodyShape(graphics, field, value, presentation.DefaultMusculature, supplemental) == true)
+        previous?.RestorePreview();
+        if (previous?.KeepsBodyShape(graphics, selection) == true)
         {
-            if (previous.IsPending) previous.Refresh(graphics, field, value, presentation.DefaultMusculature, supplemental);
+            if (previous.IsPending || previous.NeedsPreviewPreparation)
+                previous.Refresh(graphics, selection.Field, selection.Value, selection.DefaultValue, selection.Supplemental);
             return false;
         }
-        ReleaseBodyShape(graphics);
-        if (previous?.HasSources == true) return false;
+        if (previous?.TryReuseBodyShape(graphics, selection) != true)
+        {
+            ReleaseBodyShape(graphics);
+            if (previous?.HasSources == true) return false;
+        }
         foreach (var renderer in graphics.BlendShapeRenderers)
         {
             if (IsProtectedBodyRenderer(graphics, renderer)) continue;
             var mesh = renderer ? renderer.sharedMesh : null;
             var index = NativeBodyShapeFrame(mesh);
             if (index >= 0) renderer.SetBlendShapeWeight(index,
-                originallyAvailable ? value : presentation.DefaultMusculature);
+                selection.HasNativeShape ? selection.Value : selection.DefaultValue);
         }
-        ApplySupplementalBodyShape(graphics, value, presentation.DefaultMusculature, enabled || originallyAvailable);
+        ApplySupplementalBodyShape(graphics, selection);
         return false;
     }
 
@@ -488,9 +532,7 @@ internal static class RacesContext
                 _characterModelReadCancellation = cancellation.Token;
                 try
                 {
-                    var blueprint = CharacterModelCatalog.ReadBlueprint(directory, previous);
-                    if (blueprint.Resources == null) CustomModels.SkinMeshSource.PrepareNativeMetadata();
-                    return blueprint;
+                    return CharacterModelCatalog.ReadBlueprint(directory, previous);
                 }
                 finally { _characterModelReadCancellation = default; }
             }
@@ -996,8 +1038,7 @@ internal static class RacesContext
             using var sha = CustomModels.CreateAssetSha256();
             using var hashing = new System.Security.Cryptography.CryptoStream(System.IO.Stream.Null, sha,
                 System.Security.Cryptography.CryptoStreamMode.Write);
-            using var stream = new System.IO.BufferedStream(hashing, 65536);
-            using var writer = new System.IO.BinaryWriter(stream, System.Text.Encoding.UTF8, true);
+            using var writer = new CustomModels.FingerprintWriter(hashing);
             writer.Write("Solasta.MeshSource.1"); writer.Write(VertexCount); writer.Write(IndexFormat);
             CharacterModelWriteVectors(writer, Positions, vectorBytes, cancelled);
             CharacterModelWriteVectors(writer, Normals, vectorBytes, cancelled);
@@ -1052,7 +1093,6 @@ internal static class RacesContext
                 }
             }
             writer.Flush();
-            stream.Flush();
             hashing.FlushFinalBlock();
             return BitConverter.ToString(sha.Hash).Replace("-", "").ToLowerInvariant();
 
@@ -6178,7 +6218,7 @@ internal static class RacesContext
         ["915364237588fd14a91ed6ccaf75097c", "3fbf74040c64ee14fa50d9ec1c4f56d9"]
     ];
 
-    private static void ApplySupplementalBodyShape(GraphicsCharacter graphics, float value, float defaultValue, bool supplemental)
+    private static void ApplySupplementalBodyShape(GraphicsCharacter graphics, BodyShapeSelection selection)
     {
         if (_bodyShapesUnloading) return;
         var owner = graphics.GetComponent<BodyShapePresentation>() ?? graphics.gameObject.AddComponent<BodyShapePresentation>();
@@ -6189,8 +6229,7 @@ internal static class RacesContext
             owner.DeferRefresh();
             return;
         }
-        var field = supplemental ? GetBodyShapeField(graphics.RulesetCharacter.Sex == CreatureSex.Female ? 1 : 0) : null;
-        owner.Refresh(graphics, field, value, defaultValue, supplemental);
+        owner.Refresh(graphics, selection.Field, selection.Value, selection.DefaultValue, selection.Supplemental);
     }
 
     private static BodyShapeField GetBodyShapeField(int sex) => _bodyShapesUnloading ? null : BodyShapeFields[sex];
@@ -6532,9 +6571,9 @@ internal static class RacesContext
         try
         {
             var readable = mesh;
-            var bindPoses = mesh.bindposes;
             if (!mesh.isReadable)
             {
+                var bindPoses = mesh.bindposes;
                 host = new GameObject("Body shape rest proxy") { hideFlags = HideFlags.HideAndDontSave };
                 host.SetActive(false);
                 var skin = host.AddComponent<SkinnedMeshRenderer>();
@@ -6610,7 +6649,7 @@ internal static class RacesContext
         }
     }
 
-    private sealed class BodyShapeSample(Vector3 point, Vector3 delta, float weight)
+    private readonly struct BodyShapeSample(Vector3 point, Vector3 delta, float weight)
     {
         internal readonly Vector3 Point = point;
         internal readonly Vector3 Delta = delta;
@@ -6626,33 +6665,52 @@ internal static class RacesContext
         private readonly BodyShapeField _parent;
         private readonly Dictionary<string, AffineRest> _affine;
 
-        private sealed class AffineRest
+        internal sealed class AffineRest
         {
             private readonly Vector3 _center, _mean;
             private readonly Matrix4x4 _gradient;
+            internal readonly Matrix4x4 Derivative;
             internal AffineRest(IReadOnlyList<BodyShapeSample> samples)
             {
                 var total = samples.Sum(sample => (double)sample.Weight);
                 var center = new double[3]; var mean = new double[3];
                 if (total <= 0d || double.IsNaN(total) || double.IsInfinity(total))
                     throw new InvalidOperationException("A physical affine rest has no finite sample support.");
+                var origin = samples[0];
                 for (var axis = 0; axis < 3; axis++)
-                { center[axis] = samples[0].Point[axis]; mean[axis] = samples[0].Delta[axis]; }
-                foreach (var sample in samples)
+                {
+                    center[axis] = origin.Point[axis];
+                    mean[axis] = origin.Delta[axis];
+                }
+                for (var index = 0; index < samples.Count; index++)
+                {
+                    var sample = samples[index];
                     for (var axis = 0; axis < 3; axis++)
                     {
-                        center[axis] += ((double)sample.Point[axis] - samples[0].Point[axis]) * sample.Weight / total;
-                        mean[axis] += ((double)sample.Delta[axis] - samples[0].Delta[axis]) * sample.Weight / total;
+                        center[axis] += ((double)sample.Point[axis] - origin.Point[axis]) * sample.Weight / total;
+                        mean[axis] += ((double)sample.Delta[axis] - origin.Delta[axis]) * sample.Weight / total;
                     }
-                var covariance = new double[3, 3]; var cross = new double[3, 3];
-                foreach (var sample in samples)
+                }
+                var covariance = new double[3, 3];
+                var cross = new double[3, 3];
+                var point = new double[3];
+                var delta = new double[3];
+                for (var index = 0; index < samples.Count; index++)
+                {
+                    var sample = samples[index];
+                    var weight = sample.Weight / total;
+                    for (var axis = 0; axis < 3; axis++)
+                    {
+                        point[axis] = sample.Point[axis] - center[axis];
+                        delta[axis] = sample.Delta[axis] - mean[axis];
+                    }
                     for (var row = 0; row < 3; row++)
                         for (var column = 0; column < 3; column++)
                         {
-                            var weight = sample.Weight / total;
-                            covariance[row, column] += (sample.Point[row] - center[row]) * (sample.Point[column] - center[column]) * weight;
-                            cross[row, column] += (sample.Delta[row] - mean[row]) * (sample.Point[column] - center[column]) * weight;
+                            covariance[row, column] += point[row] * point[column] * weight;
+                            cross[row, column] += delta[row] * point[column] * weight;
                         }
+                }
                 var axes = new double[3, 3];
                 for (var axis = 0; axis < 3; axis++) axes[axis, axis] = 1d;
                 for (var iteration = 0; iteration < 32; iteration++)
@@ -6696,6 +6754,7 @@ internal static class RacesContext
                 // Unobserved covariance directions have zero displacement gradient,
                 // retaining the identity rest map instead of inventing compression.
                 _gradient = Matrix4x4.zero;
+                Derivative = Matrix4x4.identity;
                 for (var row = 0; row < 3; row++)
                     for (var column = 0; column < 3; column++)
                     {
@@ -6704,21 +6763,12 @@ internal static class RacesContext
                         if (double.IsNaN(value) || double.IsInfinity(value) || !BodyShapeFinite((float)value))
                             throw new InvalidOperationException("A physical affine rest has a nonfinite displacement gradient.");
                         _gradient[row, column] = (float)value;
+                        Derivative[row, column] += _gradient[row, column];
                     }
                 _center = new Vector3((float)center[0], (float)center[1], (float)center[2]);
                 _mean = new Vector3((float)mean[0], (float)mean[1], (float)mean[2]);
             }
             internal Vector3 Evaluate(Vector3 point) => _gradient.MultiplyVector(point - _center) + _mean;
-            internal Matrix4x4 Derivative
-            {
-                get
-                {
-                    var value = Matrix4x4.identity;
-                    for (var row = 0; row < 3; row++)
-                        for (var column = 0; column < 3; column++) value[row, column] += _gradient[row, column];
-                    return value;
-                }
-            }
         }
         private BodyShapeField(Dictionary<string, BodyShapeSample[]> samples, Dictionary<string, float> support)
         {
@@ -6856,6 +6906,7 @@ internal static class RacesContext
                     throw new InvalidOperationException("An actor's native muscle source is incomplete.");
                 seen.Add((row.Original, sourceBones));
                 var lengths = physicalLength == null ? bones.Select(BodyShapeBoneLength).ToArray() : new float[bones.Length];
+                var boneSamples = new List<BodyShapeSample>[bones.Length];
                 for (var vertex = 0; vertex < rest.Vertices.Length; vertex++)
                 {
                     var weights = rest.Weights[vertex];
@@ -6864,9 +6915,15 @@ internal static class RacesContext
                         var weight = BodyShapeWeight(weights, influence);
                         if (weight <= 0f) continue;
                         var index = BodyShapeWeightIndex(weights, influence);
-                        if (physicalLength != null && lengths[index] == 0f) lengths[index] = physicalLength(bones[index]);
-                        var name = bones[index].name;
-                        if (!samples.TryGetValue(name, out var list)) samples.Add(name, list = []);
+                        var list = boneSamples[index];
+                        if (list == null)
+                        {
+                            var bone = bones[index];
+                            var name = bone.name;
+                            if (!samples.TryGetValue(name, out list)) samples.Add(name, list = []);
+                            boneSamples[index] = list;
+                            if (physicalLength != null) lengths[index] = physicalLength(bone);
+                        }
                         list.Add(new BodyShapeSample(rest.BindPoses[index].MultiplyPoint3x4(rest.Vertices[vertex]) / lengths[index],
                             rest.BindPoses[index].MultiplyVector(rest.Muscular[vertex]) / lengths[index], weight));
                     }
@@ -6911,13 +6968,8 @@ internal static class RacesContext
             return Vector3.Lerp(local, _parent.Contains(bone) ? _parent.Evaluate(bone, point) : Vector3.zero, blend);
         }
 
-        internal (Vector3 Delta, Matrix4x4 Derivative) EvaluateAffineRest(string bone, Vector3 point)
-        {
-            if (_affine != null && _affine.TryGetValue(bone, out var affine))
-                return (affine.Evaluate(point), affine.Derivative);
-            if (_parent != null) return _parent.EvaluateAffineRest(bone, point);
-            throw new InvalidOperationException("A physical affine rest has no supported source bone.");
-        }
+        internal AffineRest FindAffineRest(string bone) =>
+            _affine != null && _affine.TryGetValue(bone, out var affine) ? affine : _parent?.FindAffineRest(bone);
 
         private sealed class SampleIndex
         {
@@ -7049,21 +7101,38 @@ internal static class RacesContext
     }
 
     private sealed class BodyShapeSeam(Vector3 point, Vector3 delta, bool native,
-        Matrix4x4? derivative = null, Quaternion? positiveRotation = null, Quaternion? negativeRotation = null)
+        Quaternion? positiveRotation = null, Quaternion? negativeRotation = null)
     {
         internal readonly Vector3 Point = point;
-        internal readonly Vector3 Delta = delta;
+        internal Vector3 Delta { get; private set; } = delta;
         internal readonly bool Native = native;
-        internal readonly Matrix4x4? Derivative = derivative;
+        internal Matrix4x4? Derivative { get; private set; }
         internal readonly Quaternion? PositiveRotation = positiveRotation, NegativeRotation = negativeRotation;
+
+        internal void SetSurface(Vector3 displacement, Matrix4x4 gradient)
+        {
+            Delta = displacement;
+            Derivative = gradient;
+        }
     }
 
     private sealed class BodyShapeSeams
     {
         private const float Weld = 0.0001f;
         private readonly Dictionary<(string, int, int, int), List<BodyShapeSeam>> _points = [];
-        internal void Add(string bone, Vector3 point, Vector3 delta, Matrix4x4 derivative) =>
-            Add(bone, new BodyShapeSeam(point, delta, false, derivative));
+        internal BodyShapeSeam Reserve(string bone, Vector3 point)
+        {
+            var seam = new BodyShapeSeam(point, Vector3.zero, false);
+            Add(bone, seam);
+            return seam;
+        }
+
+        internal void Remove(string bone, BodyShapeSeam seam)
+        {
+            var key = Key(bone, seam.Point);
+            var list = _points[key];
+            if (list.Remove(seam) && list.Count == 0) _points.Remove(key);
+        }
 
         internal void AddNative(string bone, Vector3 point, Vector3 delta, Vector3 normal, Vector3? tangent,
             Vector3 deltaNormal, Vector3 deltaTangent)
@@ -7250,9 +7319,74 @@ internal static class RacesContext
         private readonly HashSet<string> _derivedKeys = new(StringComparer.Ordinal);
         private readonly Dictionary<SkinnedMeshRenderer, HashSet<string>> _pieceData = [];
         private CustomModels.SkinMeshSource.SourceGraph _sourceGraph;
+        private LODGroup _portraitLodGroup;
         private float _value;
         private float _default;
         private bool _busy, _refreshPending;
+        private const float PreviewIdleSeconds = .18f;
+        private readonly List<PreviewChannel> _previewChannels = [];
+        private bool _interactivePreview;
+        private bool _previewHasSupplementalTargets, _previewRequiresPhysicalRest;
+        private float _previewDeadline;
+
+        private sealed class PreviewChannel(SkinnedMeshRenderer renderer, CustomModels.SkinMeshSource source,
+            int index, float baked, int direction)
+        {
+            internal bool IsCurrent => source.AcceptsCurrentMesh();
+
+            internal void Set(float value, float neutral)
+            {
+                var weight = direction == 0 ? value : Mathf.Max(0f, (value - neutral) * direction);
+                renderer.SetBlendShapeWeight(index, weight - baked);
+            }
+        }
+
+        internal bool NeedsPreviewPreparation => _interactivePreview && !_previewHasSupplementalTargets;
+
+        internal void EnablePreview()
+        {
+            _interactivePreview = true;
+            if (NeedsPreviewPreparation) DeferRefresh();
+        }
+
+        internal bool TryPreview(GraphicsCharacter graphics, BodyShapeSelection selection)
+        {
+            if (_busy || _refreshPending || !isActiveAndEnabled ||
+                !UsesCurrentField(graphics, selection.Field, selection.DefaultValue, selection.Supplemental) ||
+                !_previewHasSupplementalTargets || _previewChannels.Count == 0 ||
+                _previewChannels.Any(channel => !channel.IsCurrent)) return false;
+
+            // The baked physical rest remains the base pose throughout input.
+            // The renderer applies only the difference from that rest.
+            var value = selection.Value;
+            foreach (var channel in _previewChannels) channel.Set(value, _default);
+            if (_previewRequiresPhysicalRest)
+                _previewDeadline = value == _value ? 0f : Time.realtimeSinceStartup + PreviewIdleSeconds;
+            else
+                _value = value;
+            return true;
+        }
+
+        internal void RestorePreview()
+        {
+            if (_previewDeadline == 0f) return;
+            _previewDeadline = 0f;
+            foreach (var channel in _previewChannels)
+                if (channel.IsCurrent) channel.Set(_value, _default);
+        }
+
+        internal void CommitPreview()
+        {
+            if (_previewDeadline == 0f) return;
+            RestorePreview();
+            RefreshBodyShape(_graphics);
+        }
+
+        private bool UsesCurrentField(GraphicsCharacter graphics, BodyShapeField field, float defaultValue, bool supplemental) =>
+            _fieldSourcesReady && _graphics == graphics && _baseField == field && _default == defaultValue &&
+            _supplemental == supplemental && ReferenceEquals(_fieldActor, graphics.RulesetCharacter) &&
+            _fieldRig == graphics.Animator && _fieldAvatar == (graphics.Animator ? graphics.Animator.avatar : null);
+
         private readonly ConditionalWeakTable<GameObject, NativePartRetirement> _retiringNativeParts = new();
         private readonly ConditionalWeakTable<GameObject, CustomModels.SkinMeshSource.NativePartRest> _nativePartRests = new();
         internal void BindNativePart(GameObject source, GameObject instance)
@@ -7348,12 +7482,40 @@ internal static class RacesContext
             _fieldAvatar == (graphics.Animator ? graphics.Animator.avatar : null) && ReferenceEquals(_fieldActor, graphics.RulesetCharacter) &&
             sources.Count == _fieldSources.Count && _fieldSources.All(source => sources.Any(source.Matches));
         internal bool HasSources => _pieces.Count != 0 || _sourceGraph != null;
-        internal bool KeepsBodyShape(GraphicsCharacter graphics, BodyShapeField field, float value, float defaultValue, bool supplemental) =>
-            _fieldSourcesReady && _graphics == graphics && _baseField == field && _value == value && _default == defaultValue &&
-            _supplemental == supplemental && ReferenceEquals(_fieldActor, graphics.RulesetCharacter) &&
-            _fieldRig == graphics.Animator && _fieldAvatar == (graphics.Animator ? graphics.Animator.avatar : null) &&
+        internal bool KeepsBodyShape(GraphicsCharacter graphics, BodyShapeSelection selection) =>
+            _value == selection.Value && UsesCurrentField(graphics, selection.Field, selection.DefaultValue, selection.Supplemental) &&
             (_sourceGraph == null || _sourceGraph.KeepsPhysicalRest()) &&
             _pieces.All(piece => piece.KeepsCurrent(_sourceGraph));
+
+        internal bool TryReuseBodyShape(GraphicsCharacter graphics, BodyShapeSelection selection)
+        {
+            if (!_interactivePreview || _busy || _refreshPending || selection.Value == _value ||
+                !UsesCurrentField(graphics, selection.Field, selection.DefaultValue, selection.Supplemental) ||
+                _pieces.Any(piece => !piece.KeepsCurrent(_sourceGraph))) return false;
+
+            if (_sourceGraph == null) return true;
+            if (!_sourceGraph.KeepsPhysicalRest()) return false;
+
+            // Only the cloth-backed rest depends on the selected weight. The
+            // other owned blend shapes can keep their renderer attachments.
+            var physical = _sourceGraph;
+            var detached = _pieces.Where(piece => physical.Installed.ContainsKey(piece.Renderer)).ToArray();
+            try { physical.Restore(true); }
+            catch (Exception exception)
+            {
+                ReportBodyShapeError("presentation-restore", exception);
+                return false;
+            }
+            _sourceGraph = null;
+            foreach (var piece in detached)
+            {
+                if (piece.TryReturnToSource(physical.OriginalSource(piece.Renderer))) continue;
+                piece.Release(true);
+                _pieces.Remove(piece);
+            }
+            CharacterModelPresentation.ReleaseSourceData(_derivedKeys);
+            return true;
+        }
 
         internal void ReleaseForRetirement() => ReleaseCore(false, null, propagateFailure: true);
         internal void ReleasePart(GameObject part, IReadOnlyCollection<Component> components,
@@ -7400,6 +7562,8 @@ internal static class RacesContext
             IReadOnlyList<SkinnedMeshRenderer> bodySources)
         {
             var fields = new Dictionary<CustomModels.SkinMeshSource.RestDeformation.Group, BodyShapeField>();
+            var anchors = new Dictionary<(CustomModels.SkinMeshSource.RestDeformation.Group, Transform),
+                (BodyShapeField.AffineRest Field, Matrix4x4 ToAnchor, Matrix4x4 FromAnchor, Matrix4x4 Derivative)>();
             return new CustomModels.SkinMeshSource.RestDeformation(key, Evaluate, channels,
                 _graphics.GetComponent<CharacterModelPresentation>()?._sourceGraph, NativePartFrames, bodySources, Detail);
 
@@ -7449,17 +7613,27 @@ internal static class RacesContext
                     if (field == null) throw new InvalidOperationException("A physical cloth owner has no source-to-target deformation samples.");
                     fields.Add(group, field);
                 }
-                if (!group.Bones.TryGetValue(bone, out var boneRest))
-                    throw new InvalidOperationException("A physical field point has no canonical source bone frame.");
-                var anchor = bone;
-                while (anchor && (!field.Contains(anchor.name) || !group.Bones.ContainsKey(anchor))) anchor = anchor.parent;
-                if (!anchor) throw new InvalidOperationException("A physical body field has no canonical supported ancestor: " + bone.name);
-                var toAnchor = group.Bones[anchor].inverse * boneRest;
-                var fromAnchor = toAnchor.inverse;
-                var target = field.EvaluateAffineRest(anchor.name, toAnchor.MultiplyPoint3x4(point));
-                var derivative = fromAnchor * target.Derivative * toAnchor;
-                derivative.m03 = derivative.m13 = derivative.m23 = 0f;
-                return (point + fromAnchor.MultiplyVector(target.Delta), derivative);
+                if (!anchors.TryGetValue((group, bone), out var basis))
+                {
+                    if (!group.Bones.TryGetValue(bone, out var boneRest))
+                        throw new InvalidOperationException("A physical field point has no canonical source bone frame.");
+                    for (var anchor = bone; anchor; anchor = anchor.parent)
+                    {
+                        if (!group.Bones.TryGetValue(anchor, out var anchorRest) ||
+                            field.FindAffineRest(anchor.name) is not { } anchorField) continue;
+                        var toAnchor = anchorRest.inverse * boneRest;
+                        var fromAnchor = toAnchor.inverse;
+                        var derivative = fromAnchor * anchorField.Derivative * toAnchor;
+                        derivative.m03 = derivative.m13 = derivative.m23 = 0f;
+                        basis = (anchorField, toAnchor, fromAnchor, derivative);
+                        anchors.Add((group, bone), basis);
+                        break;
+                    }
+                    if (basis.Field == null)
+                        throw new InvalidOperationException("A physical body field has no canonical supported ancestor: " + bone.name);
+                }
+                var delta = basis.Field.Evaluate(basis.ToAnchor.MultiplyPoint3x4(point));
+                return (point + basis.FromAnchor.MultiplyVector(delta), basis.Derivative);
             }
         }
 
@@ -7507,9 +7681,11 @@ internal static class RacesContext
                 var supplementalWeight = value - defaultValue;
                 bool NativeChannels(BodyShapeRenderer row) => NativeBodyShapeFrame(row.Original) >= 0 &&
                     graphics.BlendShapeRenderers.Contains(row.Renderer);
-                bool SupplementalChannels(BodyShapeRenderer row) => supplemental && supplementalWeight != 0f &&
+                bool SupportsSupplementalChannels(BodyShapeRenderer row) => supplemental &&
                     (!row.Identity || row.HeadAttachment) &&
                     (!row.UseNativeFrame || NativeBodyShapeFrame(row.Original) < 0);
+                bool SupplementalChannels(BodyShapeRenderer row) =>
+                    (supplementalWeight != 0f || _interactivePreview) && SupportsSupplementalChannels(row);
                 IEnumerable<BodyShapeRenderer> PhysicalConsumers(IEnumerable<BodyShapeRenderer> candidates) =>
                     candidates.Where(row => (!row.Identity || row.HeadAttachment) && row.Source.ClothOwner &&
                         (NativeChannels(row) || SupplementalChannels(row)));
@@ -7550,7 +7726,15 @@ internal static class RacesContext
                 // Head parts can include the neck, shoulders and upper chest. Their
                 // body-weighted attachments share the body field; facial bones stay fixed.
                 var bodyRows = rows.Where(SupplementalChannels).ToList();
-                var calibrationKey = bodyRows.Count == 0 ? null : GeometryKey(graphics, field, sources, supplemental);
+                if (graphics.CharacterType == GraphicsCharacterDefinitions.CharacterType.Photo && graphics.sharedLodGroup)
+                {
+                    // The photo renders once from a fixed camera. Use the same detail level
+                    // for its mesh preparation and capture, including renderers outside the LOD group.
+                    _portraitLodGroup = graphics.sharedLodGroup;
+                    _portraitLodGroup.ForceLOD(0);
+                    bodyRows = HighestDetailRows(graphics, bodyRows);
+                }
+                string calibrationKey = null;
                 var fieldAttempted = false;
                 BodyShapeField GetField()
                 {
@@ -7576,6 +7760,7 @@ internal static class RacesContext
                         if (row.Identity || !row.UseNativeFrame || NativeBodyShapeFrame(row.Original) < 0) continue;
                         var bones = row.Renderer.bones;
                         var rest = ReadBodyShapeRest(row.Original);
+                        var normalBasis = rest.BindPoses.Select(basis => basis.inverse.transpose).ToArray();
                         for (var vertex = 0; vertex < rest.Vertices.Length; vertex++)
                         {
                             if (!rest.Boundary[vertex]) continue;
@@ -7583,10 +7768,10 @@ internal static class RacesContext
                             if (dominant < 0) continue;
                             var basis = rest.BindPoses[dominant];
                             seams.AddNative(bones[dominant].name, basis.MultiplyPoint3x4(rest.Vertices[vertex]),
-                                rest.BindPoses[dominant].MultiplyVector(rest.Muscular[vertex]),
-                                basis.inverse.transpose.MultiplyVector(rest.Normals[vertex]),
+                                basis.MultiplyVector(rest.Muscular[vertex]),
+                                normalBasis[dominant].MultiplyVector(rest.Normals[vertex]),
                                 rest.Tangents.Length == rest.Vertices.Length ? basis.MultiplyVector((Vector3)rest.Tangents[vertex]) : null,
-                                basis.inverse.transpose.MultiplyVector(rest.MuscularNormals[vertex]),
+                                normalBasis[dominant].MultiplyVector(rest.MuscularNormals[vertex]),
                                 basis.MultiplyVector(rest.MuscularTangents[vertex]));
                         }
                     }
@@ -7604,6 +7789,7 @@ internal static class RacesContext
                         // cached per part and calibration, so a new face does not evict
                         // unchanged body and garment calculations. Live cloth ownership
                         // is still installed as one complete transition below.
+                        calibrationKey ??= GeometryKey(graphics, field, sources, supplemental);
                         var key = calibrationKey + ":" + GeometryKey(graphics, field, [row], supplemental);
                         if (!pieceData.Contains(key)) CharacterModelPresentation.ReleaseSourceData(pieceData);
                         var cached = CharacterModelPresentation.ExistingSourceData(pieceData, key);
@@ -7666,7 +7852,8 @@ internal static class RacesContext
                             return (name, Enumerable.Range(0, index).Count(previous => target.GetBlendShapeName(previous) == name));
                         }
                     }
-                    if (channels.Count != 0 && changed.Values.Any(change => change.Source.ClothOwner))
+                    if (changed.Values.Any(change => change.Source.ClothOwner) &&
+                        (channels.Count != 0 || _pieces.Any(piece => changed.ContainsKey(piece.Renderer))))
                     {
                         // Physical fits use authored source/target rest, not the legacy
                         // geometry cache's animated bone lengths or weak mesh identities.
@@ -7697,6 +7884,29 @@ internal static class RacesContext
                 }
                 foreach (var piece in _pieces)
                     if (_sourceGraph?.ConsumesPhysicalChannels(piece.Renderer) != true) piece.SetValue(value, defaultValue);
+                if (_interactivePreview)
+                {
+                    _previewChannels.Clear();
+                    _previewHasSupplementalTargets = true;
+                    _previewRequiresPhysicalRest = _sourceGraph != null ||
+                        rows.Any(row => row.Source.ClothOwner && (!row.Identity || row.HeadAttachment) &&
+                            (row.UseNativeFrame && NativeChannels(row) || SupportsSupplementalChannels(row)));
+                    foreach (var row in rows.Where(row => (!row.Identity || row.HeadAttachment) && row.UseNativeFrame && NativeChannels(row)))
+                        AddPreviewChannel(row.Renderer, row.Source, NativeBodyShapeFrame(row.Original), 0);
+                    foreach (var piece in _pieces)
+                    {
+                        AddPreviewChannel(piece.Renderer, piece.Source, piece.Owned.GetBlendShapeIndex(BodyVolumePositive), 1);
+                        AddPreviewChannel(piece.Renderer, piece.Source, piece.Owned.GetBlendShapeIndex(BodyVolumeNegative), -1);
+                    }
+                }
+
+                void AddPreviewChannel(SkinnedMeshRenderer renderer, CustomModels.SkinMeshSource source, int index, int direction)
+                {
+                    if (_sourceGraph?.Installed.TryGetValue(renderer, out var installed) == true)
+                        source = installed;
+                    var baked = _sourceGraph?.BakedPhysicalWeight(renderer, index) ?? 0f;
+                    _previewChannels.Add(new PreviewChannel(renderer, source, index, baked, direction));
+                }
             }
             catch (Exception exception)
             {
@@ -7725,6 +7935,9 @@ internal static class RacesContext
         }
         private void ReleaseCore(bool destroying, Action restoreOwner, bool restartNative = true, bool propagateFailure = false)
         {
+            RestorePreview();
+            _previewChannels.Clear();
+            _previewHasSupplementalTargets = false;
             _refreshPending = false;
             void ReleasePieces()
             {
@@ -7747,6 +7960,8 @@ internal static class RacesContext
                     else RestorePresentation();
                 }
                 _sourceGraph = null;
+                if (_portraitLodGroup) _portraitLodGroup.ForceLOD(-1);
+                _portraitLodGroup = null;
             }
             catch (Exception exception)
             {
@@ -7770,6 +7985,11 @@ internal static class RacesContext
         private void LateUpdate()
         {
             if (_bodyShapesUnloading || !_graphics || _busy) return;
+            if (_previewDeadline != 0f)
+            {
+                if (Time.realtimeSinceStartup < _previewDeadline) return;
+                CommitPreview();
+            }
             if (_refreshPending && !DeferCharacterModelRefresh && !CharacterModelCreations.ContainsKey(_graphics) &&
                 !NativePartsRetiring(_graphics)) RefreshPending();
             foreach (var piece in _pieces)
@@ -7850,9 +8070,12 @@ internal static class RacesContext
             if (rest.WeightedBones.All(index => protectedBones[index])) return;
             var field = getField();
             if (field == null) return;
+            var names = bones.Select(bone => bone.name).ToArray();
             var lengths = bones.Select(BodyShapeBoneLength).ToArray();
             var inverse = rest.BindPoses.Select(matrix => matrix.inverse).ToArray();
-            var anchors = Enumerable.Repeat(-1, bones.Length).ToArray();
+            var anchors = new int[bones.Length];
+            foreach (var index in rest.WeightedBones)
+                if (!protectedBones[index]) anchors[index] = field.ResolveAnchor(bones, index);
             var delta = new Vector3[rest.Vertices.Length];
             var protectedVertices = new bool[rest.Vertices.Length];
             var seamNormals = new Dictionary<int,
@@ -7861,82 +8084,109 @@ internal static class RacesContext
             // unweighted vertices while the body uses its default frame separates layers.
             var baseline = rest.Muscular != null
                 ? row.Renderer.GetBlendShapeWeight(NativeBodyShapeFrame(row.Original)) / 100f : 0f;
-            var maximum = 0f;
-            var changed = false;
-            for (var vertex = 0; vertex < delta.Length; vertex++)
-            {
-                var weights = rest.Weights[vertex];
-                var body = BodyShapeBodyWeight(weights, protectedBones, out var total);
-                protectedVertices[vertex] = body == 0f;
-                if (body > 0f)
-                {
-                    var point = rest.Vertices[vertex] + (baseline == 0f ? Vector3.zero : rest.Muscular[vertex] * baseline);
-                    delta[vertex] = Evaluate(point, weights, total);
-                }
-                if (body > 0f && rest.Boundary[vertex])
-                {
-                    var dominant = BodyShapeDominantBone(weights, bones);
-                    if (dominant >= 0)
-                    {
-                        var basis = rest.BindPoses[dominant];
-                        var point = basis.MultiplyPoint3x4(rest.Vertices[vertex] +
-                            (baseline == 0f ? Vector3.zero : rest.Muscular[vertex] * baseline));
-                        var seams = getSeams();
-                        if (!seams.TryGet(bones[dominant].name, point, out var seam))
-                        {
-                            // Different pieces share this deformation derivative at their physical cut.
-                            var step = lengths[dominant] * 0.001f;
-                            var derivative = Matrix4x4.zero;
-                            Vector3 At(Vector3 position) => basis.MultiplyVector(
-                                Evaluate(inverse[dominant].MultiplyPoint3x4(position), weights, total));
-                            for (var axis = 0; axis < 3; axis++)
-                            {
-                                var offset = Vector3.zero; offset[axis] = step;
-                                var column = (At(point + offset) - At(point - offset)) / (2f * step);
-                                if (!BodyShapeFinite(column)) throw new InvalidOperationException("A body field has a nonfinite surface derivative.");
-                                derivative.SetColumn(axis, new Vector4(column.x, column.y, column.z, 0f));
-                            }
-                            seams.Add(bones[dominant].name, point, basis.MultiplyVector(delta[vertex]), derivative);
-                            if (!seams.TryGet(bones[dominant].name, point, out seam))
-                                throw new InvalidOperationException("A body field lost its shared surface derivative.");
-                        }
-                        delta[vertex] = inverse[dominant].MultiplyVector(seam.Delta);
-                        {
-                            var nativeNormal = rest.Normals[vertex] + (baseline == 0f ? Vector3.zero : rest.MuscularNormals[vertex] * baseline);
-                            var nativeTangent = rest.Tangents.Length == delta.Length
-                                ? (Vector3)rest.Tangents[vertex] + (baseline == 0f ? Vector3.zero : rest.MuscularTangents[vertex] * baseline)
-                                : Vector3.zero;
-                            var positive = seam.Native
-                                ? TransportFrame(seam.PositiveRotation.Value, basis, nativeNormal, nativeTangent)
-                                : SurfaceFrame(seam.Derivative.Value, basis, nativeNormal, nativeTangent, 1f);
-                            var negative = seam.Native
-                                ? TransportFrame(seam.NegativeRotation.Value, basis, nativeNormal, nativeTangent)
-                                : SurfaceFrame(seam.Derivative.Value, basis, nativeNormal, nativeTangent, -1f);
-                            seamNormals[vertex] = (positive.Normal, positive.Tangent, negative.Normal, negative.Tangent);
-                            changed |= positive.Normal.sqrMagnitude > 0f || positive.Tangent.sqrMagnitude > 0f ||
-                                negative.Normal.sqrMagnitude > 0f || negative.Tangent.sqrMagnitude > 0f;
-                        }
-                    }
-                }
-                if (!BodyShapeFinite(delta[vertex])) throw new InvalidOperationException("A body-shape delta is nonfinite.");
-                maximum = Mathf.Max(maximum, delta[vertex].magnitude);
-                changed |= delta[vertex].sqrMagnitude > 0f;
-            }
-            if (!changed) return;
-            var owned = UnityEngine.Object.Instantiate(row.Original);
-            owned.name = row.Original.name;
+            var positions = baseline == 0f ? rest.Vertices : rest.Vertices.Select(
+                (vertex, index) => vertex + rest.Muscular[index] * baseline).ToArray();
+            var totals = new float[positions.Length];
+            var cuts = new (int Bone, BodyShapeSeam Seam, bool Owns)[positions.Length];
+            BodyShapeSeams seams = null;
+            Mesh owned = null;
             try
             {
-                AddFrame(owned, BodyVolumePositive, rest, delta, protectedVertices, 1f, baseline, seamNormals);
-                AddFrame(owned, BodyVolumeNegative, rest, delta, protectedVertices, -1f, baseline, seamNormals);
+                // Resolve the live rig and reserve shared cuts in source order.
+                // Sampling only reads the captured rest data and the immutable field.
+                for (var vertex = 0; vertex < positions.Length; vertex++)
+                {
+                    var weights = rest.Weights[vertex];
+                    protectedVertices[vertex] = BodyShapeBodyWeight(weights, protectedBones, out totals[vertex]) == 0f;
+                    if (protectedVertices[vertex] || !rest.Boundary[vertex]) continue;
+                    var bone = BodyShapeDominantBone(weights, bones);
+                    if (bone < 0) continue;
+                    var point = rest.BindPoses[bone].MultiplyPoint3x4(positions[vertex]);
+                    seams ??= getSeams();
+                    var owns = !seams.TryGet(names[bone], point, out var seam);
+                    cuts[vertex] = (bone, owns ? seams.Reserve(names[bone], point) : seam, owns);
+                }
+
+                const int parallelVertexThreshold = 512;
+                const int samplingWorkerLimit = 8;
+                if (positions.Length >= parallelVertexThreshold && Environment.ProcessorCount > 1)
+                    Parallel.For(0, positions.Length, new ParallelOptions { MaxDegreeOfParallelism = samplingWorkerLimit }, SampleVertex);
+                else
+                    for (var vertex = 0; vertex < positions.Length; vertex++) SampleVertex(vertex);
+
+                var changed = false;
+                for (var vertex = 0; vertex < cuts.Length; vertex++)
+                {
+                    var (bone, seam, _) = cuts[vertex];
+                    if (seam == null) continue;
+                    var basis = rest.BindPoses[bone];
+                    var inverseBasis = inverse[bone];
+                    delta[vertex] = inverseBasis.MultiplyVector(seam.Delta);
+                    var nativeNormal = rest.Normals[vertex] + (baseline == 0f ? Vector3.zero : rest.MuscularNormals[vertex] * baseline);
+                    var nativeTangent = rest.Tangents.Length == delta.Length
+                        ? (Vector3)rest.Tangents[vertex] + (baseline == 0f ? Vector3.zero : rest.MuscularTangents[vertex] * baseline)
+                        : Vector3.zero;
+                    var positive = seam.Native
+                        ? TransportFrame(seam.PositiveRotation.Value, basis, inverseBasis, nativeNormal, nativeTangent)
+                        : SurfaceFrame(seam.Derivative.Value, basis, inverseBasis, nativeNormal, nativeTangent, 1f);
+                    var negative = seam.Native
+                        ? TransportFrame(seam.NegativeRotation.Value, basis, inverseBasis, nativeNormal, nativeTangent)
+                        : SurfaceFrame(seam.Derivative.Value, basis, inverseBasis, nativeNormal, nativeTangent, -1f);
+                    seamNormals.Add(vertex, (positive.Normal, positive.Tangent, negative.Normal, negative.Tangent));
+                    changed |= positive.Normal.sqrMagnitude > 0f || positive.Tangent.sqrMagnitude > 0f ||
+                        negative.Normal.sqrMagnitude > 0f || negative.Tangent.sqrMagnitude > 0f;
+                }
+
+                var maximum = 0f;
+                foreach (var displacement in delta)
+                {
+                    if (!BodyShapeFinite(displacement)) throw new InvalidOperationException("A body-shape delta is nonfinite.");
+                    maximum = Mathf.Max(maximum, displacement.magnitude);
+                    changed |= displacement.sqrMagnitude > 0f;
+                }
+                if (!changed) return;
+                owned = UnityEngine.Object.Instantiate(row.Original);
+                owned.name = row.Original.name;
+                var normals = BodyShapeNormals(positions, rest.Triangles);
+                AddFrame(owned, BodyVolumePositive, rest, positions, normals, delta, protectedVertices, 1f, baseline, seamNormals);
+                AddFrame(owned, BodyVolumeNegative, rest, positions, normals, delta, protectedVertices, -1f, baseline, seamNormals);
                 pieces.Add(new BodyShapePiece(row, owned, maximum));
             }
             catch
             {
-                UnityEngine.Object.Destroy(owned);
+                foreach (var (bone, seam, owns) in cuts)
+                    if (owns) seams.Remove(names[bone], seam);
+                if (owned) UnityEngine.Object.Destroy(owned);
                 throw;
             }
             return;
+
+            void SampleVertex(int vertex)
+            {
+                if (protectedVertices[vertex]) return;
+                var weights = rest.Weights[vertex];
+                var total = totals[vertex];
+                var cut = cuts[vertex];
+                if (cut.Seam != null && !cut.Owns) return;
+                var displacement = Evaluate(positions[vertex], weights, total);
+                delta[vertex] = displacement;
+                if (!cut.Owns) return;
+
+                var basis = rest.BindPoses[cut.Bone];
+                var step = lengths[cut.Bone] * 0.001f;
+                var derivative = Matrix4x4.zero;
+                Vector3 At(Vector3 point) => basis.MultiplyVector(
+                    Evaluate(inverse[cut.Bone].MultiplyPoint3x4(point), weights, total));
+                for (var axis = 0; axis < 3; axis++)
+                {
+                    var offset = Vector3.zero;
+                    offset[axis] = step;
+                    var column = (At(cut.Seam.Point + offset) - At(cut.Seam.Point - offset)) / (2f * step);
+                    if (!BodyShapeFinite(column)) throw new InvalidOperationException("A body field has a nonfinite surface derivative.");
+                    derivative.SetColumn(axis, new Vector4(column.x, column.y, column.z, 0f));
+                }
+                cut.Seam.SetSurface(basis.MultiplyVector(displacement), derivative);
+            }
 
             Vector3 Evaluate(Vector3 position, BoneWeight weights, float total)
             {
@@ -7947,38 +8197,38 @@ internal static class RacesContext
                     if (weight <= 0f) continue;
                     var index = BodyShapeWeightIndex(weights, influence);
                     if (protectedBones[index]) continue;
-                    if (anchors[index] < 0) anchors[index] = field.ResolveAnchor(bones, index);
                     var anchor = anchors[index];
                     var point = rest.BindPoses[anchor].MultiplyPoint3x4(position) / lengths[anchor];
-                    result += inverse[anchor].MultiplyVector(field.Evaluate(bones[anchor].name, point) * lengths[anchor]) * (weight / total);
+                    result += inverse[anchor].MultiplyVector(field.Evaluate(names[anchor], point) * lengths[anchor]) * (weight / total);
                 }
                 return result;
             }
         }
 
         private static (Vector3 Normal, Vector3 Tangent) TransportFrame(Quaternion rotation, Matrix4x4 basis,
-            Vector3 normal, Vector3 tangent)
+            Matrix4x4 inverseBasis, Vector3 normal, Vector3 tangent)
         {
-            var transformedNormal = rotation * basis.inverse.transpose.MultiplyVector(normal);
+            var transformedNormal = rotation * inverseBasis.transpose.MultiplyVector(normal);
             var transformedTangent = rotation * basis.MultiplyVector(tangent);
-            return FrameDelta(basis, normal, tangent, transformedNormal, transformedTangent);
+            return FrameDelta(basis, inverseBasis, normal, tangent, transformedNormal, transformedTangent);
         }
 
         private static (Vector3 Normal, Vector3 Tangent) SurfaceFrame(Matrix4x4 derivative, Matrix4x4 basis,
-            Vector3 normal, Vector3 tangent, float sign)
+            Matrix4x4 inverseBasis, Vector3 normal, Vector3 tangent, float sign)
         {
             var transform = Matrix4x4.identity;
             for (var row = 0; row < 3; row++) for (var column = 0; column < 3; column++)
                 transform[row, column] += derivative[row, column] * sign;
-            if (!BodyShapeFinite(transform.determinant) || transform.determinant == 0f)
+            var determinant = transform.determinant;
+            if (!BodyShapeFinite(determinant) || determinant == 0f)
                 throw new InvalidOperationException("A body field has a singular surface derivative.");
-            var inverseBasis = basis.inverse;
             var transformedNormal = transform.inverse.transpose.MultiplyVector(inverseBasis.transpose.MultiplyVector(normal)).normalized;
             var transformedTangent = transform.MultiplyVector(basis.MultiplyVector(tangent));
-            return FrameDelta(basis, normal, tangent, transformedNormal, transformedTangent);
+            return FrameDelta(basis, inverseBasis, normal, tangent, transformedNormal, transformedTangent);
         }
 
-        private static (Vector3 Normal, Vector3 Tangent) FrameDelta(Matrix4x4 basis, Vector3 normal, Vector3 tangent,
+        private static (Vector3 Normal, Vector3 Tangent) FrameDelta(Matrix4x4 basis, Matrix4x4 inverseBasis,
+            Vector3 normal, Vector3 tangent,
             Vector3 transformedNormal, Vector3 transformedTangent)
         {
             transformedNormal.Normalize();
@@ -7987,7 +8237,7 @@ internal static class RacesContext
                 throw new InvalidOperationException("A body field has an invalid surface normal.");
             if (tangent.sqrMagnitude == 0f) return (targetNormal - normal, Vector3.zero);
             transformedTangent = (transformedTangent - transformedNormal * Vector3.Dot(transformedNormal, transformedTangent)).normalized;
-            var targetTangent = basis.inverse.MultiplyVector(transformedTangent);
+            var targetTangent = inverseBasis.MultiplyVector(transformedTangent);
             targetTangent = (targetTangent - targetNormal * Vector3.Dot(targetNormal, targetTangent)).normalized;
             if (!BodyShapeFinite(targetTangent) || targetTangent.sqrMagnitude < 0.99f)
                 throw new InvalidOperationException("A body field has an invalid surface frame.");
@@ -7999,11 +8249,24 @@ internal static class RacesContext
         internal bool IsCurrent(BodyShapeRenderer row, CustomModels.SkinMeshSource.SourceGraph physical)
         {
             var source = row.Source;
-            if (!_installed || row.Renderer != Renderer || row.Identity != _identity ||
-                row.HeadAttachment != _headAttachment ||
-                row.UseNativeFrame != _useNativeFrame ||
-                source == null || !source.MatchesBones(_bones) || !source.AcceptsCurrentMesh() ||
-                source.Original != _owned && physical?.IsPhysicalOverlayOf(Renderer, Original, source) != true) return false;
+            if (row.Renderer != Renderer || row.Identity != _identity || row.HeadAttachment != _headAttachment ||
+                row.UseNativeFrame != _useNativeFrame || source == null ||
+                !source.MatchesBones(_bones) || !source.AcceptsCurrentMesh()) return false;
+            var matches = _installed
+                ? source.Original == _owned || physical?.IsPhysicalOverlayOf(Renderer, Original, source) == true
+                : _retained && _graph == null && source.Original == Original;
+            if (!matches) return false;
+            _source = source;
+            return true;
+        }
+
+        internal bool TryReturnToSource(CustomModels.SkinMeshSource source)
+        {
+            // The body channels are reusable across weights for the same source.
+            // A distinct lower graph still owns its own restore transaction.
+            if (!_installed || !_retained || _graph != null || source == null || source.Original != Original ||
+                !source.AcceptsCurrentMesh() || !source.MatchesBones(_bones)) return false;
+            Release(true);
             _source = source;
             return true;
         }
@@ -8040,20 +8303,17 @@ internal static class RacesContext
             if (Renderer && Renderer.localBounds.Equals(_appliedBounds)) Renderer.localBounds = _originalBounds;
             if (!_retained && _owned) UnityEngine.Object.Destroy(_owned);
         }
-        private static void AddFrame(Mesh owned, string name, BodyShapeRest rest, Vector3[] delta, bool[] protectedVertices, float sign,
-            float baseline,
+        private static void AddFrame(Mesh owned, string name, BodyShapeRest rest, Vector3[] source, Vector3[] before,
+            Vector3[] delta, bool[] protectedVertices, float sign, float baseline,
             IReadOnlyDictionary<int, (Vector3 Normal, Vector3 Tangent, Vector3 NegativeNormal, Vector3 NegativeTangent)> seamNormals)
         {
-            var source = rest.Vertices;
-            if (baseline != 0f)
-            {
-                source = new Vector3[delta.Length];
-                for (var index = 0; index < source.Length; index++) source[index] = rest.Vertices[index] + rest.Muscular[index] * baseline;
-            }
             var positions = new Vector3[delta.Length];
             var changes = new Vector3[delta.Length];
-            for (var index = 0; index < delta.Length; index++) { changes[index] = delta[index] * sign; positions[index] = source[index] + changes[index]; }
-            var before = BodyShapeNormals(source, rest.Triangles);
+            for (var index = 0; index < delta.Length; index++)
+            {
+                changes[index] = delta[index] * sign;
+                positions[index] = source[index] + changes[index];
+            }
             var after = BodyShapeNormals(positions, rest.Triangles);
             var normals = new Vector3[delta.Length];
             var tangents = rest.Tangents.Length == delta.Length ? new Vector3[delta.Length] : null;

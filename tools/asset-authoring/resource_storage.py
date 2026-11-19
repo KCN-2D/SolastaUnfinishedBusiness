@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import sys
 import time
@@ -259,18 +260,54 @@ def write(path, data):
         if temporary.exists():temporary.unlink()
 
 
+@functools.lru_cache(maxsize=1)
+def _compressed_size_query():
+    query = ctypes.WinDLL('kernel32', use_last_error=True).GetCompressedFileSizeW
+    query.argtypes = [ctypes.c_wchar_p, ctypes.POINTER(ctypes.c_uint32)]
+    query.restype = ctypes.c_uint32
+    return query
+
+
+def _stored_size(path, info):
+    if os.name != 'nt':
+        return info.st_blocks * 512 if hasattr(info, 'st_blocks') else info.st_size
+    if not info.st_file_attributes & (stat.FILE_ATTRIBUTE_COMPRESSED | stat.FILE_ATTRIBUTE_SPARSE_FILE):
+        return info.st_size
+    # Use the extended-length path for deeply nested authoring workspaces.
+    native = str(path)
+    if native.startswith('\\\\'):
+        native = '\\\\?\\UNC\\' + native[2:]
+    else:
+        native = '\\\\?\\' + native
+    high = ctypes.c_uint32()
+    ctypes.set_last_error(0)
+    low = _compressed_size_query()(native, ctypes.byref(high))
+    error = ctypes.get_last_error()
+    if low == 0xffffffff and error:
+        raise ctypes.WinError(error)
+    return (high.value << 32) | low
+
+
 def inventory_tools(root):
-    """Count the entire tree, distinguishing directory size from hard-link reuse."""
+    """Report logical, unique and stored bytes for the entire tree."""
     root=Path(root).resolve();identities={}
-    summary=lambda:dict(files=0,logicalBytes=0,identities=set())
+    def summary():
+        return dict(files=0, logicalBytes=0, identities=set(), links=collections.Counter())
+    def add(row, identity, info):
+        row['files'] += 1
+        row['logicalBytes'] += info.st_size
+        row['identities'].add(identity)
+        if info.st_nlink != 1:
+            row['links'][identity] += 1
+    total=summary()
     groups=collections.defaultdict(summary);extensions=collections.defaultdict(summary)
-    files=0;directories=0;logical=0;links=[];stack=[root]
+    directories=0;links=[];stack=[root]
     while stack:
         folder=stack.pop();directories+=1
         with os.scandir(folder)as entries:
             for entry in entries:
                 path=Path(entry.path);info=entry.stat(follow_symlinks=False)
-                if getattr(info,'st_file_attributes',0)&0x400 or path.is_symlink():
+                if getattr(info,'st_file_attributes',0)&stat.FILE_ATTRIBUTE_REPARSE_POINT or path.is_symlink():
                     links.append(str(path.relative_to(root)));continue
                 if entry.is_dir(follow_symlinks=False):stack.append(path);continue
                 if not entry.is_file(follow_symlinks=False):continue
@@ -278,17 +315,28 @@ def inventory_tools(root):
                 # file identity needed to count hard-linked data once.
                 info=path.stat(follow_symlinks=False)
                 if not info.st_ino:raise ValueError('Tool storage inventory requires stable file identities')
-                identity=(info.st_dev,info.st_ino);identities[identity]=info.st_size
-                files+=1;logical+=info.st_size;relative=path.relative_to(root)
-                extension=extensions[path.suffix.lower()]
-                extension['files']+=1;extension['logicalBytes']+=info.st_size;extension['identities'].add(identity)
+                identity=(info.st_dev,info.st_ino)
+                if identity not in identities:
+                    identities[identity]=(info.st_size,_stored_size(path,info),info.st_nlink)
+                relative=path.relative_to(root)
+                add(total, identity, info)
+                add(extensions[path.suffix.lower()], identity, info)
                 for depth in range(1,min(4,len(relative.parts))):
-                    group=groups['/'.join(relative.parts[:depth])]
-                    group['files']+=1;group['logicalBytes']+=info.st_size;group['identities'].add(identity)
-    rows=[dict(path=path,files=row['files'],logicalBytes=row['logicalBytes'],uniqueFileBytes=sum(identities[key]for key in row['identities']))for path,row in groups.items()]
-    types=[dict(extension=extension,files=row['files'],logicalBytes=row['logicalBytes'],uniqueFileBytes=sum(identities[key]for key in row['identities']))for extension,row in extensions.items()]
-    return dict(status='PASS_TOOL_STORAGE_INVENTORY',root=str(root),files=files,directories=directories,logicalBytes=logical,
-        uniqueFileBytes=sum(identities.values()),groups=sorted(rows,key=lambda row:row['logicalBytes'],reverse=True),
+                    add(groups['/'.join(relative.parts[:depth])], identity, info)
+    def totals(row):
+        unique = stored = exclusive = 0
+        for identity in row['identities']:
+            size, stored_size, link_count = identities[identity]
+            unique += size
+            stored += stored_size
+            if link_count == 1 or row['links'][identity] == link_count:
+                exclusive += stored_size
+        return dict(files=row['files'], logicalBytes=row['logicalBytes'], uniqueFileBytes=unique,
+                    storedFileBytes=stored, exclusiveStoredFileBytes=exclusive)
+    rows=[dict(path=path,**totals(row))for path,row in groups.items()]
+    types=[dict(extension=extension,**totals(row))for extension,row in extensions.items()]
+    return dict(status='PASS_TOOL_STORAGE_INVENTORY',root=str(root),directories=directories,
+        **totals(total),groups=sorted(rows,key=lambda row:row['exclusiveStoredFileBytes'],reverse=True),
         extensions=sorted(types,key=lambda row:row['uniqueFileBytes'],reverse=True),skippedReparsePoints=links)
 
 
@@ -1299,12 +1347,16 @@ def _discover_registered_work(roots,current,retained_hashes,*,generation_cache=N
                         output=checked_catalog_path(document['output'])
                         if marker!=work_marker(output):raise ValueError('Resource work identity does not match its output')
                         registered.add(output)
-                        if work_active(document):
+                        active_work = work_active(document)
+                        retained_directory = ('retainedDirectories' in input_owners and
+                            retained_work(input_owners, output, 0))
+                        if active_work or retained_directory:
                             issues=[]
                             live.update(work_source_inputs(document,generation_cache=generation_cache,unresolved=issues,_batch=_batch))
                             retained.extend(issues)
                             if _batch is not None:_batch.charge('generation-cache','staged',generation_cache)
-                            retained.append(dict(path=str(output),reason='active-resource-producer'));continue
+                            retained.append(dict(path=str(output),reason='active-resource-producer' if active_work else 'retained-resource-work'))
+                            continue
                         payloads={};metadata_guards=[];all_created=document.get('sourceRole')=='receipt'
                         metadata={Path(value)for value in document.get('metadataOutputs',[])}
                         if any(not path.is_absolute()or not path.resolve().is_relative_to(output)for path in metadata):raise ValueError('A resource metadata output escaped its owner')
@@ -1537,6 +1589,23 @@ def adopted_source_hashes(current):
     return {fingerprint}
 
 
+def distribution_catalog():
+    """Resolve the model catalog selected by the shipped distribution."""
+    fallback = sha(PUBLIC)
+    guards = {PUBLIC: fallback}
+    packs = PUBLIC.with_name(RESOURCE_FILES['packs'])
+    if not packs.is_file():
+        return fallback, guards
+    guard = sha(packs)
+    distribution = read(checked_source_path(packs))
+    catalog = distribution.get('catalogSha256') if isinstance(distribution, dict) else None
+    if (not isinstance(catalog, str) or distribution.get('schemaVersion') != 1 or
+            not re.fullmatch(r'[a-fA-F0-9]{64}', catalog)):
+        raise ValueError('Invalid packed resource catalog identity')
+    guards[packs] = guard
+    return catalog.lower(), guards
+
+
 def plan(output, apply=False, keep_accepted=2,retain_directories=()):
     with payload_hash_operation()as scope:
         return _plan(output,apply,keep_accepted,scope,retain_directories)
@@ -1561,7 +1630,7 @@ def _plan(output,apply,keep_accepted,scope,retain_directories=()):
     generation_cache={}
     hash_progress(scope,stage='catalog-owners',force=True)
     catalogs, retained = discover(roots,generation_cache=generation_cache)
-    public_sha = sha(PUBLIC)
+    public_sha, distribution_guards = distribution_catalog()
     try:
         current, keep, old = select_retired(catalogs, public_sha, keep_accepted)
     except ValueError as error:
@@ -1571,11 +1640,12 @@ def _plan(output,apply,keep_accepted,scope,retain_directories=()):
         write(output / "ResourceLifecycle.json", record)
         print(json.dumps(record))
         return record
-    source_hashes = adopted_source_hashes(current)
+    authored_source_hashes = adopted_source_hashes(current)
+    source_hashes = authored_source_hashes | ({distribution_guards[PUBLIC]} - {public_sha})
     current, keep, old = select_retired(catalogs, public_sha, keep_accepted, source_hashes)
     protected={row['directory']for row in catalogs if row['sha256']in keep}
     protected.update(requested)
-    if source_hashes:
+    if authored_source_hashes:
         protected.add(checked_catalog_path(Path(read(current['directory']/'Catalog/CatalogQuality.json')['sourceCatalog'])).parent)
     current=dict(current,retainedDirectories=protected)
     old=[row for row in old if not retained_work(current,row['directory'],row['modified'])]
@@ -1616,7 +1686,7 @@ def _plan(output,apply,keep_accepted,scope,retain_directories=()):
         destination = output / f"ResourcePayloads-{index}.json"
         payloads={path:digest for row in owners for path,digest in row['owned_payloads'].items()if path in obsolete}
         guards={pin['path']:pin for row in owners for pin in row.get('guards',[])}
-        guards[str(PUBLIC)]=dict(path=str(PUBLIC),sha256=public_sha)
+        guards.update({str(path):dict(path=str(path),sha256=digest)for path,digest in distribution_guards.items()})
         for path,digest in payloads.items():
             guard=guards.get(str(path))
             if guard is None:continue
@@ -1642,7 +1712,7 @@ def _plan(output,apply,keep_accepted,scope,retain_directories=()):
               "referencesAfterCount": len(after["paths"]), "plans": plans,
               "scope": "Declared inactive outputs outside adopted, previous and explicitly retained work. Replay inputs are retained from those owners; creation time does not keep disposable candidates."}
     if apply:
-        if sha(PUBLIC) != public_sha or (sha(references_path) if references_path.exists() else None) != original_sha:
+        if distribution_catalog() != (public_sha, distribution_guards) or (sha(references_path) if references_path.exists() else None) != original_sha:
             raise ValueError("Product or references changed during storage planning")
         write(output / "ReferencesBefore.json", before)
         # Replace only the references proved obsolete by completed catalog ownership.

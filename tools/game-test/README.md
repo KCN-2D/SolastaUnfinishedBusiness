@@ -48,7 +48,7 @@ JSON の主要項目は次のとおりです。
 
 共通の `save-smoke` はセーブ読込と通常移動を担当します。個別機能の観測、期待値、作成時の既定値は`tools/game-test/Scenarios/`のローカル入口が所有します。ローカル入口は `-ScenarioAdapter`、`-ScenarioSource`、`-ScenarioType`、`-ScenarioValidator`、`-ScenarioObservation` をCLI引数で明示します。ケースのadapter名と観測有無がこの指定と一致することを要求し、JSONからソースや型、メソッドを選ぶ機能は設けません。
 
-セーブを使わないローカル入口は `-ScenarioSaveScenario $false` を明示し、操作と期待値を固定したvalidatorで検証します。省略時はセーブを使う既存動作を維持します。
+セーブを使わないローカル入口は `-ScenarioSaveScenario $false` を明示し、操作と期待値を固定したvalidatorで検証します。同じケースを必須検証で使う場合は、検証設定の `native.saveScenario` を `false` にします。
 
 追加のコンパイル参照DLLは `-ScenarioReferencePath` で明示し、原本のパス・SHA-256と保存コピーを実行記録に残します。
 

@@ -35,6 +35,41 @@ public static class CharacterStageIdentityDefinitionPanelPatcher
         }
     }
 
+    [HarmonyPatch(typeof(CharacterStageIdentityDefinitionPanel),
+        nameof(CharacterStageIdentityDefinitionPanel.OnCustomizationAdditionalValueChanged))]
+    [UsedImplicitly]
+    public static class OnCustomizationAdditionalValueChanged_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CharacterStageIdentityDefinitionPanel __instance,
+            MorphotypeElementDefinition.ElementCategory elementCategory, out GraphicsCharacter __state)
+        {
+            __state = RacesContext.EnterBodyShapePreview(elementCategory == MorphotypeElementDefinition.ElementCategory.Musculature
+                ? __instance.CommonData.CharacterViewportCustomization.GraphicsCharacter
+                : null);
+        }
+
+        [UsedImplicitly]
+        public static void Finalizer(GraphicsCharacter __state)
+        {
+            RacesContext.EnterBodyShapePreview(__state);
+        }
+    }
+
+    [HarmonyPatch(typeof(CharacterStageIdentityDefinitionPanel),
+        nameof(CharacterStageIdentityDefinitionPanel.OnCustomizationAdditionalValueDragEnded))]
+    [UsedImplicitly]
+    public static class OnCustomizationAdditionalValueDragEnded_Patch
+    {
+        [UsedImplicitly]
+        public static void Prefix(CharacterStageIdentityDefinitionPanel __instance,
+            MorphotypeElementDefinition.ElementCategory elementCategory)
+        {
+            if (elementCategory == MorphotypeElementDefinition.ElementCategory.Musculature)
+                RacesContext.CommitBodyShapePreview(__instance.CommonData.CharacterViewportCustomization.GraphicsCharacter);
+        }
+    }
+
     [HarmonyPatch(typeof(CharacterStageIdentityDefinitionPanel), "AfterMorphotypeChanged")]
     [UsedImplicitly]
     public static class AfterMorphotypeChanged_Patch

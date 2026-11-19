@@ -391,7 +391,32 @@ def continuous_alias_main(own_uv,positions,weight,curve,main_pixels,*,preserve_l
     exact=sigma<=1e-12;filtered[exact]=m[exact]
     return filtered*np.asarray(weight)[:,None],dict(physicalDistance=distance,mainAlphaDeltaZero=True,normalImageConsumed=False)
 
-def continuous_cut_main(own_uv,positions,weight,head_curve,body_curve,head_main,body_main):
+def cut_pigment_neighbours(curve, triangles):
+    """Resolve the interior UV direction and available room at an actual cut edge."""
+    edge_ids = {tuple(sorted(edge)): index for index, edge in enumerate(curve.edges)}
+    opposite = np.full(len(curve.edges), -1, dtype=int)
+    for triangle in triangles:
+        for corner, first in enumerate(triangle):
+            second = triangle[(corner + 1) % 3]
+            index = edge_ids.get(tuple(sorted((first, second))))
+            if index is not None:
+                opposite[index] = triangle[(corner + 2) % 3] if opposite[index] == -1 else -2
+
+    third = np.maximum(opposite, 0)
+    offset = curve.vertices[third] - curve.first
+    along = np.sum(offset * curve.delta, axis=1) / curve.square
+    height = np.linalg.norm(offset - along[:, None] * curve.delta, axis=1)
+    start_uv, end_uv = curve.uv[curve.edges].transpose(1, 0, 2)
+    third_uv = curve.uv[third]
+    uv_delta = third_uv - (start_uv + along[:, None] * (end_uv - start_uv))
+    height[opposite < 0] = 0.
+    return along, height, uv_delta
+
+
+PIGMENT_JOIN_DISTANCE_METRES = .012
+
+
+def continuous_cut_main(own_uv,positions,weight,head_curve,body_curve,head_main,body_main,*,pigment_neighbours=None):
     """Exact four-component C1 transfer, once, before alias RGB and tone RGB."""
     bi,bt,distance=body_curve.nearest(positions);arc=body_curve.arc(bi,bt)
     def difference(ii,tt):
@@ -406,7 +431,27 @@ def continuous_cut_main(own_uv,positions,weight,head_curve,body_curve,head_main,
             ii,tt=body_curve.at_arc(arc+offset*sigma);m,error=difference(ii,tt);pair_error=np.maximum(pair_error,error)
         filtered+=k*m
     exact=sigma<=1e-12;filtered[exact]=delta[exact]
-    main=bilinear_gpu_rows(head_main,own_uv).copy();main[:,:]=np.clip(main[:,:]+filtered*np.asarray(weight)[:,None],0,1)
+    weight = np.asarray(weight)
+    main = np.clip(bilinear_gpu_rows(head_main, own_uv) + filtered * weight[:, None], 0, 1)
+    if pigment_neighbours is not None:
+        # Continue the body's local pigment slope across the cut. Farther from
+        # the boundary, retain the head's own texture and broader tone correction.
+        along, height, uv_delta = (field[bi] for field in pigment_neighbours)
+        fraction = np.divide(distance, height, out=np.zeros_like(distance), where=height > 1e-8)
+        left = np.divide(bt, along, out=np.ones_like(bt), where=along > 0)
+        right = np.divide(1 - bt, 1 - along, out=np.ones_like(bt), where=along < 1)
+        available = np.maximum(0., np.minimum(left, right))
+        step = np.minimum(fraction, available)
+        band = np.clip(distance / PIGMENT_JOIN_DISTANCE_METRES, 0, 1)
+        confidence = np.divide(step, fraction, out=np.zeros_like(step), where=fraction > 0)
+        strength = (1 - band * band * (3 - 2 * band)) * confidence * weight
+        selected = strength > 0
+        if selected.any():
+            _, cut_uv, _ = body_curve.evaluate(bi[selected], bt[selected])
+            edge = bilinear_gpu_rows(body_main, cut_uv)[:, :3]
+            inside = bilinear_gpu_rows(body_main, cut_uv + uv_delta[selected] * step[selected, None])[:, :3]
+            continuation = np.clip(edge + (edge - inside) / confidence[selected, None], 0, 1)
+            main[selected, :3] += (continuation - main[selected, :3]) * strength[selected, None]
     return main,dict(maximumPhysicalPairError=float(pair_error.max()),mainRgbaC1Once=True,normalImageConsumed=False)
 
 
@@ -863,13 +908,14 @@ def raster(g,w,h,protected,memo):
 def linear_rgba(pixels):
     a=np.asarray(pixels).astype(float)/255;a[:,:,:3]=lookup[np.asarray(pixels)[:,:,:3]];return a
 
-def c1_main(row,head,hc,bc,source,body,memo,domain):
+def c1_main(row,head,hc,bc,source,body,memo,domain,*,pigment_neighbours=None):
     h,w=domain['weight'].shape;y,x=domain['yy'],domain['xx'];uv=np.column_stack(((x+.5)/w,1-(y+.5)/h));positions=domain['positions'][y,x].astype(float)
     face,_,_,_=raster(head,w,h,domain['protected'],memo);gutter=face[y,x]<0;sample_uv=uv.copy()
     if gutter.any():i,t,_=nearest_raw_chart(hc,positions[gutter],uv[gutter]);_,sample_uv[gutter],_=hc.evaluate(i,t)
     result=source.copy();maximum=0.
     for at in range(0,len(y),4096):
-        q=slice(at,at+4096);rgba,proof=continuous_cut_main(sample_uv[q],positions[q],domain['weight'][y[q],x[q]],hc,bc,source,body)
+        q=slice(at,at+4096);rgba,proof=continuous_cut_main(sample_uv[q],positions[q],domain['weight'][y[q],x[q]],hc,bc,source,body,
+            pigment_neighbours=pigment_neighbours)
         result[h-1-y[q],x[q]]=rgba;maximum=max(maximum,proof['maximumPhysicalPairError'])
     positions,cut_uv,_=hc.evaluate(np.repeat(np.arange(len(hc.edges)),33),np.tile(np.linspace(0,1,33),len(hc.edges)))
     bi,bt,error=bc.nearest(positions);_,body_uv,_=bc.evaluate(bi,bt)
@@ -1122,7 +1168,8 @@ def prepare_head_main(row,head_packet,body_packet,family_rows,packets,head_main,
     else:
         pigment,applied=apply_head_pigment(head_main,pigment_alignment['gain'])
         pigment_proof=dict(pigment_alignment,**{k:v for k,v in applied.items()if k!='gain'},reusedSourcePigmentAlignment=True)
-    c1,domain,c1_proof=c1_main(row,head,hc,bc,pigment,body_main,memo,domain)
+    c1,domain,c1_proof=c1_main(row,head,hc,bc,pigment,body_main,memo,domain,
+        pigment_neighbours=cut_pigment_neighbours(bc,body['triangles']))
     height,width=c1.shape[:2]
     contact=domain['protected']if protected_vertices is None else contact_pixel_mask(head,protected_vertices,width,height)
     result,alias_proof=alias_main(row,head,he,c1,dict(protected=contact),memo,protected_vertices=protected_vertices,preserve_local_contrast=True)

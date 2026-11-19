@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
 using JetBrains.Annotations;
@@ -76,6 +77,7 @@ public static class CharacterViewportPatcher
         public static void Prefix(CharacterViewport __instance)
         {
             PortraitsContext.ReleaseViewportFraming(__instance);
+            PortraitsContext.ReleaseViewportCloth(__instance.GraphicsCharacter);
             __instance.backToCenterCoroutine.Reset();
             __instance.dragArmed = false;
             __instance.rotationIntensity = 0;
@@ -94,6 +96,9 @@ public static class CharacterViewportPatcher
         public static void Postfix(CharacterViewport __instance, GraphicsCharacter __0)
         {
             __instance.rawImage.enabled = true;
+            if (__instance.mode == CharacterViewport.Mode.CharacterCustomization)
+                RacesContext.PrepareBodyShapePreview(__0);
+
             if (__0 is GraphicsCharacterMonster
                 {
                     RulesetCharacterMonster: RulesetCharacterSimulacrum
@@ -112,6 +117,25 @@ public static class CharacterViewportPatcher
         public static void Postfix(CharacterViewport __instance)
         {
             PortraitsContext.StabilizeViewportFraming(__instance);
+        }
+    }
+
+    [HarmonyPatch]
+    [UsedImplicitly]
+    public static class BeginViewportRotation_Patch
+    {
+        [UsedImplicitly]
+        public static IEnumerable<MethodBase> TargetMethods()
+        {
+            yield return AccessTools.Method(typeof(CharacterViewport), nameof(CharacterViewport.OnBeginDrag));
+            yield return AccessTools.Method(typeof(CharacterViewport), "RotatePerformed");
+        }
+
+        [UsedImplicitly]
+        public static void Postfix(CharacterViewport __instance)
+        {
+            if (PreservesUserRotation(__instance) && (__instance.dragArmed || __instance.rotationIntensity != 0f))
+                PortraitsContext.PrepareViewportClothForRotation(__instance.GraphicsCharacter);
         }
     }
 

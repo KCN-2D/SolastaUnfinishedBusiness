@@ -18,6 +18,20 @@ PACKAGE_TEST_VERSION=datetime.date.min.isoformat().replace('-','.')+'.1'
 
 
 class ResourceStorageTest(unittest.TestCase):
+    def test_packed_distribution_pins_both_manifest_owners(self):
+        with self.owned_workspace() as (_, source, output):
+            fallback = source / 'Catalog' / storage.RESOURCE_FILES['manifest']
+            packs = fallback.with_name(storage.RESOURCE_FILES['packs'])
+            packed_manifest = output / storage.RESOURCE_FILES['manifest']
+            storage.write(packed_manifest, dict(resources=[]))
+            fallback_digest = storage.sha(fallback)
+            packed_digest = storage.sha(packed_manifest)
+            with patch.object(storage, 'PUBLIC', fallback):
+                self.assertEqual(storage.distribution_catalog(), (fallback_digest, {fallback: fallback_digest}))
+                storage.write(packs, dict(schemaVersion=1, catalogSha256=packed_digest))
+                self.assertEqual(storage.distribution_catalog(), (
+                    packed_digest, {fallback: fallback_digest, packs: storage.sha(packs)}))
+
     def test_payload_hash_scope_reuses_hardlinked_bytes_but_never_aliases_distinct_files(self):
         with tempfile.TemporaryDirectory()as directory:
             root=Path(directory);first=root/'packet.json';first.write_bytes(b'1111')
@@ -533,14 +547,20 @@ class ResourceStorageTest(unittest.TestCase):
             root=Path(directory);(root/'A').mkdir();(root/'B').mkdir()
             (root/'entry.txt').write_bytes(b'abc');original=root/'A/payload.bundle';original.write_bytes(b'12345')
             os.link(original,root/'B/payload.bundle')
-            result=storage.inventory_tools(root)
+            with patch.object(storage,'_stored_size',side_effect=lambda _,info:info.st_size-1):
+                result=storage.inventory_tools(root)
             self.assertEqual(result['files'],3)
             self.assertEqual(result['directories'],3)
             self.assertEqual(result['logicalBytes'],13)
             self.assertEqual(result['uniqueFileBytes'],8)
             types={row['extension']:row for row in result['extensions']}
-            self.assertEqual(types['.bundle'],dict(extension='.bundle',files=2,logicalBytes=10,uniqueFileBytes=5))
-            self.assertEqual(types['.txt'],dict(extension='.txt',files=1,logicalBytes=3,uniqueFileBytes=3))
+            self.assertEqual(result['storedFileBytes'],6)
+            self.assertEqual(result['exclusiveStoredFileBytes'],6)
+            self.assertEqual(types['.bundle'],dict(extension='.bundle',files=2,logicalBytes=10,uniqueFileBytes=5,
+                                                  storedFileBytes=4,exclusiveStoredFileBytes=4))
+            self.assertEqual(types['.txt'],dict(extension='.txt',files=1,logicalBytes=3,uniqueFileBytes=3,
+                                               storedFileBytes=2,exclusiveStoredFileBytes=2))
+            self.assertTrue(all(row['exclusiveStoredFileBytes']==0 for row in result['groups']))
 
     @contextlib.contextmanager
     def owned_workspace(self,*,canonical=False):

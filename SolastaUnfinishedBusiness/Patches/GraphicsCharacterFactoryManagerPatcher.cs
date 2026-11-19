@@ -159,18 +159,24 @@ public static class GraphicsCharacterFactoryManagerPatcher
         public static bool Prefix(
             [HarmonyArgument(0)] GraphicsCharacter graphicsCharacter,
             [HarmonyArgument(1)] MorphotypeElementDefinition.ElementCategory category,
-            out object __state)
+            out (object Owner, bool Preview) __state)
         {
-            __state = null;
+            __state = default;
             if (category != MorphotypeElementDefinition.ElementCategory.Musculature) return true;
-            __state = BeginGnomeScavengerRefresh(graphicsCharacter);
+            if (RacesContext.TryPreviewBodyShape(graphicsCharacter))
+            {
+                __state.Preview = true;
+                return false;
+            }
+            __state.Owner = BeginGnomeScavengerRefresh(graphicsCharacter);
             return RacesContext.PrepareNativeBodyRest(graphicsCharacter) && RacesContext.ApplyBodyShape(graphicsCharacter);
         }
 
         [UsedImplicitly]
         public static void Postfix([HarmonyArgument(0)] GraphicsCharacter graphicsCharacter,
-            [HarmonyArgument(1)] MorphotypeElementDefinition.ElementCategory category)
+            [HarmonyArgument(1)] MorphotypeElementDefinition.ElementCategory category, (object Owner, bool Preview) __state)
         {
+            if (__state.Preview) return;
             if (category == MorphotypeElementDefinition.ElementCategory.Musculature)
             {
                 RacesContext.SyncNativeBodyRest(graphicsCharacter);
@@ -180,9 +186,9 @@ public static class GraphicsCharacterFactoryManagerPatcher
         }
 
         [UsedImplicitly]
-        public static Exception Finalizer(object __state, Exception __exception)
+        public static Exception Finalizer((object Owner, bool Preview) __state, Exception __exception)
         {
-            try { EndGnomeScavengerRefresh(__state, __exception != null); }
+            try { EndGnomeScavengerRefresh(__state.Owner, __exception != null); }
             catch (Exception exception)
             {
                 __exception = __exception == null ? exception : new AggregateException(__exception, exception);
@@ -310,6 +316,8 @@ public static class GraphicsCharacterFactoryManagerPatcher
     private const string GnomeScavengerHoodHeadProxyName =
         "UB_GnomeScavengerHoodHeadScale";
     private const float GnomeScavengerHoodScale = 1.2f;
+    private static readonly HoodFit DefaultGnomeHoodFit = new(Vector3.zero, Vector3.one * GnomeScavengerHoodScale);
+    private static readonly ConditionalWeakTable<Mesh, ConditionalWeakTable<Mesh, HoodFit>> GnomeHoodFits = new();
 
     private static readonly ConditionalWeakTable<
         GraphicsCharacterMonster,
@@ -449,54 +457,38 @@ public static class GraphicsCharacterFactoryManagerPatcher
         var mutationState = GnomeScavengerMutationStates.GetValue(
             graphicsCharacter,
             owner => new GnomeScavengerMutationState(owner));
-        var hasSeparateHeadItem =
-            hero.GetItemInSlot(EquipmentDefinitions.SlotTypeHead) != null;
-
-        foreach (var renderer in GetBodyPartRenderers(
-                     graphicsCharacter.ShapeSkinnedMeshRenderersPerBodySlot,
-                     GraphicsCharacterDefinitions.BodyPart.Hair)
-                 .Where(renderer => renderer))
+        var hoods = GetActiveScavengerHoodRenderers(graphicsCharacter, hero.Sex).ToArray();
+        var fit = FitScavengerHoodToHead(graphicsCharacter, hoods);
+        var hasFittedHood = false;
+        foreach (var renderer in hoods)
         {
-            if (!hasSeparateHeadItem && renderer.forceRenderingOff)
-            {
-                mutationState.Remember(renderer);
-                renderer.forceRenderingOff = false;
-            }
+            hasFittedHood |= TryFitGnomeScavengerHood(renderer, mutationState, fit);
         }
 
-        var hoodBodyPart = hero.Sex == RuleDefinitions.CreatureSex.Female
-            ? GraphicsCharacterDefinitions.BodyPart.Body
-            : GraphicsCharacterDefinitions.BodyPart.Helmet;
+        if (!hasFittedHood) return;
 
-        foreach (var renderer in GetBodyPartRenderers(
-                     graphicsCharacter.ArmorSkinnedMeshRenderersPerBodySlot,
-                     hoodBodyPart)
-                 .Where(renderer => renderer))
+        // A fitted hood replaces the selected hair and the outfit's integrated fallback hair.
+        var hair = GetBodyPartRenderers(graphicsCharacter.ShapeSkinnedMeshRenderersPerBodySlot,
+                GraphicsCharacterDefinitions.BodyPart.Hair)
+            .Concat(GetScavengerHoodPartRenderers(graphicsCharacter, hero.Sex).Where(IsScavengerIntegratedHair));
+        foreach (var renderer in hair)
         {
-            if (hero.Sex == RuleDefinitions.CreatureSex.Female &&
-                IsScavengerIntegratedHair(renderer))
-            {
-                if (!renderer.forceRenderingOff)
-                {
-                    mutationState.Remember(renderer);
-                    renderer.forceRenderingOff = true;
-                }
-
-                continue;
-            }
-
-            if (!IsScavengerHoodRenderer(renderer))
-            {
-                continue;
-            }
-
-            if (renderer.forceRenderingOff)
-            {
-                continue;
-            }
-
-            ScaleGnomeScavengerHood(renderer, mutationState);
+            if (!renderer || renderer.forceRenderingOff) continue;
+            mutationState.Remember(renderer);
+            renderer.forceRenderingOff = true;
         }
+    }
+
+    private static IEnumerable<SkinnedMeshRenderer> GetActiveScavengerHoodRenderers(GraphicsCharacter graphics,
+        RuleDefinitions.CreatureSex sex) => GetScavengerHoodPartRenderers(graphics, sex)
+        .Where(renderer => renderer && !renderer.forceRenderingOff && IsScavengerHoodRenderer(renderer));
+
+    private static SkinnedMeshRenderer[] GetScavengerHoodPartRenderers(GraphicsCharacter graphics,
+        RuleDefinitions.CreatureSex sex)
+    {
+        var part = sex == RuleDefinitions.CreatureSex.Female
+            ? GraphicsCharacterDefinitions.BodyPart.Body : GraphicsCharacterDefinitions.BodyPart.Helmet;
+        return GetBodyPartRenderers(graphics.ArmorSkinnedMeshRenderersPerBodySlot, part);
     }
 
     private static object BeginGnomeScavengerRefresh(GraphicsCharacter graphics)
@@ -543,7 +535,11 @@ public static class GraphicsCharacterFactoryManagerPatcher
                 });
             else
             {
-                if (state.Owner && !state.RefreshFailed) state.Complete(state.RestoreMutations);
+                if (state.Owner && !state.RefreshFailed)
+                {
+                    state.Complete(state.RestoreMutations);
+                    state.ReleaseHoodBones();
+                }
                 else state.Abort();
                 if (!state.Owner || !state.RefreshFailed) GnomeScavengerMutationStates.Remove(state.Owner);
             }
@@ -617,32 +613,31 @@ public static class GraphicsCharacterFactoryManagerPatcher
                value.IndexOf(expected, StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
-    private static void ScaleGnomeScavengerHood(
+    private static bool TryFitGnomeScavengerHood(
         SkinnedMeshRenderer renderer,
-        GnomeScavengerMutationState mutationState)
+        GnomeScavengerMutationState mutationState,
+        HoodFit fit)
     {
         if (!renderer || !renderer.sharedMesh)
         {
-            return;
+            return false;
         }
 
         var bones = renderer.bones;
 
         if (bones is not { Length: > 0 })
         {
-            return;
+            return false;
         }
 
         var headBoneIndices = Enumerable.Range(0, bones.Length)
             .Where(index =>
-                bones[index] &&
-                (bones[index].name == GnomeScavengerHoodHeadBoneName ||
-                 bones[index].name.EndsWith(" Head", StringComparison.Ordinal)))
+                IsHeadBone(bones[index]))
             .ToArray();
 
         if (headBoneIndices.Length == 0)
         {
-            return;
+            return false;
         }
 
         var mutation = mutationState.Remember(renderer);
@@ -650,19 +645,9 @@ public static class GraphicsCharacterFactoryManagerPatcher
         foreach (var headBoneIndex in headBoneIndices)
         {
             var headBone = bones[headBoneIndex];
-            var proxy = headBone.Find(GnomeScavengerHoodHeadProxyName);
-
-            if (!proxy)
-            {
-                proxy = new GameObject(GnomeScavengerHoodHeadProxyName).transform;
-                proxy.SetParent(headBone, false);
-            }
-
-            proxy.localPosition = Vector3.zero;
-            proxy.localRotation = Quaternion.identity;
-            proxy.localScale = Vector3.one * GnomeScavengerHoodScale;
+            var proxy = mutationState.HoodBone(headBone, fit);
             RacesContext.BindNativeBodyDerivedBone(mutationState.Owner, renderer, headBone, proxy,
-                Matrix4x4.TRS(Vector3.zero, Quaternion.identity, Vector3.one * GnomeScavengerHoodScale));
+                fit.Transform);
             mutation.RememberBone(headBone, proxy);
             bones[headBoneIndex] = proxy;
         }
@@ -671,10 +656,142 @@ public static class GraphicsCharacterFactoryManagerPatcher
 
         var localBounds = renderer.localBounds;
 
-        localBounds.extents = Vector3.Scale(
-            localBounds.extents,
-            Vector3.one * GnomeScavengerHoodScale);
+        localBounds.extents *= Mathf.Max(fit.Scale.x, Mathf.Max(fit.Scale.y, fit.Scale.z));
         renderer.localBounds = localBounds;
+        return true;
+    }
+
+    private static bool IsHeadBone(Transform bone) => bone &&
+        (bone.name == GnomeScavengerHoodHeadBoneName || bone.name.EndsWith(" Head", StringComparison.Ordinal));
+
+    private static HoodFit FitScavengerHoodToHead(GraphicsCharacter graphics, SkinnedMeshRenderer[] hoods)
+    {
+        var hood = FindHeadSurface(hoods);
+        if (!hood.Mesh || hood.Up == Vector3.zero) return DefaultGnomeHoodFit;
+
+        var head = FindHeadSurface(GetBodyPartRenderers(graphics.ShapeSkinnedMeshRenderersPerBodySlot,
+            GraphicsCharacterDefinitions.BodyPart.Head));
+        if (!head.Mesh) return DefaultGnomeHoodFit;
+
+        // Use the same fit for every hood LOD and keep the visible face opening
+        // from the source mesh. Only directions that meet cloth enter the fit.
+        return GnomeHoodFits.GetValue(hood.Mesh, static _ => new ConditionalWeakTable<Mesh, HoodFit>())
+            .GetValue(head.Mesh, _ => HoodFit.Measure(head.Mesh, head.BindPose, hood.Mesh, hood.BindPose, hood.Up));
+
+        static (Mesh Mesh, Matrix4x4 BindPose, Vector3 Up) FindHeadSurface(IEnumerable<SkinnedMeshRenderer> renderers)
+        {
+            foreach (var renderer in renderers.Where(renderer => renderer && renderer.sharedMesh)
+                         .OrderByDescending(renderer => renderer.sharedMesh.vertexCount))
+            {
+                var mesh = renderer.sharedMesh;
+                var bones = renderer.bones;
+                var headIndex = Array.FindIndex(bones, IsHeadBone);
+                var poses = mesh.bindposes;
+                if (headIndex < 0 || headIndex >= poses.Length) continue;
+
+                var head = bones[headIndex];
+                var parentIndex = Array.IndexOf(bones, head.parent);
+                var bind = poses[headIndex];
+                var up = parentIndex >= 0 && parentIndex < poses.Length
+                    ? -bind.MultiplyPoint3x4(poses[parentIndex].inverse.GetColumn(3))
+                    : Quaternion.Inverse(head.localRotation) * head.localPosition;
+                return (mesh, bind, up.normalized);
+            }
+            return default;
+        }
+    }
+
+    private sealed class HoodFit(Vector3 offset, Vector3 scale)
+    {
+        internal readonly Vector3 Offset = offset, Scale = scale;
+        internal readonly Matrix4x4 Transform = Matrix4x4.TRS(offset, Quaternion.identity, scale);
+
+        private readonly struct ClothTriangle(Vector3 origin, Vector3 firstEdge, Vector3 secondEdge)
+        {
+            internal readonly Vector3 Origin = origin, FirstEdge = firstEdge, SecondEdge = secondEdge;
+        }
+
+        internal static HoodFit Measure(Mesh head, Matrix4x4 headBind, Mesh hood, Matrix4x4 hoodBind, Vector3 up)
+        {
+            const float clothClearance = .006f;
+            var skull = RacesContext.ReadNativeRestMesh(head,
+                readable => Array.ConvertAll(readable.vertices, headBind.MultiplyPoint3x4));
+            if (skull.Length == 0) return DefaultGnomeHoodFit;
+            var bounds = new Bounds(skull[0], Vector3.zero);
+            foreach (var point in skull) bounds.Encapsulate(point);
+
+            var center = bounds.center;
+            var rays = new Dictionary<Vector3Int, Vector3>();
+            foreach (var point in skull)
+            {
+                var radial = point - center;
+                if (radial.sqrMagnitude <= 1e-8f || Vector3.Dot(radial, up) < 0f) continue;
+                var direction = Vector3Int.RoundToInt(radial.normalized * 7f);
+                if (!rays.TryGetValue(direction, out var previous) || radial.sqrMagnitude > previous.sqrMagnitude)
+                    rays[direction] = radial;
+            }
+
+            var (cloth, indices) = RacesContext.ReadNativeRestMesh(hood, readable =>
+                (Array.ConvertAll(readable.vertices,
+                    point => hoodBind.MultiplyPoint3x4(point) * GnomeScavengerHoodScale - center),
+                    readable.triangles));
+            var triangles = new List<ClothTriangle>();
+            var crownRadius = (bounds.extents.magnitude + clothClearance) * 1.4f;
+            var crownRadiusSquared = crownRadius * crownRadius;
+            for (var index = 0; index < indices.Length; index += 3)
+            {
+                var first = cloth[indices[index]];
+                var second = cloth[indices[index + 1]];
+                var third = cloth[indices[index + 2]];
+                if (Mathf.Min(first.sqrMagnitude, Mathf.Min(second.sqrMagnitude, third.sqrMagnitude)) >
+                    crownRadiusSquared) continue;
+                triangles.Add(new ClothTriangle(first, second - first, third - first));
+            }
+
+            var adjustment = Vector3.one;
+            for (var pass = 0; pass < 4; pass++)
+            {
+                var inverse = new Vector3(1f / adjustment.x, 1f / adjustment.y, 1f / adjustment.z);
+                var growth = Vector3.one;
+                foreach (var radial in rays.Values)
+                {
+                    var distance = radial.magnitude;
+                    var direction = radial / distance;
+                    var shell = ClothRadius(triangles, Vector3.Scale(direction, inverse));
+                    // Ignore incidental intersections with clothing near the
+                    // center of the head, such as a collar behind an open rim.
+                    if (shell < .65f * distance || shell >= distance + clothClearance) continue;
+
+                    var axis = Mathf.Abs(direction.x) > Mathf.Abs(direction.y) ? 0 : 1;
+                    if (Mathf.Abs(direction.z) > Mathf.Abs(direction[axis])) axis = 2;
+                    var expand = 1f + ((distance + clothClearance) / shell - 1f) / Mathf.Abs(direction[axis]);
+                    growth[axis] = Mathf.Max(growth[axis], expand);
+                }
+                if (growth == Vector3.one) break;
+                adjustment = Vector3.Min(Vector3.Scale(adjustment, growth), Vector3.one * 1.45f);
+            }
+
+            return new HoodFit(center - Vector3.Scale(center, adjustment), adjustment * GnomeScavengerHoodScale);
+        }
+
+        private static float ClothRadius(List<ClothTriangle> triangles, Vector3 direction)
+        {
+            var radius = 0f;
+            foreach (var triangle in triangles)
+            {
+                var cross = Vector3.Cross(direction, triangle.SecondEdge);
+                var determinant = Vector3.Dot(triangle.FirstEdge, cross);
+                if (Mathf.Abs(determinant) <= 1e-8f) continue;
+                var relative = -triangle.Origin;
+                var u = Vector3.Dot(relative, cross) / determinant;
+                if (u < 0f || u > 1f) continue;
+                var offsetCross = Vector3.Cross(relative, triangle.FirstEdge);
+                var v = Vector3.Dot(direction, offsetCross) / determinant;
+                if (v < 0f || u + v > 1f) continue;
+                radius = Mathf.Max(radius, Vector3.Dot(triangle.SecondEdge, offsetCross) / determinant);
+            }
+            return radius;
+        }
     }
 
     private sealed class GnomeScavengerMutationState(GraphicsCharacter owner)
@@ -685,6 +802,30 @@ public static class GraphicsCharacterFactoryManagerPatcher
         internal RulesetCharacter RefreshActor;
         private CustomModels.SkinMeshSource.SourceGraph nativeOwner;
         private readonly List<GnomeScavengerRendererMutation> mutations = [];
+        private readonly Dictionary<(Transform Head, Matrix4x4 Fit), Transform> hoodBones = [];
+
+        internal Transform HoodBone(Transform head, HoodFit fit)
+        {
+            var key = (head, fit.Transform);
+            if (hoodBones.TryGetValue(key, out var proxy) && proxy) return proxy;
+
+            // A proxy is a declared rest frame of native cloth. Keep the frame
+            // immutable and reuse it when a previously selected face returns.
+            proxy = new GameObject($"{GnomeScavengerHoodHeadProxyName}_{hoodBones.Count}").transform;
+            proxy.SetParent(head, false);
+            proxy.localPosition = fit.Offset;
+            proxy.localRotation = Quaternion.identity;
+            proxy.localScale = fit.Scale;
+            hoodBones[key] = proxy;
+            return proxy;
+        }
+
+        internal void ReleaseHoodBones()
+        {
+            foreach (var bone in hoodBones.Values)
+                if (bone) UnityEngine.Object.Destroy(bone.gameObject);
+            hoodBones.Clear();
+        }
 
         internal GnomeScavengerRendererMutation Remember(SkinnedMeshRenderer renderer)
         {
@@ -706,10 +847,7 @@ public static class GraphicsCharacterFactoryManagerPatcher
             var renderers = mutations.Select(mutation => mutation.Renderer).Where(renderer => renderer).ToList();
             if (TryGetGnomeScavengerHero(Owner, out var hero))
             {
-                var part = hero.Sex == RuleDefinitions.CreatureSex.Female
-                    ? GraphicsCharacterDefinitions.BodyPart.Body : GraphicsCharacterDefinitions.BodyPart.Helmet;
-                renderers.AddRange(GetBodyPartRenderers(Owner.ArmorSkinnedMeshRenderersPerBodySlot, part)
-                    .Where(renderer => renderer && !renderer.forceRenderingOff && IsScavengerHoodRenderer(renderer)));
+                renderers.AddRange(GetActiveScavengerHoodRenderers(Owner, hero.Sex));
             }
             nativeOwner = RacesContext.SuspendBodyShapeWithNativeOwner(Owner, renderers, RestoreMutations);
         }
@@ -734,6 +872,7 @@ public static class GraphicsCharacterFactoryManagerPatcher
             {
                 nativeOwner = null;
                 RestoreMutations();
+                ReleaseHoodBones();
             }
         }
         internal void RestoreMutations()

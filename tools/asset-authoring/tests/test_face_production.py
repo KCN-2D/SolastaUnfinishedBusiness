@@ -79,6 +79,13 @@ class FaceProductionContracts(unittest.TestCase):
         np.testing.assert_array_equal(production.fit_garment_crossings(cloth, triangles, separate,
             clearance=.0006, maximum_offset=.006), np.zeros_like(cloth))
 
+    def test_garment_coverage_uses_the_nearest_fold_and_preserves_the_open_hem(self):
+        production, _ = build.source_owner()
+        lining = np.array([[0., 0., 0.], [.1, 0., 0.], [0., .1, 0.]])
+        shell = np.array([lining + [0., 0., .004], lining + [0., 0., -.012]])
+        faces = np.array([lining, lining + [.12, 0., 0.], lining + [0., 0., .008]])
+        np.testing.assert_array_equal(production.garment_inside_faces(shell, faces, .03), [True, False, False])
+
     def test_appearance_capture_pairs_gear_with_its_own_skin_detail_level(self):
         def part(key, detail, height, skin):
             return dict(renderer=f'Mesh_LOD{detail}', mesh=dict(id=key, name=f'Mesh_LOD{detail}', bindPoses=[]), forceRenderingOff=False,
@@ -1196,9 +1203,11 @@ class FaceProductionContracts(unittest.TestCase):
             def context():
                 path.write_text(json.dumps(dict(actors=[actor])),encoding='utf-8')
                 return dict(kind='actual-npc-presentation',fixture='A',head='Head.prefab',body='Body.prefab',display=dict(path=str(path),sha256=build.sha(path)))
-            row=context();self.assertFalse(build.observed_skin_interface(row,{}))
+            self.assertIsNone(build.observed_skin_interface(context(),{}))
+            actor['armorSources']=[dict(slot='Body',source='UB/CharacterResources/Body.prefab',present=True)]
+            self.assertEqual(build.observed_skin_interface(context(),{}),'armor')
             actor['parts'][1].update(key='UB/CharacterResources/Body.prefab',present=True)
-            row=context();self.assertTrue(build.observed_skin_interface(row,{}))
+            row=context();self.assertEqual(build.observed_skin_interface(row,{}),'shape')
             row['body']='Other.prefab'
             with self.assertRaisesRegex(ValueError,'visible body'):build.observed_skin_interface(row,{})
             actor['nativeClothingRetained']=False

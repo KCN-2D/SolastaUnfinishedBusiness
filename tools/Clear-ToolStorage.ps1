@@ -4,6 +4,7 @@ param(
     [string]$EvidenceRoot,
     [string[]]$PreserveDirectory=@(),
     [ValidateRange(1,10)][int]$KeepAcceptedCatalogs=2,
+    [ValidateRange(0,36500)][double]$MaxTestAgeDays=0,
     [ValidateRange(0,9223372036854775807)][long]$MaxTestBytes=40000000000,
     [switch]$Apply
 )
@@ -73,13 +74,15 @@ try{
     $projects=@(Get-ToolAuthoringProject $unityRoot | Sort-Object -Unique)
     $authoringReferences=@(if(Test-Path -LiteralPath (Join-Path $script:GameTestArtifactRoot 'StorageReferences.json')){Join-Path $script:GameTestArtifactRoot 'StorageReferences.json'})
     $authoringPreserve=@($PreserveDirectory | Where-Object {Test-GtWithin $_ $script:AssetAuthoringWorkspace})
-    $report['authoringCleanup']=@(foreach($project in $projects){
-        $path=Clear-AssetAuthoringJobs -Project $project -ReferencePath $authoringReferences -PreserveDirectory $authoringPreserve -KeepLatest 2 -MaxRetainedBytes 20000000000 -Apply:$Apply
-        $result=Read-GtObject $path
-        [pscustomobject]@{path=$path;sha256=Get-GtHash $path;status=$result.status;entries=$result.actions.Count;
-            logicalBytes=[long]($result.actions | Measure-Object bytes -Sum | ForEach-Object {$_.Sum});retainedBytes=$result.retainedBytes;budgetSatisfied=$result.budgetSatisfied}
+    $report['authoringCleanup']=@(if($projects.Count){
+        $operationPaths=Clear-AssetAuthoringJobs -Project $projects -ReferencePath $authoringReferences -PreserveDirectory $authoringPreserve -KeepLatest 2 -MaxRetainedBytes 20000000000 -Apply:$Apply
+        foreach($path in $operationPaths){
+            $result=Read-GtObject $path
+            [pscustomobject]@{path=$path;sha256=Get-GtHash $path;status=$result.status;entries=$result.actions.Count;
+                logicalBytes=[long]($result.actions | Measure-Object bytes -Sum | ForEach-Object {$_.Sum});retainedBytes=$result.retainedBytes;budgetSatisfied=$result.budgetSatisfied}
+        }
     })
-    $report.testCleanup=& $cleanup -ArtifactRoot $script:GameTestArtifactRoot -PruneSuperseded -MaxRetainedBytes $MaxTestBytes -KeepLatestPerCase 2 -PreserveDirectory (@($operation)+$PreserveDirectory) -Apply:$Apply -PassThru
+    $report.testCleanup=& $cleanup -ArtifactRoot $script:GameTestArtifactRoot -PruneSuperseded -MaxAgeDays $MaxTestAgeDays -MaxRetainedBytes $MaxTestBytes -KeepLatestPerCase 2 -PreserveDirectory (@($operation)+$PreserveDirectory) -Apply:$Apply -PassThru
     $report['metadataCleanup']=& $cleanup -ArtifactRoot $script:GameTestArtifactRoot -PruneReports -PruneLooseFiles -PreserveDirectory (@($operation)+$PreserveDirectory) -Apply:$Apply -PassThru
     if(Test-Path -LiteralPath $PythonPath -PathType Leaf){
         $previousErrorPreference=$ErrorActionPreference

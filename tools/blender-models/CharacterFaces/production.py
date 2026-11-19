@@ -1256,21 +1256,32 @@ def overlapping_surface_faces(low, high, surface_low, surface_high):
 
 
 def garment_inside_faces(exterior, lining, search_distance):
-    """Use the native layer order to protect exposed pieces of either renderer."""
-    outer_normals = normalise(np.cross(exterior[:, 1] - exterior[:, 0], exterior[:, 2] - exterior[:, 0]))
+    """Find the nearest exterior surface at interior samples of each native lining face."""
+    origins = exterior[:, 0]
+    first, second = exterior[:, 1] - origins, exterior[:, 2] - origins
+    outer_normals = normalise(np.cross(first, second))
     inner_normals = normalise(np.cross(lining[:, 1] - lining[:, 0], lining[:, 2] - lining[:, 0]))
-    candidates = overlapping_surface_faces(exterior.min(axis=1) - search_distance,
-        exterior.max(axis=1) + search_distance, lining.min(axis=1), lining.max(axis=1))
-    inside = np.zeros(len(lining), dtype=bool)
-    outside = np.zeros(len(lining), dtype=bool)
-    for face, normal, nearby in zip(exterior, outer_normals, candidates):
-        for index in nearby[inner_normals[nearby] @ normal > .6]:
-            for shallow, deep in garment_crossing_depth(face, lining[index:index + 1], normal, positive_only=False):
-                if 0 <= shallow < search_distance:
-                    outside[index] = True
-                elif -search_distance < deep < 0:
-                    inside[index] = True
-    return inside & ~outside
+    coordinates = np.linalg.pinv(np.stack((first, second), axis=2))
+    neighbours = overlapping_surface_faces(lining.min(axis=1) - search_distance,
+        lining.max(axis=1) + search_distance, exterior.min(axis=1), exterior.max(axis=1))
+    sample_weights = np.array([[1/3, 1/3, 1/3], [.7, .15, .15], [.15, .7, .15], [.15, .15, .7]])
+    covered = np.zeros(len(lining), dtype=bool)
+    for index, (points, direction, nearby) in enumerate(zip(sample_weights @ lining, inner_normals, neighbours)):
+        alignment = outer_normals[nearby] @ direction
+        aligned = alignment > .6
+        selected = nearby[aligned]
+        if not len(selected):
+            continue
+        separation = origins[selected, None] - points[None]
+        depths = np.einsum('nij,nj->ni', separation, outer_normals[selected]) / alignment[aligned, None]
+        offsets = depths[:, :, None] * direction - separation
+        uv = np.einsum('nji,nki->nkj', coordinates[selected], offsets)
+        hits = (np.abs(depths) <= search_distance) & (uv >= -1e-7).all(axis=2) & (uv.sum(axis=2) <= 1+1e-7)
+        nearest = np.argmin(np.where(hits, np.abs(depths), np.inf), axis=0)
+        sample_ids = np.arange(len(points))
+        inside = hits[nearest, sample_ids] & (depths[nearest, sample_ids] > 0)
+        covered[index] = inside[0] or np.count_nonzero(inside[1:]) >= 2
+    return covered
 
 
 def fit_garment_crossings(positions, triangles, skin, *, clearance, maximum_offset):
@@ -4448,11 +4459,9 @@ def source_native_sampler(points,triangles,uv,neighbours,*,report=None):
     cache=collections.OrderedDict();cache_bytes=0;next_chart=0
     geometry_cache=collections.OrderedDict();geometry_bytes=0
     cache_allowance=min(source_filter_budget()['nativeCacheBytes'],source_filter_budget()['workBytes']//8)
-    # Filtering streams can replace the entire raw-tap cache. Keep reusable
-    # native frames separate so every later block need not invert/unfold them
-    # again. The two LRU allowances still share the original memory ceiling.
+    # Keep native geometry reusable across filtered blocks. Taps and lattices
+    # can use space that is still free in the geometry cache.
     geometry_limit=cache_allowance//4
-    cache_limit=cache_allowance-geometry_limit
     # Two ordered versions of each opposite edge use the helper's exact scalar
     # dot/norm order. Only layout-independent native data belongs in these arrays.
     static_bytes=len(triangles)*3*2*(3*8+8+1)
@@ -4471,14 +4480,23 @@ def source_native_sampler(points,triangles,uv,neighbours,*,report=None):
         elif isinstance(value,np.ndarray):amount=max(amount,value.nbytes)
         return amount
 
+    def tap_cache_limit():
+        return cache_allowance-(geometry_bytes+sys.getsizeof(geometry_cache) if geometry_cache else 0)
+
+    def trim_tap_cache():
+        nonlocal cache_bytes
+        cache_limit=tap_cache_limit()
+        while cache and cache_bytes+sys.getsizeof(cache)>cache_limit:
+            _,(_,removed)=cache.popitem(last=False);cache_bytes-=removed
+            if report is not None:report['cacheEvictions']+=1
+        if not cache and sys.getsizeof(cache)>cache_limit:cache.clear()
+
     def retain(key,value,entry_bytes):
         nonlocal cache_bytes
+        cache_limit=tap_cache_limit()
         if cache_limit and entry_bytes+sys.getsizeof(cache)<=cache_limit:
             cache[key]=(value,entry_bytes);cache_bytes+=entry_bytes
-            while cache and cache_bytes+sys.getsizeof(cache)>cache_limit:
-                _,(_,removed)=cache.popitem(last=False);cache_bytes-=removed
-                if report is not None:report['cacheEvictions']+=1
-            if not cache and sys.getsizeof(cache)>cache_limit:cache.clear()
+            trim_tap_cache()
             report_cache_size()
 
     def report_cache_size():
@@ -4504,6 +4522,7 @@ def source_native_sampler(points,triangles,uv,neighbours,*,report=None):
                     _,(_,removed)=geometry_cache.popitem(last=False);geometry_bytes-=removed
                     if report is not None:report['geometryCacheEvictions']+=1
                 if not geometry_cache and sys.getsizeof(geometry_cache)>geometry_limit:geometry_cache.clear()
+                trim_tap_cache()
                 report_cache_size()
         return result
 
@@ -4595,7 +4614,7 @@ def source_native_sampler(points,triangles,uv,neighbours,*,report=None):
         nonlocal cache_bytes
         entry['proof']=dict(proof)
         entry_bytes=size(key)+size(entry)+sys.getsizeof((None,0))+sys.getsizeof(0)+128
-        if entry_bytes+sys.getsizeof(cache)>cache_limit:
+        if entry_bytes+sys.getsizeof(cache)>tap_cache_limit():
             if report is not None:report['latticeBudgetFallbacks']+=1
             return None
         # Replacement is one ownership mutation, not a second charge for the key.
@@ -4620,7 +4639,7 @@ def source_native_sampler(points,triangles,uv,neighbours,*,report=None):
                     if requested is None or ordinal in requested}
                 return layouts,dict(entry['proof'],cacheHit=True,nativePointQueries=0)
         if report is not None:report['latticeCacheMisses']+=1
-        if cache_limit:
+        if cache_allowance:
             phase=time.perf_counter()
             entry,layouts,proof=source_native_lattice(points,triangles,neighbours,int(seed),initial,centre,float(spacing),
                 tuple(map(int,grid_shape)),tuple(map(int,half)),requested,unresolved_edges=unresolved_edges)
@@ -4709,7 +4728,7 @@ def source_native_sampler(points,triangles,uv,neighbours,*,report=None):
                 if report is not None:report['latticeCacheHits']+=1
                 return
             y0,y1,x0,x1=bounds
-            if not cache_limit or (y1-y0)*(x1-x0)<=source_filter_budget()['nativeQueries']:return
+            if not cache_allowance or (y1-y0)*(x1-x0)<=source_filter_budget()['nativeQueries']:return
             limits=source_filter_budget()
             preparation_work=limits['workBytes']//8+3*limits['nativeCacheBytes']+limits['nativeWaveBytes']+static_bytes
             if preparation_work+reserved_work_bytes>limits['workBytes']:
@@ -4743,10 +4762,13 @@ def source_native_sampler(points,triangles,uv,neighbours,*,report=None):
                     if key in cache:
                         cache.move_to_end(key)
                         if report is not None:report['cachedBlockReuses']+=1
-                        result={name:value.copy()if isinstance(value,np.ndarray)else value for name,value in cache[key][0].items()}
-                        if report is not None:report['defensiveCopyBytes']+=sum(value.nbytes for value in result.values()if isinstance(value,np.ndarray))
+                        samples=cache[key][0]
+                        rows,cols,weights,outside=(value.copy()for value in samples)
+                        result=dict(firstIndex=first,rows=rows,cols=cols,weights=weights,
+                            resolved=np.ones(count_here,bool),outside=outside)
+                        if report is not None:report['defensiveCopyBytes']+=sum(value.nbytes for value in samples)
                         yield result
-                        del result
+                        del result,samples,rows,cols,weights,outside
                         continue
                     indices=np.arange(first,min(count,first+limit));y=indices//width+y0;x=indices%width+x0
                     values=np.stack(((x-half[0])*spacing+centre[0],(y-half[1])*spacing+centre[1]),axis=1)
@@ -4784,15 +4806,17 @@ def source_native_sampler(points,triangles,uv,neighbours,*,report=None):
                         report['nativeWalkSeconds']+=sample_started-walk_started
                         report['samplerSeconds']+=time.perf_counter()-sample_started
                     del walked,values,ordinary,coordinates,source_y,source_x,source_weight,fan,sample
-                    entry_bytes=size(key)+size(block)+sys.getsizeof((None,0))+sys.getsizeof(0)+128
-                    if cache_limit and entry_bytes+sys.getsizeof(cache)<=cache_limit:
-                        retained={name:value.copy()if isinstance(value,np.ndarray)else value for name,value in block.items()}
-                        for value in retained.values():
-                            if isinstance(value,np.ndarray):value.flags.writeable=False
-                        if report is not None:report['defensiveCopyBytes']+=sum(value.nbytes for value in retained.values()if isinstance(value,np.ndarray))
+                    # The cache key already owns the block position. Resolved
+                    # taps are invariant, so retain only the sampled arrays.
+                    samples=rows,cols,weights,block['outside']
+                    entry_bytes=size(key)+size(samples)+sys.getsizeof((None,0))+sys.getsizeof(0)+128
+                    if cache_allowance and entry_bytes+sys.getsizeof(cache)<=tap_cache_limit():
+                        retained=tuple(value.copy()for value in samples)
+                        for value in retained:value.flags.writeable=False
+                        if report is not None:report['defensiveCopyBytes']+=sum(value.nbytes for value in retained)
                         retain(key,retained,entry_bytes)
                         del retained
-                    del rows,cols,weights,indices,x,y
+                    del samples,rows,cols,weights,indices,x,y
                     yield dict(block)
                     del block
             finally:
@@ -6190,6 +6214,198 @@ def humanoid_face_contact_guard(packet: 'dict[str, Any]', skin: 'dict[str, Any]'
     return art.smooth(distances/radius)
 
 
+
+
+def facial_surface_topology(triangles, groups):
+    _, representatives = np.unique(groups, return_index=True)
+    triangles = groups[triangles]
+    triangles = triangles[np.all(triangles != np.roll(triangles, 1, axis=1), axis=1)]
+    edges = np.sort(np.concatenate((triangles[:, :2], triangles[:, 1:], triangles[:, ::2])), axis=1)
+    edges, incidence = np.unique(edges, axis=0, return_counts=True)
+    return representatives, triangles, edges, np.unique(edges[incidence != 2])
+
+
+def facial_surface_mobility(groups, ownership, count, boundary):
+    mobility = np.ones(count)
+    np.minimum.at(mobility, groups, ownership)
+    mobility[boundary] = 0.
+    return mobility
+
+
+def fair_facial_surface(reference, topology, groups, ownership, normal_limit, steps):
+    """Fair the facial shell along its normals on the welded source topology."""
+    representatives, triangles, edges, boundary = topology
+    if not len(edges):
+        return reference
+    surface = reference[representatives].copy()
+    count = len(surface)
+    # Treat UV splits as one surface and leave open rims anchored.
+    mobility = facial_surface_mobility(groups, ownership, count, boundary)
+    start, end = np.concatenate((edges, edges[:, ::-1])).T
+    length = np.linalg.norm(surface[end] - surface[start], axis=1)
+    weight = 1. / np.maximum(length, np.median(length) * .4)
+    summed = np.bincount(start, weights=weight, minlength=count)
+    summed[summed == 0.] = 1.
+
+    base = surface.copy()
+    for step in steps:
+        local = surface[triangles]
+        triangle_normals = np.cross(local[:, 1] - local[:, 0], local[:, 2] - local[:, 0])
+        normals = np.zeros_like(surface)
+        np.add.at(normals, triangles.ravel(), np.repeat(triangle_normals, 3, axis=0))
+        normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1.e-16)
+        differences = (surface[end] - surface[start]) * weight[:, None]
+        mean = np.column_stack([np.bincount(start, weights=axis, minlength=count) for axis in differences.T])
+        along_normal = np.einsum('ij,ij->i', mean, normals) / summed
+        surface += (step * mobility * along_normal)[:, None] * normals
+
+    offset = surface - base
+    length = np.linalg.norm(offset, axis=1)
+    offset *= np.minimum(1., normal_limit / np.maximum(length, 1.e-16))[:, None]
+    return reference + offset[groups]
+
+
+def lower_face_region(points, eyes, mouth, height):
+    """Select the lateral cheek, mandibular turn and chin on each source face."""
+    eye_centre = (eyes[0] + eyes[1]) * .5
+    eye_spacing = max(abs(eyes[1][0] - eyes[0][0]), height)
+    lateral = art.smooth((np.abs(points[:, 0] - eye_centre[0]) / eye_spacing - .34) / .28)
+    below_lip = art.smooth(((mouth[2] - points[:, 2]) / height - .22) / .35)
+    below_eye = art.smooth(((eye_centre[2] - points[:, 2]) / height - .32) / .36)
+    above_neck = art.smooth(((points[:, 2] - mouth[2]) / height + 1.25) / .45)
+    in_front = art.smooth(((mouth[1] - points[:, 1]) / height + 1.6) / .7)
+    return np.maximum(lateral, below_lip) * below_eye * above_neck * in_front
+
+
+def fair_mandibular_contours(points, topology, groups, mobility, eyes, mouth, height, limit):
+    """Reduce short dents and protrusions along the lower face in several views."""
+    vertices, _, edges, boundary = topology
+    surface = points[vertices]
+    ownership = facial_surface_mobility(groups, mobility, len(surface), boundary)
+    edges = edges[np.max(ownership[edges], axis=1) > 0.]
+    if not len(edges):
+        return points
+    first, second = surface[edges].transpose(1, 0, 2)
+    rise = second[:, 2] - first[:, 2]
+    yaw = np.linspace(-np.pi / 2., np.pi / 2., 5)
+    directions = np.column_stack((np.sin(yaw), -np.cos(yaw)))
+    # Sampling in anatomical units keeps the same contour filter across head sizes.
+    heights = mouth[2] + height * np.linspace(-1.25, .7, 49)
+    envelope = np.full((len(heights), len(directions)), np.nan)
+    for index, level in enumerate(heights):
+        crossing = (rise != 0.) & ((first[:, 2] <= level) != (second[:, 2] <= level))
+        at = (level - first[crossing, 2]) / rise[crossing]
+        cut = first[crossing] + at[:, None] * (second[crossing] - first[crossing])
+        cut_weight = np.sum(ownership[edges[crossing]] * np.column_stack((1. - at, at)), axis=1)
+        visible = lower_face_region(cut, eyes, mouth, height) * cut_weight > .2
+        if np.any(visible):
+            envelope[index] = np.max(cut[visible, :2] @ directions.T, axis=0)
+
+    # This filter preserves quadratic profiles and damps isolated changes in slope.
+    # Leave the ends of each continuous section anchored at the original contour.
+    windows = np.lib.stride_tricks.sliding_window_view(envelope, 5, axis=0)
+    complete = np.all(np.isfinite(windows), axis=2)
+    kernel = np.array([-3., 12., 17., 12., -3.]) / 35.
+    correction = np.zeros_like(envelope)
+    correction[2:-2] = np.where(complete, windows @ kernel - envelope[2:-2], 0.)
+    correction = np.clip(correction, -limit, limit)
+
+    projected = surface[:, :2] @ directions.T
+    delta = np.zeros_like(surface)
+    support = np.zeros(len(surface))
+    for axis, direction in enumerate(directions):
+        contour = np.interp(surface[:, 2], heights, envelope[:, axis], left=np.nan, right=np.nan)
+        adjustment = np.interp(surface[:, 2], heights, correction[:, axis], left=0., right=0.)
+        proximity = np.where(np.isfinite(contour), art.smooth(1. - (contour - projected[:, axis]) / (height * .22)), 0.)
+        delta[:, :2] += (proximity * adjustment)[:, None] * direction
+        support += proximity
+    region = lower_face_region(surface, eyes, mouth, height)
+    delta *= (region * ownership / np.maximum(support, 1.))[:, None]
+    return points + delta[groups]
+
+
+def fair_assembled_face(native, assembled, skin, strength, collar_vertices, *, marks=None):
+    """Smooth the saved head while keeping its fitted anatomy and morph deltas."""
+    transform = art.CONVERT @ art.matrix(skin['rendererToPrefab'])
+    reference = np.asarray(assembled['vertices'], dtype=float).reshape(-1, 3)
+    points = art.points(assembled['vertices'], transform)
+    count = native['vertexCount']
+    require(0 < count <= len(reference), 'The assembled face lost its native vertex prefix.')
+    triangles = np.concatenate([np.asarray(slot, dtype=np.int64).reshape(-1, 3) for slot in assembled['subMeshes']])
+    groups = art.weld_groups(points)
+    if marks is None:
+        _, _, marks = art.landmarks(native, skin, transform)
+    eyes, mouth = (marks['left'], marks['right']), marks['mouth']
+    head_bones = ['head' if name and ('bip001 head' in name.lower().split('/') or
+                  name.lower().rsplit('/', 1)[-1] == 'bip001 jaw') else '' for name in skin['bones']]
+    head = anatomy_influence(native, head_bones, ('head',))
+    mobility = np.r_[strength * art.smooth((head - .2) / .65), np.ones(len(reference) - count)]
+    lower_face = np.zeros(len(reference))
+    if mouth is not None and all(eye is not None for eye in eyes):
+        height = max(abs(((eyes[0] + eyes[1]) * .5 - mouth)[2]), 1e-6)
+        lower_face = lower_face_region(points, eyes, mouth, height)
+        mobility *= art.smooth((points[:, 2] - mouth[2] + height * 1.4) / (height * .65))
+        protected = np.unique(points[:count][strength == 0.], axis=0)
+        if len(reference) > count and len(protected):
+            contact_distance = np.concatenate([
+                np.linalg.norm(chunk[:, None] - protected, axis=2).min(axis=1)
+                for chunk in np.array_split(points[count:], 1 + (len(reference) - count) // 256)])
+            mobility[count:] *= art.smooth(contact_distance / (height * .12))
+    else:
+        mobility[count:] = 0.
+    mobility[list(collar_vertices)] = 0.
+    selected = mobility > 0.
+    if not np.any(selected):
+        return assembled, dict(fairedVertices=0, preservedMorphDeltas=True)
+    limit = .015 * float(np.linalg.norm(np.ptp(points[selected], axis=0)))
+    topology = facial_surface_topology(triangles, groups)
+    # Continue the mandibular turn across abrupt facet changes while limiting
+    # the displacement to the source face's own scale and articulation mask.
+    target = fair_facial_surface(points, topology, groups, mobility, limit, (.52, -.54, .52, -.54))
+    if np.any(lower_face * mobility):
+        jaw_limit = min(limit, height * .055)
+        target = fair_facial_surface(target, topology, groups, mobility * lower_face, jaw_limit,
+                                     (.62, .62, .54, -.28))
+        target = fair_mandibular_contours(target, topology, groups, mobility, eyes, mouth, height, jaw_limit)
+    offset = (target - points) @ np.linalg.inv(transform[:3, :3]).T
+    # A single displacement field is shared by the rest and every authored
+    # expression. Limit individual welded groups against the whole pose set.
+    poses = [reference]
+    for shape in assembled['shapes']:
+        for frame in shape['frames']:
+            delta = np.asarray(frame['vertices'], dtype=float).reshape(-1, 3)
+            if np.any(delta):
+                poses.append(reference + delta)
+    while True:
+        rejected = np.zeros(len(reference), dtype=bool)
+        for pose in poses:
+            fitted, proof = preserve_surface_orientation(pose, pose + offset, triangles, transform, groups=groups)
+            if proof['surfaceScaleFactor'] < 1.:
+                rejected |= np.any(fitted != (pose + offset).astype(np.float32), axis=1)
+        if not np.any(rejected):
+            break
+        offset[np.isin(groups, np.unique(groups[rejected]))] = 0.
+
+    position = (reference + offset).astype(np.float32)
+    changed_groups = np.unique(groups[np.any(position != reference, axis=1)])
+    changed = np.isin(groups, changed_groups)
+    if not np.any(changed):
+        return assembled, dict(fairedVertices=0, preservedMorphDeltas=True)
+    frame_vertices = np.unique(triangles[np.any(changed[triangles], axis=1)])
+    update = np.zeros(len(reference), dtype=bool)
+    update[frame_vertices] = mobility[frame_vertices] > 0.
+    normals = np.asarray(assembled['normals'], dtype=float).reshape(-1, 3)
+    tangents = np.asarray(assembled['tangents'], dtype=float).reshape(-1, 4)
+    normal, tangent = surface_basis(reference, position, normals, tangents, triangles, transform, mobility, False)
+    result = copy.deepcopy(assembled)
+    result['vertices'] = position.ravel().tolist()
+    result['normals'] = np.where(update[:, None], normal, normals).astype(np.float32).ravel().tolist()
+    result['tangents'] = np.where(update[:, None], tangent, tangents).astype(np.float32).ravel().tolist()
+    result['sourceFingerprint'] = fingerprint(result)[0]
+    result['bounds'] = physical_mesh_bounds(result)
+    return result, dict(fairedVertices=int(changed.sum()), lowerFaceVertices=int(np.count_nonzero(changed & (lower_face > .5))),
+        preservedMorphDeltas=True, authoredPoses=len(poses),
+        maximumDisplacementMm=float(np.max(np.linalg.norm(offset @ transform[:3, :3].T, axis=1)) * 1000))
 
 
 def transport_prepared_surface(reference,target,native_count,triangles,protected,graph=None):

@@ -14,6 +14,24 @@ namespace SolastaUnfinishedBusiness.Models;
 public static class PortraitsContext
 {
     private static readonly ConditionalWeakTable<CharacterViewport, Transform> ViewportFramingTargets = new();
+    private static readonly ConditionalWeakTable<GraphicsCharacter, HashSet<Component>> ViewportClothResets = new();
+
+    internal static void PrepareViewportClothForRotation(GraphicsCharacter graphics)
+    {
+        if (!graphics) return;
+
+        // A hairstyle or outfit can replace cloth owners while the viewport is open.
+        var changed = ViewportClothResets.GetValue(graphics, static _ => []);
+        CustomModels.SkinMeshSource.SourceGraph.EnableTurntableClothReset(graphics.gameObject, changed);
+    }
+
+    internal static void ReleaseViewportCloth(GraphicsCharacter graphics)
+    {
+        if (!graphics || !ViewportClothResets.TryGetValue(graphics, out var changed)) return;
+
+        ViewportClothResets.Remove(graphics);
+        CustomModels.SkinMeshSource.SourceGraph.RestoreTurntableClothReset(changed);
+    }
 
     internal static void UnbindViewportForRebind(CharacterViewport viewport, bool unbindAll)
     {

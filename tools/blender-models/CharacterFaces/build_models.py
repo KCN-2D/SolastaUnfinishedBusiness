@@ -2597,7 +2597,8 @@ def validate_groom_material_defaults(receipt):
         if sha(reference['path'])!=reference['sha256']:raise ValueError('A groom material preset input changed.')
     with tempfile.TemporaryDirectory(prefix='groom-preset-',dir=Path(receipt['target']['path']).parent)as directory:
         replay=resources.retune_groom_defaults(dict(source=receipt['source']['path'],sha256=receipt['source']['sha256'],
-            target=str(Path(directory)/'saved.bundle'),before=receipt['beforePreset'],after=receipt['afterPreset']))
+            target=str(Path(directory)/'saved.bundle'),before=receipt['beforePreset'],after=receipt['afterPreset'],
+            materializeInheritedDefaults=receipt.get('materializeInheritedDefaults',False)))
         if not replay['changed']or replay['sha256']!=receipt['sha256']or replay['materialFloatUpdates']!=receipt['materialFloatUpdates']:
             raise ValueError('A groom material changed beyond its matching previous defaults.')
 
@@ -2658,7 +2659,8 @@ def validate_prepared_resource(row,assembly,verified):
         if operations[:len(original_operations)]!=original_operations:
             raise ValueError('A resource refinement lost its preceding operation chain.')
         added_objects=sum(len(document(operation['proof']).get('objectsAdded',[]))for operation in operations[len(original_operations):]
-                          if operation.get('kind')in('compiled-material-texture-bindings','source-skin-material-bindings','source-skin-interface','source-owned-groom-surface'))
+                          if operation.get('kind')in('compiled-material-texture-bindings','source-skin-material-bindings',
+                              'source-skin-interface','source-covered-skin-material','source-owned-groom-surface'))
         expected_objects=original.get('objects')
         if added_objects:
             if type(expected_objects)is not int:raise ValueError('A material texture refinement has no source object count.')
@@ -2856,12 +2858,12 @@ def validate_prepared_resource(row,assembly,verified):
                 for reference in job['inputs']:pinned(reference)
                 validate_source_skin_finish(operation)
                 expected=operation['sha256']
-            elif kind=='source-skin-material-bindings':
+            elif kind in ('source-skin-material-bindings','source-covered-skin-material'):
                 receipt=document(operation['proof'])
                 if operation['beforeSha256']!=expected or receipt['beforeSha256']!=expected or receipt['sha256']!=operation['sha256']:
                     raise ValueError('A source skin material lost its preceding resource owner.')
                 for pin in operation.get('pigmentInputs',[]):pinned(pin)
-                for reference in operation['fields']:
+                for reference in operation.get('fields',[]):
                     field=document(reference);key=('validated-source-skin-field',reference['sha256'])
                     if key not in verified:
                         for pin in document(field['inputPlan'])['inputs']:pinned(pin)
@@ -5155,7 +5157,8 @@ def face_resource_profile_authority(proof,documents=None):
     raise ValueError('A face resource has no retained guide declaration.')
 
 
-def prepare_resource_faces(source,index_path,output,census_path,*,selected_assets=(),profiles_path=None,restore_native_only=False,previous_profiles_path=None):
+def prepare_resource_faces(source,index_path,output,census_path,*,selected_assets=(),profiles_path=None,
+        restore_native_only=False,previous_profiles_path=None,fair_current=False):
     """Finish all native face resources and their shared Main fields in one catalog."""
     from functools import lru_cache
     import inspect
@@ -5164,8 +5167,8 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
     owner=sys.modules[__name__];shape,_=source_owner();read=resources.read;sha=resources.digest
     census=read(census_path);native_index=read(index_path)
     parts={part['asset'].casefold():row['file']for row in native_index['bundles']for part in row.get('parts',[])}
-    if (profiles_path is None)==(not restore_native_only):
-        raise ValueError('Select source face profiles or explicit native anatomy recovery.')
+    if sum((profiles_path is not None, restore_native_only, fair_current))!=1:
+        raise ValueError('Select source face profiles, native recovery or assembled contour fairing.')
     guide_assets={};guide_owners={};previous_assets={}
     same_profiles=profiles_path is not None and previous_profiles_path is not None and sha(profiles_path)==sha(previous_profiles_path)
     if profiles_path is not None:
@@ -5207,6 +5210,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
         names=sorted({row['file']for row in coverage if row['file']and row['name']in selected})
     styled={parts[asset['internalId'].casefold()]for asset in (guide_assets.values() if profiles_path is not None else humanoid_sources(census))}
     if previous_profiles_path is not None:names=sorted(styled)
+    if fair_current:names=[name for name in names if name in styled]
     pins=[dict(path=str(Path(path).resolve()),sha256=sha(path))for path in (
         index_path,census_path,shape.__file__,shape.art.__file__,__file__,resources.__file__,
         Path(__file__).with_name('resource-package.json'+('.source'if Path(__file__).suffix=='.source'else'')))]
@@ -5214,7 +5218,8 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
     if profiles_path is not None:pins.append(dict(path=str(Path(profiles_path).resolve()),sha256=sha(profiles_path)))
     if previous_profiles_path is not None:pins.append(dict(path=str(Path(previous_profiles_path).resolve()),sha256=sha(previous_profiles_path)))
     def strength_field(packet,skin,styled_face):
-        guard=shape.humanoid_face_contact_guard(packet,skin)
+        contacts=('b_eye_','b_eyelid_','b_lip_','b_nostril_')if fair_current else ('b_eye_','b_eyelid_','b_lip_')
+        guard=shape.humanoid_face_contact_guard(packet,skin,contact_bone_prefixes=contacts)
         return np.minimum(shape.face_surface_strength(packet,skin),guard)if styled_face else np.ones(packet['vertexCount'])
     source=checked_catalog_path(source);output=checked_catalog_path(output)
     if not output.is_relative_to(ROOT/'tools')or output==source:raise ValueError('Appearance output must be an independent tools workspace.')
@@ -5240,7 +5245,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
             def owned(rows):return {p['source']['rendererPath']:p for p in rows if p['source']['assetSourceContentKey']==key}
             if not owned(supplied)or owned(supplied)!=owned(retained[authority['sha256']]):
                 raise ValueError('The previous guide differs from its completed resource authority: '+asset['name'])
-    else:
+    elif not fair_current:
         proofs={row['file']:row for row in assembly['proofs']}
         if any(resource_has_face_guide(proofs[name])for name in styled):
             raise ValueError('An already sculpted source requires its completed previous face profiles.')
@@ -5248,7 +5253,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
     checkpoint=output/'GeometryPreparation.json'
     # A guide revision publishes its geometry directly. The pigment workflow
     # owns a separate checkpoint because it replaces bundles after this stage.
-    geometry_catalog=target if previous_profiles_path is not None else output/'GeometryCatalog'
+    geometry_catalog=target if previous_profiles_path is not None or fair_current else output/'GeometryCatalog'
     face_code=inspect.getsource(prepare_resource_faces)
     shape_code=face_code[:face_code.index('\n    source=checked_catalog_path(source)')]+face_code[face_code.index('\n    @lru_cache'):face_code.index("\n    for row in manifest['bundles']:row['sha256']=old_proofs")]
     functions=(export_current_mesh,source_owner,resources.write_mesh_frame)
@@ -5256,6 +5261,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
     geometry_owner: dict[str,Any]=dict(sourceCatalogSha256=sha(catalog/RESOURCE_FILES['manifest']),sourceAssemblySha256=sha(source/'ResourceAssembly.json'),inputs=pins,codeSignature=signature,nativeContours=True,selectedAssets=sorted(selected_assets),faceMode='native-recovery'if restore_native_only else'source-guide')
     if profiles_path is not None:geometry_owner['sourceProfiles']=dict(path=str(Path(profiles_path).resolve()),sha256=sha(profiles_path))
     if previous_profiles_path is not None:geometry_owner['faceMode']='source-guide-revision'
+    if fair_current:geometry_owner['faceMode']='assembled-contour-fairing'
     if checkpoint.exists():
         saved=read(checkpoint)
         if saved['owner']!=geometry_owner:raise ValueError('The saved geometry belongs to different source inputs or shape code.')
@@ -5336,7 +5342,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
         if any(not np.allclose(matrices[0],m,rtol=0,atol=1e-6)for m in matrices[1:]):
             raise ValueError('Shared face renderers have different coordinate domains: '+file_name)
         return dict(skin,rendererToPrefab=candidates[0]['rendererToPrefab'])
-    def save(file_name,objects,kind,facts,additions=None):
+    def save(file_name,objects,kind,facts,additions=None,*,simulation=None):
         env,file=resources.load_serialized_bundle(target/file_name,in_memory=True)
         additions=additions or {};original_ids=set(file.objects)
         if set(additions)&original_ids:raise ValueError('A private face mesh collides with an existing resource object.')
@@ -5367,13 +5373,16 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
         proof['allRetainedObjectFieldsExactAfterReferenceRebasing']=False
         authority=dict(inputs=pins)
         if kind=='source-owned-face'and profiles_path is not None:authority['sourceProfiles']=geometry_owner['sourceProfiles']
-        proof.setdefault('appearanceFinishing',[]).append(dict(kind=kind,objects=list(objects),facts=facts,beforeSha256=before_sha,sha256=proof['sha256'],authority=authority,
+        operation=dict(kind=kind,objects=list(objects),facts=facts,beforeSha256=before_sha,sha256=proof['sha256'],authority=authority,
             unrelatedObjectBytesExact=True,savedObjectBytesExact=True,cabAndExternalReferencesUnchanged=True,
-            objectsAdded=sorted(additions)))
+            objectsAdded=sorted(additions))
+        if simulation:operation['surfaceCloth']=simulation
+        proof.setdefault('appearanceFinishing',[]).append(operation)
     completed={};texture_jobs={};reports=[];failures=[]
     for file_name in names:
         row=by_file[file_name];nf=native(row['cab']);cf=current(next(cab for cab,name in current_cabs.items()if name==file_name))
         edits={};facts=[];donors={};private_meshes={};private_bindings=[]
+        face_surfaces={}
         for identifier,renderer in nf.objects.items():
             if renderer.type.name!='SkinnedMeshRenderer'or identifier not in cf.objects:continue
             nr=renderer.read_typetree();resolved=resolve(nf,nr['m_Mesh'],True)
@@ -5403,6 +5412,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
                 if matching:donor=matching[0]
             facial|=donor is not None and any(m and 'Skin'in m['shader']for m in materials)
             companion=any(token in skin['mesh'].lower()for token in ('eyes','eyelash','occluder','jaw','teeth','tongue'))
+            if fair_current and companion:continue
             if not facial and not companion:continue
             if not any(m and ('Skin'in m['shader']or'CharacterEye'in m['shader'])for m in materials)and not companion:continue
             key=(current_cabs[cfile.name],cobj.path_id)
@@ -5435,9 +5445,15 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
                     contacts={pair[0]for operation in old_proofs[key[0]].get('appearanceFinishing',[])
                               for fact in operation.get('facts',[]) if isinstance(fact,dict) and fact.get('object')==cobj.path_id
                               for pair in fact.get('vertexPairs',[])}
-                    packet,proof=shape.refine_native_face_contours(npacket,cpacket,context,marks,contacts,
-                        refined=guided['authored']if guided else None,guide_report=guided['details']if guided else None,
-                        previous_refined=previous_guided['authored']if previous_guided else None)
+                    if fair_current:
+                        if marks:
+                            low_guard=shape.humanoid_face_contact_guard(npacket,context,marks['eyeContactRegions'])
+                            strength=np.minimum(strength,low_guard)
+                        packet,proof=shape.fair_assembled_face(npacket,cpacket,context,strength,contacts,marks=marks)
+                    else:
+                        packet,proof=shape.refine_native_face_contours(npacket,cpacket,context,marks,contacts,
+                            refined=guided['authored']if guided else None,guide_report=guided['details']if guided else None,
+                            previous_refined=previous_guided['authored']if previous_guided else None)
                 elif guided is not None:
                     if previous_guided is not None:
                         packet,proof=shape.refine_native_face_contours(npacket,cpacket,source_context(file_name,skin),
@@ -5453,6 +5469,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
             stable=('uv','weights','boneIndices','bindPoses','subMeshes','vertexCount','indexFormat','colors')
             def frame_identity(value):return [(item['index'],item['name'],[frame['weight']for frame in item['frames']])for item in value['shapes']]
             exact=all(packet[field]==cpacket[field]for field in stable)and frame_identity(packet)==frame_identity(cpacket)
+            if fair_current:exact &= packet['shapes']==cpacket['shapes']
             if not exact:raise ValueError('An authored face changed retained UV, skin, topology or frame identities: '+file_name+'/'+skin['mesh'])
             proof['sourceSkinUvAndFrameIdentityExact']=True
             if not companion:
@@ -5461,7 +5478,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
                 ocular=np.any(ocular_bones[bone_indices]&(bone_weights>0),axis=1)
                 errors=[]
                 for field,width in (('vertices',3),('normals',3),('tangents',4)):
-                    before=np.asarray(npacket[field]).reshape(-1,width)[ocular]
+                    before=np.asarray((cpacket if fair_current else npacket)[field][:npacket['vertexCount']*width]).reshape(-1,width)[ocular]
                     after=np.asarray(packet[field][:npacket['vertexCount']*width]).reshape(-1,width)[ocular]
                     errors.append(float(np.max(np.abs(before-after)))if len(before)else 0.)
                 if explicit:
@@ -5473,7 +5490,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
                         errors.append(float(np.max(np.abs(before-after)))if len(before)else 0.)
                     proof['explicitOcularGuideVertices']=int(np.count_nonzero(owned))
                 if max(errors)>1e-6:raise ValueError('An authored face changed its protected ocular channels: '+file_name+'/'+skin['mesh'])
-                proof['nativeOcularChannelsWithinTolerance']=True
+                proof['assembledOcularChannelsWithinTolerance'if fair_current else'nativeOcularChannelsWithinTolerance']=True
                 proof['guardedOcularVertices']=int(ocular.sum())
                 proof['maximumOcularChannelError']=max(errors)
             completed[completed_key]=npacket['sourceFingerprint']
@@ -5496,6 +5513,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
                             source=dict(file=key[0],object=key[1]),onlyDeclaredRendererRebound=True),rendererBounds=bounds)
                         facts.append(dict(name=skin['mesh'],**proof));continue
                 changes={key[1]:mesh}
+                simulation=[]
                 if not companion:
                     resolve_owned=lambda file,pointer:required_resolve(file,pointer,False)
                     bounds=[]
@@ -5507,9 +5525,15 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
                         changes[renderer.path_id],bound=resources.extend_skin_bone_palette(cf,tree,bones,bones,packet=packet)
                         bounds.append(dict(renderer=renderer.path_id,**bound))
                     proof['rendererBounds']=bounds
+                    surface=(cpacket,packet,shape.art.matrix(context['rendererToPrefab']),{})
+                    if key[0]==file_name:
+                        face_surfaces[key[1]]=surface
+                    else:
+                        physics,simulation=rebuild_surface_cloth(cfile,{key[1]:surface})
+                        changes.update(physics)
                 if key[0]==file_name:edits.update(changes);facts.append(dict(name=skin['mesh'],**proof))
-                else:save(key[0],changes,'source-owned-face',dict(name=skin['mesh'],**proof))
-            if not companion:
+                else:save(key[0],changes,'source-owned-face',dict(name=skin['mesh'],**proof),simulation=simulation)
+            if not companion and not fair_current:
                 for material_index,pointer in enumerate(cr['m_Materials']):
                     if not pointer['m_PathID']:continue
                     mf,mo=required_resolve(cf,pointer,False);mt=mo.read_typetree();textures=dict(mt['m_SavedProperties']['m_TexEnvs'])
@@ -5534,7 +5558,12 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
             metadata=[obj for obj in cf.objects.values()if obj.type.name=='AssetBundle']
             if len(metadata)!=1:raise ValueError('A private face mesh has no unique prefab preload owner.')
             edits[metadata[0].path_id]=resources.resource_asset_preloads(cf,metadata[0].read_typetree(),private_bindings)
-        if edits:save(file_name,edits,'source-owned-face',facts,private_meshes)
+        simulation=[]
+        if face_surfaces:
+            physics,simulation=rebuild_surface_cloth(cf,face_surfaces)
+            edits.update(physics)
+        if edits:save(file_name,edits,'assembled-contour-fairing'if fair_current else'source-owned-face',
+                      facts,private_meshes,simulation=simulation)
         reports.append(dict(file=file_name,meshes=len(facts)))
         print('Finished face:',file_name,len(facts),flush=True)
     if failures:
@@ -6443,7 +6472,7 @@ def observed_garment_surfaces(capture, selected, layers=frozenset(), *, layer_re
                     continue
                 pair = mesh['renderer'], part['renderer']
                 family = tuple(re.sub(r'_LOD\d+$', '', name, flags=re.IGNORECASE) for name in pair)
-                matches = layers.intersection((pair, family, pair[::-1], family[::-1]))
+                matches = layers.intersection((pair, family))
                 if not matches:
                     continue
                 outside_reference, inside_reference = map(reference_surface, (part, mesh))
@@ -6570,8 +6599,11 @@ def write_posed_garments(args, source, output):
                                              frame=resources.renderer_frame(renderer, resolve))
             entry = entries[mesh.path_id]
             bones = resources.skin_bone_paths(file, tree, resolve)
-            target, count = production.fit_posed_garment(entry['native'], part, skin, bones, entry['frame'],
-                clearance=args.clearance, maximum_offset=args.maximum_offset, previous=entry['target'])
+            try:
+                target, count = production.fit_posed_garment(entry['native'], part, skin, bones, entry['frame'],
+                    clearance=args.clearance, maximum_offset=args.maximum_offset, previous=entry['target'])
+            except ValueError as error:
+                raise ValueError(f'Could not fit {part["renderer"]} from {pose_path}: {error}') from error
             entry['target'] = target
             seen_layers.update(part['fittedLayers'])
             observation = dict(source=pose_pin, equipment=address, renderer=part['renderer'],
@@ -6975,11 +7007,11 @@ def compact_skin_interface_inputs(path,output):
 
 
 def observed_skin_interface(context,documents):
-    """Use a displayed body owner; covered and absent bodies are not cut donors."""
+    """Identify the torso that actually owns the visible character."""
     reference=context.get('display')
     if reference is None:
         if context.get('kind')=='actual-npc-presentation':raise ValueError('An actual NPC interface requires its native clothing observation.')
-        return True
+        return 'shape'
     key=(reference['path'],reference['sha256'])
     if key not in documents:
         if sha(reference['path'])!=reference['sha256']:raise ValueError('The skin-interface display observation changed.')
@@ -6993,10 +7025,67 @@ def observed_skin_interface(context,documents):
     same=lambda a,b:a.removeprefix('UB/CharacterResources/')==b.removeprefix('UB/CharacterResources/')
     if parts['Head'].get('present')is not True or not same(parts['Head']['key'],context['head']):
         raise ValueError('The observed skin interface belongs to another head.')
-    if parts['Body'].get('present')is False:return False
+    if parts['Body'].get('present')is False:
+        if any(armor['slot']=='Body' and armor.get('present')is True and
+               same(armor['source'],context['body']) for armor in actor.get('armorSources',[])):
+            return 'armor'
+        return None
     if parts['Body'].get('present')is not True or not same(parts['Body']['key'],context['body']):
         raise ValueError('The observed skin interface has no matching visible body.')
-    return True
+    return 'shape'
+
+
+def restore_covered_skin_fields(source,output,proof,head,bodies,displays):
+    """Recover the head's own textures when an earlier cut used a hidden body."""
+    import character_resources as resources
+    interfaces=[row for row in proof.get('appearanceFinishing',[])if row['kind']=='source-skin-interface']
+    if not interfaces:return False
+    interface=interfaces[-1]['proof']
+    def pinned_document(pin):
+        if sha(checked_source_path(pin['path']))!=pin['sha256']:
+            raise ValueError('A retained skin-interface decision changed.')
+        return read(pin['path'])
+    decision=pinned_document(interface)
+    plan=decision['inputPlan'];previous=pinned_document(plan)
+    if previous['head']!=head or previous['body']in bodies or not decision['binding']:return False
+    binding=decision['binding'];textures={row['object']:row for row in binding['textures']}
+    name=proof['file'];original=source/'Catalog'/name;target=output/'Catalog'/name
+    _,resource=resources.load_serialized_bundle(original,in_memory=True)
+    recover=[];checked={}
+    for row in binding['materialUpdates']:
+        if row['before']['m_PathID']==0 or row['after']['m_FileID']!=0:continue
+        material=resource.objects.get(row['pathId'])
+        if material is None:continue
+        material=material.read_typetree()
+        pointer=dict(material['m_SavedProperties']['m_TexEnvs']).get(row['property'],{}).get('m_Texture')
+        if pointer!=row['after']:continue
+        identifier=pointer['m_PathID'];texture=textures[identifier]
+        if identifier not in checked:
+            checked[identifier]=hashlib.sha256(bytes(resource.objects[identifier].read().get_image_data())).hexdigest()
+        if checked[identifier]!=texture['payloadSha256']:continue
+        # The previous binding's source retains the character's own channel and all its mips.
+        authority={key:value for key,value in texture['source'].items()if key!='mips'}
+        recover.append(dict(pathId=row['pathId'],property=row['property'],before=pointer,texture=authority))
+    if not recover:return False
+    before=proof['sha256'];path=output/'Receipts'/(name+'.covered.json')
+    if path.is_file():
+        receipt=read(path)
+        resources.validate_owned_material_textures(receipt)
+        clones={row['object']:row['source']for row in receipt['textures']}
+        existing=[dict(pathId=row['pathId'],property=row['property'],before=row['before'],
+            texture=clones[row['after']['m_PathID']])for row in receipt['materialUpdates']]
+        if receipt['beforeSha256']!=before or receipt['target']['path']!=str(target.resolve())or existing!=recover:
+            raise ValueError('A restored skin material belongs to another covered interface.')
+    else:
+        receipt=resources.replace_owned_material_textures(original,before,target,recover)
+        write(path,receipt)
+    proof.update(sha256=receipt['sha256'],bytes=receipt['bytes'],objects=proof['objects']+len(receipt['objectsAdded']),
+                 allRetainedObjectFieldsExactAfterReferenceRebasing=False)
+    proof['appearanceFinishing'].append(dict(kind='source-covered-skin-material',beforeSha256=before,
+        sha256=receipt['sha256'],proof=dict(path=str(path.resolve()),sha256=sha(path)),
+        pigmentInputs=[interface,plan,*displays]))
+    print('Restored skin channels from before the hidden torso cut:',name,len(recover),flush=True)
+    return proof
 
 
 def prepare_skin_interfaces():
@@ -7032,10 +7121,13 @@ def prepare_skin_interfaces():
         if not archive.exists():archive.write_bytes(path.read_bytes())
         pins.append(pin(archive))
     by_source={r['source']:r for r in manifest['resources']};tasks=[];unique={};catalog=output/'Catalog';catalog.mkdir(exist_ok=True)
-    contexts=read(args.contexts)['rows'];documents={};visible=[];covered=[]
+    contexts=read(args.contexts)['rows'];documents={};visible=[];covered=[];armor={}
     for context in contexts:
-        if observed_skin_interface(context,documents):visible.append(context)
-        else:covered.append(dict(fixture=context['fixture'],head=context['head']))
+        owner=observed_skin_interface(context,documents)
+        if owner=='shape':visible.append(context)
+        else:
+            covered.append(dict(fixture=context['fixture'],head=context['head']))
+            if owner=='armor':armor.setdefault(context['head'].removeprefix('UB/CharacterResources/'),[]).append(context)
         if context.get('display')and context['display']not in pins:pins.append(context['display'])
     for context in visible:
         head=context['head'].removeprefix('UB/CharacterResources/');body=context['body'].removeprefix('UB/CharacterResources/')
@@ -7057,7 +7149,21 @@ def prepare_skin_interfaces():
             else:write(path,job)
         else:write(path,job)
         job['inputPlan']=pin(path);tasks.append(job)
-    selected={job['file']for job in tasks}
+    selected={job['file']for job in tasks};restored=[]
+    if armor:
+        with ProcessPoolExecutor(max_workers=args.workers,max_tasks_per_child=8)as pool:
+            pending={}
+            for head,owners in armor.items():
+                if head in unique:continue
+                bodies={owner['body'].removeprefix('UB/CharacterResources/')for owner in owners}
+                displays=list({(owner['display']['path'],owner['display']['sha256']):owner['display']for owner in owners}.values())
+                name=by_source[head]['bundles'][0]['file']
+                if name in pending:raise ValueError('A covered skin bundle has conflicting head owners.')
+                pending[name]=pool.submit(restore_covered_skin_fields,source,output,proofs[name],head,bodies,displays)
+            for name,task in pending.items():
+                result=task.result()
+                if result:
+                    proofs[name].update(result);selected.add(name);restored.append(name)
     for row in manifest['bundles']:
         if row['file']not in selected and not(catalog/row['file']).exists():(catalog/row['file']).hardlink_to(source/'Catalog'/row['file'])
     failures=[];precision_review=[]
@@ -7079,7 +7185,8 @@ def prepare_skin_interfaces():
     write(catalog/RESOURCE_FILES['manifest'],manifest)
     assembly.update(catalogSha256=sha(catalog/RESOURCE_FILES['manifest']),bytes=sum(p['bytes']for p in proofs.values()),artAccepted=False,
         preparedSource=dict(assembly=pin(source/'ResourceAssembly.json'),catalog=pin(source/(Path('Catalog')/RESOURCE_FILES['manifest']))),
-        skinInterfaces=dict(contexts=pin(args.contexts),resources=len(tasks),coveredBodyContexts=covered,precisionReview=precision_review,review='pending'))
+        skinInterfaces=dict(contexts=pin(args.contexts),resources=len(tasks),coveredBodyContexts=covered,
+            restoredCoveredMaterials=restored,precisionReview=precision_review,review='pending'))
     write(output/'ResourceAssembly.json',assembly);print('Prepared skin interfaces:',len(tasks),flush=True)
 
 
@@ -7089,6 +7196,11 @@ def source_skin_detail_authority(proof,identifier,channel,*,retained_sources=Non
         if sha(pin['path'])!=pin['sha256']:raise ValueError('A preceding skin-detail authority changed.')
         return read(pin['path'])
     for operation in reversed(proof.get('appearanceFinishing',[])):
+        if operation['kind']=='source-covered-skin-material':
+            binding=document(operation['proof'])
+            restored=next((row['source']for row in binding['textures']if row['object']==identifier),None)
+            if restored is not None:
+                return dict(source={key:restored[key]for key in ('path','sha256','object')},profile={})
         if operation['kind']=='source-skin-detail':
             job=document(operation['inputPlan']);matches=[t for t in job['textures']if t['object']==identifier]
             if not matches:continue
@@ -8107,12 +8219,14 @@ def prepare_native_face_resources():
     mode=parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--profiles',type=Path)
     mode.add_argument('--restore-native-only',action='store_true')
+    mode.add_argument('--fair-current',action='store_true')
     parser.add_argument('--previous-profiles',type=Path)
     args=parser.parse_args()
     if args.previous_profiles and args.profiles is None:raise ValueError('A guide revision requires next and previous profiles.')
     geometry=prepare_resource_faces(args.source,args.native_index,args.output,args.census,selected_assets=args.assets,
-        profiles_path=args.profiles,restore_native_only=args.restore_native_only,previous_profiles_path=args.previous_profiles)
-    if args.previous_profiles is None:finish_resource_pigments(geometry,args.output)
+        profiles_path=args.profiles,restore_native_only=args.restore_native_only,previous_profiles_path=args.previous_profiles,
+        fair_current=args.fair_current)
+    if args.previous_profiles is None and not args.fair_current:finish_resource_pigments(geometry,args.output)
     assembly=geometry['assembly'];manifest=geometry['manifest']
     write(args.output/(Path('Catalog')/RESOURCE_FILES['manifest']),manifest)
     assembly['catalogSha256']=sha(args.output/(Path('Catalog')/RESOURCE_FILES['manifest']))
@@ -8122,7 +8236,14 @@ def prepare_native_face_resources():
     assembly['preparedSource']=dict(assembly=dict(path=str((args.source/'ResourceAssembly.json').resolve()),sha256=sha(args.source/'ResourceAssembly.json')),
         catalog=dict(path=str((args.source/(Path('Catalog')/RESOURCE_FILES['manifest'])).resolve()),sha256=sha(args.source/(Path('Catalog')/RESOURCE_FILES['manifest']))))
     write(args.output/'ResourceAssembly.json',assembly)
-    print(json.dumps(dict(status='PREPARED_NATIVE_RECOVERY_REVIEW_PENDING'if args.restore_native_only else'PREPARED_SOURCE_GUIDES_REVIEW_PENDING',meshes=geometry['meshes'],catalog=assembly['catalogSha256'])))
+    if args.fair_current or args.previous_profiles:
+        # Direct geometry output has no separate catalog to resume after completion.
+        # Keep its checkpoint until the final assembly has been saved.
+        (checked_catalog_path(args.output)/'GeometryPreparation.json').unlink(missing_ok=True)
+    status = ('PREPARED_ASSEMBLED_CONTOURS_REVIEW_PENDING' if args.fair_current else
+              'PREPARED_NATIVE_RECOVERY_REVIEW_PENDING' if args.restore_native_only else
+              'PREPARED_SOURCE_GUIDES_REVIEW_PENDING')
+    print(json.dumps(dict(status=status,meshes=geometry['meshes'],catalog=assembly['catalogSha256'])))
 
 
 def save_compiled_groom_shader(source,catalog,proofs,shader_name,shader_path,shader,validation_path,pins):
@@ -9253,6 +9374,7 @@ def prepare_groom_frame_resources():
     parser.add_argument('--texture-report',type=Path)
     parser.add_argument('--files',nargs='*',default=[])
     parser.add_argument('--shader-only',action='store_true')
+    parser.add_argument('--preset-only',action='store_true')
     parser.add_argument('--before-preset',type=Path)
     parser.add_argument('--after-preset',type=Path)
     parser.add_argument('--workers',type=int,choices=range(1,5),default=2)
@@ -9260,18 +9382,26 @@ def prepare_groom_frame_resources():
     if bool(args.shader_report)!=bool(args.shader_validation):raise ValueError('A new groom shader requires both its build report and validation.')
     if args.shader_only and args.shader_report is None:raise ValueError('A shader-only update requires a new shader report and validation.')
     if bool(args.before_preset)!=bool(args.after_preset):raise ValueError('Groom preset migration requires both compiled presets.')
+    if args.preset_only and (not args.before_preset or args.shader_report or args.texture_report):
+        parser.error('Use --preset-only with compiled presets and the existing shader and textures.')
     source=checked_catalog_path(args.source);output=checked_catalog_path(args.output)
     if not output.is_relative_to(ROOT/'tools')or output==source:raise ValueError('Groom output requires an independent tools workspace.')
     assembly=read(source/'ResourceAssembly.json');manifest=read(source/(Path('Catalog')/RESOURCE_FILES['manifest']))
-    if assembly.get('groomVertexFrames')and not args.shader_only:raise ValueError('Use the declared original frame catalog to regenerate groom support.')
+    prior_frames=assembly.get('groomVertexFrames',{})
     selected={r['bundles'][0]['file']for r in manifest['resources']if any(p.get('set')=='Groom'for p in r.get('parameters',[]))}
     all_grooms=set(selected)
     if args.files:
         if not set(args.files)<=selected:raise ValueError('An unknown groom resource was selected.')
         selected=set(args.files)
+    preset_files = selected if args.preset_only else all_grooms
+    if args.preset_only:
+        selected = set()
     if args.shader_only:
         if args.files or args.texture_report is not None:raise ValueError('A shader-only update cannot also change groom meshes or textures.')
         selected=set()
+    prior_files=set(prior_frames.get('files',[]))
+    if selected & prior_files:
+        raise ValueError('Regenerating the same groom requires its original frame catalog.')
     shader=None;shader_path=None;shader_reuse=None
     if args.shader_report is not None:
         shader=read(args.shader_report)
@@ -9319,6 +9449,8 @@ def prepare_groom_frame_resources():
             raise ValueError('The compiled groom texture bundle has no existing resource owner.')
         pins.extend(dict(path=str(Path(path).resolve()),sha256=sha(path))for path in (args.texture_report,texture_path))
     marker=dict(sourceCatalogSha256=sha(source/(Path('Catalog')/RESOURCE_FILES['manifest'])),selectedFiles=sorted(selected),inputs=pins)
+    if args.preset_only:
+        marker['presetFiles'] = sorted(preset_files)
     output.mkdir(parents=True,exist_ok=True);catalog=output/'Catalog';catalog.mkdir(exist_ok=True)
     ownership=output/'WorkingDirectory.json'
     if ownership.exists():
@@ -9381,7 +9513,7 @@ def prepare_groom_frame_resources():
         texture_receipt['dedicatedFineMaterials']=True
     if presets is not None:
         sources=output/'MaterialSources';sources.mkdir(exist_ok=True);material_jobs=[];material_changes=[]
-        for name in sorted(all_grooms):
+        for name in sorted(preset_files):
             original=sources/name
             if original.exists():
                 if sha(original)!=proofs[name]['sha256']:raise ValueError('A retained groom material source changed.')
@@ -9395,7 +9527,8 @@ def prepare_groom_frame_resources():
                 frame=read(frame_receipt)
                 if frame.get('sha256')==proofs[name]['sha256']:
                     frame['target']['path']=str(original.resolve());write(frame_receipt,frame)
-            material_jobs.append(dict(source=str(original.resolve()),target=str((catalog/name).resolve()),sha256=proofs[name]['sha256'],**presets))
+            material_jobs.append(dict(source=str(original.resolve()),target=str((catalog/name).resolve()),sha256=proofs[name]['sha256'],
+                materializeInheritedDefaults=True,**presets))
         with ProcessPoolExecutor(max_workers=args.workers)as pool:
             for future in as_completed([pool.submit(resources.retune_groom_defaults,job)for job in material_jobs]):
                 receipt=future.result()
@@ -9418,11 +9551,15 @@ def prepare_groom_frame_resources():
     if shader_proof is not None:finishing['shader']['changedObject']=shader_proof['changedObject']
     if shader_reuse is not None:finishing['shader']['retainedSource']=shader_reuse
     if texture_receipt is not None:finishing['textures']=texture_receipt
-    assembly['groomShaderFinishing'if args.shader_only else'groomVertexFrames']=finishing
+    if args.shader_only:assembly['groomShaderFinishing']=finishing
+    elif not args.preset_only:
+        assembly['groomVertexFrames']=dict(prior_frames,**finishing)
+        assembly['groomVertexFrames'].update(files=sorted(prior_files|selected),meshes=prior_frames.get('meshes',0)+finishing['meshes'])
     assembly['artAccepted']=False
     write(output/'ResourceAssembly.json',assembly)
-    write(output/'Preparation.json',dict(status='PREPARED_GROOM_VERTEX_FRAMES_REVIEW_PENDING',**finishing))
-    print(json.dumps(dict(status='PREPARED_GROOM_VERTEX_FRAMES_REVIEW_PENDING',groomFiles=len(selected),catalog=assembly['catalogSha256'])))
+    status = 'PREPARED_GROOM_MATERIALS_REVIEW_PENDING' if args.preset_only else 'PREPARED_GROOM_VERTEX_FRAMES_REVIEW_PENDING'
+    write(output/'Preparation.json',dict(status=status,**finishing))
+    print(json.dumps(dict(status=status,groomFiles=len(selected),catalog=assembly['catalogSha256'])))
 
 
 def prepare_resource_appearance(source,index_path,output,census_path,material_contexts,tone_inputs,authoring_sources,*,profiles_path):

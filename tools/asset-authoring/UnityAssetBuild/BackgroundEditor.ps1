@@ -928,17 +928,30 @@ function Get-AssetLegacyStorageOwner($Context,[string]$Path,$Request,$Processes)
         sessionDirectory=$null;files=$files;outcome='legacy-terminal';failure=$null;resultSha256=$null}
 }
 function Clear-AssetAuthoringJobs {
-    param([Parameter(Mandatory)][string]$Project,[string[]]$ReferencePath=@(),[string[]]$PreserveDirectory=@(),
+    param([Parameter(Mandatory)][string[]]$Project,[string[]]$ReferencePath=@(),[string[]]$PreserveDirectory=@(),
         [ValidateRange(0,100)][int]$KeepLatest=2,[ValidateRange(0,36500)][double]$MaxAgeDays=0,
         [ValidateRange(0,9223372036854775807)][long]$MaxRetainedBytes=0,[switch]$Apply)
+    $references=Get-AssetStorageReferences $ReferencePath
+    foreach($path in $PreserveDirectory){[void]$references.paths.Add((Get-AssetStoragePath $path))}
+    foreach($directory in $Project){
+        $projectReferences=[pscustomobject]@{
+            inputs=$references.inputs
+            paths=[Collections.Generic.HashSet[string]]::new($references.paths,[StringComparer]::OrdinalIgnoreCase)
+        }
+        Clear-AssetAuthoringProject -Project $directory -References $projectReferences -KeepLatest $KeepLatest `
+            -MaxAgeDays $MaxAgeDays -MaxRetainedBytes $MaxRetainedBytes -Apply:$Apply
+    }
+}
+
+function Clear-AssetAuthoringProject {
+    param([string]$Project,$References,[int]$KeepLatest,[double]$MaxAgeDays,[long]$MaxRetainedBytes,[switch]$Apply)
     $storageOperation=Enter-AssetStorageOperation $Project
     try{
 
     $context=Get-AssetStorageProject $Project
     [void](Get-AssetProjectLock $context.project)
     $processSnapshot=@{};foreach($process in [Diagnostics.Process]::GetProcesses()){$processSnapshot[$process.Id]=$process}
-    $references=Get-AssetStorageReferences $ReferencePath
-    foreach($path in $PreserveDirectory){[void]$references.paths.Add((Get-AssetStoragePath $path))}
+    Assert-AssetStorageReferences $References
     $directory=Join-Path $context.workspace ('StorageCleanup/'+[guid]::NewGuid().ToString('N'));[void][IO.Directory]::CreateDirectory($directory)
     $journal=Join-Path $directory 'Journal.jsonl';$reportPath=Join-Path $directory 'Result.json'
     $units=[Collections.Generic.List[object]]::new();$retained=[Collections.Generic.List[object]]::new();$actions=[Collections.Generic.List[object]]::new()
