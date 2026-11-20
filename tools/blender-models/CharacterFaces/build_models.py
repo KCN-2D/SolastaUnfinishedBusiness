@@ -4586,7 +4586,29 @@ def validate_resource_release(metadata,version,configuration=None):
         raise ValueError('Resource release metadata differs from the package configuration.')
 
 
-def create_resource_packs(manifest_path,output_directory,release_version,maximum_bytes=256*1024*1024,*,configuration=None) -> dict[str, Any]:
+def resource_pack_groups(files, maximum_bytes):
+    """Group stored ZIP entries including their local and central directory records."""
+    end_record_bytes = 22
+    entry_records_bytes = 96
+    groups = []
+    group = []
+    size = end_record_bytes
+    for row in files:
+        packed_size = row['bytes'] + entry_records_bytes + 2 * len(row['file'].encode('utf8'))
+        if packed_size + end_record_bytes > maximum_bytes:
+            raise ValueError('A resource exceeds the archive size limit: ' + row['file'])
+        if group and size + packed_size > maximum_bytes:
+            groups.append(group)
+            group = []
+            size = end_record_bytes
+        group.append(row)
+        size += packed_size
+    if group:
+        groups.append(group)
+    return groups
+
+
+def create_resource_packs(manifest_path,output_directory,release_version,maximum_bytes=256*1024*1024,*,configuration=None,previous_manifest=None) -> dict[str, Any]:
     """Stream independent generated resources into bounded release archives."""
     import zipfile
     configuration=RESOURCE_PACKAGE if configuration is None else configuration
@@ -4616,6 +4638,14 @@ def create_resource_packs(manifest_path,output_directory,release_version,maximum
     if not files:raise ValueError('An empty resource catalog cannot be packaged.')
     owner=dict(schemaVersion=1,kind='CharacterResourcePacks',source=str(manifest_path),
         sourceSha256=sha(manifest_path),version=release_version,maximumBytes=maximum_bytes)
+    previous = None
+    if previous_manifest is not None:
+        previous_bytes = checked_source_path(previous_manifest).read_bytes()
+        previous_catalog = json.loads(previous_bytes.decode('utf-8-sig'))
+        if previous_catalog['schemaVersion'] != manifest['schemaVersion']:
+            raise ValueError('Pack ordering requires a previous standalone resource catalog.')
+        previous = catalog_payloads(previous_catalog)
+        owner['previousCatalogSha256'] = hashlib.sha256(previous_bytes).hexdigest()
     files_configuration=configuration['files']
     output.mkdir(parents=True,exist_ok=True);marker=output/files_configuration['packageInputs'];metadata=output/files_configuration['packs']
     release_path=output/files_configuration['release']
@@ -4637,13 +4667,15 @@ def create_resource_packs(manifest_path,output_directory,release_version,maximum
     # Seekable ZIP_STORED output uses a 30-byte local header, a 20-byte
     # ZIP64 local extra, a 46-byte central header and both UTF-8 filenames.
     # Every group also owns the 22-byte end-of-central-directory record.
-    groups=[];group=[];size=22
-    for row in files:
-        packed_size=row['bytes']+96+2*len(row['file'].encode('utf8'))
-        if packed_size+22>maximum_bytes:raise ValueError('A resource exceeds the archive size limit: '+row['file'])
-        if group and size+packed_size>maximum_bytes:groups.append(group);group=[];size=22
-        group.append(row);size+=packed_size
-    if group:groups.append(group)
+    partitions = (files,)
+    if previous is not None:
+        # Cached bundles can satisfy an entire pack without a network request.
+        changed, unchanged = [], []
+        for row in files:
+            partition = unchanged if previous.get(row['file']) == row['sha256'] else changed
+            partition.append(row)
+        partitions = (changed, unchanged)
+    groups = [group for partition in partitions for group in resource_pack_groups(partition, maximum_bytes)]
     if len(groups)>configuration['maximumPacks']:raise ValueError('The content set exceeds its declared pack count.')
     packs=[]
     for ordinal,group in enumerate(groups,1):
@@ -4679,7 +4711,8 @@ def create_resource_packs(manifest_path,output_directory,release_version,maximum
 def package_resources():
     parser=argparse.ArgumentParser();parser.add_argument('--manifest',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True);parser.add_argument('--release-version',required=True)
-    args=parser.parse_args();result=create_resource_packs(args.manifest,args.output,args.release_version)
+    parser.add_argument('--previous-manifest',type=Path)
+    args=parser.parse_args();result=create_resource_packs(args.manifest,args.output,args.release_version,previous_manifest=args.previous_manifest)
     print(json.dumps(dict(status='PASS_RESOURCE_PACKS',packs=len(result['packs']),bytes=sum(row['bytes']for row in result['packs']))))
 
 

@@ -1,16 +1,22 @@
 """Sculpt complete hair and beard resources in the fitted native head frame."""
 import argparse
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from functools import lru_cache
 import gzip
 import json
 import os
 from pathlib import Path
 import re
 import sys
+from zlib import crc32
 
 for thread_setting in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ[thread_setting] = "1"
 import numpy as np
+from PIL import Image
+
+from GroomGuides import (CARD_ROLE, SOURCE_ROOT_ROLE, UNDERCOAT_ROLE, Scalp, Surface,
+                         beard_drape, beard_guides, hair_guides)
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "CharacterFaces"))
@@ -42,19 +48,28 @@ def apply_frame(points, matrix):
     return points @ matrix[:3, :3].T + matrix[:3, 3]
 
 
-def head_pivot(skin):
+def head_bone_index(skin):
     index = [i for i, bone in enumerate(skin["bones"]) if bone.rsplit("/", 1)[-1] == "Bip001 Head"]
     if len(index) != 1:
         raise ValueError("A native groom requires its unique head pivot.")
-    return np.asarray(skin["bonesToPrefab"], dtype=float).reshape(-1, 4, 4)[index[0], 3, :3]
+    return index[0]
 
 
-def head_surface(skin):
+def head_pivot(skin):
+    return np.asarray(skin["bonesToPrefab"], dtype=float).reshape(-1, 4, 4)[head_bone_index(skin), 3, :3]
+
+
+def native_packet(skin):
     path = models.checked_source_path(Path(skin["meshFile"]))
     with gzip.open(path, "rt", encoding="utf-8-sig") as stream:
         packet = json.load(stream)
     if models.fingerprint(packet)[0] != skin["sourceFingerprint"]:
-        raise ValueError("The declared head surface has different mesh channels.")
+        raise ValueError("The declared native surface has different mesh channels.")
+    return packet
+
+
+def head_surface(skin):
+    packet = native_packet(skin)
     positions = np.asarray(packet["vertices"], dtype=float).reshape(-1, 3)
     triangles = np.concatenate(packet["subMeshes"]).astype(int).reshape(-1, 3)
     return apply_frame(positions, native_matrix(skin)) - head_pivot(skin), triangles
@@ -120,11 +135,23 @@ def smooth_envelope(envelope):
     return envelope
 
 
-def scalp_tables(heads, fit):
-    measured = {name: scalp_envelope(*surface, fit) for name, surface in heads.items()}
-    surfaces = np.stack(tuple(measured.values()))
+def scalp_table(heads, fit, alternate_heads=None):
+    surfaces = np.stack([scalp_envelope(*surface, fit) for surface in heads])
     shared = np.ma.median(np.ma.masked_equal(surfaces, 0), axis=0).filled(1.)
-    return {name: smooth_envelope(np.where(table > 0, table, shared)) for name, table in measured.items()}
+    # Shared meshes have one set of attachment positions. Keep the visible
+    # contact line near the actual selection, even when NPC faces differ.
+    fitted = smooth_envelope(np.where(surfaces[0] > 0, .72*surfaces[0] + .28*shared, shared))
+    if alternate_heads is None:
+        return fitted
+    outer = surfaces.max(axis=0)
+    for scalp in alternate_heads:
+        np.maximum(outer, scalp_envelope(*scalp, fit), out=outer)
+    outer = smooth_envelope(np.where(outer > 0, outer, fitted))
+    elevation = np.linspace(SCALP_LOW, SCALP_HIGH, SCALP_ROWS)[:, None]
+    # Upper clearance follows the head shapes that use this hair resource.
+    # Taper the extra volume by the ears so it cannot lift the hairline.
+    clearance = np.maximum(outer - fitted, 0.) * smooth(elevation, -.30, .40)
+    return fitted + clearance
 
 
 def scalp_query(points, envelope):
@@ -137,46 +164,6 @@ def scalp_query(points, envelope):
     low = envelope[i, j] * (1. - horizontal) + envelope[i, next_j] * horizontal
     high = envelope[i + 1, j] * (1. - horizontal) + envelope[i + 1, next_j] * horizontal
     return radius, low * (1. - vertical) + high * vertical
-
-
-def scalp_limit(points, envelope):
-    radial = points - SCALP_CENTER
-    radius, surface = scalp_query(points, envelope)
-    region = smooth(radial[:, 1] / np.maximum(radius, 1e-10), -.40, -.04)
-    return radius, np.maximum(surface, .57), region
-
-
-def seat_hair(points, styled, envelope):
-    """Keep the groom outside the scalp without a discontinuous surface clamp."""
-    center = np.asarray(SCALP_CENTER)
-    original, original_surface, prior_region = scalp_limit(points, envelope)
-    result, result_surface, next_region = scalp_limit(styled, envelope)
-    coverage = prior_region * next_region
-    start = original / original_surface
-    delta = result / result_surface - start
-    positive = np.maximum(delta, 0.)
-    inward = np.minimum(delta, 0.)
-    root = np.maximum(start - .985, 0.)
-    retained = root * np.expm1(inward / np.maximum(.28, root))
-    target = start + positive + retained
-    target += .024 * np.exp(-np.square((start - 1.) / .12))
-    fitted = result + coverage * (result_surface * target - result)
-    direction = (styled - center) / np.maximum(result, 1e-10)[:, None]
-    rear = smooth(-direction[:, 2], -.10, .64)
-    region = np.maximum(next_region, rear * smooth(direction[:, 1], -.72, -.22))
-    inner = smooth(fitted, .43, .79)
-    outer = 1. - smooth(fitted, 1.09, 1.82)
-    occipital = rear * (1. - smooth(direction[:, 1], .38, .82))
-    fitted += (.038 + .198 * occipital) * region * inner * outer
-    return center + (styled - center) * (fitted / np.maximum(result, 1e-10))[:, None]
-
-
-def scalp_mobility(points, scale, envelope):
-    """Keep the contact edge fixed as each step moves the outer hair."""
-    radius, surface, _ = scalp_limit(points, envelope)
-    direction = (points - SCALP_CENTER) / np.maximum(radius, 1e-10)[:, None]
-    clearance = (radius - surface) * np.linalg.norm(direction * scale, axis=1)
-    return smooth(clearance, .011, .034)
 
 
 def scalp_fit(heads):
@@ -193,104 +180,6 @@ def scalp_fit(heads):
     if not all(.035 < value < .27 for value in (width, height, depth)):
         raise ValueError("The native head measurement does not describe a scalp.")
     return {"scale": [width, height, depth], "depthCenter": float((high + low) / 2)}
-
-
-def hair_field(points, design):
-    x, y, z = points.T
-    front = smooth(z, .12, 1.0)
-    rear = smooth(-z, .25, 1.16)
-    crown = smooth(y, .47, 1.13)
-    forehead = front * smooth(y, .24, .60) * (1. - smooth(y, .82, 1.26))
-    temple = smooth(np.abs(x), .46, 1.52) * smooth(y, .12, .71) * (1. - .4 * crown)
-    tips = smooth(.62 - y, .08, 1.38)
-    distance_from_part = x - design["part"]
-    part = np.exp(-np.square(distance_from_part / .36))
-    side = np.tanh(distance_from_part * 2.3)
-    wave = design["wave"] * tips * np.sin((.48 - y) * 4.3 + x * 1.65 + design["part"] * 3.)
-    shift_x = design["sweep"] * (forehead + .33 * crown) * (1. - .32 * part)
-    shift_x -= design["tuck"] * temple * np.tanh(x * 2.)
-    shift_y = design["lift"] * crown * (.75 - .28 * side) * (.58 + .42 * front)
-    shift_y += design["fringe"] * forehead * (.43 - .57 * side)
-    # Different lengths at the temples and back keep the front pieces apart
-    # and let longer layers fall behind the jaw instead of across it.
-    layer_phase = distance_from_part * 5.2 - design["sweep"] * y * 3.1 + z * 1.65
-    stagger = np.sin(layer_phase) + .32 * np.sin(1.9 * layer_phase + .8)
-    shift_z = -design["nape"] * rear * smooth(y, .12, .76)
-    shift_z += design["layers"] * .33 * stagger * forehead
-    # Blend bulk changes outside the scalp so the roots and part stay seated.
-    radial = np.column_stack((x, (y - .43) / .56, z))
-    radius = np.linalg.norm(radial, axis=1)
-    support = smooth(radius, .66, 1.45)
-    excess = .76 * smooth(radius, 1.04, 1.80) * (1. - .72 * tips)
-    shift_x -= design["bulk"] * excess * x
-    shift_y -= design["bulk"] * excess * (y - .43) * .75
-    shift_z -= design["bulk"] * excess * z
-    roots = np.column_stack((shift_x, shift_y, shift_z)) * support[:, None]
-    free_tips = smooth(np.hypot(x, z), .35, 1.27)
-    free_tips += (1. - free_tips) * (1. - smooth(y, -.92, .15))
-    lengths = np.column_stack((
-        wave * (.27 + .73 * rear) + design["sweep"] * .19 * tips,
-        (design["hem"] * (.72 + .24 * side * front) + .72 * design["layers"] * stagger) * tips,
-        wave * .52 * (front - rear) + design["layers"] * .26 * side * tips * front,
-    ))
-    return roots + lengths * free_tips[:, None]
-
-
-def beard_field(points, design):
-    x, y, z = points.T
-    jaw = smooth(-y, .02, .48)
-    tips = smooth(-y, .21, .92)
-    swept = np.sin(-4.2 * y + x * 1.3) * design["wave"] * tips
-    shift_x = -design["taper"] * x * jaw + swept + design["flow"] * tips
-    layer = np.sin(8.3 * x + 2.3 * y) + .27 * np.sin(13.7 * x - 4.1 * y + .8)
-    trim_shape = 1. - design["point"] * (1. - smooth(np.abs(x), .12, .87))
-    shift_y = design["trim"] * (.24 * jaw + .76 * tips) * trim_shape
-    shift_y += design["layers"] * layer * tips
-    shift_z = -design["bulk"] * tips * smooth(z, .54, 1.57) + swept * .51 + design["layers"] * layer * .36 * tips
-    return np.column_stack((shift_x, shift_y, shift_z))
-
-
-def comb_direction(points, design, category, strength):
-    """Turn the outer locks around the fitted head while keeping their clearance."""
-    x, y, z = points.T
-    if category == "Hair":
-        turn = design["crownTurn"] * smooth(y, .15, .88)
-        turn += design["fallTurn"] * (1. - smooth(y, -.52, .38))
-        radius = np.sqrt(x * x + z * z + np.square((y - .43) / .56))
-        angle = np.deg2rad(strength * turn * smooth(radius, .87, 1.34))
-    else:
-        z = z - .54
-        angle = np.deg2rad(strength * design["turn"] * smooth(-y, .23, 1.02))
-    cosine, sine = np.cos(angle), np.sin(angle)
-    swept_x, swept_z = cosine * x + sine * z, cosine * z - sine * x
-    if category == "Beard":
-        swept_z += .54
-    else:
-        y = y + strength * design["napeLift"] * smooth(-swept_z, .62, 1.40) * smooth(y, -.65, .48)
-    return np.column_stack((swept_x, y, swept_z))
-
-
-def deformation(points, pivot, fit, design, category, scalp=None, strength=1.):
-    scale = np.asarray(fit["scale"])
-    center = pivot + [0., 0., fit["depthCenter"]]
-    field = hair_field if category == "Hair" else beard_field
-    normalized = (points - center) / scale
-    if scalp is not None and design.get("anchorScalp"):
-        steps = 12
-        for _ in range(steps):
-            travel = scalp_mobility(normalized, scale, scalp) * (strength / steps)
-            normalized += field(normalized, design) * travel[:, None]
-            normalized = comb_direction(normalized, design, category, travel)
-        return normalized * scale + center
-    # Short integration steps yield a smooth deformation even along tightly
-    # stacked UV charts and around fast changes in the silhouette.
-    before = normalized.copy() if scalp is not None else normalized
-    for _ in range(3):
-        normalized += strength * field(normalized, design) / 3.
-    styled = comb_direction(normalized, design, category, strength)
-    if scalp is not None:
-        styled = seat_hair(before, styled, scalp)
-    return styled * scale + center
 
 
 class SurfaceFrameCompression(ValueError):
@@ -312,68 +201,15 @@ def transformed_frames(points, normals, tangents, move, minimum_jacobian):
     return positions, mapped_normals, mapped_tangents
 
 
-def packet_frame(packet, skin, fit, design, category, physical_shapes, strength=1.):
-    matrix = native_matrix(skin)
-    inverse = np.linalg.inv(matrix)
-    pivot = head_pivot(skin)
-
-    def move(points, scalp):
-        world = apply_frame(points, matrix)
-        return apply_frame(deformation(world, pivot, fit, design, category, scalp, strength), inverse)
-
-    points = np.asarray(packet["vertices"], dtype=float).reshape(-1, 3)
-    normals = np.asarray(packet["normals"], dtype=float).reshape(-1, 3)
-    tangents = np.asarray(packet["tangents"], dtype=float).reshape(-1, 4)
-    profiles = fit.get("scalps", {})
-    fallback = next(iter(profiles.values()), None)
-    minimum_jacobian = .12 if profiles else .23
-    base = transformed_frames(points, normals, tangents[:, :3], lambda p: move(p, fallback), minimum_jacobian)
-    new_points, new_normals, new_tangents = base
-    all_points = [new_points]
-    authored_shapes = []
-    displacement = np.linalg.norm(new_points - points, axis=1)
-    ordinal = 0
-    for shape in packet["shapes"]:
-        frames = []
-        scalp = profiles.get(shape["name"], fallback)
-        for frame in shape["frames"]:
-            posed = tuple(source + np.asarray(frame[key], dtype=float).reshape(-1, 3)
-                          for source, key in zip((points, normals, tangents[:, :3]), ("vertices", "normals", "tangents")))
-            mapped = transformed_frames(*posed, lambda p: move(p, scalp), minimum_jacobian)
-            all_points.append(mapped[0])
-            flags = physical_shapes[ordinal]
-            deltas = [after - reference for after, reference in zip(mapped, base)]
-            if not flags["hasNormals"]:
-                deltas[1].fill(0.)
-            if not flags["hasTangents"]:
-                deltas[2].fill(0.)
-            frames.append(dict(weight=frame["weight"], **{
-                key: value.astype("<f4").ravel().tolist()
-                for key, value in zip(("vertices", "normals", "tangents"), deltas)
-            }))
-            displacement = np.maximum(displacement, np.linalg.norm(mapped[0] - posed[0], axis=1))
-            ordinal += 1
-        authored_shapes.append(dict(shape, frames=frames))
-    if ordinal != len(physical_shapes):
-        raise ValueError("A silhouette did not retain every source physical frame.")
-    positions = np.concatenate(all_points)
-    minimum = positions.min(axis=0)
-    maximum = positions.max(axis=0)
-    tangent_values = np.column_stack((new_tangents, tangents[:, 3]))
-    bounds = np.r_[(minimum + maximum) / 2, maximum - minimum].astype("<f4")
-    updated = dict(packet, vertices=new_points.astype("<f4").ravel().tolist(),
-                   normals=new_normals.astype("<f4").ravel().tolist(),
-                   tangents=tangent_values.astype("<f4").ravel().tolist(),
-                   bounds=bounds.tolist(), shapes=authored_shapes)
-    updated["sourceFingerprint"] = models.fingerprint(updated)[0]
-    return updated, matrix, float(displacement.max(initial=0.))
-
-
-def cloth_attachment(source, target, matrix):
+def cloth_attachment(source, target, matrix, anchors=None, retained=0):
     linear = matrix[:3, :3]
-    delta = (np.asarray(target["vertices"]) - np.asarray(source["vertices"])).reshape(-1, 3) @ linear.T
-    normals = unit(np.asarray(source["normals"]).reshape(-1, 3) @ np.linalg.inv(linear))
-    native_tangent = np.asarray(source["tangents"]).reshape(-1, 4)
+    if anchors is None:
+        anchors = np.arange(source["vertexCount"])
+    source_points = np.asarray(source["vertices"]).reshape(-1, 3)[anchors]
+    changes = np.asarray(target["vertices"]).reshape(-1, 3) - source_points
+    delta = changes @ linear.T
+    normals = unit(np.asarray(source["normals"]).reshape(-1, 3)[anchors] @ np.linalg.inv(linear))
+    native_tangent = np.asarray(source["tangents"]).reshape(-1, 4)[anchors]
     tangents = native_tangent[:, :3] @ linear.T
     tangents = unit(tangents - normals * (normals * tangents).sum(axis=1, keepdims=True))
     bitangents = np.cross(normals, tangents) * native_tangent[:, 3, None] * np.sign(np.linalg.det(linear))
@@ -383,9 +219,302 @@ def cloth_attachment(source, target, matrix):
     changed_tangents = unit(changed_tangents - changed_normals * (changed_normals * changed_tangents).sum(axis=1, keepdims=True))
     offset, normal, tangent = [np.einsum("nij,nj->ni", basis, vector).tolist()
                                for vector in (delta, changed_normals, changed_tangents)]
-    vertices = [dict(anchor=index, native=False, offset=point, normal=n, tangent=t)
-                for index, (point, n, t) in enumerate(zip(offset, normal, tangent))]
+    vertices = [dict(anchor=int(anchor), native=bool(index < retained and not np.any(changes[index])),
+                     offset=point, normal=n, tangent=t)
+                for index, (anchor, point, n, t) in enumerate(zip(anchors, offset, normal, tangent))]
     return {"vertices": vertices, "matrix": matrix.T.ravel().tolist()}
+
+
+@lru_cache(maxsize=40)
+def mask_pixels(path, digest):
+    path = models.checked_source_path(Path(path))
+    if models.sha(path) != digest:
+        raise ValueError("The native groom decoration mask changed.")
+    with Image.open(path) as image:
+        return np.asarray(image.convert("RGB"))[:, :, 0].copy()
+
+
+def decoration_faces(uv, items, slots):
+    masks = {row["slot"]: row["maps"].get("_Mask") for row in items}
+    fallback = masks.get(0) if len(masks) == 1 else None
+    weights = np.array([[1,0,0],[0,1,0],[0,0,1],[.5,.5,0],[.5,0,.5],[0,.5,.5],[1/3]*3])
+    retained = []
+    for slot, faces in enumerate(slots):
+        mask = masks.get(slot, fallback)
+        if not mask:
+            retained.append(np.zeros(len(faces), dtype=bool))
+            continue
+        pixels = mask_pixels(mask["path"], mask["sha256"])
+        coordinates = np.einsum("st,ftd->fsd", weights, uv[faces, :2])
+        coordinates = np.mod(coordinates * mask["scale"] + mask["offset"], 1.)
+        x = np.minimum((coordinates[:, :, 0] * pixels.shape[1]).astype(int), pixels.shape[1]-1)
+        y = np.maximum(pixels.shape[0]-1-(coordinates[:, :, 1]*pixels.shape[0]).astype(int), 0)
+        retained.append(np.any(pixels[y, x] > 110, axis=1))
+    return retained
+
+
+def closest_vertices(points, source, candidates):
+    native = source[candidates]
+    radii = np.einsum("ni,ni->n", native, native)
+    near = []
+    for start in range(0, len(points), 192):
+        part = points[start:start+192]
+        distance = radii[None, :] - 2 * (part @ native.T)
+        near.append(candidates[distance.argmin(axis=1)])
+    return np.concatenate(near)
+
+
+def placed_decoration(positions, surface, slots, decoration):
+    """Keep only native metal geometry that is seated in the rebuilt hairstyle."""
+    candidates = np.unique(np.concatenate([faces[mask] for faces,mask in zip(slots,decoration)]))
+    nearby = np.zeros(len(positions),dtype=bool)
+    if len(candidates):
+        points = positions[candidates]
+        anchors = closest_vertices(points,surface.points,np.arange(len(surface.points)))
+        nearby[candidates] = np.linalg.norm(points-surface.points[anchors],axis=1) < 0.012
+    return [mask & np.all(nearby[faces],axis=1) for faces,mask in zip(slots,decoration)]
+
+
+def beard_support(positions, normals, tangents, candidates, style):
+    bottom, root = np.quantile(positions[candidates,1], [0.035,0.92])
+    height = max(root-bottom,0.023)
+
+    def fit(points):
+        output = points.copy()
+        depth = smooth(root-points[:,1], 0.20*height, 0.94*height)
+        sides = smooth(np.abs(points[:,0]), 0.005, 0.052)
+        output[:,0] *= 1. - style["taper"] * depth * (0.74 + 0.60*sides)
+        output[:,1] += style["trim"] * min(height,0.102) * depth * (0.47 + 0.29*sides)
+        output[:,2] -= min(0.011,0.13*height) * depth * (0.32+0.51*sides)
+        return output
+
+    return transformed_frames(positions,normals,tangents,fit,0.15)
+
+
+def beard_base(skin, matrix, origin, design, lod, seed, head_scale):
+    """Fit the smooth source jaw surface, then add short tapered fibers at its outer edge."""
+    native = native_packet(skin)
+    linear = matrix[:3, :3]
+    positions = apply_frame(np.asarray(native["vertices"]).reshape(-1, 3), matrix) - origin
+    raw_normal = unit(np.asarray(native["normals"]).reshape(-1, 3) @ np.linalg.inv(linear))
+    raw_tangent = np.asarray(native["tangents"]).reshape(-1, 4)
+    raw_across = unit(raw_tangent[:, :3] @ linear.T)
+    slots = [np.asarray(slot, dtype=int).reshape(-1, 3) for slot in native["subMeshes"]]
+    faces = np.concatenate(slots)
+    uv = next(np.asarray(channel["values"]).reshape(-1, 4) for channel in native["uv"] if channel["channel"] == 0)
+    decoration = decoration_faces(uv, skin["groomMaterialCapture"], slots)
+    exposed = np.concatenate([slot[~metal] for slot, metal in zip(slots, decoration)])
+    fibers = np.unique(exposed)
+    if not len(fibers):
+        raise ValueError("A native beard has no fiber surface.")
+    organic, normals, across = beard_support(positions, raw_normal, raw_across, fibers, design)
+
+    # Equal source positions at UV seams must receive the same displacement.
+    _, first, weld = np.unique(np.rint(positions * 32000), axis=0, return_index=True, return_inverse=True)
+    weld = weld.reshape(-1)
+    welded = weld[exposed]
+    edges = np.concatenate([welded[:, [0, 1]], welded[:, [1, 2]], welded[:, [2, 0]],
+                            welded[:, [1, 0]], welded[:, [2, 1]], welded[:, [0, 2]]])
+    original_surface = organic[first]
+    lower, upper = np.quantile(organic[fibers, 1], [.04, .92])
+    height = upper - lower
+    depth = smooth(upper - original_surface[:, 1], height * .20, height * .74)
+    lower_weight = depth * smooth(height, .07, .17)
+    # Allow adjacent lower locks to share a rounded surface across their UV islands.
+    # Upper cheek and lip outlines have their own fitted vertices.
+    lower_locks = np.flatnonzero(lower_weight > .15)
+    adjacent = original_surface[lower_locks]
+    gap = np.linalg.norm(adjacent[:, None] - adjacent, axis=-1)
+    facing = normals[first[lower_locks]]
+    neighboring = (gap > 0) & (gap < .014) & ((facing @ facing.T) > .25)
+    close = np.column_stack(np.where(neighboring))
+    edges = np.unique(np.concatenate([edges, lower_locks[close]]), axis=0)
+    degree = np.bincount(edges[:, 0], minlength=len(first))
+    refined = original_surface.copy()
+    influence = (.15 + .81 * lower_weight)[:, None]
+    for strength in (.45, -.23, .45, -.23, .45, -.23, .45, -.23):
+        totals = np.zeros_like(refined)
+        np.add.at(totals, edges[:, 0], refined[edges[:, 1]])
+        correction = totals / np.maximum(degree[:, None], 1) - refined
+        refined += correction * (degree > 0)[:, None] * influence * strength
+    delta = refined - original_surface
+    maximum = .0014 + .009 * lower_weight
+    delta *= np.minimum(1., maximum / np.maximum(np.linalg.norm(delta, axis=1), 1e-12))[:, None]
+    organic += delta[weld]
+
+    patches = organic[exposed]
+    area_normal = np.cross(patches[:, 1] - patches[:, 0], patches[:, 2] - patches[:, 0])
+    opposed = np.sum(area_normal * normals[exposed].sum(axis=1), axis=1) < 0
+    area_normal[opposed] *= -1
+    smooth_normals = np.zeros_like(original_surface)
+    for corner in range(3):
+        np.add.at(smooth_normals, welded[:, corner], area_normal)
+    smooth_normals = unit(smooth_normals)[weld]
+    normal_weight = (.18 + .70 * lower_weight[weld])[:, None]
+    normals = unit(normals * (1 - normal_weight) + smooth_normals * normal_weight)
+    across = unit(across - normals * np.sum(across * normals, axis=1, keepdims=True))
+
+    lower, upper = np.quantile(organic[fibers, 1], [.01, .98])
+    x, y, z = organic.T
+    across_strand = np.arctan2(x, z + .095) * 3.5 - y * design["flow"] * 5.
+    length = np.clip((upper - y) / max(upper - lower, 1e-5), 0., 1.)
+    role = np.full_like(x, SOURCE_ROOT_ROLE + seed % 16)
+    flow_uv = np.column_stack((across_strand, length, role, raw_tangent[:, 3]))
+    head_width, head_height, _ = head_scale
+    organic_height = upper - lower
+    draped = organic_height > head_height*.91
+    if draped:
+        seam = min(upper - organic_height*.24, -head_height*.22)
+        side = smooth(np.abs(organic[:,0]), head_height*.24, head_height*.56)
+        weight = side * smooth(seam+.043-organic[:,1], 0., .043)
+        excess = np.maximum(np.abs(organic[:,0]) - .89 * head_width, 0.)
+        organic[:,0] -= np.sign(organic[:,0]) * excess * .70 * weight
+        organic[:,2] -= head_height * .053 * weight
+    base = Surface(organic, normals, across, flow_uv, faces)
+    if draped:
+        # Keep the lip, attachments and upper sideburns, with an overlap into
+        # the drape so its root is hidden under the directional layers.
+        slots = [slot[metal | (organic[slot,1].mean(axis=1) > seam - .009)]
+                 for slot,metal in zip(slots,decoration)]
+        base.triangles = np.concatenate(slots)
+        envelope, locks = beard_drape(organic[fibers], seam+.012, design, lod, seed)
+        base = Surface.join([base,envelope,locks])
+        exposed = np.concatenate([exposed[organic[exposed,1].mean(axis=1) > seam-.009],
+                                  envelope.triangles+len(positions)])
+    details = beard_guides(base.points, base.normals, exposed, design, lod, seed)
+    return Surface.join([base, details]), slots, uv, len(positions), draped
+
+
+def rebuilt_groom(packet, skin, fit, design, category, lod, seed, fixed_cloth=None):
+    matrix = native_matrix(skin)
+    inverse = np.linalg.inv(matrix)
+    linear = matrix[:3, :3]
+    origin = head_pivot(skin) + np.array([0., 0., fit["depthCenter"]])
+    slots = [np.asarray(values, dtype=int).reshape(-1, 3) for values in packet["subMeshes"]]
+    original = np.asarray(packet["vertices"], dtype=float).reshape(-1, 3)
+    source_n = np.asarray(packet["normals"],dtype=float).reshape(-1,3)
+    source_t = np.asarray(packet["tangents"],dtype=float).reshape(-1,4)
+    physical = apply_frame(original, matrix) - origin
+    uv = {item["channel"]: np.asarray(item["values"], dtype="<f4").reshape(-1,4) for item in packet["uv"]}
+    roles = uv[2][:, 2]
+    recreated = roles >= CARD_ROLE
+    supports = (roles < 0.5) | recreated
+    procedural = recreated & (roles < SOURCE_ROOT_ROLE)
+    decoration = [
+        mask & ~np.any(procedural[faces], axis=1)
+        for faces, mask in zip(slots, decoration_faces(uv[0], skin["groomMaterialCapture"], slots))
+    ]
+    support_faces = [np.all(supports[faces], axis=1) & ~metal for faces, metal in zip(slots, decoration)]
+    source_faces = np.concatenate([faces[keep] for faces,keep in zip(slots,support_faces)])
+    if not len(source_faces):
+        raise ValueError("A groom has no native support surface for new guides.")
+    candidates = np.unique(source_faces)
+    rigid_guides = None
+    if category == "Hair":
+        envelope = fit["scalp"]
+        scalp = Scalp(SCALP_CENTER, fit["scale"], lambda p: scalp_query(p,envelope)[1])
+        surface = hair_guides(scalp, design, lod, seed)
+        decoration = placed_decoration(physical,surface,slots,decoration)
+        keep_triangles = [faces[keep] for faces,keep in zip(slots,decoration)]
+        surface_slots = {}
+        matched_uv = None
+        if fit.get("coverScalp"):
+            rigid_guides = (surface.uv[:, 2] >= UNDERCOAT_ROLE) & (surface.uv[:, 2] < SOURCE_ROOT_ROLE)
+    else:
+        surface, beard_slots, matched_uv, base_vertices, draped = beard_base(
+            skin, matrix, origin, design, lod, seed, fit["scale"])
+        if draped:
+            rigid_guides = np.arange(len(surface.points)) >= base_vertices
+        if len(beard_slots) > len(slots):
+            raise ValueError("A native beard lost a material slot.")
+        keep_triangles = [faces[:0] for faces in slots]
+        surface_slots = dict(enumerate(beard_slots))
+    retained = np.unique(np.concatenate(keep_triangles))
+    indexed = np.zeros(packet["vertexCount"],dtype=int)
+    indexed[retained] = np.arange(len(retained))
+    attached = closest_vertices(surface.points, physical, candidates)
+    weights = np.asarray(packet["weights"]).reshape(-1, 4)
+    bone_indices = np.asarray(packet["boneIndices"], dtype=int).reshape(-1, 4)
+    if rigid_guides is not None:
+        head_weight = (weights * (bone_indices == head_bone_index(skin))).sum(axis=1)
+        rigid = candidates[head_weight[candidates] >= .995]
+        if not len(rigid):
+            raise ValueError("The scalp has no rigid head attachment in the source groom.")
+        if fixed_cloth is not None:
+            fixed = np.intersect1d(rigid, fixed_cloth, assume_unique=True)
+            if len(fixed):
+                rigid = fixed
+        attached[rigid_guides] = closest_vertices(surface.points[rigid_guides], physical, rigid)
+    anchors = np.concatenate((retained, attached))
+    count = len(anchors)
+    core_slots = [int(np.count_nonzero(keep)) for keep in support_faces]
+    owning_slot = int(np.argmax(core_slots))
+    output_faces = [indexed[faces].reshape(-1) for faces in keep_triangles]
+    for slot, faces in surface_slots.items():
+        output_faces[slot] = faces.reshape(-1)
+    guide_faces = surface.triangles[sum(map(len, surface_slots.values())):]
+    output_faces[owning_slot] = np.r_[output_faces[owning_slot],
+                                     (guide_faces + len(retained)).reshape(-1)]
+
+    guide_positions = apply_frame(surface.points + origin, inverse)
+    guide_normals = unit(surface.normals @ linear)
+    guide_tangents = surface.across @ inverse[:3,:3].T
+    guide_tangents = unit(guide_tangents - guide_normals*np.sum(guide_tangents*guide_normals,axis=1,keepdims=True))
+    hand = np.sign(np.linalg.det(linear))
+    handedness = np.full(len(guide_tangents), hand)
+    if matched_uv is not None:
+        handedness[:base_vertices] = surface.uv[:base_vertices, 3]
+    tangent = np.column_stack((guide_tangents, handedness))
+    point = np.concatenate((original[retained], guide_positions))
+    channel_values = {k: channels[anchors].copy() for k,channels in uv.items()}
+    channel_values[0][len(retained):, 2:] = (2048 + 4096 * 2048, 2048 + 4096 * 4095)
+    if matched_uv is not None:
+        channel_values[0][:base_vertices, :2] = matched_uv[:, :2]
+    channel_values[2][len(retained):, :] = surface.uv
+    if 3 in channel_values:
+        channel_values[3][len(retained):] = 0.
+    if 4 in channel_values:
+        channel_values[4][len(retained):, :2] = (0.,1.)
+
+    def floats(rows):
+        return np.asarray(rows,dtype="<f4").reshape(-1).tolist()
+
+    shapes = []
+    minima, maxima = point.min(axis=0), point.max(axis=0)
+    for shape in packet["shapes"]:
+        native_head_fit = shape["name"].casefold() in fit.get("nativeHeadFitShapes", ())
+        frames = []
+        for frame in shape["frames"]:
+            position_delta = np.asarray(frame["vertices"],dtype="<f4").reshape(-1,3)[anchors]
+            # The new scalp and locks already fit the measured head families.
+            # Keep the original fit morph on retained decorations only.
+            if native_head_fit:
+                authored = position_delta[len(retained):]
+                if category == "Hair":
+                    authored[:] = 0
+                elif rigid_guides is not None:
+                    authored[rigid_guides] = 0
+            posed = point + position_delta
+            minima, maxima = np.minimum(minima, posed.min(axis=0)), np.maximum(maxima, posed.max(axis=0))
+            directions = {name:np.asarray(frame[name],dtype="<f4").reshape(-1,3)[anchors].copy()
+                          for name in ("normals","tangents")}
+            for values in directions.values():
+                values[len(retained):] = 0
+            frames.append(dict(weight=frame["weight"], vertices=floats(position_delta),
+                               **{name:floats(values) for name,values in directions.items()}))
+        shapes.append(dict(shape,frames=frames))
+    result = dict(packet, vertexCount=count, vertices=floats(point),
+                  normals=floats(np.concatenate((source_n[retained],guide_normals))),
+                  tangents=floats(np.concatenate((source_t[retained],tangent))),
+                  weights=floats(weights[anchors]),
+                  boneIndices=bone_indices[anchors].ravel().tolist(),
+                  colors=floats(np.asarray(packet["colors"]).reshape(packet["vertexCount"],-1)[anchors]),
+                  uv=[dict(item,values=floats(channel_values[item["channel"]])) for item in packet["uv"]],
+                  subMeshes=[indices.tolist() for indices in output_faces], shapes=shapes,
+                  bounds=floats(np.r_[(minima+maxima)*0.5,maxima-minima]))
+    result["sourceFingerprint"] = models.fingerprint(result)[0]
+    move = float(np.linalg.norm(guide_positions-original[attached],axis=1).max())
+    return result, matrix, move, anchors, len(retained)
 
 
 def style_selector(asset):
@@ -399,15 +528,24 @@ def style_selector(asset):
     return style, code
 
 
-def model_jobs(manifest, census, head_census, settings, selected):
+def model_jobs(manifest, census, head_census, settings, selected, fitted_heads=None):
     faces = {}
+    families_by_head = {}
     for face in head_census["assets"]:
         if "/Graphics/FaceShape_" in face["internalId"]:
             family = face["internalId"].split("/Graphics/", 1)[0]
             faces.setdefault(family, []).append(face)
+            families_by_head[face["name"].casefold()] = family
+    head_fit_shapes = frozenset(families_by_head) | {
+        f"{family.rsplit('/', 1)[-1]}_FaceShape".casefold() for family in faces
+    }
+
+    @lru_cache(maxsize=None)
+    def family_surfaces(family):
+        return tuple(head_surface(crown_skin(face)) for face in faces[family])
+
     assets = {row["asset"]: row for row in manifest["resources"]}
     owners = {}
-    head_surfaces = {}
     fits = {}
     scalp_profiles = {}
     used = {"Hair": set(), "Beard": set()}
@@ -426,14 +564,18 @@ def model_jobs(manifest, census, head_census, settings, selected):
             raise ValueError("A hairstyle needs one owning prefab and bundle.")
         family = asset["internalId"].split("/Graphics/", 1)[0]
         if family not in fits:
-            heads = {face["name"]: head_surface(crown_skin(face)) for face in faces[family]}
-            head_surfaces[family] = heads
-            fits[family] = scalp_fit(tuple(heads.values()))
+            fits[family] = scalp_fit(family_surfaces(family))
         fit = fits[family]
         if category == "Hair":
-            if family not in scalp_profiles:
-                scalp_profiles[family] = scalp_tables(head_surfaces[family], fit)
-            fit = dict(fit, scalps=scalp_profiles[family])
+            cover = not design.get("ridge")
+            wearers = fitted_heads.get(asset["name"], []) if fitted_heads and cover else []
+            alternate = tuple(sorted({families_by_head[head.casefold()] for head in wearers} - {family}))
+            profile_key = family, cover, alternate
+            if profile_key not in scalp_profiles:
+                shapes = (head for owner in alternate for head in family_surfaces(owner)) if cover else None
+                scalp_profiles[profile_key] = scalp_table(family_surfaces(family), fit, shapes)
+            fit = dict(fit, scalp=scalp_profiles[profile_key], coverScalp=cover)
+        fit = dict(fit, nativeHeadFitShapes=head_fit_shapes)
         finish = dict(settings["finish"]["shared"], **settings["finish"][category.lower()])
         owners[name] = dict(asset=asset["name"], prefab=entry["asset"], category=category, style=style,
                             profile=design, fit=fit, skins=asset["skins"], finish=finish)
@@ -469,12 +611,12 @@ def update_asset(job):
 
     root = resources.typed_bundle_asset(env, job["prefab"], "GameObject").deref()
     matched = dict(resources.prefab_skin_renderers(root, resolve))
+    components = {obj.path_id: obj.read_typetree() for obj in file.objects.values() if obj.type.name == "MonoBehaviour"}
     cloth_meshes = set()
-    for obj in file.objects.values():
-        if obj.type.name == "MonoBehaviour":
-            deformer = obj.read_typetree().get("deformer")
-            if isinstance(deformer, dict) and deformer.get("sharedMesh", {}).get("m_FileID") == 0:
-                cloth_meshes.add(deformer["sharedMesh"]["m_PathID"])
+    for component in components.values():
+        deformer = component.get("deformer")
+        if isinstance(deformer, dict) and deformer.get("sharedMesh", {}).get("m_FileID") == 0:
+            cloth_meshes.add(deformer["sharedMesh"]["m_PathID"])
     originals = []
     for skin in job["skins"]:
         renderer = matched[skin["path"]]
@@ -482,29 +624,24 @@ def update_asset(job):
         current = models.export_current_mesh(obj)
         if not np.allclose(resources.renderer_frame(renderer, resolve), native_matrix(skin), rtol=0., atol=1e-5):
             raise ValueError("The adopted groom has another renderer-to-head frame.")
-        frames = obj.read_typetree()["m_Shapes"]["shapes"]
-        originals.append((skin, obj, current, frames))
-    # The same amount of styling applies to every LOD and face pose for a provider.
-    for strength in (1., .88, .75, .62):
-        try:
-            authored = [packet_frame(packet, skin, job["fit"], job["profile"], job["category"], frames, strength)
-                        for skin, _, packet, frames in originals]
-        except SurfaceFrameCompression:
-            if strength == .62:
-                raise
-        else:
-            break
+        originals.append((skin, obj, current))
     replacements = []
     meshes = []
-    for (skin, obj, current, _), (updated, matrix, motion) in zip(originals, authored):
-        if not .001 < motion < .18:
-            raise ValueError("The authored silhouette falls outside its centimetre-scale fit.")
-        binding = cloth_attachment(current, updated, matrix) if obj.path_id in cloth_meshes else None
-        compiled = resources.write_mesh_frame(obj, updated)
+    for skin, obj, current in originals:
+        lod = int(skin["path"].rsplit("LOD", 1)[-1])
+        fixed_cloth = resources.fixed_cloth_render_vertices(components, obj.path_id) if obj.path_id in cloth_meshes else None
+        updated, matrix, motion, anchors, retained = rebuilt_groom(
+            current, skin, job["fit"], job["profile"], job["category"], lod,
+            crc32(job["style"].encode("utf-8")), fixed_cloth)
+        if not 0. <= motion < .32:
+            raise ValueError("The authored guide falls outside the head and shoulder fitting range.")
+        binding = cloth_attachment(current, updated, matrix, anchors, retained) if obj.path_id in cloth_meshes else None
+        compiled = resources.write_mesh_frame(obj, updated, vertex_sources=anchors)
         replacements.append(dict(sourceFingerprint=current["sourceFingerprint"], sourcePathIds=[obj.path_id],
                                  compiledTree=compiled, packet=updated, binding=binding,
                                  rendererBoundsPadding=motion))
-        meshes.append(dict(renderer=skin["path"], vertices=current["vertexCount"], maximumDisplacementMetres=motion,
+        meshes.append(dict(renderer=skin["path"], vertices=updated["vertexCount"], sourceVertices=current["vertexCount"],
+                           guideVertices=len(anchors)-retained, retainedVertices=retained, maximumDisplacementMetres=motion,
                            physicalFrames=sum(len(shape["frames"]) for shape in current["shapes"])))
     updates = []
     for key in sorted(resources.groom_material_identifiers(file)):
@@ -519,7 +656,7 @@ def update_asset(job):
                                               export_mesh=models.export_current_mesh, material_updates=updates)
     receipt = dict(file=target.name, identity=identity, sha256=result["target"]["sha256"], bytes=target.stat().st_size,
                    asset=job["asset"], style=job["style"], category=job["category"], name=job["profile"]["name"],
-                   silhouetteStrength=strength, sourceMeshes=meshes, saved=result)
+                   sourceMeshes=meshes, saved=result)
     models.write(receipt_path, receipt)
     return receipt, False
 
@@ -536,14 +673,18 @@ def author(args):
     selected = set(args.assets)
     profiles = models.read(args.designs)["silhouettes"]
     census, heads = models.read(args.groom_census), models.read(args.head_census)
-    owners = model_jobs(manifest, census, heads, profiles, selected)
+    fitted_heads = models.read(args.fit_heads)["grooms"] if args.fit_heads else None
+    owners = model_jobs(manifest, census, heads, profiles, selected, fitted_heads)
     producer = pin(Path(__file__))
+    guide_producer = pin(HERE / "GroomGuides.py")
     serializer = pin(Path(resources.__file__))
     inputs = [pin(path) for path in (source / manifest_path, args.designs, args.groom_census, args.head_census)]
+    if args.fit_heads:
+        inputs.append(pin(args.fit_heads))
     source_assembly = pin(assembly_path)
     if assembly["catalogSha256"] != inputs[0]["sha256"]:
         raise ValueError("The fitted source catalog does not match its assembly.")
-    stage = dict(source=inputs[0], inputs=inputs, producers=[producer, serializer],
+    stage = dict(source=inputs[0], inputs=inputs, producers=[producer, guide_producer, serializer],
                  selected=sorted(owners), schemaVersion=1)
     ownership = output / "WorkingDirectory.json"
     if ownership.is_file():
@@ -559,7 +700,8 @@ def author(args):
         target = models.checked_catalog_path(catalog, name)
         if name in owners:
             data = owners.pop(name)
-            identity = dict(source=row["sha256"], generator=producer["sha256"], serializer=serializer["sha256"],
+            identity = dict(source=row["sha256"], generator=producer["sha256"], guideGenerator=guide_producer["sha256"],
+                            serializer=serializer["sha256"],
                             inputs=inputs[2:], profile=data["profile"], finish=data["finish"])
             jobs.append(dict(data, identity=identity, source=str(input_bundle), target=str(target),
                              reuse=previous, receipt=str(output / "Receipts" / (name + ".json"))))
@@ -591,8 +733,8 @@ def author(args):
             proof.setdefault("appearanceFinishing", []).append(dict(
                 kind="native-groom-silhouette", beforeSha256=receipt["identity"]["source"],
                 proof=pin(output / "Receipts" / (row["file"] + ".json")), sha256=receipt["sha256"],
-                authority=dict(inputs=inputs[1:] + [producer, serializer])))
-    if any(pin(row["path"]) != row for row in inputs + [source_assembly, producer, serializer]):
+                authority=dict(inputs=inputs[1:] + [producer, guide_producer, serializer])))
+    if any(pin(row["path"]) != row for row in inputs + [source_assembly, producer, guide_producer, serializer]):
         raise ValueError("A silhouette source or producing program changed during generation.")
     models.write(output / manifest_path, manifest)
     summary = dict(source=inputs[0], catalog=pin(output / manifest_path), inputs=inputs[1:],
@@ -606,7 +748,8 @@ def author(args):
     assembly.pop("artAcceptance", None)
     assembly["preparedSource"] = dict(assembly=source_assembly, catalog=inputs[0])
     assembly["retainedSourceInputs"] = models.resource_producer_archives(
-        output, (Path(__file__), Path(resources.__file__), args.designs), assembly.get("retainedSourceInputs", []))
+        output, (Path(__file__), HERE / "GroomGuides.py", Path(resources.__file__), args.designs),
+        assembly.get("retainedSourceInputs", []))
     assembly["groomSilhouettes"] = pin(output / "Silhouettes.json")
     models.write(output / "ResourceAssembly.json", assembly)
     print(summary["assets"], "groom providers,", summary["renderers"], "renderers:", summary["catalog"]["path"])
@@ -617,6 +760,7 @@ def main():
     for name in ("source", "groom-census", "head-census", "output"):
         parser.add_argument("--" + name, required=True, type=Path)
     parser.add_argument("--designs", type=Path, default=HERE / "groom-designs.json")
+    parser.add_argument("--fit-heads", type=Path)
     parser.add_argument("--assets", nargs="+", default=[])
     parser.add_argument("--reuse", type=Path, action="append", default=[])
     parser.add_argument("--workers", type=int, choices=range(1, 17), default=4)

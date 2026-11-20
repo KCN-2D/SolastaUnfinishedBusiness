@@ -12,11 +12,11 @@
     },
     {
       "path": "SourceGroom.cginc",
-      "sha256": "bd4ae92fd99960775e2c8bb20507f1b830c5699089a6cd12b10aae9011e11fb1"
+      "sha256": "dead1383419db683875697adeb689351cd230a9071eda63789751adfe6623258"
     },
     {
       "path": "SourceGroomProgram.cginc",
-      "sha256": "be3164e1c3eb88321cf41f08991f21ce681529af502c4d9362e588c8552e3db8"
+      "sha256": "aa3455020bcb34304ae8e0999c7d1ec79e6a9beae208932bc5cabc16b2dee12f"
     }
   ],
   "materials": [

@@ -1029,23 +1029,29 @@ def refine_groom_resource_frames(job: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def write_mesh_frame(obj: Any,packet: dict[str, Any],*,source_bones=None,target_bones=None,collar_topology=False) -> dict[str, Any]:
-    """Replace the declared mesh frame while retaining all other vertex streams."""
+def write_mesh_frame(obj: Any,packet: dict[str, Any],*,source_bones=None,target_bones=None,collar_topology=False,vertex_sources=None) -> dict[str, Any]:
+    """Retain native vertex streams by correspondence, with optional regenerated topology."""
     import numpy as np
     from UnityPy.helpers.MeshHelper import MeshHandler
     tree=obj.read_typetree();helper=MeshHandler(obj.read());helper.process()
     count=packet['vertexCount'];raw=bytearray(tree['m_VertexData']['m_DataSize']);original_count=tree['m_VertexData']['m_VertexCount']
-    if count!=original_count and not collar_topology:
+    rebuilt_topology=collar_topology or vertex_sources is not None
+    if count!=original_count and not rebuilt_topology:
         raise ValueError('A prepared mesh frame has different vertex correspondence.')
     vertex_data=helper.src.m_VertexData
     if vertex_data is None or vertex_data.m_Channels is None:raise ValueError('A prepared mesh has no vertex-channel layout.')
     streams=helper.get_streams(vertex_data.m_Channels,count)
     if not isinstance(streams,dict):streams=dict(enumerate(streams))
-    if collar_topology:
-        if count<original_count or source_bones is None or target_bones is None:
+    if rebuilt_topology:
+        if collar_topology and (count<original_count or source_bones is None or target_bones is None or vertex_sources is not None):
             raise ValueError('A rebuilt skin collar must retain its original vertices and palette prefix.')
+        if vertex_sources is not None:
+            vertex_sources=np.asarray(vertex_sources)
+            if (vertex_sources.shape!=(count,)or vertex_sources.dtype.kind not in 'iu'or
+                np.any(vertex_sources<0)or np.any(vertex_sources>=original_count)):
+                raise ValueError('A rebuilt mesh has an invalid source vertex correspondence.')
         if tree.get('m_MeshCompression',0)or tree.get('m_StreamData',{}).get('size',0):
-            raise ValueError('A rebuilt skin collar requires its explicit uncompressed inline vertex streams.')
+            raise ValueError('A rebuilt mesh requires its explicit uncompressed inline vertex streams.')
         old_streams=helper.get_streams(vertex_data.m_Channels,original_count)
         if not isinstance(old_streams,dict):old_streams=dict(enumerate(old_streams))
         rebuilt=bytearray((max(stream.offset+stream.stride*count for stream in streams.values())+15)//16*16)
@@ -1054,13 +1060,15 @@ def write_mesh_frame(obj: Any,packet: dict[str, Any],*,source_bones=None,target_
             width=layout['dimension']
             if not width:continue
             if number>13:raise ValueError('A rebuilt skin collar has an undeclared vertex channel.')
-        # Keep every original attribute byte, including packed UVs/colors.
+        # Copy each inherited stream from its source vertex. UV and color
+        # below may explicitly override this mapping.
         for number,stream in streams.items():
             old=old_streams[number]
-            if old.stride!=stream.stride:raise ValueError('A rebuilt skin collar changed its native stream layout.')
-            for index in range(original_count):
-                a=old.offset+old.stride*index;b=stream.offset+stream.stride*index
-                rebuilt[b:b+old.stride]=raw[a:a+old.stride]
+            if old.stride!=stream.stride:raise ValueError('A rebuilt mesh changed its native stream layout.')
+            previous=np.ndarray((original_count,old.stride),dtype='u1',buffer=raw,offset=old.offset)
+            current=np.ndarray((count,stream.stride),dtype='u1',buffer=rebuilt,offset=stream.offset)
+            if vertex_sources is None:current[:original_count]=previous
+            else:current[:]=previous[vertex_sources]
         for number,key in [(3,'colors'),*[(4+i,'uv')for i in range(8)]]:
             if number>=len(channels)or not channels[number]['dimension']:continue
             layout=channels[number];width=layout['dimension'];fmt=layout['format']
@@ -1076,14 +1084,18 @@ def write_mesh_frame(obj: Any,packet: dict[str, Any],*,source_bones=None,target_
             else:raise ValueError('A rebuilt skin collar has an unsupported UV/color encoding.')
             stream=streams[layout['stream']];size=np.dtype(dtype).itemsize
             view=np.ndarray((count,width),dtype=dtype,buffer=rebuilt,offset=stream.offset+layout['offset'],strides=(stream.stride,size))
-            if not np.array_equal(view[:original_count],encoded[:original_count]):raise ValueError('A rebuilt skin collar changed a native UV/color prefix.')
-            view[original_count:]=encoded[original_count:]
-        if len(packet['subMeshes'])!=len(tree['m_SubMeshes']):raise ValueError('A rebuilt skin collar changed material-slot ownership.')
+            if collar_topology and not np.array_equal(view[:original_count],encoded[:original_count]):
+                raise ValueError('A rebuilt skin collar changed a native UV/color prefix.')
+            view[:]=encoded
+        if len(packet['subMeshes'])!=len(tree['m_SubMeshes']):raise ValueError('A rebuilt mesh changed material-slot ownership.')
         index_width=4 if count>65535 or packet['indexFormat']in(1,'UInt32')else 2;offset=0;indices=[]
         for sub,triangles in zip(tree['m_SubMeshes'],packet['subMeshes']):
             ids=np.asarray(triangles)
-            if ids.ndim!=1 or len(ids)%3 or not len(ids)or np.any(ids!=np.floor(ids))or np.any(ids<0)or np.any(ids>=count):raise ValueError('A rebuilt skin collar has invalid triangle indices.')
-            sub.update(firstByte=offset,indexCount=len(ids),baseVertex=0,firstVertex=int(ids.min()),vertexCount=int(ids.max()-ids.min()+1))
+            if ids.ndim!=1 or len(ids)%3 or collar_topology and not len(ids)or np.any(ids!=np.floor(ids))or np.any(ids<0)or np.any(ids>=count):
+                raise ValueError('A rebuilt mesh has invalid triangle indices.')
+            first=int(ids.min())if len(ids)else 0
+            used=int(ids.max())-first+1 if len(ids)else 0
+            sub.update(firstByte=offset,indexCount=len(ids),baseVertex=0,firstVertex=first,vertexCount=used)
             sub['localAABB']=dict(m_Center=dict(zip('xyz',packet['bounds'][:3])),m_Extent=dict(zip('xyz',(v/2 for v in packet['bounds'][3:]))))
             indices.append(ids.astype('<u4'if index_width==4 else'<u2').tobytes());offset+=len(ids)*index_width
         tree['m_IndexBuffer']=b''.join(indices);tree['m_IndexFormat']=int(index_width==4)
@@ -2879,6 +2891,44 @@ def prepare_native_cloth_state(trees: dict[int, dict[str, Any]]) -> list[dict[st
             reason='incompatible-share-data'if key in invalid else'no-render-deformer-target'
             changes.append(dict(component=key,field='m_Enabled',before=tree['m_Enabled'],after=0,reason=reason,referenceMismatches=[row for row in mismatches if row['component']==key]));tree['m_Enabled']=0
     return changes
+
+
+def fixed_cloth_render_vertices(trees, mesh_key):
+    """Locate source render vertices attached entirely to cloth roots."""
+    def local(pointer):
+        return trees.get(pointer['m_PathID']) if pointer and pointer['m_FileID'] == 0 else None
+
+    attached = None
+    for cloth in trees.values():
+        if not cloth.get('m_Enabled') or 'virtualDeformer' not in cloth:
+            continue
+        controller = local(cloth['virtualDeformer'])
+        simulation = local(cloth.get('clothData'))
+        if controller is None or simulation is None:
+            continue
+        deformer = controller['deformer']
+        virtual_mesh = local(deformer['meshData'])
+        if virtual_mesh is None:
+            continue
+        fixed = {vertex for vertex, root, depth in zip(simulation['useVertexList'],
+                 simulation['rootList'], simulation['vertexDepthList']) if root == -1 and depth == 0}
+        for ordinal, pointer in enumerate(deformer['renderDeformerList']):
+            renderer = local(pointer)
+            if renderer is None:
+                continue
+            shared = renderer['deformer']['sharedMesh']
+            if shared['m_FileID'] != 0 or shared['m_PathID'] != mesh_key:
+                continue
+            child = virtual_mesh['childDataList'][ordinal]
+            weights = child['vertexWeightList']
+            matches = set()
+            for vertex, packed in enumerate(child['vertexInfoList']):
+                count, start = packed >> 28, packed & 0x0fffffff
+                if child['parentIndexList'][vertex] in fixed and count and all(
+                        value['parentIndex'] in fixed for value in weights[start:start + count] if value['weight'] > 0):
+                    matches.add(vertex)
+            attached = matches if attached is None else attached & matches
+    return None if attached is None else sorted(attached)
 
 
 def prepare_native_cloth(trees: dict[int, dict[str, Any]], replacements: dict[int, dict[str, Any]]) -> dict[str, Any]:

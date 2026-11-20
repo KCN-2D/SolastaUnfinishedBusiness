@@ -354,6 +354,7 @@ __pycache__/
 !/tools/blender-models/CharacterHair/GenerateFlowCoverageSweptProfile.py
 !/tools/blender-models/CharacterHair/PrepareGroup.py
 !/tools/blender-models/CharacterHair/RestyleGrooms.py
+!/tools/blender-models/CharacterHair/GroomGuides.py
 /tools/asset-authoring/workspace/
 /SolastaUnfinishedBusiness/BlenderModels/CharacterModels/*.bundle
 

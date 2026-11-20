@@ -731,6 +731,55 @@ class ResourceStorageTest(unittest.TestCase):
                 self.assertIn(source/'Catalog/hero.bundle',live)
                 self.assertEqual(retained[0]['reason'],'active-resource-producer')
 
+    def test_retired_generation_without_catalog_owns_only_its_declared_payload(self):
+        with self.owned_workspace()as(root,_,output):
+            output.mkdir()
+            data=output/'render.bin'
+            neighbor=output/'original.bin'
+            data.write_bytes(b'generated')
+            neighbor.write_bytes(b'original')
+            receipt=output/'Generation.json'
+            storage.write(receipt,dict(kind='CharacterResourceGeneration',schemaVersion=1,state='completed',
+                outputs=[dict(path=str(data),sha256=storage.sha(data),role='payload')]))
+            current=dict(modified=0,retainedDirectories=set())
+            with patch.object(storage,'producer_processes',return_value=[]):
+                records,_,_,_=storage.discover_work([root],current,set(),False)
+                self.assertEqual([row['owned_payloads'] for row in records],[{data:storage.sha(data)}])
+                current['retainedDirectories']={output}
+                records,_,_,_=storage.discover_work([root],current,set(),False)
+                self.assertEqual(records,[])
+            self.assertEqual(neighbor.read_bytes(),b'original')
+
+    def test_unchanged_catalog_link_uses_the_same_pinned_manifest(self):
+        with self.owned_workspace()as(_,source,output):
+            src=source/'Catalog/hero.bundle'
+            manifest=source/'Catalog'/storage.RESOURCE_FILES['manifest']
+            target=output/'Catalog/hero.bundle'
+            target.parent.mkdir(parents=True)
+            target.hardlink_to(src)
+            with patch.object(storage,'sha',side_effect=AssertionError('payload reading was redundant')):
+                matches=storage.shared_catalog_payloads(manifest,output,{target},storage.hashlib.sha256(manifest.read_bytes()).hexdigest())
+            self.assertEqual(matches,{target:storage.sha(src)})
+
+    def test_retention_rechecks_changed_inputs_in_directories_with_retirement(self):
+        with self.owned_workspace() as (_, source, output):
+            unaffected = source / 'Catalog/hero.bundle'
+            retiring = output / 'retiring'
+            retiring.mkdir(parents=True)
+            neighbor = retiring / 'neighbor.bundle'
+            neighbor.write_bytes(b'original')
+            owner = output / 'ResourceAssembly.json'
+            storage.write(owner, [dict(path=str(path), sha256=storage.sha(path), role='payload')
+                                  for path in (unaffected, neighbor)])
+            neighbor.write_bytes(b'changed')
+            issues = []
+            with storage.payload_hash_operation() as scope:
+                retained = storage.declared_live_inputs([dict(owner=owner)], issues,
+                                                        retirement_ancestors={retiring})
+                self.assertEqual(scope['payloadHashes'], 1)
+            self.assertEqual(retained, {unaffected, retiring})
+            self.assertEqual(issues, [dict(path=str(neighbor), reason='changed-retained-input')])
+
     @unittest.skipUnless(os.name=='nt','Windows producer-input sharing contract')
     def test_cleanup_read_lease_blocks_producer_resume_before_output_changes(self):
         with self.owned_workspace()as(_,source,output):

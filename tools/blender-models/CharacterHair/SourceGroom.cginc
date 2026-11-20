@@ -11,6 +11,36 @@ float2 SourceGroomUnpackSignedPair(float packed)
     float high=floor(packed/4096);
     return float2(packed-high*4096,high)*(2.0/4095)-1;
 }
+
+float SourceGroomStrandHash(float cell, float seed)
+{
+    float h=frac(cell*0.1031+seed*0.13787);
+    h*=h+33.33;
+    return frac(h*(h+0.619));
+}
+
+// In a card's own frame, vary the center, width and tip of each fiber.
+// Resolve narrow gaps only while the projected fiber is wider than a pixel.
+float3 SourceGroomStrandSample(float2 uv, float seed, float2 dx, float2 dy)
+{
+    float count=22+8*SourceGroomStrandHash(seed,2);
+    float across=uv.x*count;
+    float cell=floor(across);
+    float id=SourceGroomStrandHash(cell,seed);
+    float offset=lerp(-0.24,0.24,SourceGroomStrandHash(cell,seed+7));
+    float bend=uv.y*(1-uv.y)*lerp(-0.8,0.8,SourceGroomStrandHash(cell,seed+13));
+    float width=lerp(0.23,0.49,SourceGroomStrandHash(cell,seed+21));
+    float pixel=max(max(abs(dx.x),abs(dy.x))*count,0.06);
+    float detail=1-smoothstep(0.35,0.95,pixel);
+    float section=frac(across)-0.5-offset-bend;
+    float filament=1-smoothstep(width-pixel*0.4,width+pixel*0.4,abs(section));
+    float edge=smoothstep(0,0.19,min(uv.x,1-uv.x));
+    float reach=lerp(0.78,1.02,SourceGroomStrandHash(cell,seed+31));
+    float tip=1-smoothstep(reach-0.11,reach,uv.y);
+    float body=edge*lerp(1,tip,smoothstep(0.57,0.97,uv.y));
+    float alpha=lerp(body,tip*max(body,filament*0.68*sqrt(edge)),detail);
+    return float3((id-0.5)*detail,alpha,clamp(section/width,-1,1)*filament*detail);
+}
 // Projected-area-normalized cylindrical fiber distribution. The fiber axis
 // owns the longitudinal lobe; surface GGX alone gives a solid plastic lock.
 float SourceGroomFiberDistribution(float tangentHalf, float roughness)

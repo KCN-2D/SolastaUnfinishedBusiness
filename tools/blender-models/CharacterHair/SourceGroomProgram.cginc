@@ -198,20 +198,75 @@
 
         void surf(Input i, inout SurfaceOutputSourceGroom o)
         {
-            float4 source = tex2D(_MainTex, i.sourceAndGroom.xy * _MainTex_ST.xy + _MainTex_ST.zw);
-            float mask = tex2D(_Mask, i.sourceAndGroom.xy * _Mask_ST.xy + _Mask_ST.zw).r;
-            // Gradients are evaluated before clip and outside the role branch. The
-            // branch therefore never asks a divergent quad for derivatives.
-            float3 dPdx=ddx(i.worldPos), dPdy=ddy(i.worldPos);
-            float2 dUVdx=ddx(i.sourceAndGroom.zw), dUVdy=ddy(i.sourceAndGroom.zw);
+            float2 cardUV=i.sourceAndGroom.zw;
+            float2 cardDx=ddx(cardUV),cardDy=ddy(cardUV);
+            float3 dPdx=ddx(i.worldPos),dPdy=ddy(i.worldPos);
             float2 sourceSampleUV=i.sourceAndGroom.xy*_MainTex_ST.xy+_MainTex_ST.zw;
             float2 sourceDx=ddx(sourceSampleUV),sourceDy=ddy(sourceSampleUV);
-            float2 nativeDx=ddx(i.sourceAndGroom.xy)*_BumpMap_ST.xy;
-            float2 nativeDy=ddy(i.sourceAndGroom.xy)*_BumpMap_ST.xy;
+            float2 normalUV=i.sourceAndGroom.xy*_BumpMap_ST.xy+_BumpMap_ST.zw;
+            float2 nativeDx=ddx(normalUV),nativeDy=ddy(normalUV);
+            float2 maskUV=i.sourceAndGroom.xy*_Mask_ST.xy+_Mask_ST.zw;
+            float2 maskDx=ddx(maskUV),maskDy=ddy(maskUV);
+            float role=i.groomRoleAndSign.x;
+            bool sourceRoot=role>=96.5;
+            float4 source=0;
+            float mask=0;
+            if(role<64.5 || sourceRoot)
+            {
+                source=tex2Dgrad(_MainTex,sourceSampleUV,sourceDx,sourceDy);
+                mask=tex2Dgrad(_Mask,maskUV,maskDx,maskDy).r;
+            }
+            o.Emission=SGNativeEmission(mul(unity_WorldToObject,float4(i.worldPos,1)).xyz,i.worldPos.y,_DisolveValue,
+                _CharacterHeight,_CharacterPosY,_DisolveNoiseScale,_EmissionColor.rgb,
+                _DisolveGlowColor.rgb,_DisolveHueScale,_DisolveColorWidth);
+            if(role>=64.5 && mask<=0.5)
+            {
+                bool undercoat=role>=80.5;
+                float3 strand=SourceGroomStrandSample(cardUV,role,cardDx,cardDy);
+                if(sourceRoot)SourceGroomClip(source.a,_Cutoff);
+                if(!undercoat)
+                {
+                    clip(_AiryVisibility-0.5);
+                    clip(_AiryDensity-(abs(i.groomRoleAndSign.y)-1));
+                    clip(strand.y-0.24);
+                }
+                float3 renderN=normalize(WorldNormalVector(i,float3(0,0,1)));
+                float3 renderT=normalize(WorldNormalVector(i,float3(1,0,0)));
+                float3 renderB=normalize(WorldNormalVector(i,float3(0,1,0)));
+                float coherence;
+                o.FiberDirection=SourceGroomInterpolatedAxis(i.worldFiberFirst,i.worldFiberSecond,
+                    renderN,renderT,renderB,renderB,coherence);
+                float pigment=_NativePigmentMean>0 ? clamp(0.12+0.82*_NativePigmentMean,0.29,0.66) : 0.45;
+                float root=smoothstep(0,0.59,cardUV.y);
+                o.Albedo=_Color.rgb*pigment*lerp(undercoat ? 0.65 : 0.76,1,root)*(1+0.41*strand.x);
+                o.Normal=SourceGroomSafeNormal(float3((undercoat ? 0.12 : 0.26)*strand.z,0.045*strand.x,1));
+                if(sourceRoot)
+                {
+                    float3 native=SourceGroomUnpack(tex2Dgrad(_BumpMap,normalUV,nativeDx,nativeDy));
+                    native.y*=i.groomRoleAndSign.y<0 ? -1 : 1;
+                    float localValue=dot(source.rgb,float3(0.2126,0.7152,0.0722));
+                    o.Albedo=_Color.rgb*lerp(pigment,clamp(localValue,0.20,0.67),0.24)*(0.94+0.52*strand.x);
+                    o.Normal=SourceGroomWhiteout(SourceGroomNativeIntensity(native,0.34),o.Normal);
+                }
+                o.Metallic=0;
+                o.Smoothness=(sourceRoot ? lerp(0.28,0.34,root) : lerp(0.31,0.40,root))+0.07*strand.x;
+                o.Occlusion=lerp(0.75,1,root);
+                o.Alpha=1;
+                o.FiberAnisotropy=coherence*_FiberAnisotropy*(undercoat ? 0.62 : 1);
+                o.FiberVariation=0.25*strand.x;
+                #ifdef SOURCE_GROOM_ROLE_PROOF
+                o.Emission+=0.1*_RoleDebug;
+                #endif
+                return;
+            }
+            if(sourceRoot)role=0; // The native metallic surface keeps its original material.
+            // Gradients are evaluated before clip and outside the role branch. The
+            // branch therefore never asks a divergent quad for derivatives.
+            float2 dUVdx=cardDx,dUVdy=cardDy;
             // Optical classification only. Source role IDs, alpha/clip,
             // geometry, native core culling and fine17..48 stay unchanged.
 
-            if(_NativeCoreCull>0.5 && i.groomRoleAndSign.x<0.5)
+            if(_NativeCoreCull>0.5 && role<0.5)
             {
                 // Unity CullMode:0 Off,1 Front,2 Back. Do not alter the source
                 // material value or apply it to newly owned fine surfaces.
@@ -221,12 +276,12 @@
             // Roles: 0=source, 1..16=legacy tufts, 17..48=individual fibers,
             // 49..64=layered cards using the atlas's full strand alpha/normal.
             // Local XY remain independent, physically scaled coordinates.
-            bool airy=i.groomRoleAndSign.x>=16.5 && i.groomRoleAndSign.x<48.5;
-            bool edgeFiber=airy && i.groomRoleAndSign.x>=32.5;
-            bool atlasCard=i.groomRoleAndSign.x>=48.5;
+            bool airy=role>=16.5 && role<48.5;
+            bool edgeFiber=airy && role>=32.5;
+            bool atlasCard=role>=48.5;
             // Only new roles carry hierarchy rank in abs(W)-1; its sign is retained.
             if(airy || atlasCard){clip(_AiryVisibility-.5);clip(_AiryDensity-(abs(i.groomRoleAndSign.y)-1));}
-            float tile=fmod(max(0,floor(i.groomRoleAndSign.x)-1),16);
+            float tile=fmod(max(0,floor(role)-1),16);
             float2 origin=float2(fmod(tile,4),floor(tile/4))*0.25;
             float2 groomSampleScale=float2(0.92,0.95)*0.25;
             // Differentiate the continuous coordinates before tile-local Repeat.
@@ -236,8 +291,8 @@
             float3 renderT=normalize(WorldNormalVector(i,float3(1,0,0)));
             float3 renderB=normalize(WorldNormalVector(i,float3(0,1,0)));
             float groomDet=dUVdx.x*dUVdy.y-dUVdx.y*dUVdy.x;
-            bool fineCoordinates=i.groomRoleAndSign.x>=0.5 || (_CoreFineStrength>0 && abs(groomDet)>1e-20);
-            float fineWeight=i.groomRoleAndSign.x>=0.5?1:_CoreFineStrength;
+            bool fineCoordinates=role>=0.5 || (_CoreFineStrength>0 && abs(groomDet)>1e-20);
+            float fineWeight=role>=0.5?1:_CoreFineStrength;
             float strandVariation=0;
             float strandOcclusion=1;
             float4 groom = float4(1,1,1,1);
@@ -248,13 +303,13 @@
                 // The opaque support represents strand bundles. Its normal
                 // bands stay resolvable at portrait size; separate transparent
                 // fibers retain the atlas's individual-strand coordinates.
-                float2 normalScale=i.groomRoleAndSign.x<0.5 ? float2(0.45,0.45) : float2(1,1);
+                float2 normalScale=role<0.5 ? float2(0.45,0.45) : float2(1,1);
                 float2 normalCoordinates=atlasCard?groomCoordinates:frac(i.sourceAndGroom.zw*normalScale);
                 float2 normalUV=origin+float2(0.04,0.025)*0.25+normalCoordinates*groomSampleScale;
                 float2 normalDx=dUVdx*normalScale,normalDy=dUVdy*normalScale;
                 fine = SourceGroomUnpack(tex2Dgrad(_GroomNormal, normalUV, normalDx*groomSampleScale, normalDy*groomSampleScale));
                 fine = lerp(float3(0,0,1),SourceGroomFineInRender(fine,dPdx,dPdy,normalDx,normalDy,renderN,renderT,renderB),fineWeight);
-                float reliefStrength=(airy || atlasCard) ? _FineReliefStrength : (i.groomRoleAndSign.x<0.5 ? _CoreReliefStrength : 1);
+                float reliefStrength=(airy || atlasCard) ? _FineReliefStrength : (role<0.5 ? _CoreReliefStrength : 1);
                 if(reliefStrength<1 && !airy)fine=SourceGroomNativeIntensity(fine,reliefStrength);
                 if(airy)
                 {
@@ -269,7 +324,7 @@
 
             }
             SourceGroomClip(source.a, _Cutoff);
-            if(i.groomRoleAndSign.x >= 0.5 && !airy && !atlasCard && mask <= 0.5 && _FiberAlphaCutoff > 0)
+            if(role >= 0.5 && !airy && !atlasCard && mask <= 0.5 && _FiberAlphaCutoff > 0)
             {
                 clip(groom.a - _FiberAlphaCutoff);
             }
@@ -288,11 +343,11 @@
                 }
                 clip(fineCoverage-_FineAlphaCutoff);
             }
-            float proofRole=mask>0.5 ? 4 : (i.groomRoleAndSign.x<0.5 ? 0 : (edgeFiber ? 3 : (airy ? 2 : 1)));
+            float proofRole=mask>0.5 ? 4 : (role<0.5 ? 0 : (edgeFiber ? 3 : (airy ? 2 : 1)));
             #ifdef SOURCE_GROOM_ROLE_PROOF
             if(_RoleOnly>=0)clip(0.25-abs(proofRole-_RoleOnly));
             #endif
-            float3 macro = SourceGroomUnpack(tex2D(_BumpMap, i.sourceAndGroom.xy * _BumpMap_ST.xy + _BumpMap_ST.zw));
+            float3 macro = SourceGroomUnpack(tex2Dgrad(_BumpMap,normalUV,nativeDx,nativeDy));
             macro.y *= i.groomRoleAndSign.y < 0 ? -1 : 1;
             // Native locks describe broad volume; their deep grooves must not
             // amplify the independent fine-fiber relief. Ornaments keep native N.
@@ -302,8 +357,7 @@
                 // Retain the source's strand grooves separately from its broad
                 // sculpted volumes. Scaling the complete native normal down
                 // erased those grooves as well, especially on sparse grooms.
-                float2 nativeUV=i.sourceAndGroom.xy*_BumpMap_ST.xy+_BumpMap_ST.zw;
-                float3 broad=SourceGroomUnpack(tex2Dgrad(_BumpMap,nativeUV,nativeDx*4,nativeDy*4));
+                float3 broad=SourceGroomUnpack(tex2Dgrad(_BumpMap,normalUV,nativeDx*4,nativeDy*4));
                 float3 grooves=SourceGroomSafeNormal(float3((macro.xy-broad.xy)*(_CoreResponse*_NativeGrooveStrength),1));
                 shadingMacro=SourceGroomWhiteout(SourceGroomNativeIntensity(broad,
                     lerp(_MacroNormalStrength,_MacroNormalStrength*0.5,_CoreResponse)),grooves);
@@ -360,24 +414,13 @@
                 pigment*=gain*_Color.rgb;
                 if(fineCoordinates)
                 {
-                    // The core carries resolvable bundles, while individual
-                    // fibers retain their narrower bands. Both follow the same
-                    // authored flow and fade at their projected Nyquist limit.
-                    float wave=sin(i.sourceAndGroom.zw.y*(2*UNITY_PI*0.37))*0.075;
-                    float3 cycles=i.groomRoleAndSign.x<0.5
-                        ? float3(1.35,3.6,8.1) : float3(7,19,43);
-                    float waveDerivative=cos(i.sourceAndGroom.zw.y*(2*UNITY_PI*0.37))*(0.075*2*UNITY_PI*0.37);
-                    float3 footprint=max(abs(dUVdx.x*cycles+waveDerivative*dUVdx.y),
-                        abs(dUVdy.x*cycles+waveDerivative*dUVdy.y));
-                    float3 visibility=saturate(1-2*footprint);
-                    float3 phase=(i.sourceAndGroom.zw.x*cycles+wave+tile*0.61803399)*(2*UNITY_PI);
-                    float variation=dot(sin(phase)*visibility,float3(0.50,0.32,0.18));
+                    float variation=SourceGroomStrandSample(groomCoordinates,tile,dUVdx,dUVdy).x;
                     strandVariation=variation;
                     strandOcclusion*=1-0.19*_CoreResponse*fineWeight*saturate(-strandVariation);
                     float3 groomPigment=groom.rgb;
                     // Core alpha is intentionally intact: transparent groom gaps
                     // must not stamp full-strength dark pigment onto that core.
-                    if(i.groomRoleAndSign.x<0.5 && _CoreGroomPigmentStrength<1)
+                    if(role<0.5 && _CoreGroomPigmentStrength<1)
                         groomPigment=lerp(1,groomPigment,_CoreGroomPigmentStrength);
                     pigment*=groomPigment*(1+_FiberColorStrength*fineWeight*variation);
                 }
@@ -393,7 +436,7 @@
             // The same source-flow field changes the microscopic luster in both
             // forward passes. It is filtered before minification and never
             // changes native pigment alpha, geometry, native dye or metal masks.
-            float lusterScale=i.groomRoleAndSign.x<0.5 ? _CoreSmoothnessScale : 1;
+            float lusterScale=role<0.5 ? _CoreSmoothnessScale : 1;
             float strandLuster=saturate(_FiberSmoothness*lusterScale+0.12*strandVariation
                 +0.035*(groom.a-0.5));
             o.Smoothness = mask <= 0.5 ? lerp(_FiberSmoothness,strandLuster,_CoreResponse) : _Smoothness;
@@ -410,12 +453,9 @@
                     renderN,renderT,renderB,o.FiberDirection,axisCoherence);
             // The measured groom coordinates supply the fiber direction on both
             // the opaque support and the individual sheets.
-            o.FiberAnisotropy=axisCoherence*_FiberAnisotropy*(i.groomRoleAndSign.x<0.5 ? (fineCoordinates ? _CoreAnisotropyScale : 0) : 1);
+            o.FiberAnisotropy=axisCoherence*_FiberAnisotropy*(role<0.5 ? (fineCoordinates ? _CoreAnisotropyScale : 0) : 1);
             o.FiberVariation=strandVariation*_CoreResponse;
 
-            o.Emission = SGNativeEmission(mul(unity_WorldToObject,float4(i.worldPos,1)).xyz, i.worldPos.y, _DisolveValue,
-                _CharacterHeight, _CharacterPosY, _DisolveNoiseScale, _EmissionColor.rgb,
-                _DisolveGlowColor.rgb, _DisolveHueScale, _DisolveColorWidth);
             #ifdef SOURCE_GROOM_ROLE_PROOF
             if(_RoleDebug>0.5)
             {

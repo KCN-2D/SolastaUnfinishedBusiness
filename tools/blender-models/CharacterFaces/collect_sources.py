@@ -1,6 +1,7 @@
 """Validate immutable native source packets and build a provenance-preserving census."""
 from __future__ import annotations
 import argparse, copy, gzip, hashlib, json, math, re, struct, sys
+from array import array
 from collections import Counter
 from pathlib import Path
 from typing import Any, Callable
@@ -25,10 +26,24 @@ def number(value):
     need(math.isfinite(value), 'Float32 conversion is nonfinite.')
     return 0.0 if value == 0 else value
 
+def float32_components(values):
+    """Round one channel at a time using the native exporter's float32 encoding."""
+    need(all(type(value) in (int, float) for value in values), 'Nonfinite or nonnumeric float channel.')
+    try:
+        components = array('f', values)
+    except (OverflowError, struct.error) as error:
+        raise SourceError('Float channel exceeds float32.') from error
+    words = memoryview(components).cast('B').cast('I')
+    for index, bits in enumerate(words):
+        if bits == 0x80000000:
+            words[index] = 0
+        elif (bits & 0x7f800000) == 0x7f800000:
+            number(values[index])
+    return components
+
 def floats(values, count=None, name='channel'):
     need(type(values) is list and (count is None or len(values) == count), f'Invalid {name} length/type.')
-    # Validate once; canonical encoding independently rounds every component to float32.
-    for value in values: number(value)
+    float32_components(values)
     return values
 
 def ints(values, count=None):
@@ -36,37 +51,63 @@ def ints(values, count=None):
     return values
 
 def fingerprint(packet):
-    out = bytearray()
-    def i(value): out.extend(struct.pack('<i', value))
-    def f(value): out.extend(struct.pack('<f', number(value)))
+    primary, secondary = hashlib.sha256(), hashlib.sha512()
+    length = 0
+
+    def append(data):
+        nonlocal length
+        primary.update(data)
+        secondary.update(data)
+        length += len(data)
+
+    def i(value): append(struct.pack('<i', value))
+    def f(value): append(struct.pack('<f', number(value)))
+    def float_data(values):
+        components = float32_components(values)
+        if sys.byteorder != 'little':
+            components.byteswap()
+        append(memoryview(components).cast('B'))
+
     def fs(values):
         i(0 if values is None else len(values))
         if values is not None:
-            for value in values: f(value)
+            float_data(values)
+
     def ii(values):
         i(0 if values is None else len(values))
         if values is not None:
-            for value in values: i(value)
+            append(struct.pack(f'<{len(values)}i', *values))
+
     def text(value):
-        data = value.encode('utf-8'); length = len(data)
-        while length >= 128: out.append((length & 127) | 128); length >>= 7
-        out.append(length); out.extend(data)
+        data = value.encode('utf-8')
+        count = len(data)
+        prefix = bytearray()
+        while count >= 128:
+            prefix.append((count & 127) | 128)
+            count >>= 7
+        prefix.append(count)
+        append(prefix)
+        append(data)
+
     text('Solasta.MeshSource.1'); i(packet['vertexCount']); i(packet['indexFormat'])
     for key in ('vertices', 'normals', 'tangents', 'colors', 'bindPoses', 'weights'): fs(packet[key])
     ii(packet['boneIndices']); i(len(packet['subMeshes']))
     for indices in packet['subMeshes']: ii(indices)
     i(len(packet['uv']))
     for uv in packet['uv']:
-        i(uv['channel']); i(uv['dimension']); i(packet['vertexCount'] * uv['dimension'])
-        for vertex in range(packet['vertexCount']):
-            for component in range(uv['dimension']): f(uv['values'][vertex * 4 + component])
+        dimension = uv['dimension']
+        count = packet['vertexCount']
+        i(uv['channel']); i(dimension); i(count * dimension)
+        values = uv['values']
+        packed = [values[vertex * 4 + component] for vertex in range(count) for component in range(dimension)]
+        float_data(packed)
     i(len(packet['shapes']))
     for shape in packet['shapes']:
         text(shape['name']); i(len(shape['frames']))
         for frame in shape['frames']:
             f(frame['weight'])
             for key in ('vertices', 'normals', 'tangents'): fs(frame[key])
-    return digest(out), hashlib.sha512(out).hexdigest(), len(out)
+    return primary.hexdigest(), secondary.hexdigest(), length
 
 def validate_packet(p):
     required = ('vertexCount','indexFormat','vertices','normals','tangents','colors','bindPoses','weights','boneIndices','subMeshes','uv','shapes','sourceFingerprint')

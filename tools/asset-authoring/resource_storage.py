@@ -552,6 +552,26 @@ def register_work_inputs(source,output):
     write(path,dict(schemaVersion=1,paths=sorted(paths,key=str.casefold)))
 
 
+def shared_catalog_payloads(source, output, paths, expected_catalog):
+    """Reuse the pinned manifest for unchanged NTFS links to its payloads."""
+    content=source.read_bytes()
+    if hashlib.sha256(content).hexdigest()!=expected_catalog:
+        raise ValueError('The source catalog changed during resource production')
+    document=json.loads(content.decode('utf-8-sig'))
+    if not isinstance(document,dict)or not isinstance(document.get('bundles'),list):
+        return {}
+    payloads=catalog_payloads(document)
+    target=output/'Catalog'
+    shared={}
+    for path in paths:
+        if path.parent!=target or path.name not in payloads:
+            continue
+        origin=checked_catalog_path(source.parent,path.name)
+        if origin.is_file()and path.samefile(origin):
+            shared[path]=payloads[path.name]
+    return shared
+
+
 @contextlib.contextmanager
 def resource_work(command,arguments,*,default_output=None,receipt_flag='--input',metadata_names=()):
     """Claim outputs before a producer writes; terminal records include failed work."""
@@ -603,8 +623,9 @@ def owned_resource_work(command,source,output,*,source_role='catalog',metadata_o
         try:
             current=work_files(output,all_created=source_role=='receipt')
             owned=(current-initial)|(current&old_files)
+            inherited=shared_catalog_payloads(source,output,owned,record['sourceManifest']['sha256'])if source_role=='catalog'and owned else {}
             with payload_hash_operation():
-                files=[dict(path=str(checked_source_path(path)),sha256=sha(path,payload=path not in metadata),
+                files=[dict(path=str(checked_source_path(path)),sha256=inherited.get(path)or sha(path,payload=path not in metadata),
                     role='metadata'if path in metadata else'payload')for path in sorted(owned)]
             record.update(state=state,completedUtc=datetime.datetime.now(datetime.timezone.utc).isoformat(),files=files)
             write(marker,record)
@@ -797,7 +818,7 @@ def producer_processes():
     return active
 
 
-def declared_live_inputs(catalogs,unresolved=None,*,generation_cache=None):
+def declared_live_inputs(catalogs,unresolved=None,*,generation_cache=None,retirement_ancestors=None):
     """Follow retained recipes and receipts to their complete replay input closure."""
     owners=[Path(record['owner'])for record in catalogs]
     cache={}if generation_cache is None else generation_cache
@@ -805,7 +826,8 @@ def declared_live_inputs(catalogs,unresolved=None,*,generation_cache=None):
     issues=[];batch=_ReceiptBatch()
     try:
         batch.charge('generation-cache','staged',provisional)
-        result=receipt_references(owners,issues,generation_cache=provisional,_batch=batch)[0]
+        result=receipt_references(owners,issues,generation_cache=provisional,
+                                  retirement_ancestors=retirement_ancestors,_batch=batch)[0]
         batch.charge('generation-cache','staged',provisional);batch.finish()
         cache.clear();cache.update(provisional)
         if unresolved is not None:unresolved.extend(issues)
@@ -813,7 +835,8 @@ def declared_live_inputs(catalogs,unresolved=None,*,generation_cache=None):
     except _ReceiptBatchUnavailable as error:
         print('Retained input snapshot unavailable; repeating independent validation: '+str(error),flush=True)
         batch.close();provisional=None
-        return receipt_references(owners,unresolved,generation_cache=cache)[0]
+        return receipt_references(owners,unresolved,generation_cache=cache,
+                                  retirement_ancestors=retirement_ancestors)[0]
     finally:batch.close()
 
 
@@ -1147,7 +1170,7 @@ class _ReceiptBatch:
             self.category_bytes.clear()
 
 
-def receipt_references(owners,unresolved=None,*,generation_cache=None,strict=False,_batch=None):
+def receipt_references(owners,unresolved=None,*,generation_cache=None,strict=False,retirement_ancestors=None,_batch=None):
     """Resolve typed payload leaves and hash-pinned reference-bearing receipts."""
     owners=set(owners);result=set();visited=set(owners);plain=set();hashes={};exists={};reported=set();roles={};generations={};fresh_inputs=set();reference_versions=ReferenceVersions()
     generation_cache={}if generation_cache is None else generation_cache
@@ -1216,6 +1239,13 @@ def receipt_references(owners,unresolved=None,*,generation_cache=None,strict=Fal
             if explicit and os.path.isabs(value):
                 issue(path,'missing-retained-input')
             return
+        if payload and explicit and retirement_ancestors is not None:
+            path=checked_source_path(path)
+            # A changed payload would protect its directory. When there is no
+            # retirement under that directory, retain the leaf without rehashing it.
+            if path.parent not in retirement_ancestors:
+                visited.add(path);result.add(path)
+                return
         if explicit:
             path,actual=cached_pin if cached_pin is not None else checked_reference_hash(path,digest,role,reference_versions,payload=payload and path not in fresh_inputs)
             hashes[path]=actual.lower()
@@ -1418,7 +1448,23 @@ def discover_work(roots,current,known,apply,retained_hashes=(),*,generation_cach
         records,retained,packages,registered,live=result
         active=producer_processes();source_cache={}
         for root in roots:
-            for folder,_ in walk(root):
+            for folder,names in walk(root):
+                if 'retainedDirectories'in current and not active and not retained_work(current,folder,0):
+                    # Standalone generation receipts can own files without a
+                    # catalog or an enclosing resource-work transaction.
+                    for name in names:
+                        if not name.endswith('Generation.json'):
+                            continue
+                        receipt=folder/name
+                        try:
+                            document=read(checked_source_path(receipt))
+                            if not isinstance(document,dict)or document.get('kind')!='CharacterResourceGeneration':
+                                continue
+                            generation=normalize_generation(receipt,document,cache)
+                            record=generation_payload_record(receipt,generation,root)
+                            if record:records.append(record)
+                        except (OSError,ValueError,KeyError,TypeError)as error:
+                            retained.append(dict(path=str(receipt),reason=str(error)))
                 if folder in known or folder in registered or not(folder/'Catalog').is_dir()or not has_payloads(folder):continue
                 try:
                     partial=partial_catalog(folder,source_cache)
@@ -1505,22 +1551,28 @@ def _discover_generations(directories,roots,*,generation_cache=None,_batch=None)
                 directory=checked_catalog_path(owner.parent)
                 root=next((root for root in roots if directory.is_relative_to(root)),None)
                 if root is None:continue
-                payloads={};guards=[dict(path=str(owner),sha256=sha(owner))]
-                for pin in document['outputs']:
-                    path=Path(pin['path'])
-                    if not path.is_absolute()or not path.is_relative_to(directory):raise ValueError('A typed generation output escaped its owner')
-                    if not path.exists():continue
-                    path=checked_source_path(path)
-                    if not path.is_relative_to(directory):raise ValueError('A typed generation output escaped its owner')
-                    if sha(path,payload=pin['role']=='payload')!=pin['sha256']:raise ValueError('A generation output changed')
-                    if pin['role']=='payload':payloads[path]=pin['sha256']
-                    else:guards.append(pin)
-                if payloads:
-                    records[owner]=dict(root=root,directory=directory,owner=owner,sha256=None,accepted=False,
-                        modified=owner.stat().st_mtime_ns,owned_payloads=payloads,guards=guards,kind='generation')
+                record=generation_payload_record(owner,document,root)
+                if record:records[owner]=record
         except (OSError,ValueError,KeyError,TypeError)as error:
             retained.append(dict(path=str(seed),reason=str(error)))
     return list(records.values()),retained
+
+
+def generation_payload_record(owner,document,root):
+    directory=checked_catalog_path(owner.parent)
+    payloads={};guards=[dict(path=str(owner),sha256=sha(owner))]
+    for pin in document['outputs']:
+        path=Path(pin['path'])
+        if not path.is_absolute()or not path.is_relative_to(directory):raise ValueError('A typed generation output escaped its owner')
+        if not path.exists():continue
+        path=checked_source_path(path)
+        if not path.is_relative_to(directory)or path==owner:raise ValueError('A typed generation output escaped its owner')
+        if sha(path,payload=pin['role']=='payload')!=pin['sha256']:raise ValueError('A generation output changed')
+        if pin['role']=='payload':payloads[path]=pin['sha256']
+        else:guards.append(pin)
+    if not payloads:return None
+    return dict(root=root,directory=directory,owner=owner,sha256=None,accepted=False,
+        modified=owner.stat().st_mtime_ns,owned_payloads=payloads,guards=guards,kind='generation')
 
 
 def compact_references(paths, retired):
@@ -1556,6 +1608,14 @@ def compact_references(paths, retired):
             raise ValueError("A storage reference escaped the owned workspaces")
         retain(path)
     return sorted(result, key=str.casefold)
+
+
+def minimum_reference_paths(paths):
+    """A pinned directory already covers its individually pinned children."""
+    paths={Path(path) for path in paths}
+    ancestors={parent for path in paths for parent in path.parents}
+    directories={path for path in paths&ancestors if path.is_dir()}
+    return sorted((str(path) for path in paths if directories.isdisjoint(path.parents)),key=str.casefold)
 
 
 def select_retired(catalogs, public_sha, keep_accepted, source_hashes=()):
@@ -1660,8 +1720,10 @@ def _plan(output,apply,keep_accepted,scope,retain_directories=()):
         elif not retained_work(current,row['directory'],row['modified']):old.append(row)
     retired=[*old,*packages]
     unresolved=[];live=set(work_inputs)
+    retirement_ancestors={parent for row in retired for path in row['owned_payloads'] for parent in path.parents}
     hash_progress(scope,stage='retained-input-closure',force=True)
-    live.update(declared_live_inputs([row for row in catalogs if row['directory']in protected],unresolved,generation_cache=generation_cache))
+    live.update(declared_live_inputs([row for row in catalogs if row['directory']in protected],unresolved,
+                                    generation_cache=generation_cache,retirement_ancestors=retirement_ancestors))
     live_directories={path for path in live if path.is_dir()}
     retained_roots=live_directories|protected
     obsolete = {path for row in retired for path in row["owned_payloads"]
@@ -1674,7 +1736,7 @@ def _plan(output,apply,keep_accepted,scope,retain_directories=()):
     after = {"schemaVersion": 1, "paths": compact_references(before["paths"], obsolete)}
     # Protect the accepted owner and bytes even when a legacy reference file omitted them.
     after["paths"] = sorted(set(after["paths"]) | {str(path)for path in protected})
-    after['paths']=sorted(set(after['paths'])|{str(path)for path in live},key=str.casefold)
+    after['paths']=minimum_reference_paths(set(after['paths'])|{str(path)for path in live})
     preview_reference = output / "RetainedInputs.json"
     write(preview_reference, after)
     plans = []

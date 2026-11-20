@@ -1850,6 +1850,30 @@ class FaceProductionContracts(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,'distribution configuration'):
                     build.create_resource_packs(manifest,output,'1',configuration=dict(configuration,downloadBaseUrl='https://changed.example.test/{tag}/'))
 
+    def test_resource_upgrade_packs_unchanged_bundles_separately(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / 'source'
+            source.mkdir()
+            older = root / 'previous.json'
+            catalog = source / build.RESOURCE_FILES['manifest']
+            template = dict(schemaVersion=3, meshes=[], materials=[], textureRemaps=[])
+            cached = source / 'cached.bundle'
+            revised = source / 'revised.bundle'
+            cached.write_bytes(b'unchanged')
+            revised.write_bytes(b'improved')
+            reuse = dict(file=cached.name, sha256=build.sha(cached))
+            upgrade = dict(file=revised.name, sha256=build.sha(revised))
+            build.write(older, dict(template, bundles=[reuse]))
+            build.write(catalog, dict(template, bundles=[reuse, upgrade]))
+            with mock.patch.object(build, 'checked_catalog_path',
+                                   side_effect=lambda path, name=None: Path(path) / name if name else Path(path)):
+                result = build.create_resource_packs(catalog, root / 'packs', PACKAGE_TEST_VERSION, previous_manifest=older)
+                self.assertEqual([part['files'] for part in result['packs']], [[revised.name], [cached.name]])
+                build.write(older, dict(template, bundles=[reuse, upgrade]))
+                with self.assertRaisesRegex(ValueError, 'other inputs'):
+                    build.create_resource_packs(catalog, root / 'packs', PACKAGE_TEST_VERSION, previous_manifest=older)
+
     def test_resource_publication_preserves_the_verified_catalog_digest(self):
         with tempfile.TemporaryDirectory()as folder:
             root=Path(folder);original=root/'original';candidate=root/'candidate';current=root/'public'
