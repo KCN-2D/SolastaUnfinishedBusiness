@@ -41,6 +41,16 @@ geometryと法線だけを仕上げる場合は、shaderの引数を省略しま
 
 ## geometry生成の原本コード
 
+採用済みカタログの髪型と髭を作り直すときは、`groom-designs.json` の `silhouettes` を編集し、資源と実機で採取した髪・髭と頭部の情報を渡します。刈り上げなど頭皮を見せる髪型は `anchorScalp` で毛束の付け根を頭部に固定します。
+
+```powershell
+& <UnityPy入りPython> .\tools\blender-models\CharacterHair\RestyleGrooms.py `
+  --source <採用元ディレクトリ> --groom-census <髪・髭のCensus.json> `
+  --head-census <頭部のCensus.json> --output <作業ディレクトリ>
+```
+
+`--assets` で試作する資源を絞れます。全体を生成するときに `--reuse <試作ディレクトリ>` を渡すと、入力と出力が一致する資源を再利用します。
+
 `GenerateFlowCoverageSweptProfile.py`がnative source表面から髪・ヒゲのgeometry、全physical frames、skinと明示的なsource triangle/barycentric bindingを生成します。`PrepareGroup.py`が既存のprefix/winding検証と共通`mesh_recipe_codec.py`を使ってUnity入力へ渡します。
 
 細毛用の毛束画像は、同じgeneratorへ`--workspace <作業先> --output <新しい出力先> --strand-atlas --atlas-profile <groom-designs.json>`を渡して作成します。主束用は`--workspace <作業先> --output <別の新しい出力先> --strand-atlas --atlas-purpose primary`で生成します。1枚のカードが担う連続した束の透過・法線・明暗を16タイルへ収め、それぞれの`MeshRecipe.json`を[共通のUnity制作入口](../../asset-authoring/README.md#骨格付きfbxのunity資産への変換)の`-MeshRecipePath`へ渡します。画像は無彩色に保ち、髪色はゲームの色選択で決まります。

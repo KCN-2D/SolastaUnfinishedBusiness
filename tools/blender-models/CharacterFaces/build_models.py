@@ -2887,6 +2887,25 @@ def validate_prepared_resource(row,assembly,verified):
                     raise ValueError('A groom material preset lost its preceding resource ownership.')
                 validate_groom_material_defaults(receipt)
                 expected=operation['sha256']
+            elif kind=='native-groom-silhouette':
+                receipt=document(operation['proof']);saved=receipt['saved'];identity=receipt['identity']
+                for reference in (*operation['authority']['inputs'],saved['source'],saved['target']):
+                    pinned(reference)
+                meshes={item['pathId']for item in saved['meshes']}
+                bounds=saved['rendererBounds']
+                if (receipt['file']!=row['file']or operation['beforeSha256']!=expected or
+                    identity['source']!=expected or saved['source']['sha256']!=expected or
+                    saved['target']['sha256']!=operation['sha256']or receipt['sha256']!=operation['sha256']or
+                    not meshes or meshes!={item['mesh']for item in bounds}or
+                    len(meshes)!=len(receipt['sourceMeshes'])or len(meshes)!=len(saved['meshes'])or
+                    saved['objectsAdded']or saved['rendererBoneUpdates']or saved['rendererMaterialUpdates']or
+                    saved['cloth']['disabledInvalidComponents']or not saved['materialFloatUpdates']or
+                    any({key:value['after']for key,value in item['values'].items()}!=identity['finish']
+                        for item in saved['materialFloatUpdates'])or
+                    any(saved.get(flag)is not True for flag in ('allOtherObjectBytesExact','resourcePayloadsExact',
+                        'cabAndExternalReferencesUnchanged','savedObjectBytesExact'))):
+                    raise ValueError('A groom silhouette lost its mesh, material or cloth ownership.')
+                expected=operation['sha256']
             elif kind=='source-owned-groom-surface':
                 receipt=document(operation['proof'])
                 for reference in operation['authority']['inputs']:pinned(reference)

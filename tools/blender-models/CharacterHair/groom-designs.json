@@ -1,5 +1,56 @@
 {
   "schemaVersion": 1,
+  "silhouettes": {
+    "finish": {
+      "shared": {"_CoreSmoothnessScale": 0.32, "_CoreReliefStrength": 0.68, "_FineReliefStrength": 0.64, "_FiberColorStrength": 0.49, "_NativeGrooveStrength": 0.2, "_FineAlphaCutoff": 0.64},
+      "hair": {"_BakedColorDetail": 0.32, "_CoreGroomPigmentStrength": 0.36},
+      "beard": {"_BakedColorDetail": 0.4, "_CoreGroomPigmentStrength": 0.46, "_CoreSmoothnessScale": 0.27, "_CoreReliefStrength": 0.62}
+    },
+    "hair": {
+      "Female_A": {"name": "Offset riding knot", "part": -0.45, "lift": -0.025, "sweep": 0.26, "tuck": 0.09, "fringe": 0.045, "hem": 0.13, "wave": 0.035, "nape": 0.055, "bulk": 0.075, "layers": 0.055, "crownTurn": 27, "fallTurn": 12, "napeLift": 0.3},
+      "Male_A": {"name": "Swept graduated bob", "part": 0.35, "lift": -0.035, "sweep": -0.27, "tuck": 0.075, "fringe": -0.05, "hem": 0.31, "wave": 0.087, "nape": 0.03, "bulk": 0.139, "layers": 0.084, "crownTurn": -29, "fallTurn": -7, "napeLift": 0.04},
+      "Female_B": {"name": "Asymmetric jaw-length layers", "part": 0.5, "lift": 0.015, "sweep": -0.31, "tuck": 0.075, "fringe": 0.11, "hem": 0.29, "wave": 0.105, "nape": 0.065, "bulk": 0.14, "layers": 0.102, "crownTurn": -24, "fallTurn": 9, "napeLift": 0.1},
+      "Male_B": {"name": "Off-centre shoulder layers", "part": -0.3, "lift": -0.068, "sweep": 0.22, "tuck": 0.11, "fringe": 0.055, "hem": 0.36, "wave": 0.132, "nape": 0.065, "bulk": 0.11, "layers": 0.095, "crownTurn": 23, "fallTurn": -12, "napeLift": 0.19},
+      "Female_C": {"name": "Cross-swept crown braid", "part": 0.35, "lift": -0.018, "sweep": -0.2, "tuck": 0.055, "fringe": 0.06, "hem": 0.12, "wave": 0.043, "nape": 0.021, "bulk": 0.09, "layers": 0.041, "crownTurn": -26, "fallTurn": -9, "napeLift": 0.13},
+      "Male_C": {"name": "Broken-part crop", "part": -0.25, "lift": -0.061, "sweep": 0.31, "tuck": 0.16, "fringe": 0.068, "hem": 0.28, "wave": 0.068, "nape": 0.055, "bulk": 0.17, "layers": 0.096, "crownTurn": 25, "fallTurn": 7, "napeLift": 0.085},
+      "Female_D": {"name": "Long staggered curtain layers", "part": -0.28, "lift": 0.018, "sweep": 0.17, "tuck": 0.035, "fringe": -0.031, "hem": 0.42, "wave": 0.083, "nape": 0.053, "bulk": 0.102, "layers": 0.12, "crownTurn": 23, "fallTurn": -7, "napeLift": 0.22},
+      "Male_D": {"name": "Long side-part layers", "part": 0.38, "lift": 0.022, "sweep": -0.28, "tuck": 0.055, "fringe": 0.046, "hem": 0.36, "wave": 0.132, "nape": 0.045, "bulk": 0.103, "layers": 0.128, "crownTurn": -27, "fallTurn": -12, "napeLift": 0.21},
+      "Female_E": {"name": "Brushed sweep with low ponytail", "part": -0.31, "lift": 0.035, "sweep": 0.23, "tuck": 0.083, "fringe": 0.028, "hem": 0.27, "wave": 0.098, "nape": 0.075, "bulk": 0.108, "layers": 0.094, "crownTurn": 25, "fallTurn": 13, "napeLift": 0.11},
+      "Male_E": {"name": "Tapered curtain lob", "part": 0.21, "lift": -0.028, "sweep": -0.29, "tuck": 0.095, "fringe": 0.02, "hem": 0.39, "wave": 0.146, "nape": 0.045, "bulk": 0.132, "layers": 0.118, "crownTurn": -30, "fallTurn": -6, "napeLift": 0.24},
+      "Female_F": {"name": "Swept nape braid", "part": 0.25, "lift": 0.06, "sweep": -0.27, "tuck": 0.105, "fringe": 0.089, "hem": 0.21, "wave": 0.058, "nape": 0.07, "bulk": 0.08, "layers": 0.046, "crownTurn": -26, "fallTurn": 7, "napeLift": 0.2},
+      "Male_F": {"name": "Offset half knot", "part": -0.42, "lift": -0.04, "sweep": 0.27, "tuck": 0.064, "fringe": 0.057, "hem": 0.36, "wave": 0.142, "nape": 0.047, "bulk": 0.102, "layers": 0.125, "crownTurn": 25, "fallTurn": -11, "napeLift": 0.28},
+      "Female_G": {"name": "Offset braided half-up", "part": 0.09, "lift": -0.095, "sweep": -0.19, "tuck": 0.065, "fringe": 0.034, "hem": 0.43, "wave": 0.143, "nape": 0.06, "bulk": 0.087, "layers": 0.137, "crownTurn": -21, "fallTurn": 11, "napeLift": 0.15},
+      "Male_G": {"name": "Diagonal twists and close sides", "anchorScalp": true, "part": -0.53, "lift": 0.026, "sweep": 0.35, "tuck": 0.16, "fringe": 0.058, "hem": 0.115, "wave": 0.044, "nape": 0.08, "bulk": 0.073, "layers": 0.063, "crownTurn": 24, "fallTurn": -8, "napeLift": 0.13},
+      "H": {"name": "Layered diagonal pixie", "part": 0.39, "lift": -0.041, "sweep": -0.34, "tuck": 0.15, "fringe": 0.106, "hem": 0.29, "wave": 0.074, "nape": 0.058, "bulk": 0.16, "layers": 0.101, "crownTurn": -21, "fallTurn": -6, "napeLift": 0.115},
+      "I": {"name": "Brushed back and tied nape", "part": -0.52, "lift": 0.063, "sweep": 0.27, "tuck": 0.12, "fringe": 0.097, "hem": 0.2, "wave": 0.046, "nape": 0.082, "bulk": 0.112, "layers": 0.061, "crownTurn": 31, "fallTurn": 7, "napeLift": 0.18},
+      "J": {"name": "Tucked side-part crop", "part": 0.24, "lift": -0.025, "sweep": -0.23, "tuck": 0.16, "fringe": 0.086, "hem": 0.3, "wave": 0.076, "nape": 0.075, "bulk": 0.126, "layers": 0.079, "crownTurn": -30, "fallTurn": -8, "napeLift": 0.11},
+      "K": {"name": "Circlet with swept half-up", "part": -0.17, "lift": 0.024, "sweep": 0.2, "tuck": 0.078, "fringe": 0.061, "hem": 0.38, "wave": 0.138, "nape": 0.058, "bulk": 0.118, "layers": 0.118, "crownTurn": 23, "fallTurn": -10, "napeLift": 0.22},
+      "L": {"name": "Loose offset side braid", "part": 0.42, "lift": 0.058, "sweep": -0.24, "tuck": 0.115, "fringe": 0.068, "hem": 0.2, "wave": 0.08, "nape": 0.058, "bulk": 0.091, "layers": 0.075, "crownTurn": -25, "fallTurn": -15, "napeLift": 0.17},
+      "M": {"name": "Textured wolf layers", "part": -0.27, "lift": 0.068, "sweep": 0.27, "tuck": 0.113, "fringe": -0.083, "hem": 0.38, "wave": 0.153, "nape": 0.075, "bulk": 0.092, "layers": 0.144, "crownTurn": 31, "fallTurn": 12, "napeLift": 0.27},
+      "N": {"name": "Offset ridge braid", "anchorScalp": true, "part": -0.04, "lift": 0.044, "sweep": 0.14, "tuck": 0.111, "fringe": 0.044, "hem": 0.235, "wave": 0.063, "nape": 0.076, "bulk": 0.068, "layers": 0.042, "crownTurn": 23, "fallTurn": 11, "napeLift": 0.075},
+      "O": {"name": "High knot and diagonal ridge", "anchorScalp": true, "part": 0.12, "lift": 0.09, "sweep": -0.14, "tuck": 0.129, "fringe": 0.047, "hem": 0.135, "wave": 0.039, "nape": 0.076, "bulk": 0.079, "layers": 0.042, "crownTurn": -23, "fallTurn": -13, "napeLift": 0.25},
+      "P": {"name": "Swept soft shoulder layers", "part": 0.33, "lift": -0.056, "sweep": -0.24, "tuck": 0.103, "fringe": 0.085, "hem": 0.39, "wave": 0.142, "nape": 0.064, "bulk": 0.106, "layers": 0.126, "crownTurn": -32, "fallTurn": 10, "napeLift": 0.23},
+      "Q": {"name": "Side-part feathered layers", "part": -0.4, "lift": 0.04, "sweep": 0.32, "tuck": 0.115, "fringe": 0.051, "hem": 0.36, "wave": 0.123, "nape": 0.043, "bulk": 0.113, "layers": 0.139, "crownTurn": 29, "fallTurn": -12, "napeLift": 0.19},
+      "R": {"name": "Low swept quiff", "part": 0.34, "lift": -0.14, "sweep": -0.26, "tuck": 0.145, "fringe": 0.091, "hem": 0.19, "wave": 0.044, "nape": 0.08, "bulk": 0.136, "layers": 0.073, "crownTurn": -31, "fallTurn": -7, "napeLift": 0.07},
+      "S": {"name": "Pinned sweep and lifted knot", "part": -0.38, "lift": 0.043, "sweep": 0.27, "tuck": 0.074, "fringe": 0.047, "hem": 0.15, "wave": 0.059, "nape": 0.067, "bulk": 0.096, "layers": 0.052, "crownTurn": 22, "fallTurn": 8, "napeLift": 0.18}
+    },
+    "beard": {
+      "A": {"name": "Long tapered sweep", "taper": 0.33, "trim": 0.34, "flow": 0.07, "wave": 0.098, "bulk": 0.111, "layers": 0.125, "point": 0.59, "turn": 17},
+      "B": {"name": "Tapered tied beard", "taper": 0.23, "trim": 0.37, "flow": -0.047, "wave": 0.056, "bulk": 0.087, "layers": 0.061, "point": 0.53, "turn": -12},
+      "C": {"name": "Low tapered point", "taper": 0.3, "trim": 0.25, "flow": 0.022, "wave": 0.038, "bulk": 0.079, "layers": 0.069, "point": 0.63, "turn": 10},
+      "D": {"name": "Cheek taper and rounded chin", "taper": 0.19, "trim": 0.16, "flow": -0.014, "wave": 0.031, "bulk": 0.06, "layers": 0.038, "point": 0.36, "turn": -9},
+      "E": {"name": "Shorter layered wedge", "taper": 0.26, "trim": 0.3, "flow": 0.029, "wave": 0.064, "bulk": 0.098, "layers": 0.086, "point": 0.51, "turn": 14},
+      "F": {"name": "Set-back braided beard", "taper": 0.2, "trim": 0.34, "flow": 0.028, "wave": 0.044, "bulk": 0.092, "layers": 0.049, "point": 0.41, "turn": -12},
+      "G": {"name": "Light tapered fork", "taper": 0.15, "trim": 0.24, "flow": -0.026, "wave": 0.082, "bulk": 0.074, "layers": 0.104, "point": 0.43, "turn": 12},
+      "H": {"name": "Soft short boxed beard", "taper": 0.21, "trim": 0.11, "flow": 0.014, "wave": 0.027, "bulk": 0.053, "layers": 0.032, "point": 0.28, "turn": -6},
+      "I": {"name": "Narrow chin and moustache", "taper": 0.14, "trim": 0.085, "flow": 0.007, "wave": 0.019, "bulk": 0.036, "layers": 0.023, "point": 0.22, "turn": 4},
+      "J": {"name": "Contoured short beard", "taper": 0.19, "trim": 0.095, "flow": -0.011, "wave": 0.027, "bulk": 0.044, "layers": 0.033, "point": 0.29, "turn": -5},
+      "K": {"name": "Cropped fuller cheek", "taper": 0.24, "trim": 0.16, "flow": 0.01, "wave": 0.033, "bulk": 0.049, "layers": 0.053, "point": 0.41, "turn": 7},
+      "L": {"name": "Neat jaw contour", "taper": 0.16, "trim": 0.105, "flow": -0.01, "wave": 0.03, "bulk": 0.047, "layers": 0.032, "point": 0.3, "turn": -5},
+      "O": {"name": "Shortened cheek taper", "taper": 0.24, "trim": 0.19, "flow": 0.022, "wave": 0.041, "bulk": 0.064, "layers": 0.049, "point": 0.46, "turn": 8},
+      "P": {"name": "Layered long point", "taper": 0.25, "trim": 0.26, "flow": -0.039, "wave": 0.064, "bulk": 0.089, "layers": 0.074, "point": 0.52, "turn": -15}
+    }
+  },
   "units": "metres in the original prefab frame",
   "layeredAtlasCards": {
     "targetLengthExtentFraction": 0.18,

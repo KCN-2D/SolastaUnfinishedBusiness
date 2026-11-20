@@ -1167,6 +1167,10 @@ def write_mesh_frame(obj: Any,packet: dict[str, Any],*,source_bones=None,target_
     tree['m_LocalAABB']=dict(m_Center=dict(zip('xyz',packet['bounds'][:3])),m_Extent=dict(zip('xyz',(v/2 for v in packet['bounds'][3:]))))
     return tree
 
+def expand_aabb(bounds: dict[str, Any], padding: float) -> dict[str, Any]:
+    return dict(bounds, m_Extent={axis: float(value) + padding for axis, value in bounds["m_Extent"].items()})
+
+
 def mesh_position_trees(file: Any, fields: list[dict[str,Any]]) -> tuple[dict[int,Any],list[dict[str,Any]]]:
     """Prepare position-only mesh edits and conservative skin-renderer bounds."""
     import copy
@@ -1216,7 +1220,7 @@ def mesh_position_trees(file: Any, fields: list[dict[str,Any]]) -> tuple[dict[in
         tree['m_LocalAABB']=dict(m_Center=dict(zip('xyz',map(float,(low+high)*.5))),m_Extent=dict(zip('xyz',map(float,(high-low)*.5+guard))))
         for sub in tree['m_SubMeshes']:
             if 'localAABB'in sub:
-                sub['localAABB']['m_Extent']={a:float(v)+distance+guard for a,v in sub['localAABB']['m_Extent'].items()}
+                sub['localAABB']=expand_aabb(sub['localAABB'], distance + guard)
         edits[obj.path_id]=tree;padding[obj.path_id]=distance+guard
         facts.append(dict(object=obj.path_id,name=tree['m_Name'],vertexCount=count,maximumDisplacement=distance,
                           positions=field['positions'],shapes=shape_fields,otherVertexChannelsExact=True,shapeNormalsTangentsAndSupportExact=True))
@@ -1225,7 +1229,7 @@ def mesh_position_trees(file: Any, fields: list[dict[str,Any]]) -> tuple[dict[in
         tree=obj.read_typetree();pointer=tree['m_Mesh']
         if pointer['m_FileID']==0 and pointer['m_PathID']in padding:
             tree=copy.deepcopy(tree);amount=padding[pointer['m_PathID']]
-            tree['m_AABB']['m_Extent']={a:float(v)+amount for a,v in tree['m_AABB']['m_Extent'].items()};edits[obj.path_id]=tree
+            tree['m_AABB']=expand_aabb(tree['m_AABB'], amount);edits[obj.path_id]=tree
     return edits,facts
 
 
@@ -2632,11 +2636,15 @@ def prepare_standalone_part(source_path, expected_sha256, target_path, replaceme
     # Cloth owns its component metadata, not the complete sparse mesh frames.
     # Keep mesh trees outside that mutable metadata transaction.
     mutable_types: tuple[str,...]=('MonoBehaviour','AssetBundle','Material')if replacements or repair_cloth else('Material',)
-    if bone_order_updates or material_slot_updates or any('bonePaths'in row for row in replacements):mutable_types+=('SkinnedMeshRenderer',)
+    if bone_order_updates or material_slot_updates or any(
+        'bonePaths'in row or 'rendererBoundsPadding'in row for row in replacements
+    ):
+        mutable_types+=('SkinnedMeshRenderer',)
     old_trees={key:obj.read_typetree()for key,obj in file.objects.items()if obj.type.name in mutable_types}
     trees=copy.deepcopy(old_trees)
     native={key:export_mesh(obj)for key,obj in file.objects.items()if replacements and obj.type.name=='Mesh'}
     cloth_replacements={};selected={};mesh_trees={};bone_updates={};native_cloth_sources=[];native_cloth_owners=set()
+    renderer_bounds={}
     for update in bone_order_updates:
         key=update['renderer']
         if key in bone_updates or key not in trees or file.objects[key].type.name!='SkinnedMeshRenderer':raise ValueError('A declared bone-order renderer is missing or repeated.')
@@ -2669,6 +2677,18 @@ def prepare_standalone_part(source_path, expected_sha256, target_path, replaceme
                 native_cloth_owners.update(owners);native_cloth_sources.append(restoration)
             cloth_replacements[key]=dict(native=cloth_native,raw=cloth_native,packet=packet,binding=binding,joint=None,entry=dict(authoredFingerprint=packet['sourceFingerprint']))
             selected[key]=packet['sourceFingerprint']
+            if 'rendererBoundsPadding'in row:
+                padding=row['rendererBoundsPadding']
+                if type(padding)not in(int,float)or not math.isfinite(padding)or padding<0:
+                    raise ValueError('A replaced mesh requires finite, nonnegative renderer padding.')
+                bound_renderers=[identifier for identifier,value in trees.items()
+                                 if file.objects[identifier].type.name=='SkinnedMeshRenderer'
+                                 and value.get('m_Mesh')==dict(m_FileID=0,m_PathID=key)]
+                if not bound_renderers:
+                    raise ValueError('A replaced mesh has no serialized bounds owner.')
+                for identifier in bound_renderers:
+                    trees[identifier]['m_AABB']=expand_aabb(trees[identifier]['m_AABB'],padding)
+                    renderer_bounds[identifier]=dict(renderer=identifier,mesh=key,padding=padding)
             if 'bonePaths'in row:
                 if len(row['bonePaths'])*16!=len(packet['bindPoses']):raise ValueError('A prepared skin palette differs from its compiled bind poses.')
                 renderer_ids=[identifier for identifier,obj in file.objects.items()if obj.type.name=='SkinnedMeshRenderer'and
@@ -2735,7 +2755,7 @@ def prepare_standalone_part(source_path, expected_sha256, target_path, replaceme
     for key,tree in trees.items():
         if key not in old_trees or tree!=old_trees[key]:file.objects[key].save_typetree(tree)
     changed={key for key,obj in file.objects.items()if serialized_object_bytes(obj)!=before.get(key)}
-    allowed=set(selected)|material_ids|set(bone_updates)|metadata_ids|set(material_clones.values())|{row['renderer']for row in renderer_materials}|({key for key,obj in file.objects.items()if obj.type.name=='MonoBehaviour'}if replacements or repair_cloth else set())
+    allowed=set(selected)|material_ids|set(bone_updates)|set(renderer_bounds)|metadata_ids|set(material_clones.values())|{row['renderer']for row in renderer_materials}|({key for key,obj in file.objects.items()if obj.type.name=='MonoBehaviour'}if replacements or repair_cloth else set())
     if not changed<=allowed:raise ValueError('Standalone mesh preparation changed another object owner.')
     prepared={key:serialized_object_bytes(obj)for key,obj in file.objects.items()}
     resources={key:bytes(value)if isinstance(value,(bytes,bytearray))else value.bytes for key,value in environment.file.files.items()if not hasattr(value,'objects')}
@@ -2766,6 +2786,7 @@ def prepare_standalone_part(source_path, expected_sha256, target_path, replaceme
     return dict(source=dict(path=str(source_path.resolve()),sha256=expected_sha256.lower()),target=dict(path=str(target_path.resolve()),sha256=digest(target_path)),
                 meshes=[dict(pathId=key,fingerprint=value)for key,value in selected.items()],materialFloatUpdates=material_proofs,rendererBoneUpdates=list(bone_updates.values()),rendererMaterialUpdates=renderer_materials,cloth=cloth,changedObjects=sorted(changed),objectsAdded=sorted(set(file.objects)-set(before)),
                 allOtherObjectBytesExact=True,resourcePayloadsExact=True,cabAndExternalReferencesUnchanged=True,savedObjectBytesExact=True,
+                **(dict(rendererBounds=list(renderer_bounds.values()))if renderer_bounds else{}),
                 **(dict(nativeClothSources=native_cloth_sources)if native_cloth_sources else{}))
 
 
