@@ -36,7 +36,7 @@ function Get-RecipeHash([string]$Path) {
 
 function Write-BuildRecord([string]$Path, $Value) {
     $temporary = $Path + '.writing'
-    [IO.File]::WriteAllText($temporary, ($Value | ConvertTo-Json -Depth 90), [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText($temporary, ($Value | ConvertTo-Json -Depth 90 -Compress), [Text.UTF8Encoding]::new($false))
     Move-Item -LiteralPath $temporary -Destination $Path -Force
 }
 
@@ -252,7 +252,13 @@ try {
                 $record = $results | Where-Object file -CEQ $file
                 Get-Content -LiteralPath $record.report -Raw | ConvertFrom-Json
             })
-            Write-BuildRecord $bundleReport ([ordered]@{success=$true;bundles=$members;buildPipelineInvocations=$chunks.Count})
+            $versions = @($members.unityVersion | Sort-Object -Unique)
+            if ($versions.Count -ne 1 -or [string]::IsNullOrWhiteSpace($versions[0])) {
+                throw 'The validated model bundle receipts disagree on the Unity version.'
+            }
+            Write-BuildRecord $bundleReport ([ordered]@{
+                success=$true;unityVersion=$versions[0];bundles=$members;buildPipelineInvocations=$chunks.Count
+            })
             Save-Progress 'COMPLETE_HUMANOID_ENGINE_BATCH'
             Write-Output "Model bundle and reload validation succeeded: $bundleReport"
         } else {

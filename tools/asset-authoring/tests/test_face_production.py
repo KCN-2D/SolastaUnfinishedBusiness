@@ -1850,6 +1850,33 @@ class FaceProductionContracts(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,'distribution configuration'):
                     build.create_resource_packs(manifest,output,'1',configuration=dict(configuration,downloadBaseUrl='https://changed.example.test/{tag}/'))
 
+    def test_changed_appearance_cannot_be_packaged_without_blender_and_unity(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            distributed = root / 'distributed'
+            distributed.mkdir()
+            name = 'groom.bundle'
+            old = dict(file=name, sha256='a' * 64)
+            new = dict(file=name, sha256='b' * 64)
+            build.write(distributed / build.RESOURCE_FILES['packs'], dict(files=[old]))
+            entry = dict(type='GameObject', asset='Human_Female_HairShape_B.prefab', bundles=[dict(file=name)])
+            manifest = root / build.RESOURCE_FILES['manifest']
+            template = dict(schemaVersion=3, resources=[entry], meshes=[], materials=[], textureRemaps=[])
+            output = root / 'packs'
+            with mock.patch.object(build, 'PUBLIC', distributed), mock.patch.object(build, 'checked_catalog_path',
+                    side_effect=lambda path, name=None: Path(path) / name if name else Path(path)):
+                for asset, parameters in (
+                    ('Human_Female_HairShape_B.prefab', []), ('Human_Male_BeardShape_I.prefab', []),
+                    ('Elf_Female_FaceShape_C.prefab', []), ('NPC.prefab', [dict(set='Groom')]),
+                ):
+                    with self.subTest(asset=asset):
+                        entry.update(asset=asset, parameters=parameters)
+                        build.verify_character_mesh_authoring(manifest, dict(template, bundles=[old]), {})
+                        build.write(manifest, dict(template, bundles=[new]))
+                        with self.assertRaisesRegex(ValueError, 'Blender export and Unity mesh readback'):
+                            build.create_resource_packs(manifest, output, PACKAGE_TEST_VERSION)
+                        self.assertFalse(output.exists())
+
     def test_resource_upgrade_packs_unchanged_bundles_separately(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -2427,6 +2454,33 @@ class FaceProductionContracts(unittest.TestCase):
         support=production.source_uniform_support(profile,.001,[region])
         self.assertEqual(support['regionalRadiusPixels'][0]['reference'],0)
         self.assertEqual(support['filterRadiusPixels'],production.source_uniform_support(profile,.001,[])['filterRadiusPixels'])
+
+    def test_paired_skin_color_keeps_texture_detail_and_needs_no_cross_chart_filter(self):
+        production, _ = build.source_owner()
+        pixels = np.full((12, 18, 4), [98, 85, 89, 213], np.uint8)
+        pixels[:, 2:5, :3] = [162, 119, 100]
+        pixels[:, 12::2, :3] += 7
+        target, reference, protected = (np.zeros(pixels.shape[:2]) for _ in range(3))
+        target[:, 12:] = 1
+        reference[:, 2:5] = 1
+        protected[:2, :] = 1
+        ownership = np.ones(target.shape)
+        metric = np.full(target.shape, .001)
+        profile = dict(pigmentRetain=1., normalRetain=1., normalRadiusMetres=.003, fineSigmaMetres=.0001,
+                       grainSigmaMetres=.00075, coherenceSigmaMetres=.001, featherMetres=.003)
+        region = dict(target=target, reference=reference, protected=protected, strength=.7,
+                      maximumLinearRgbDelta=.06, reconstruction='paired-mean-rgb')
+        fields, _ = build.skin_filter_neighbourhoods(production, [], target.shape, {}, profile,
+                                                     [region], ownership, metric)
+        self.assertEqual(fields, [])
+        result, proof = production.refine_source_skin_material(pixels, ownership, metric, profile, 'color',
+                                                              luminance_regions=[region])
+        np.testing.assert_array_equal(result[protected > 0], pixels[protected > 0])
+        np.testing.assert_array_equal(result[target == 0], pixels[target == 0])
+        np.testing.assert_array_equal(result[:, :, 3], pixels[:, :, 3])
+        self.assertGreater(result[5, 12, 0], result[5, 13, 0])
+        self.assertGreater(result[5, 13, 0], pixels[5, 13, 0])
+        self.assertLessEqual(max(proof['luminanceRegions'][0]['linearRgbDelta']), .06)
 
     def test_required_reference_support_includes_both_interpolated_filter_scales(self):
         production,_=build.source_owner();shape=(24,48)

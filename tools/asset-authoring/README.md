@@ -227,6 +227,30 @@ UV境界、髪、手足の数値検証だけを実行する場合は、`-Stages 
 
 読み込み処理は`SolastaUnfinishedBusiness/CustomUI/CustomModels.cs`にあります。
 
+## キャラクターメッシュの制作
+
+Solastaの原本をBlenderへ読み込み、顔・髪・髭の全LODを造形します。結果を`.blend`で保存し、Blenderで評価したメッシュをrenderer座標へ書き出します。
+
+```powershell
+& <Blender.exe> --background <制作シーン.blend> --python-exit-code 1 `
+  --python .\tools\asset-authoring\export_character_meshes.py -- `
+  --request <出力対象.json> --output <Blender出力先>
+```
+
+出力対象JSONには`schemaVersion`の`1`、配布資源の`bundle`名、`meshes`を指定します。各行はBlenderの`object`名、Unityの`name`、元rendererのMeshの`pathId`、ワールドからUnity renderer座標への4行4列の`worldToUnity`を持ちます。顔は`firstVertex=0`と`retainedTopology=true`を指定します。
+
+同じ制作シーンの資源は`--request`にJSONまたはその配置先を指定できます。元の座標を保持する布や接触部には、頂点属性`retained_vertex`と`retained_position`を使います。`retained_position`は元のUnity renderer座標です。
+
+`character_mesh_authoring.py --source <元の組み立て済み資源> --output <制作先> --blender-export <エクスポート先>`でUnity入力を作ります。個別の`BlenderExport.json`も指定できます。`BuildPlan.json`の`meshRecipe.path`を`Invoke-UnityAssetBuild.ps1 -MeshRecipePath`へ渡します。分割してビルドした場合は各`unity-report.json`を`--unity-report`にまとめて指定します。`ResourceAssembly.json`に制作シーン、各LOD、Unityの再読み込み結果を記録します。
+
+組み込み時の`--workers`で同時に処理する資源数を指定できます。同じ入力で再実行すると、保存内容を照合して完了済みの資源を再利用します。
+
+髪・髭はバニラのメッシュ全体を`firstVertex=0`で書き出します。`nativeGroom`に元bundleの`path`と`sha256`、メッシュの`pathId`、rendererの`rendererPathId`を指定します。rendererが別bundleにある場合は`rendererBundle`でそのパスとSHA256も指定します。
+
+組み込み済みの髪・髭で元の材質を共有するLODは、`--source <組み込み済み資源> --output <新しい候補> --repair-native-groom-lods`で材質と髪色の適用先を揃えます。
+
+ゲーム内で選べる顔は、該当する種族・出自で選んで確認します。NPCは元のプレゼンテーションで描画します。選択肢にもNPCにも対応しない顔資源は、そのプレハブ自身の骨格で確認します。
+
 ## 骨格付きFBXのUnity資産への変換
 
 UBのOBJ経路は静的メッシュ用です。骨格付きFBXは、`tools/asset-authoring/UnityAssetBuild/`のテンプレートからPrefab、AnimatorController、AssetBundleを作成します。
@@ -375,6 +399,8 @@ RGBAの各チャンネルに材質データを保存するPNGは、共通関数`
 通常の生成では、入力依存とジョブの所有範囲を登録し、終了時に成果物のハッシュを保存します。Unityのローカル生成処理は`Register-AssetAuthoringJob`と`Complete-AssetAuthoringJob`で、ジョブの成果物、Unityへの取込用コピー、セッションを登録します。
 
 キャラクター資源と数値メッシュの生成処理は、開始時に入力のcatalogまたは制作receiptと出力先を`.resource-work/`へ登録します。出力先を`--workspace`で指定するコマンドも同じ登録を行います。生成データは`payload`、参照を記録するreceiptは`metadata`としてSHA256とともに保存し、数値JSONやbindingも整理の対象にします。失敗・中断した生成物と、作業前から存在したファイルを区別します。[全ツールの整理](../README.md#生成物と追跡範囲)では、旧形式の制作入力・receiptから所有を確認できる候補も対象にします。
+
+旧catalogで重複するbundleは、`catalog_archive.py --report <ResourceLifecycle.json> --output <証跡フォルダー>`で容量を確認し、`--apply`でSHA256ごとに保管できます。再制作で旧catalogを使う場合は、`--restore <旧catalogの作業先>`で元のパスを復元します。特定のbundleだけが必要な場合は`--file <bundle名>`を指定します。
 
 ```powershell
 & .\tools\asset-authoring\Invoke-UnityAssetBuild.ps1 -Cleanup `

@@ -3310,9 +3310,10 @@ namespace SolastaAssetAuthoring
             Require(spec.subMeshes != null && spec.subMeshes.Length > 0 && spec.subMeshes.Length <= 256, "Invalid submesh count.");
             foreach (var submesh in spec.subMeshes)
             {
-                Require(submesh != null && submesh.topology == "Triangles" && submesh.indices != null && submesh.indices.Length >= 3 && submesh.indices.Length <= 6000000 && submesh.indices.Length % 3 == 0 &&
+                Require(submesh != null && submesh.topology == "Triangles" && submesh.indices != null && submesh.indices.Length <= 6000000 && submesh.indices.Length % 3 == 0 &&
                         submesh.indices.All(index => index >= 0 && index < count), "Invalid mesh topology or index range.");
             }
+            Require(spec.subMeshes.Any(submesh => submesh.indices.Length > 0), "A mesh requires a nonempty triangle list.");
             if (spec.skin != null)
             {
                 var skin = spec.skin;

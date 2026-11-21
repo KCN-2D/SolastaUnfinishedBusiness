@@ -6,6 +6,7 @@ import ntpath
 import posixpath
 import types
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path, PureWindowsPath, PurePosixPath
@@ -18,6 +19,41 @@ PACKAGE_TEST_VERSION=datetime.date.min.isoformat().replace('-','.')+'.1'
 
 
 class ResourceStorageTest(unittest.TestCase):
+    def test_catalog_archive_excludes_retained_and_unplanned_bundle_paths(self):
+        path = Path(__file__).parents[1] / 'catalog_archive.py'
+        archive_spec = importlib.util.spec_from_file_location('catalog_archive', path)
+        archive = importlib.util.module_from_spec(archive_spec)
+        with patch.dict(sys.modules, resource_storage=storage):
+            archive_spec.loader.exec_module(archive)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            owners = [root / name for name in ('First', 'Second', 'Retained', 'Unplanned')]
+            content = b'one original bundle'
+            leaves = []
+            for owner in owners:
+                folder = owner / 'Catalog'
+                folder.mkdir(parents=True)
+                (owner / 'ResourceAssembly.json').touch()
+                leaf = folder / 'original.bundle'
+                leaf.write_bytes(content)
+                leaves.append(leaf)
+            digest = storage.sha(leaves[0])
+            report = root / 'ResourceLifecycle.json'
+            plan = root / 'ResourcePayloads-0.json'
+            storage.write(root / 'StorageReferences.json', dict(schemaVersion=1, paths=[str(leaves[2])]))
+            storage.write(plan, dict(schemaVersion=1, artifactRoot=str(root), files=[
+                dict(path=str(leaf), sha256=digest, bytes=len(content)) for leaf in leaves[:3]]))
+            storage.write(report, dict(status='references-closed-payloads-planned', adoptedManifestSha256='public',
+                explicitRetainedDirectories=[], retainedCatalogHashes=[], retiredCatalogs=list(map(str, owners)),
+                plans=[dict(root=str(root), plan=str(plan), files=3)]))
+            with (patch.object(archive, 'ARTIFACTS', root), patch.object(archive, 'distribution_catalog', return_value=('public', {})),
+                  patch.object(archive, 'checked_catalog_path', side_effect=lambda value: Path(value).resolve()),
+                  patch.object(archive, 'checked_source_path', side_effect=lambda value: Path(value).resolve(strict=True)),
+                  patch.object(archive, 'owner_catalog', return_value=('retired', {'original.bundle': digest}))):
+                groups, archived = archive.archive_plan(report, (), 0)
+            self.assertEqual(set(archived), set(owners[:2]))
+            self.assertEqual(groups[digest], tuple((owner, 'original.bundle', len(content)) for owner in owners[:2]))
+
     def test_packed_distribution_pins_both_manifest_owners(self):
         with self.owned_workspace() as (_, source, output):
             fallback = source / 'Catalog' / storage.RESOURCE_FILES['manifest']

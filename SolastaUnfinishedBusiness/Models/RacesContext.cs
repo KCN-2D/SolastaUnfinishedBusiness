@@ -336,7 +336,7 @@ internal static class RacesContext
             if (IsProtectedBodyRenderer(graphics, renderer)) continue;
             var mesh = renderer ? renderer.sharedMesh : null;
             var index = NativeBodyShapeFrame(mesh);
-            if (index >= 0) renderer.SetBlendShapeWeight(index,
+            if (index >= 0) SetBodyBlendShapeWeight(renderer, index,
                 selection.HasNativeShape ? selection.Value : selection.DefaultValue);
         }
         ApplySupplementalBodyShape(graphics, selection);
@@ -435,6 +435,12 @@ internal static class RacesContext
     // their first frame. Asset-qualified frame names use the same native contract.
     private static int NativeBodyShapeFrame(Mesh mesh) => mesh && mesh.blendShapeCount > 0 &&
         mesh.GetBlendShapeName(0) is not BodyVolumePositive and not BodyVolumeNegative ? 0 : -1;
+    private static void SetBodyBlendShapeWeight(SkinnedMeshRenderer renderer, int index, float weight)
+    {
+        // The idle upkeep can recover a replaced weight without dirtying the
+        // skinned renderer on every frame while its body remains stationary.
+        if (renderer.GetBlendShapeWeight(index) != weight) renderer.SetBlendShapeWeight(index, weight);
+    }
     private static readonly ConditionalWeakTable<Mesh, BodyShapeRest> BodyShapeRestCache = new();
     private static readonly ConditionalWeakTable<Mesh, string> BodyShapeMeshIdentities = new();
     private static readonly BodyShapeField[] BodyShapeFields = new BodyShapeField[2];
@@ -727,10 +733,14 @@ internal static class RacesContext
         catch (Exception exception) { ReportCharacterModelError("refresh", exception); }
     }
 
-    internal static void RefreshCharacterModelMaterials(GraphicsCharacter graphics)
+    internal static void RefreshCharacterModelMaterials(GraphicsCharacter graphics, bool skinChanged)
     {
         if (_characterModelsUnloading || !graphics || !SettingsContext.GuiModManagerInstance.EnableCustomFaces) return;
-        try { graphics.GetComponent<CharacterModelPresentation>()?.RefreshMaterials(); }
+        try
+        {
+            if (skinChanged) graphics.GetComponent<CharacterModelResourceLease>()?.RefreshBodySkinTint();
+            graphics.GetComponent<CharacterModelPresentation>()?.RefreshMaterials();
+        }
         catch (Exception exception) { ReportCharacterModelError("materials", exception); }
     }
 
@@ -1859,7 +1869,7 @@ internal static class RacesContext
         public CharacterModelResource[] resources = null;
     }
     private sealed class CharacterModelResource(string source, string asset, string kind,
-        CharacterModelResourceBundle[] bundles, CharacterModelPartParameter[] parameters)
+        CharacterModelResourceBundle[] bundles, CharacterModelPartParameter[] parameters, Color? bodySkinColorScale)
     {
         internal readonly string Source = source, Asset = asset, Kind = kind;
         internal Type AssetType => Kind switch
@@ -1870,6 +1880,7 @@ internal static class RacesContext
         };
         internal readonly CharacterModelResourceBundle[] Bundles = bundles;
         internal readonly CharacterModelPartParameter[] Parameters = parameters;
+        internal readonly Color? BodySkinColorScale = bodySkinColorScale;
         internal string Key => "UB/CharacterResources/" + Source;
     }
     private sealed class CharacterModelResourceBundle(string file, string name)
@@ -3042,11 +3053,13 @@ internal static class RacesContext
                 };
                 parameters.Add((renderer, parameter.Slot, owners));
             }
-            if (parameters.Count == 0) return;
+            var skinScale = shape && bodyPart == GraphicsCharacterDefinitions.BodyPart.Head ? part.BodySkinColorScale : null;
+            if (parameters.Count == 0 && skinScale == null) return;
             var lease = graphics.GetComponent<CharacterModelResourceLease>() ??
                 graphics.gameObject.AddComponent<CharacterModelResourceLease>();
             lease.Bind(graphics, this);
-            lease.BindMaterials(parameters);
+            if (parameters.Count != 0) lease.BindMaterials(instance, bodyPart, shape, parameters);
+            if (skinScale is { } scale) lease.BindBodySkinTint(instance, scale);
         }
         internal static CharacterModelBlueprint ReadBlueprint(string directory, CharacterModelBlueprint previous)
         {
@@ -3151,7 +3164,8 @@ internal static class RacesContext
                     throw new System.IO.InvalidDataException("Invalid shared custom character model texture JSON schema.");
             foreach (var token in data["resources"] as JArray ?? [])
             {
-                if (token is not JObject part || part.Properties().Any(field => field.Name is not ("source" or "asset" or "type" or "bundles" or "parameters")) ||
+                if (token is not JObject part || part.Properties().Any(field => field.Name is not
+                        ("source" or "asset" or "type" or "bundles" or "parameters" or "bodySkinColorScale")) ||
                     !JsonField(part, "source", JTokenType.String) || !JsonField(part, "asset", JTokenType.String) || !JsonField(part, "type", JTokenType.String) ||
                     part["bundles"] is not JArray partBundles || part["parameters"] is not JArray parameters)
                     throw new System.IO.InvalidDataException("Invalid completed character part schema.");
@@ -3216,8 +3230,19 @@ internal static class RacesContext
                     ((JArray)part["bundles"]).Cast<JObject>().Select(bundle => new CharacterModelResourceBundle(
                         (string)bundle["file"], (string)bundle["name"])).ToArray(),
                     ((JArray)part["parameters"]).Cast<JObject>().Select(parameter => new CharacterModelPartParameter(
-                        (string)parameter["renderer"], ReadInteger(parameter["slot"]), (string)parameter["set"])).ToArray())).ToArray()
+                        (string)parameter["renderer"], ReadInteger(parameter["slot"]), (string)parameter["set"])).ToArray(),
+                    ReadBodySkinColorScale(part["bodySkinColorScale"]))).ToArray()
             };
+        }
+        private static Color? ReadBodySkinColorScale(JToken token)
+        {
+            if (token == null) return null;
+            if (token is not JArray { Count: 3 } channels || channels.Any(channel => channel.Type is not (JTokenType.Integer or JTokenType.Float)))
+                throw new System.IO.InvalidDataException("A body skin color scale needs three RGB factors.");
+            var values = channels.Values<float>().ToArray();
+            if (values.Any(value => value <= 0 || float.IsNaN(value) || float.IsInfinity(value)))
+                throw new System.IO.InvalidDataException("A body skin color scale contains an invalid RGB factor.");
+            return new Color(values[0], values[1], values[2], 1f);
         }
         private static CharacterModelProperty ReadProperty(JObject property) => new()
         {
@@ -3269,7 +3294,7 @@ internal static class RacesContext
             if (manifest.schemaVersion == 3 && (parts.Length == 0 || manifest.meshes.Length != 0 || manifest.materials.Length != 0 || manifest.textureRemaps.Length != 0) ||
                 manifest.schemaVersion < 3 && parts.Length != 0 ||
                 parts.Any(part => part.AssetType == null || string.IsNullOrWhiteSpace(part.Source) || part.Source.StartsWith("UB/", StringComparison.Ordinal) || string.IsNullOrWhiteSpace(part.Asset) ||
-                    part.AssetType != typeof(GameObject) && part.Parameters.Length != 0 ||
+                    part.AssetType != typeof(GameObject) && (part.Parameters.Length != 0 || part.BodySkinColorScale.HasValue) ||
                     part.Bundles.Length == 0 || part.Bundles.Any(bundle => !bundles.Contains(bundle.File) || string.IsNullOrWhiteSpace(bundle.Name)) ||
                     part.Bundles.Select(bundle => bundle.File).Distinct(StringComparer.Ordinal).Count() != part.Bundles.Length ||
                     part.Parameters.Any(parameter => parameter.Slot < 0 || parameter.Renderer == null || parameter.Renderer.StartsWith("/", StringComparison.Ordinal) ||
@@ -4543,75 +4568,91 @@ internal static class RacesContext
 
     private sealed class CharacterModelResourceLease : MonoBehaviour
     {
+        private readonly struct MaterialBinding(GameObject part, GraphicsCharacterDefinitions.BodyPart bodyPart,
+            bool shape, Material source, Material instance)
+        {
+            internal readonly GameObject Part = part;
+            internal readonly int Slot = (int)bodyPart;
+            internal readonly bool Shape = shape;
+            internal readonly Material Source = source;
+            internal readonly Material Instance = instance;
+        }
+
         internal GraphicsCharacter Graphics { get; private set; }
         private CharacterModelCatalog _catalog;
         private readonly HashSet<UnityEngine.Object> _sources = [];
+        private readonly HashSet<Material> _headSkin = [];
+        private static readonly int SkinColor = Shader.PropertyToID("_Color");
+        private GameObject _skinTintHead;
+        private Color _bodySkinTint;
         private int _loading;
-        private Dictionary<Material, Material> _materials = [];
-        private Dictionary<(Renderer Renderer, int Slot), (Material Source, Material Instance)> _materialBindings = [];
-        internal void BindMaterials(IReadOnlyList<(Renderer Renderer, int Slot, HashSet<Material> Owners)> parameters)
+        private Dictionary<(Renderer Renderer, int Slot), MaterialBinding> _materialBindings = [];
+
+        internal void BindBodySkinTint(GameObject head, Color scale)
+        {
+            _skinTintHead = head;
+            _bodySkinTint = scale;
+            _headSkin.Clear();
+            foreach (var renderer in head.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                foreach (var material in renderer.sharedMaterials)
+                    if (Graphics.SkinMaterials.Contains(material)) _headSkin.Add(material);
+        }
+
+        internal void RefreshBodySkinTint()
+        {
+            if (!_skinTintHead || !Graphics || Graphics.CharacterType == GraphicsCharacterDefinitions.CharacterType.ActionChainGhost ||
+                Graphics.ShapeInstancePerBodySlot[(int)GraphicsCharacterDefinitions.BodyPart.Head] != _skinTintHead ||
+                Graphics.RulesetCharacter?.MorphotypeElements.TryGetValue(MorphotypeElementDefinition.ElementCategory.Skin, out var skin) != true)
+                return;
+            var definition = DatabaseRepository.GetDatabase<MorphotypeElementDefinition>().GetElement(skin, false);
+            if (definition == null) return;
+            var color = definition.MainColor * _bodySkinTint;
+            foreach (var material in Graphics.SkinMaterials)
+                if (material && !_headSkin.Contains(material) && material.HasProperty(SkinColor)) material.SetColor(SkinColor, color);
+        }
+
+        internal void BindMaterials(GameObject part, GraphicsCharacterDefinitions.BodyPart bodyPart, bool shape,
+            IReadOnlyList<(Renderer Renderer, int Slot, HashSet<Material> Owners)> parameters)
         {
             SynchronizeMaterials();
-            var bindingsCurrent = true;
-            foreach (var parameter in parameters)
-            {
-                var current = parameter.Renderer.sharedMaterials[parameter.Slot];
-                if (!Graphics.MaterialsToDestroy.Contains(current) || _materials.ContainsValue(current) &&
-                    (!_materialBindings.TryGetValue((parameter.Renderer, parameter.Slot), out var binding) || binding.Instance != current))
-                { bindingsCurrent = false; break; }
-            }
-            if (bindingsCurrent)
-            {
-                foreach (var parameter in parameters) parameter.Owners?.Add(parameter.Renderer.sharedMaterials[parameter.Slot]);
-                return;
-            }
-            var created = new Dictionary<Material, Material>();
+            var created = new HashSet<Material>();
             var previous = new Dictionary<Renderer, Material[]>();
-            var replacements = new Dictionary<Renderer, Material[]>();
-            var bindings = new Dictionary<(Renderer Renderer, int Slot), (Material Source, Material Instance)>(_materialBindings);
+            var bindings = new Dictionary<(Renderer Renderer, int Slot), MaterialBinding>(_materialBindings);
             var added = new List<(HashSet<Material> Owners, Material Instance)>();
             try
             {
-                foreach (var parameter in parameters)
+                foreach (var group in parameters.GroupBy(parameter => parameter.Renderer))
                 {
-                    if (!parameter.Renderer) throw new InvalidOperationException("A completed part lost its material renderer.");
-                    if (!previous.TryGetValue(parameter.Renderer, out var original))
-                    {
-                        original = parameter.Renderer.sharedMaterials;
-                        previous.Add(parameter.Renderer, original);
-                        replacements.Add(parameter.Renderer, original.ToArray());
-                    }
-                    if (parameter.Slot < 0 || parameter.Slot >= original.Length || !original[parameter.Slot])
+                    var renderer = group.Key;
+                    if (!renderer) throw new InvalidOperationException("A completed part lost its material renderer.");
+                    var original = renderer.sharedMaterials;
+                    if (group.Any(parameter => parameter.Slot < 0 || parameter.Slot >= original.Length || !original[parameter.Slot]))
                         throw new InvalidOperationException("A completed part lost its declared material slot.");
-                    var current = original[parameter.Slot];
-                    var owned = _materials.FirstOrDefault(pair => pair.Value == current);
-                    // The factory already owns its primary material. Keep that instance,
-                    // while additional declared slots share one actor-owned clone per source.
-                    if (Graphics.MaterialsToDestroy.Contains(current) && !owned.Value) continue;
-                    var source = owned.Value ? owned.Key : current;
-                    if (!_materials.TryGetValue(source, out var material) && !created.TryGetValue(source, out material))
+                    var materials = original;
+                    if (group.Any(parameter => !Graphics.MaterialsToDestroy.Contains(original[parameter.Slot])))
                     {
-                        material = new Material(source) { name = source.name, hideFlags = HideFlags.HideAndDontSave };
-                        created.Add(source, material);
+                        previous.Add(renderer, original);
+                        // Native NPC initialization later requests Renderer.materials. Acquire the same
+                        // renderer instances here so their parameter ownership survives that request.
+                        materials = renderer.materials;
+                        for (var slot = 0; slot < materials.Length; slot++)
+                        {
+                            var material = materials[slot];
+                            if (!material || material == original[slot] || Graphics.MaterialsToDestroy.Contains(material)) continue;
+                            created.Add(material);
+                            bindings[(renderer, slot)] = new MaterialBinding(part, bodyPart, shape, original[slot], material);
+                        }
                     }
-                    if (!material) throw new InvalidOperationException("A completed part lost its owned material instance.");
-                    replacements[parameter.Renderer][parameter.Slot] = material;
-                    bindings[(parameter.Renderer, parameter.Slot)] = (source, material);
+                    foreach (var parameter in group)
+                    {
+                        var material = materials[parameter.Slot];
+                        if (!Graphics.MaterialsToDestroy.Contains(material) && !created.Contains(material))
+                            throw new InvalidOperationException("A completed part material has no actor owner.");
+                        if (parameter.Owners?.Add(material) == true) added.Add((parameter.Owners, material));
+                    }
                 }
-                var materials = new Dictionary<Material, Material>(_materials);
-                foreach (var pair in created) materials.Add(pair.Key, pair.Value);
-                foreach (var pair in replacements)
-                    if (!pair.Value.SequenceEqual(previous[pair.Key])) pair.Key.sharedMaterials = pair.Value;
-                foreach (var material in created.Values)
+                foreach (var material in created)
                     if (Graphics.MaterialsToDestroy.Add(material)) added.Add((Graphics.MaterialsToDestroy, material));
-                foreach (var parameter in parameters)
-                {
-                    var material = replacements[parameter.Renderer][parameter.Slot];
-                    if (!Graphics.MaterialsToDestroy.Contains(material))
-                        throw new InvalidOperationException("A completed part material has no actor owner.");
-                    if (parameter.Owners?.Add(material) == true) added.Add((parameter.Owners, material));
-                }
-                _materials = materials;
                 _materialBindings = bindings;
             }
             catch (Exception error)
@@ -4621,7 +4662,7 @@ internal static class RacesContext
                     try { pair.Owners.Remove(pair.Instance); } catch (Exception rollback) { errors.Add(rollback); }
                 foreach (var pair in previous)
                     try { if (pair.Key) pair.Key.sharedMaterials = pair.Value; } catch (Exception rollback) { errors.Add(rollback); }
-                foreach (var material in created.Values)
+                foreach (var material in created)
                     try { if (material) UnityEngine.Object.Destroy(material); } catch (Exception rollback) { errors.Add(rollback); }
                 if (errors.Count != 1) throw new AggregateException("A completed part material transition and its restoration failed.", errors);
                 throw;
@@ -4630,27 +4671,27 @@ internal static class RacesContext
         }
         internal void SynchronizeMaterials()
         {
-            if (_materialBindings.Count == 0 && _materials.Count == 0) return;
-            var live = new HashSet<Renderer>();
-            if (Graphics)
-                foreach (var slots in new[] { Graphics.ShapeInstancePerBodySlot, Graphics.ArmorInstancePerBodySlot })
-                    if (slots != null)
-                        foreach (var part in slots)
-                            if (part) live.UnionWith(part.GetComponentsInChildren<Renderer>(true));
+            if (_materialBindings.Count == 0) return;
+            var released = new HashSet<Material>();
             foreach (var pair in _materialBindings.ToArray())
             {
-                var renderer = pair.Key.Renderer;
-                var materials = renderer ? renderer.sharedMaterials : [];
-                if (!renderer || !live.Contains(renderer) || pair.Key.Slot >= materials.Length ||
-                    materials[pair.Key.Slot] != pair.Value.Instance) _materialBindings.Remove(pair.Key);
-            }
-            var used = _materialBindings.Values.Select(binding => binding.Instance).ToHashSet();
-            foreach (var pair in _materials.ToArray())
-                if (!used.Contains(pair.Value))
+                var (renderer, materialSlot) = pair.Key;
+                var entry = pair.Value;
+                if (Graphics && renderer && entry.Part)
                 {
-                    ReleaseMaterial(pair.Value);
-                    _materials.Remove(pair.Key);
+                    var slots = entry.Shape ? Graphics.ShapeInstancePerBodySlot : Graphics.ArmorInstancePerBodySlot;
+                    if (slots != null && entry.Slot < slots.Length && slots[entry.Slot] == entry.Part)
+                    {
+                        var materials = renderer.sharedMaterials;
+                        if (materialSlot < materials.Length && materials[materialSlot] == entry.Instance) continue;
+                    }
                 }
+                _materialBindings.Remove(pair.Key);
+                released.Add(entry.Instance);
+            }
+            if (released.Count == 0) return;
+            released.ExceptWith(_materialBindings.Values.Select(binding => binding.Instance));
+            foreach (var material in released) ReleaseMaterial(material);
         }
         private void ReleaseMaterial(Material material)
         {
@@ -4674,9 +4715,8 @@ internal static class RacesContext
                     { materials[pair.Key.Slot] = pair.Value.Source; changed = true; }
                 if (changed) group.Key.sharedMaterials = materials;
             }
+            foreach (var material in _materialBindings.Values.Select(binding => binding.Instance).Distinct()) ReleaseMaterial(material);
             _materialBindings.Clear();
-            foreach (var material in _materials.Values) ReleaseMaterial(material);
-            _materials.Clear();
         }
         internal void Bind(GraphicsCharacter graphics, CharacterModelCatalog catalog)
         {
@@ -7337,7 +7377,7 @@ internal static class RacesContext
             internal void Set(float value, float neutral)
             {
                 var weight = direction == 0 ? value : Mathf.Max(0f, (value - neutral) * direction);
-                renderer.SetBlendShapeWeight(index, weight - baked);
+                SetBodyBlendShapeWeight(renderer, index, weight - baked);
             }
         }
 
@@ -7880,7 +7920,7 @@ internal static class RacesContext
                     if (_sourceGraph?.ConsumesPhysicalChannels(row.Renderer) == true) continue;
                     var native = NativeBodyShapeFrame(row.Original);
                     if (native >= 0 && graphics.BlendShapeRenderers.Contains(row.Renderer))
-                        row.Renderer.SetBlendShapeWeight(native, row.UseNativeFrame ? value : defaultValue);
+                        SetBodyBlendShapeWeight(row.Renderer, native, row.UseNativeFrame ? value : defaultValue);
                 }
                 foreach (var piece in _pieces)
                     if (_sourceGraph?.ConsumesPhysicalChannels(piece.Renderer) != true) piece.SetValue(value, defaultValue);
@@ -8272,10 +8312,10 @@ internal static class RacesContext
         }
         internal void SetValue(float value, float defaultValue)
         {
-            if (!_installed || !Renderer || !_owned || !_source.OwnerCurrent || !_source.AcceptsCurrentMesh()) return;
+            if (!_installed || !Renderer || !_owned || !_source.AcceptsCurrentMesh()) return;
             value -= defaultValue;
-            Renderer.SetBlendShapeWeight(_positive, Mathf.Max(0f, value));
-            Renderer.SetBlendShapeWeight(_negative, Mathf.Max(0f, -value));
+            SetBodyBlendShapeWeight(Renderer, _positive, Mathf.Max(0f, value));
+            SetBodyBlendShapeWeight(Renderer, _negative, Mathf.Max(0f, -value));
         }
         internal void Installed(CustomModels.SkinMeshSource source)
         {

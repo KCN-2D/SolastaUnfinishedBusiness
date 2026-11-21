@@ -16,6 +16,7 @@ import re
 import shutil
 import stat
 import struct
+import subprocess
 import sys
 import types
 import uuid
@@ -93,8 +94,23 @@ def inspect_resource_metadata():
 def write(path,value):
     path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
     temporary=path.with_name(path.name+'.writing')
-    temporary.write_text(json.dumps(value,ensure_ascii=False,separators=(',',':'),allow_nan=False)+'\n',encoding='utf8')
-    temporary.replace(path)
+    try:
+        data=json.dumps(value,ensure_ascii=False,separators=(',',':'),allow_nan=False)+'\n'
+        temporary.write_text(data,encoding='utf8')
+        if (os.name=='nt' and path.name=='ResourceAssembly.json' and len(data)>=8*1024**2
+                and temporary.resolve().is_relative_to(ROOT/'tools')):
+            # Assemblies repeat source proofs between stages. Keep the format
+            # and content identity while using NTFS storage for these reports.
+            compact=Path(os.environ.get('SystemRoot','C:/Windows'))/'System32'/'compact.exe'
+            try:
+                subprocess.run([str(compact),'/C','/Q',str(temporary.resolve())],
+                               stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,
+                               creationflags=subprocess.CREATE_NO_WINDOW,timeout=45,check=False)
+            except (OSError,subprocess.TimeoutExpired):
+                pass
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def resource_art_acceptance(assembly,catalog_sha):
@@ -2663,7 +2679,8 @@ def validate_prepared_resource(row,assembly,verified):
             raise ValueError('A resource refinement lost its preceding operation chain.')
         added_objects=sum(len(document(operation['proof']).get('objectsAdded',[]))for operation in operations[len(original_operations):]
                           if operation.get('kind')in('compiled-material-texture-bindings','source-skin-material-bindings',
-                              'source-skin-interface','source-covered-skin-material','source-owned-groom-surface'))
+                              'source-skin-interface','source-covered-skin-material','source-skin-interface-materials','blender-character-mesh',
+                              'source-owned-groom-surface','source-groom-material-bindings'))
         expected_objects=original.get('objects')
         if added_objects:
             if type(expected_objects)is not int:raise ValueError('A material texture refinement has no source object count.')
@@ -2861,10 +2878,11 @@ def validate_prepared_resource(row,assembly,verified):
                 for reference in job['inputs']:pinned(reference)
                 validate_source_skin_finish(operation)
                 expected=operation['sha256']
-            elif kind in ('source-skin-material-bindings','source-covered-skin-material'):
+            elif kind in ('source-skin-material-bindings','source-covered-skin-material','source-skin-interface-materials',
+                          'source-groom-material-bindings'):
                 receipt=document(operation['proof'])
                 if operation['beforeSha256']!=expected or receipt['beforeSha256']!=expected or receipt['sha256']!=operation['sha256']:
-                    raise ValueError('A source skin material lost its preceding resource owner.')
+                    raise ValueError('A source material lost its preceding resource owner.')
                 for pin in operation.get('pigmentInputs',[]):pinned(pin)
                 for reference in operation.get('fields',[]):
                     field=document(reference);key=('validated-source-skin-field',reference['sha256'])
@@ -2887,6 +2905,20 @@ def validate_prepared_resource(row,assembly,verified):
                     raise ValueError('A groom material preset lost its preceding resource ownership.')
                 validate_groom_material_defaults(receipt)
                 expected=operation['sha256']
+            elif kind=='native-groom-lod-materials':
+                import tempfile
+                receipt=document(operation['proof'])
+                for reference in operation['authority']['inputs']:pinned(reference)
+                before,after=(pinned(receipt[key])for key in ('source','target'))
+                if (operation['beforeSha256']!=expected or receipt['source']['sha256']!=expected or
+                        receipt['target']['sha256']!=operation['sha256']or receipt['file']!=row['file']):
+                    raise ValueError('A native groom LOD material lost its preceding resource owner.')
+                with tempfile.TemporaryDirectory(prefix='groom-lod-',dir=after.parent)as directory:
+                    replay=resources.prepare_standalone_part(before,expected,Path(directory)/'saved.bundle',[],
+                        export_mesh=None,groom_slot_updates=receipt['groomRendererBindings'])
+                    if replay['target']['sha256']!=operation['sha256']or replay['changedObjects']!=receipt['changedObjects']:
+                        raise ValueError('The saved groom LOD material bindings do not match their renderer transaction.')
+                expected=operation['sha256']
             elif kind=='native-groom-silhouette':
                 receipt=document(operation['proof']);saved=receipt['saved'];identity=receipt['identity']
                 for reference in (*operation['authority']['inputs'],saved['source'],saved['target']):
@@ -2906,7 +2938,7 @@ def validate_prepared_resource(row,assembly,verified):
                         'cabAndExternalReferencesUnchanged','savedObjectBytesExact'))):
                     raise ValueError('A groom silhouette lost its mesh, material or cloth ownership.')
                 expected=operation['sha256']
-            elif kind=='source-owned-groom-surface':
+            elif kind in ('source-owned-groom-surface','blender-character-mesh'):
                 receipt=document(operation['proof'])
                 for reference in operation['authority']['inputs']:pinned(reference)
                 if operation.get('beforeSha256')!=expected or receipt['source']['sha256']!=expected or receipt['target']['sha256']!=operation.get('sha256')or receipt.get('file')!=row['file']:
@@ -3180,6 +3212,7 @@ def publish_resource_catalog(candidate,current,source,manifest,quality,*,validat
             raise ValueError('A standalone resource has an undeclared dependency.')
         used.update(files)
     if used!=set(payloads):raise ValueError('A standalone payload has no resource owner.')
+    verify_character_mesh_authoring(candidate / RESOURCE_FILES['manifest'], manifest, proof, source)
     verified={};accepted_rows={}
     accepted_path=source.parent/'ResourceAssembly.json'
     if accepted_path.is_file():
@@ -4608,6 +4641,195 @@ def resource_pack_groups(files, maximum_bytes):
     return groups
 
 
+def verify_character_mesh_authoring(manifest_path, manifest, assembly, baseline=None, *, edited_bundles=None):
+    """Require evaluated Blender geometry and Unity readback at both distribution entry points."""
+    import functools
+    import numpy as np
+    import character_resources as resources
+
+    def declared_owners(document):
+        owners = collections.defaultdict(set)
+        for resource in document.get('resources', []):
+            if resource.get('type') != 'GameObject':
+                continue
+            name = Path(resource.get('asset', resource.get('source', ''))).stem
+            file = resource['bundles'][0]['file']
+            if re.search(r'_FaceShape_', name, re.I):
+                owners[file].add('face')
+            if (re.search(r'_(?:Hair|Beard)Shape_', name, re.I) or
+                    any(row.get('set') == 'Groom' for row in resource.get('parameters', []))):
+                owners[file].add('groom')
+        return owners
+
+    owners = declared_owners(manifest)
+    public_manifest = PUBLIC / RESOURCE_FILES['manifest']
+    if public_manifest.is_file():
+        for name, roles in declared_owners(read(public_manifest)).items():
+            owners[name].update(roles)
+    if not owners:
+        return
+    released = {row['file']: row['sha256'] for row in read(PUBLIC / RESOURCE_FILES['packs'])['files']}
+    payloads = catalog_payloads(manifest)
+    changed = sorted(name for name in owners if name in payloads and released.get(name) != payloads[name])
+    if edited_bundles is not None:
+        # An authoring stage links inherited bundles directly. Packaging still
+        # rechecks the entire difference against the distributed catalog.
+        changed = [name for name in changed if name in edited_bundles]
+    records = assembly.get('characterMeshAuthoring', {})
+    if not changed:
+        return
+
+    @functools.lru_cache(maxsize=None)
+    def pinned(path, sha256):
+        source = checked_source_path(path)
+        if sha(source) != sha256:
+            raise ValueError(f'A character mesh authoring input changed: {path}')
+        return source
+
+    @functools.lru_cache(maxsize=8)
+    def unity_builds(path, sha256):
+        report = read(pinned(path, sha256))
+        if not report.get('success') or not report.get('unityVersion'):
+            raise ValueError(f'The Unity mesh build did not complete: {path}')
+        bundles = report.get('bundles') or (report,)
+        recipes = {row.get('inputSha256'): row for row in bundles}
+        if len(recipes) != len(bundles):
+            raise ValueError(f'The Unity mesh build contains a repeated input: {path}')
+        return recipes
+
+    if baseline is None and (reference := assembly.get('preparedSource', {}).get('catalog')):
+        baseline = pinned(reference['path'], reference['sha256']).parent
+
+    @functools.lru_cache(maxsize=None)
+    def previous_catalog(directory):
+        receipt = directory.parent / 'ResourceAssembly.json'
+        if not receipt.is_file():
+            return None
+        reference = read(receipt).get('preparedSource', {}).get('catalog')
+        return pinned(**reference).parent if reference else None
+
+    @functools.lru_cache(maxsize=None)
+    def catalog_hashes(directory):
+        index = directory / RESOURCE_FILES['manifest']
+        return catalog_payloads(read(index)) if index.is_file() else {}
+
+    def distributed_source(name):
+        """Use the actual published bytes through successive authoring passes."""
+        directory, visited = baseline, set()
+        expected = released[name]
+        while directory is not None and directory not in visited:
+            visited.add(directory)
+            declared = catalog_hashes(directory).get(name)
+            if declared is None or declared == expected:
+                candidate = checked_catalog_path(directory, name)
+                if candidate.is_file() and sha(candidate) == expected:
+                    return candidate
+            directory = previous_catalog(directory)
+        return None
+
+    def mesh_ids(file, role):
+        return (resources.face_mesh_identifiers(file) if role == 'face' else
+                resources.groom_mesh_identifiers(file, include_native_lods=True))
+
+    def mesh_field(file, identifiers):
+        return {key: resources.serialized_object_bytes(file.objects[key]) for key in identifiers}
+
+    for name in changed:
+        if name not in records and (baseline is None or not released.get(name)):
+            raise ValueError(f'A changed character bundle requires a Blender export and Unity mesh readback: {name}')
+        path = checked_catalog_path(manifest_path.parent, name)
+        if sha(path) != payloads[name]:
+            raise ValueError(f'The character bundle differs from its declared content: {name}')
+        final_file = resources.load_serialized_bundle(path, in_memory=True)[1]
+        required = {role: mesh_ids(final_file, role) for role in owners[name]}
+        if baseline is not None and released.get(name) and (prior_path := distributed_source(name)):
+            prior_file = resources.load_serialized_bundle(prior_path, in_memory=True)[1]
+            for role, keys in required.items():
+                if mesh_field(final_file, keys) == mesh_field(prior_file, mesh_ids(prior_file, role)):
+                    required[role] = set()
+        owned = set().union(*required.values())
+        if not owned:
+            if any(mesh_ids(final_file, role) for role in required):
+                continue
+            raise ValueError(f'The changed character bundle has no declared face or groom renderer: {name}')
+        if name not in records:
+            raise ValueError(f'A changed character bundle requires a Blender export and Unity mesh readback: {name}')
+
+        all_meshes = set().union(*(mesh_ids(final_file, role) for role in owners[name]))
+        remaining = owned.copy()
+        declarations = records[name]
+        if isinstance(declarations, dict):
+            declarations = (declarations,)
+        for declaration in reversed(declarations):
+            if not remaining:
+                break
+            blender = read(pinned(**declaration['blenderReport']))
+            scene = pinned(**blender['scene'])
+            with scene.open('rb') as stream:
+                if (blender.get('status') != 'PASS_BLENDER_CHARACTER_MESH_EXPORT' or blender.get('bundle') != name
+                        or not blender.get('blenderVersion') or scene.suffix != '.blend' or stream.read(7) != b'BLENDER'):
+                    raise ValueError(f'The evaluated Blender scene does not own the character bundle: {name}')
+            rows = {row['pathId']: row for row in blender['meshes']}
+            if not rows.keys() <= all_meshes or len(rows) != len(blender['meshes']):
+                raise ValueError(f'The Blender export has an invalid character renderer LOD: {name}')
+            selected = remaining & rows.keys()
+            if not selected:
+                continue
+            recipe = pinned(**declaration['meshRecipe'])
+            child = unity_builds(**declaration['unityReport']).get(declaration['meshRecipe']['sha256'])
+            if (child is None or not child.get('success')
+                    or child.get('validationScope') not in ('mesh_templates', 'mesh_template_contracts')):
+                raise ValueError(f'Unity did not import the Blender character mesh recipe: {recipe}')
+            checks = {row['name']: row for row in child['meshes']}
+            compiled = pinned(child['bundlePath'], child['bundleSha256'])
+            compiled_file = resources.load_serialized_bundle(compiled, in_memory=True)[1]
+            unity_meshes = {obj.peek_name(): obj for obj in compiled_file.objects.values() if obj.type.name == 'Mesh'}
+            for mesh_id in sorted(selected):
+                row = rows[mesh_id]
+                mesh_name = row['name']
+                check = checks.get(mesh_name, {})
+                if mesh_name not in unity_meshes or any(check.get(flag) is not True for flag in
+                    ('exact', 'boundsExact', 'skinExact', 'blendShapesExact')) or check.get('boneCount', 0) <= 0:
+                    raise ValueError(f'Unity did not verify the complete skinned character mesh: {mesh_name}')
+                final = export_current_mesh(final_file.objects[mesh_id])
+                imported = export_current_mesh(unity_meshes[mesh_name])
+                start = row['firstVertex']
+                if (type(start) is not int or not 0 <= start < final['vertexCount'] or
+                        (mesh_id in required.get('face', ()) and start != 0) or
+                        final['sourceFingerprint'] != imported['sourceFingerprint'] or final['bounds'] != imported['bounds'] or
+                        final['vertexCount'] - start != row['vertexCount']):
+                    raise ValueError(f'The distributed mesh differs from its Unity mesh: {mesh_name}')
+                vertices = np.asarray(final['vertices'], dtype='<f4').reshape(-1, 3)[start:]
+                indices = np.concatenate([np.asarray(part, dtype='<i4').reshape(-1, 3) for part in final['subMeshes']])
+                authored = indices >= start
+                if np.any(authored.any(axis=1) != authored.all(axis=1)):
+                    raise ValueError(f'A Unity triangle crosses the source and Blender surfaces: {mesh_name}')
+                triangles = indices[authored.all(axis=1)] - start
+                with np.load(pinned(**row['geometry']), allow_pickle=False) as artwork:
+                    for key, values in (('positions', vertices), ('triangles', triangles)):
+                        encoded = values.tobytes()
+                        if (not len(values) or hashlib.sha256(encoded).hexdigest() != row[key+'Sha256']
+                                or artwork[key].tobytes() != encoded):
+                            raise ValueError(f'The Unity mesh differs from the Blender {key}: {mesh_name}')
+                    if 'source_vertices' in artwork:
+                        aliases = artwork['source_vertices']
+                        appended = aliases != np.arange(len(vertices))
+                        coordinates = next((channel['values'] for channel in final['uv'] if channel['channel'] == 0), [])
+                        slots = np.repeat(np.arange(len(final['subMeshes'])), [len(part) // 3 for part in final['subMeshes']])
+                        if (start != 0 or not np.array_equal(slots, artwork['material_slots']) or not coordinates or
+                                not np.array_equal(np.asarray(coordinates, dtype='<f4').reshape(-1, 4)[appended, :2],
+                                                   artwork['uv0'][appended]) or
+                                not np.array_equal(np.asarray(final['tangents'], dtype='<f4').reshape(-1, 4)[appended],
+                                                   artwork['tangents'][appended])):
+                            raise ValueError(f'The Unity mesh differs from the Blender UV chart: {mesh_name}')
+                    if 'skin_normals' in artwork and not np.array_equal(
+                            np.asarray(final['normals'], dtype='<f4').reshape(-1, 3)[start:], artwork['skin_normals']):
+                        raise ValueError(f'The Unity mesh differs from the Blender skin normals: {mesh_name}')
+            remaining.difference_update(selected)
+        if remaining:
+            raise ValueError(f'The Blender export must cover every changed character renderer LOD: {name}')
+
+
 def create_resource_packs(manifest_path,output_directory,release_version,maximum_bytes=256*1024*1024,*,configuration=None,previous_manifest=None) -> dict[str, Any]:
     """Stream independent generated resources into bounded release archives."""
     import zipfile
@@ -4617,6 +4839,7 @@ def create_resource_packs(manifest_path,output_directory,release_version,maximum
     manifest_path=Path(manifest_path).resolve();output=checked_catalog_path(output_directory)
     manifest=read(manifest_path)
     assembly_path=manifest_path.parent.parent/'ResourceAssembly.json'
+    assembly={}
     if assembly_path.exists():
         assembly=read(assembly_path)
         if assembly.get('sourceSkinDetails')and not assembly.get('skinMaterialBindings',{}).get('localMaterials'):
@@ -4628,6 +4851,7 @@ def create_resource_packs(manifest_path,output_directory,release_version,maximum
                 raise ValueError('Compose finished fibers with the retained source support before packaging.')
     if manifest['schemaVersion']!=3 or manifest['meshes']or manifest['materials']or manifest['textureRemaps']:
         raise ValueError('Resource packs require a standalone character catalog.')
+    verify_character_mesh_authoring(manifest_path, manifest, assembly)
     files=[];names=set()
     for row in sorted(manifest['bundles'],key=lambda row:row['file']):
         path=checked_catalog_path(manifest_path.parent,row['file']);name=path.name
@@ -6866,6 +7090,8 @@ def skin_interface_fields(surfaces,load,*,pigment_reference='body'):
     for head,body,row,packet in owners:
         if set(head['textures'])!=set(body['textures']):raise ValueError('Shared skin shaders have different saved sampler contracts.')
         for prop in head['textures']:
+            if prop=='_MainTex' and pigment_reference=='head':
+                continue
             ref=head['textures'][prop];other=body['textures'][prop];key=field_key(head,body,prop)
             # Private LOD materials can still sample one common texture. Own
             # that sampler/reference pair once across its complete LOD family.
@@ -7090,39 +7316,54 @@ def observed_skin_interface(context,documents):
     return 'shape'
 
 
-def restore_covered_skin_fields(source,output,proof,head,bodies,displays):
-    """Recover the head's own textures when an earlier cut used a hidden body."""
+def covered_interface_operations(proof):
+    """Find a prepared collar whose texture binding was replaced for an outfit."""
+    history=proof.get('appearanceFinishing',[])
+    latest=next((index for index in range(len(history)-1,-1,-1) if history[index]['kind'] in
+        ('source-skin-interface','source-covered-skin-material','source-skin-interface-materials')),None)
+    if latest is None or history[latest]['kind']!='source-covered-skin-material':return None
+    interface=next((row for row in reversed(history[:latest]) if row['kind']=='source-skin-interface'),None)
+    return (interface,history[latest]) if interface else None
+
+
+def repair_covered_skin_fields(source,output,proof,*,preserve_head_pigment=False):
+    """Keep the torso continuation on a shared head through outfit changes."""
     import character_resources as resources
-    interfaces=[row for row in proof.get('appearanceFinishing',[])if row['kind']=='source-skin-interface']
-    if not interfaces:return False
-    interface=interfaces[-1]['proof']
+    operations=covered_interface_operations(proof)
+    if not operations:return False
+    interface,covered=(row['proof']for row in operations)
     def pinned_document(pin):
         if sha(checked_source_path(pin['path']))!=pin['sha256']:
             raise ValueError('A retained skin-interface decision changed.')
         return read(pin['path'])
     decision=pinned_document(interface)
-    plan=decision['inputPlan'];previous=pinned_document(plan)
-    if previous['head']!=head or previous['body']in bodies or not decision['binding']:return False
-    binding=decision['binding'];textures={row['object']:row for row in binding['textures']}
+    reverted=pinned_document(covered)
+    binding=decision['binding']
+    if not binding:raise ValueError('The covered head has no prepared interface textures.')
+    fields={row['object']:row for row in binding['textures']}
+    replaced={row['object']:row for row in reverted['textures']}
+    continuation={(row['pathId'],row['property']):row['after'] for row in binding['materialUpdates']}
     name=proof['file'];original=source/'Catalog'/name;target=output/'Catalog'/name
     _,resource=resources.load_serialized_bundle(original,in_memory=True)
     recover=[];checked={}
-    for row in binding['materialUpdates']:
-        if row['before']['m_PathID']==0 or row['after']['m_FileID']!=0:continue
-        material=resource.objects.get(row['pathId'])
-        if material is None:continue
-        material=material.read_typetree()
-        pointer=dict(material['m_SavedProperties']['m_TexEnvs']).get(row['property'],{}).get('m_Texture')
-        if pointer!=row['after']:continue
-        identifier=pointer['m_PathID'];texture=textures[identifier]
+    for row in reverted['materialUpdates']:
+        if preserve_head_pigment and row['property']=='_MainTex':
+            continue
+        key=row['pathId'],row['property']
+        material=resource.objects[row['pathId']].read_typetree()
+        pointer=dict(material['m_SavedProperties']['m_TexEnvs'])[row['property']]['m_Texture']
+        if pointer!=row['after'] or pointer['m_FileID'] or continuation.get(key)!=row['before']:
+            raise ValueError('The covered skin material changed ownership: '+name+'/'+row['property'])
+        identifier=pointer['m_PathID']
         if identifier not in checked:
             checked[identifier]=hashlib.sha256(bytes(resource.objects[identifier].read().get_image_data())).hexdigest()
-        if checked[identifier]!=texture['payloadSha256']:continue
-        # The previous binding's source retains the character's own channel and all its mips.
-        authority={key:value for key,value in texture['source'].items()if key!='mips'}
+        if checked[identifier]!=replaced[identifier]['payloadSha256']:
+            raise ValueError('The covered skin texture has a newer edit: '+name+'/'+row['property'])
+        donor=continuation[key]['m_PathID']
+        authority=dict(binding['target'],object=donor,name=fields[donor]['source']['name'])
         recover.append(dict(pathId=row['pathId'],property=row['property'],before=pointer,texture=authority))
     if not recover:return False
-    before=proof['sha256'];path=output/'Receipts'/(name+'.covered.json')
+    before=proof['sha256'];path=output/'Receipts'/(name+'.interface-materials.json')
     if path.is_file():
         receipt=read(path)
         resources.validate_owned_material_textures(receipt)
@@ -7130,31 +7371,37 @@ def restore_covered_skin_fields(source,output,proof,head,bodies,displays):
         existing=[dict(pathId=row['pathId'],property=row['property'],before=row['before'],
             texture=clones[row['after']['m_PathID']])for row in receipt['materialUpdates']]
         if receipt['beforeSha256']!=before or receipt['target']['path']!=str(target.resolve())or existing!=recover:
-            raise ValueError('A restored skin material belongs to another covered interface.')
+            raise ValueError('The existing skin material repair belongs to another source.')
     else:
         receipt=resources.replace_owned_material_textures(original,before,target,recover)
         write(path,receipt)
     proof.update(sha256=receipt['sha256'],bytes=receipt['bytes'],objects=proof['objects']+len(receipt['objectsAdded']),
                  allRetainedObjectFieldsExactAfterReferenceRebasing=False)
-    proof['appearanceFinishing'].append(dict(kind='source-covered-skin-material',beforeSha256=before,
+    proof['appearanceFinishing'].append(dict(kind='source-skin-interface-materials',beforeSha256=before,
         sha256=receipt['sha256'],proof=dict(path=str(path.resolve()),sha256=sha(path)),
-        pigmentInputs=[interface,plan,*displays]))
-    print('Restored skin channels from before the hidden torso cut:',name,len(recover),flush=True)
+        pigmentInputs=[interface,covered]))
+    print('Rebound prepared neck and body textures:',name,len(recover),flush=True)
     return proof
 
 
 def prepare_skin_interfaces():
     """Process source/reference pairs obtained from actual character presentations."""
     from concurrent.futures import ProcessPoolExecutor,as_completed
-    parser=argparse.ArgumentParser();parser.add_argument('--source',type=Path,required=True);parser.add_argument('--contexts',type=Path,required=True)
+    parser=argparse.ArgumentParser();parser.add_argument('--source',type=Path,required=True);parser.add_argument('--contexts',type=Path)
     parser.add_argument('--output',type=Path,required=True);parser.add_argument('--workers',type=int,choices=range(1,9),default=4);parser.add_argument('--resume',action='store_true')
     parser.add_argument('--compact-only',action='store_true')
+    parser.add_argument('--repair-covered-materials',action='store_true')
+    parser.add_argument('--assets',nargs='+',default=[])
     args=parser.parse_args();source=checked_catalog_path(args.source);output=checked_catalog_path(args.output)
+    if not args.compact_only and args.repair_covered_materials==bool(args.contexts):
+        parser.error('Use either --contexts or --repair-covered-materials.')
+    if args.assets and not args.repair_covered_materials:
+        parser.error('--assets selects saved bundles for --repair-covered-materials.')
     if output==source or not output.is_relative_to(ROOT/'tools'):raise ValueError('Skin interfaces need an independent tools workspace.')
     if output.exists()and not args.resume:raise ValueError('The skin-interface workspace already exists.')
     if (output/'ResourceAssembly.json').exists():raise ValueError('The skin-interface candidate is already complete.')
     retired_count=retired_bytes=0
-    paths=sorted((output/'Receipts').glob('*.json'))
+    paths=sorted(path for path in (output/'Receipts').glob('*.bundle.json'))
     with ProcessPoolExecutor(max_workers=args.workers,max_tasks_per_child=4)as pool:
         pending={pool.submit(compact_skin_interface_inputs,path,output):path for path in paths}
         for future in as_completed(pending):
@@ -7164,7 +7411,12 @@ def prepare_skin_interfaces():
         print(json.dumps(dict(status='PASS_SKIN_SCRATCH_CLEANUP',deletedFiles=retired_count,deletedLogicalBytes=retired_bytes)),flush=True)
         return
     manifest=read(source/(Path('Catalog')/RESOURCE_FILES['manifest']));assembly=read(source/'ResourceAssembly.json');proofs={p['file']:p for p in assembly['proofs']}
-    pin=lambda p:dict(path=str(Path(p).resolve()),sha256=sha(p));pins=[pin(source/'ResourceAssembly.json'),pin(source/(Path('Catalog')/RESOURCE_FILES['manifest'])),pin(args.contexts)]
+    pin=lambda p:dict(path=str(Path(p).resolve()),sha256=sha(p));pins=[pin(source/'ResourceAssembly.json'),pin(source/(Path('Catalog')/RESOURCE_FILES['manifest']))]
+    if args.contexts:pins.append(pin(args.contexts))
+    designs_path=Path(__file__).with_name('face-designs.json')
+    designs=read(designs_path)['surfaces'];pins.append(pin(designs_path))
+    head_pigments={part['bundles'][0]['file']for part in manifest['resources']if part['type']=='GameObject'and
+        designs.get(Path(part['asset']).stem,{}).get('pigmentReference')=='head'}
     import character_resources as resources,material_fields,mesh_recipe_codec,collect_sources
     production,art=source_owner()
     sources=list(map(Path,(__file__,resources.__file__,material_fields.__file__,production.__file__,art.__file__,Path(__file__).with_name('resource-package.json'),
@@ -7176,19 +7428,19 @@ def prepare_skin_interfaces():
         if not archive.exists():archive.write_bytes(path.read_bytes())
         pins.append(pin(archive))
     by_source={r['source']:r for r in manifest['resources']};tasks=[];unique={};catalog=output/'Catalog';catalog.mkdir(exist_ok=True)
-    contexts=read(args.contexts)['rows'];documents={};visible=[];covered=[];armor={}
+    contexts=read(args.contexts)['rows'] if args.contexts else [];documents={};visible=[];covered=[];armor=set()
     for context in contexts:
         owner=observed_skin_interface(context,documents)
         if owner=='shape':visible.append(context)
         else:
             covered.append(dict(fixture=context['fixture'],head=context['head']))
-            if owner=='armor':armor.setdefault(context['head'].removeprefix('UB/CharacterResources/'),[]).append(context)
+            if owner=='armor':armor.add(context['head'].removeprefix('UB/CharacterResources/'))
         if context.get('display')and context['display']not in pins:pins.append(context['display'])
     for context in visible:
         head=context['head'].removeprefix('UB/CharacterResources/');body=context['body'].removeprefix('UB/CharacterResources/')
         resource=by_source[head];name=resource['bundles'][0]['file']
-        pigment=context.get('pigmentReference','body')
-        if pigment not in ('body','source'):raise ValueError('A skin interface has an unknown pigment reference.')
+        pigment='head'if name in head_pigments else context.get('pigmentReference','body')
+        if pigment not in ('body','source','head'):raise ValueError('A skin interface has an unknown pigment reference.')
         if head in unique:
             if unique[head]!=(body,pigment):raise ValueError('One saved head requires incompatible body or pigment references.')
             continue
@@ -7204,24 +7456,33 @@ def prepare_skin_interfaces():
             else:write(path,job)
         else:write(path,job)
         job['inputPlan']=pin(path);tasks.append(job)
-    selected={job['file']for job in tasks};restored=[]
-    if armor:
+    selected={job['file']for job in tasks};restored=[];failures=[]
+    candidates={by_source[head]['bundles'][0]['file'] for head in armor if head not in unique}
+    if args.repair_covered_materials:
+        candidates={name for name,proof in proofs.items() if covered_interface_operations(proof)}
+        if args.assets:
+            if not set(args.assets)<=candidates:raise ValueError('An asset has no covered neck and body material binding to repair.')
+            candidates=set(args.assets)
+    if candidates:
         with ProcessPoolExecutor(max_workers=args.workers,max_tasks_per_child=8)as pool:
-            pending={}
-            for head,owners in armor.items():
-                if head in unique:continue
-                bodies={owner['body'].removeprefix('UB/CharacterResources/')for owner in owners}
-                displays=list({(owner['display']['path'],owner['display']['sha256']):owner['display']for owner in owners}.values())
-                name=by_source[head]['bundles'][0]['file']
-                if name in pending:raise ValueError('A covered skin bundle has conflicting head owners.')
-                pending[name]=pool.submit(restore_covered_skin_fields,source,output,proofs[name],head,bodies,displays)
-            for name,task in pending.items():
-                result=task.result()
+            pending={pool.submit(repair_covered_skin_fields,source,output,proofs[name],
+                preserve_head_pigment=name in head_pigments):name for name in sorted(candidates)}
+            for task in as_completed(pending):
+                name=pending[task]
+                try:result=task.result()
+                except Exception as error:
+                    message=name+': '+str(error)
+                    failures.append(message)
+                    print('Skin material repair failed:',message,flush=True)
+                    continue
                 if result:
                     proofs[name].update(result);selected.add(name);restored.append(name)
+    if failures:
+        write(output/'Failures.json',dict(failures=sorted(failures)))
+        raise ValueError('Some skin materials have changed since the covered-skin repair was recorded.')
     for row in manifest['bundles']:
         if row['file']not in selected and not(catalog/row['file']).exists():(catalog/row['file']).hardlink_to(source/'Catalog'/row['file'])
-    failures=[];precision_review=[]
+    precision_review=[]
     with ProcessPoolExecutor(max_workers=args.workers,max_tasks_per_child=4)as pool:
         pending={pool.submit(finish_skin_interface_bundle,job):job for job in tasks}
         for future in as_completed(pending):
@@ -7239,9 +7500,14 @@ def prepare_skin_interfaces():
     for row in manifest['bundles']:row['sha256']=proofs[row['file']]['sha256']
     write(catalog/RESOURCE_FILES['manifest'],manifest)
     assembly.update(catalogSha256=sha(catalog/RESOURCE_FILES['manifest']),bytes=sum(p['bytes']for p in proofs.values()),artAccepted=False,
-        preparedSource=dict(assembly=pin(source/'ResourceAssembly.json'),catalog=pin(source/(Path('Catalog')/RESOURCE_FILES['manifest']))),
-        skinInterfaces=dict(contexts=pin(args.contexts),resources=len(tasks),coveredBodyContexts=covered,
-            restoredCoveredMaterials=restored,precisionReview=precision_review,review='pending'))
+        preparedSource=dict(assembly=pin(source/'ResourceAssembly.json'),catalog=pin(source/(Path('Catalog')/RESOURCE_FILES['manifest']))))
+    if args.contexts:
+        assembly['skinInterfaces']=dict(contexts=pin(args.contexts),resources=len(tasks),coveredBodyContexts=covered,
+            restoredCoveredMaterials=restored,precisionReview=precision_review,review='pending')
+    if restored:
+        previous=assembly.get('skinInterfaceMaterialRepair',{}).get('files',[])
+        assembly['skinInterfaceMaterialRepair']=dict(files=sorted(set(previous).union(restored)))
+    assembly.pop('artAcceptance',None)
     write(output/'ResourceAssembly.json',assembly);print('Prepared skin interfaces:',len(tasks),flush=True)
 
 
@@ -7251,7 +7517,7 @@ def source_skin_detail_authority(proof,identifier,channel,*,retained_sources=Non
         if sha(pin['path'])!=pin['sha256']:raise ValueError('A preceding skin-detail authority changed.')
         return read(pin['path'])
     for operation in reversed(proof.get('appearanceFinishing',[])):
-        if operation['kind']=='source-covered-skin-material':
+        if operation['kind'] in ('source-covered-skin-material','source-skin-interface-materials'):
             binding=document(operation['proof'])
             restored=next((row['source']for row in binding['textures']if row['object']==identifier),None)
             if restored is not None:
@@ -7345,7 +7611,7 @@ def skin_filter_neighbourhoods(production,surfaces,shape,sampler,profile,regions
     """Bind one sampled texture to its highest-detail physical surface owner."""
     import numpy as np
     import material_fields as fields
-    active_regions=[value for value in regions if value['strength']>0]
+    active_regions=[value for value in regions if value['strength']>0 and value.get('reconstruction')!='paired-mean-rgb']
     if profile['pigmentRetain']==1 and not active_regions:
         return [],dict(sourceRetained=True)
     evaluation=ownership>0
@@ -7372,7 +7638,7 @@ def skin_filter_neighbourhoods(production,surfaces,shape,sampler,profile,regions
         radius=max(region['sourceLowFrequencySigmaMetres'],region.get('referenceSigmaMetres',0.))
         force=force or np.any((support>0)&(metric<radius/128))
     if force:evaluation=(ownership>0)&writable[::-1]
-    patches,proof=production.prepare_source_neighbourhoods(packet,skin,slot,shape,sampler,profile,regions,evaluation,
+    patches,proof=production.prepare_source_neighbourhoods(packet,skin,slot,shape,sampler,profile,active_regions,evaluation,
         require_complete=bool(force))
     proof.update(sourceFingerprint=packet['sourceFingerprint'],highestDetailLod=highest,
         sampler=dict(sampler),textureDimensions=list(shape),arrayMetricRadiusLimitTexels=128,

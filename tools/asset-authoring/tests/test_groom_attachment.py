@@ -65,6 +65,35 @@ class GroomAttachmentTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,'prepared resource input changed'):
                     owner.validate_prepared_resource(broken,assembly,{})
 
+    def test_native_lod_uses_its_renderer_family_when_only_some_lods_bind_custom_materials(self):
+        self.build_owner()
+        import character_resources as resources
+
+        def pointer(identifier, file_id=0):
+            return dict(m_FileID=file_id, m_PathID=identifier)
+
+        def obj(identifier, kind, tree, name=''):
+            return SimpleNamespace(path_id=identifier, type=SimpleNamespace(name=kind),
+                                   read_typetree=lambda: tree, peek_name=lambda: name)
+
+        def level(*renderers):
+            return dict(renderers=[dict(renderer=pointer(renderer)) for renderer in renderers])
+
+        file = SimpleNamespace(objects={
+            1: obj(1, 'Material', dict(m_SavedProperties=dict(m_Floats=[('_CoreResponse', .4)]))),
+            10: obj(10, 'Mesh', {}, 'HairShape_H_LOD0'),
+            11: obj(11, 'Mesh', {}, 'HairShape_H_LOD1'),
+            12: obj(12, 'Mesh', {}, 'FaceShape_LOD1'),
+            13: obj(13, 'Mesh', {}, 'HairShape_H_LOD2'),
+            20: obj(20, 'SkinnedMeshRenderer', dict(m_Mesh=pointer(10), m_Materials=[pointer(1)])),
+            21: obj(21, 'SkinnedMeshRenderer', dict(m_Mesh=pointer(11), m_Materials=[pointer(30, 4)])),
+            22: obj(22, 'SkinnedMeshRenderer', dict(m_Mesh=pointer(12), m_Materials=[pointer(31, 4)])),
+            23: obj(23, 'SkinnedMeshRenderer', dict(m_Mesh=pointer(13), m_Materials=[pointer(30, 4)])),
+            25: obj(25, 'LODGroup', dict(m_LODs=[level(20), level(21, 22)])),
+        })
+        self.assertEqual(resources.groom_mesh_identifiers(file), {10})
+        self.assertEqual(resources.groom_mesh_identifiers(file, include_native_lods=True), {10, 11})
+
     def test_native_cloth_fixed_points_follow_render_child_hashes_not_virtual_vertex_numbers(self):
         owner=self.build_owner();file=SimpleNamespace(name='native',objects={})
         pointer=lambda identifier:dict(m_FileID=0,m_PathID=identifier)
@@ -2573,13 +2602,16 @@ class SourceSurfaceSkinTests(unittest.TestCase):
         import hashlib
         pointer=lambda key:dict(m_FileID=0,m_PathID=key)
         weight=lambda parent,value:dict(parentIndex=parent,weight=value,localPos=dict(x=0.,y=0.,z=0.),localNor=dict(x=0.,y=0.,z=1.),localTan=dict(x=1.,y=0.,z=0.))
-        trees={10:dict(deformer=dict(sharedMesh=pointer(1),meshData=pointer(20),targetObject=pointer(80),boneList=[pointer(90)]),dataHash=7),
-            20:dict(vertexCount=3,vertexHashList=[10,20,30],dataHash=7),
-            30:dict(deformer=dict(meshData=pointer(40),renderDeformerList=[pointer(10)],boneList=[pointer(90)]),dataHash=9),
+        trees={10:dict(deformer=dict(sharedMesh=pointer(1),meshData=pointer(20),targetObject=pointer(80),
+                      boneList=[pointer(90)],dataHash=7),dataHash=7,deformerHash=7),
+            20:dict(vertexCount=3,triangleCount=1,vertexHashList=[10,20,30],dataHash=7),
+            30:dict(deformer=dict(meshData=pointer(40),renderDeformerList=[pointer(10)],renderDeformerHashList=[7],
+                                 boneList=[pointer(90)],dataHash=9),dataHash=9,deformerHash=9),
             40:dict(vertexCount=2,dataHash=9,childDataList=[dict(vertexCount=3,childDataHash=7,vertexInfoList=[2<<28,(2<<28)|2,(2<<28)|4],
                 vertexWeightList=[weight(parent,value)for _ in range(3)for parent,value in((0,.25),(1,.75))],parentIndexList=[0,0,1])]),
-            50:dict(virtualDeformer=pointer(30),clothData=pointer(60),dataHash=11),60:dict(dataHash=11)}
-        packets={1:dict(vertexCount=3,sourceFingerprint='a'*64)}
+            50:dict(virtualDeformer=pointer(30),clothData=pointer(60),dataHash=11,virtualDeformerHash=9,m_Enabled=1),
+            60:dict(dataHash=11)}
+        packets={1:dict(vertexCount=3,subMeshes=[[0,1,2]],sourceFingerprint='a'*64)}
         def obj(kind,tree=None,packet=None):return SimpleNamespace(type=SimpleNamespace(name=kind),read_typetree=lambda:copy.deepcopy(tree),packet=packet)
         def make(values):
             objects={key:obj('MonoBehaviour',tree)for key,tree in values.items()}
@@ -2612,6 +2644,38 @@ class SourceSurfaceSkinTests(unittest.TestCase):
             self.assertNotEqual(before,trees)
             self.assertEqual(native.objects[40].read_typetree(),original[40])
 
+    def test_native_groom_restore_preserves_an_armor_child_and_excludes_other_prefabs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            current, trees, native, original, reference = self.native_cloth_source_fixture(Path(directory))
+
+            def pointer(key):
+                return dict(m_FileID=0, m_PathID=key)
+
+            def add_object(asset, key, kind, tree):
+                asset.objects[key] = SimpleNamespace(type=SimpleNamespace(name=kind),
+                    read_typetree=lambda: copy.deepcopy(tree))
+
+            for asset, values in ((current, trees), (native, original)):
+                values[11] = dict(deformer=dict(sharedMesh=pointer(2), meshData=pointer(21), dataHash=16),
+                                  dataHash=16, deformerHash=16)
+                values[21] = dict(vertexCount=5, triangleCount=1, vertexHashList=list(range(5)), dataHash=16)
+                values[30]['deformer']['renderDeformerList'].insert(0, pointer(11))
+                values[30]['deformer']['renderDeformerHashList'].insert(0, 16)
+                values[40]['childDataList'].insert(0, dict(vertexCount=5, childDataHash=18))
+                add_object(asset, 2, 'Mesh', dict(m_Name='Armor'))
+                add_object(asset, 11, 'MonoBehaviour', values[11])
+                add_object(asset, 21, 'MonoBehaviour', values[21])
+            add_object(native, 12, 'MonoBehaviour', dict(deformer=dict(sharedMesh=pointer(1))))
+
+            self.restore_native_cloth_source_fixture(current, trees, native, reference)
+            self.assertEqual(trees, original)
+
+            trees[40]['childDataList'][0]['childDataHash'] += 1
+            before = copy.deepcopy(trees)
+            with self.assertRaisesRegex(ValueError, 'attached sibling surface'):
+                self.restore_native_cloth_source_fixture(current, trees, native, reference)
+            self.assertEqual(trees, before)
+
     def test_native_cloth_rejects_reference_owner_palette_count_and_unknown_field_drift_atomically(self):
         for defect in('digest','object','external-reference','missing-reference','missing-render','extra-virtual','mixed-render','component','palette','bone','count','field','additional-data-consumer','cloth'):
             with self.subTest(defect=defect),tempfile.TemporaryDirectory()as directory:
@@ -2631,7 +2695,7 @@ class SourceSurfaceSkinTests(unittest.TestCase):
                 elif defect=='palette':current.objects[70].read_typetree=lambda:dict(m_GameObject=dict(m_FileID=0,m_PathID=80),m_Mesh=dict(m_FileID=0,m_PathID=1),m_Bones=[],m_RootBone=dict(m_FileID=0,m_PathID=90))
                 elif defect=='bone':current.objects[90].read_typetree=lambda:dict(m_LocalPosition=dict(x=1,y=0,z=0),m_Father=dict(m_FileID=0,m_PathID=0))
                 elif defect=='count':trees[40]['childDataList'][0]['vertexCount']=4
-                elif defect=='field':trees[40]['dataHash']=12
+                elif defect=='field':trees[40]['vertexCount']=12
                 elif defect=='additional-data-consumer':trees[32]=dict(deformer=dict(meshData=dict(m_FileID=0,m_PathID=40)))
                 elif defect=='cloth':trees[50]['dataHash']=99
                 before=copy.deepcopy(trees)
@@ -2871,6 +2935,24 @@ class SourceSurfaceSkinTests(unittest.TestCase):
         self.assertEqual(trees[50]['dataHash'],before[50]['dataHash']+virtual)
         self.assertEqual(trees[50]['virtualDeformerHash'],before[50]['virtualDeformerHash']+virtual)
         self.assertEqual(trees[40]['dataHash'],before[40]['dataHash']+delta+4)
+
+    def test_empty_renderer_slots_preserve_native_cloth_mapping(self):
+        trees, replacements, _ = self.fixture()
+        before = copy.deepcopy(trees[40]['childDataList'][0])
+        replacement = replacements[1]
+        replacement['binding'] = None
+        replacement['packet'] = copy.deepcopy(replacement['native'])
+        replacement['packet']['subMeshes'].append([])
+
+        proof = self.resources.prepare_native_cloth(trees, replacements)
+
+        after = trees[40]['childDataList'][0]
+        self.assertEqual(trees[20]['triangleCount'], 1)
+        self.assertEqual(proof['renderDeltas'][10], 1)
+        self.assertEqual(trees[30]['deformer']['renderDeformerHashList'], [trees[10]['dataHash']])
+        self.assertEqual(after['parentIndexList'], before['parentIndexList'])
+        self.assertEqual(after['vertexWeightList'], before['vertexWeightList'])
+        self.assertEqual(after['vertexInfoList'], before['vertexInfoList'])
 
     def test_legacy_rows_keep_single_anchor_virtual_transfer_without_a_new_declaration(self):
         trees,replacements,_=self.fixture();replacements[1]['binding'].pop('surfaceSkin')

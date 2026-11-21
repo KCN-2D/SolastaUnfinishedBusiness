@@ -5636,20 +5636,22 @@ def source_material_ownership(packet, bones, declaration, *, renderer_to_prefab=
 
 def source_skin_region_mode(region):
     """Validate regional color declarations before resolving their source domains."""
-    required={'target','reference','protected','sourceLowFrequencySigmaMetres','strength'}
+    required={'target','reference','protected','strength'}
     mode=region.get('reconstruction','luminance-gain')if isinstance(region,dict)else None
-    require(mode in('luminance-gain','adjacent-low-frequency-rgb','reference-mean-rgb'),
+    require(mode in('luminance-gain','adjacent-low-frequency-rgb','reference-mean-rgb','paired-mean-rgb'),
             'Unknown source skin luminance region.')
-    local=mode!='reference-mean-rgb'
-    if local:required.add('referenceSigmaMetres')
+    if mode!='paired-mean-rgb':required.add('sourceLowFrequencySigmaMetres')
+    if mode in('luminance-gain','adjacent-low-frequency-rgb'):required.add('referenceSigmaMetres')
     limit='maximumLogGain'if mode=='luminance-gain'else'maximumLinearRgbDelta'
-    optional={'reconstruction'}|({'detailRetain'}if mode!='luminance-gain'else set())
+    optional={'reconstruction'}|({'detailRetain'}if mode in('adjacent-low-frequency-rgb','reference-mean-rgb')else set())
     require(required|{limit}<=set(region)<=required|{limit}|optional,'Unknown source skin luminance region.')
-    fine=region['sourceLowFrequencySigmaMetres'];broad=region.get('referenceSigmaMetres',fine)
     strength=region['strength'];maximum=region[limit]
-    require(all(type(value)in(int,float)and np.isfinite(value)for value in(fine,broad,strength,maximum))and
-            0<fine<=broad and 0<=strength<=1 and maximum>0,
-            'A source skin luminance region requires ordered physical scales and bounded strength.')
+    require(all(type(value)in(int,float)and np.isfinite(value)for value in(strength,maximum))and
+            0<=strength<=1 and maximum>0,'A source skin luminance region requires bounded strength.')
+    if mode!='paired-mean-rgb':
+        fine=region['sourceLowFrequencySigmaMetres'];broad=region.get('referenceSigmaMetres',fine)
+        require(all(type(value)in(int,float)and np.isfinite(value)for value in(fine,broad))and 0<fine<=broad,
+                'A source skin luminance region requires ordered physical scales.')
     if mode!='luminance-gain':
         require(maximum<=1,'A source RGB reconstruction limit must be within linear LDR range.')
         detail_retain=region.get('detailRetain',1.)
@@ -5706,14 +5708,26 @@ def refine_source_skin_material(pixels, ownership, metres_per_texel, profile, ch
             masks=[np.asarray(region[key],float)for key in('target','reference','protected')]
             require(all(mask.shape==ownership.shape and np.isfinite(mask).all()and np.all((mask>=0)&(mask<=1))for mask in masks),
                     'A source skin luminance region has inconsistent ownership.')
-            fine=region['sourceLowFrequencySigmaMetres'];broad=region.get('referenceSigmaMetres',fine);strength=region['strength'];maximum=region[limit]
+            strength=region['strength'];maximum=region[limit]
             target,reference,protected=masks;target=target*ownership*(1-protected);reference=reference*ownership*(1-protected)
-            if not source_neighbourhoods:
+            fine=region.get('sourceLowFrequencySigmaMetres');broad=region.get('referenceSigmaMetres',fine)
+            if not source_neighbourhoods and fine is not None:
                 target[metric<broad/128]=0
                 if mode!='reference-mean-rgb':reference[metric<broad/128]=0
             require(np.any(target)and np.any(reference),'A source skin luminance region has no resolved target or adjacent reference.')
             before_region=linear.copy()
-            if mode=='luminance-gain':
+            if mode=='paired-mean-rgb':
+                areas=[mask*metric**2 for mask in (target,reference)]
+                totals=[float(area.sum()) for area in areas]
+                require(all(np.isfinite(total) and total>0 for total in totals),
+                        'Paired source skin colors require two finite physical areas.')
+                owned, adjacent=(np.einsum('ij,ijc->c',area/total,pixels) for area,total,pixels in
+                                 zip(areas,totals,(before_region,current[:,:,:3]),strict=True))
+                delta=np.clip(adjacent-owned,-maximum,maximum)
+                linear=np.clip(linear+target[:,:,None]*strength*delta,0,1)
+                detail=dict(targetAreaMetresSquared=totals[0], referenceAreaMetresSquared=totals[1],
+                            targetLinearRgb=owned.tolist(),referenceLinearRgb=adjacent.tolist(),linearRgbDelta=delta.tolist())
+            elif mode=='luminance-gain':
                 source_luma=np.einsum('...c,c->...',current[:,:,:3],[.2126,.7152,.0722])
                 log_luma=np.log(np.maximum(source_luma,1/65535))
                 low=rgb_physical_average(log_luma,selected.astype(float),metric,fine,evaluation=target>0,**physical_filters)
@@ -5747,10 +5761,12 @@ def refine_source_skin_material(pixels, ownership, metres_per_texel, profile, ch
                     colorReference='physical-area-weighted native skin RGB'if mode=='reference-mean-rgb'else'adjacent native skin RGB',detailRetain=detail_retain,
                     protectedFeaturesExcludedFromSupport=True)
                 if mode=='reference-mean-rgb':detail.update(referenceAreaMetresSquared=total,referenceLinearRgb=adjacent.tolist())
+            if fine is not None:
+                detail['sourceLowFrequencySigmaMetres']=fine
+            if 'referenceSigmaMetres' in region:
+                detail['referenceSigmaMetres']=broad
             regions.append(dict(targetPixels=int(np.count_nonzero(target)),referencePixels=int(np.count_nonzero(reference)),
-                reconstruction=mode,sourceLowFrequencySigmaMetres=fine,
-                **(dict(referenceSigmaMetres=broad)if mode!='reference-mean-rgb'else{}),
-                protectedRegionExact=bool(np.array_equal(linear[protected==1],before_region[protected==1])),**detail))
+                reconstruction=mode,protectedRegionExact=bool(np.array_equal(linear[protected==1],before_region[protected==1])),**detail))
         if regions:proof['luminanceRegions']=regions
         srgb=np.where(linear<=.0031308,12.92*linear,1.055*np.maximum(linear,0)**(1/2.4)-.055)
         result[:,:,:3]=np.rint(np.clip(srgb,0,1)*255).astype(np.uint8)

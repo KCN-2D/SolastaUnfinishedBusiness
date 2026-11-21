@@ -199,14 +199,17 @@ function Assert-MeshRecipe($Recipe) {
             Assert-MeshNumberArray $uv.values ($count * $uv.dimension) 'UV'
         }
         if ($mesh.subMeshes -isnot [array] -or $mesh.subMeshes.Count -lt 1 -or $mesh.subMeshes.Count -gt 256) { throw 'Invalid mesh submesh list.' }
+        $hasTriangles = $false
         foreach ($submesh in $mesh.subMeshes) {
             Assert-RecipeFieldSet $submesh @('topology', 'indices')
-            if ($submesh.topology -cne 'Triangles' -or $submesh.indices -isnot [array] -or $submesh.indices.Count -lt 3 -or
+            if ($submesh.topology -cne 'Triangles' -or $submesh.indices -isnot [array] -or
                 $submesh.indices.Count -gt 6000000 -or $submesh.indices.Count % 3) { throw 'Invalid mesh triangle list.' }
+            $hasTriangles = $hasTriangles -or $submesh.indices.Count -gt 0
             foreach ($index in $submesh.indices) {
                 if (!(Test-FiniteNumber $index) -or $index -ne [Math]::Truncate($index) -or $index -lt 0 -or $index -ge $count) { throw 'A mesh index is outside its vertex range.' }
             }
         }
+        if (!$hasTriangles) { throw 'A mesh requires a nonempty triangle list.' }
         if ($mesh.PSObject.Properties['skin'] -and $null -ne $mesh.skin) {
             $skin = $mesh.skin
             Assert-RecipeFieldSet $skin @('bindPoses', 'boneWeights', 'boneIndices')
