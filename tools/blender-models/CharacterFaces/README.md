@@ -69,6 +69,8 @@ UVで分かれた組織は`protectSourceCharts`で保護します。原本Mesh�
 胴につなぐメッシュと接続用の肌テクスチャは装備を変えた状態でも共に使います。旧版の装備判定で接続用の画像が置き換わった資源は、`finish-skin-interfaces --source <制作済み資源> --repair-covered-materials --output <新しい候補>`で復旧できます。
 
 衣装から肌が突き出る箇所は、ゲーム内で記録した姿勢と装備のプレハブを指定して補正します。`fit-garments --source <制作済み資源> --pose <姿勢JSON.gz> ... --equipment <プレハブのアドレス> ... --clearance <肌との間隔> --maximum-offset <補正の上限> --output <新しい候補>`を使います。距離の単位はメートルです。体格や表示距離によって着用時の形状が変わる場合は、それぞれの姿勢を渡します。
+
+既存の衣装補正で襟や縫い目が伸びた場合は、同じコマンドに`--repair-rest --source <制作済み資源> --maximum-offset <補正の上限> --output <新しい候補>`を渡します。元メッシュの辺の長さを基準に補正の差を制限し、関連する布の変形データも更新します。元の形状と着用時の輪郭をBlenderとゲームで確認します。
 衣装同士が貫通する場合は、同じ装備のレンダラーを `--layer <レンダラー1> <レンダラー2>` で指定します。`--selection` のJSONには、`equipment` に装備ごとの姿勢一覧を、`layerReferences` に各姿勢と対応するバニラ標準体格の記録を指定します。重なり方はバニラの記録から判定します。レンダラー名の末尾の `_LOD番号` を省くと、各表示距離で対応する組み合わせを使います。
 
 同じ入力に`--resume`を付けると、完了分の保存内容を照合して再利用し、未完了分だけを生成します。制作コードは版ごとに保持します。圧縮誤差は`skinInterfaces.precisionReview`に記録し、実表示での確認に使います。
@@ -107,6 +109,8 @@ NPCの組には、実際の服装で取得した表示記録を`display`の`path
 Unityの共通入口`Invoke-UnityAssetBuild.ps1 -MeshRecipePath`には、`Plan.json`の`jobs[].recipe.path`を配列で渡せます。8件程度ずつ実行すると、個別bundleと個別の照合結果を維持したまま`BuildPipeline`の呼び出しをまとめられます。完了したbundle、SHA256、子reportのパスを記録して中断箇所から再開します。
 
 `Invoke-ModelBuild.ps1 -PlanPath <Plan.jsonの配列> -OutputDirectory <完了結果の保存先> -GuiProjectPath <Unity project> -UnityPath <Unity.exe>`は、共通入口でレシピをまとめて処理し、`Actual.json`と`unity-report.json`に結果を保存します。同じ引数で再開できます。プランを変更した場合は新しい保存先と`-ReuseResultPath <前回のActual.json>`を指定すると、制作入力・Editor・成果物を照合して一致するレシピを再利用します。`-ValidateOnly`でプランと入力を検査できます。途中で停止する場合は保存先に`STOP`を置き、現在の組とEditorの終了を待ちます。再開時は`STOP`を除去します。
+
+Unity CLIが既定の場所に見つからない環境では、`-UnityCliPath <unity.exe>`で認証済み環境のCLIを指定します。
 
 `finalize --plan <Plan.json> --results <完了結果.json> --destination <候補catalog>`で、生成したbundleのMesh fingerprintと参照先を照合し、新しいcatalogへまとめます。複数のPlanは`--plan`を繰り返して指定します。
 

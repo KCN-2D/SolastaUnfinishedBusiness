@@ -7,7 +7,8 @@ param(
     [Parameter(Mandatory=$true)][string]$UnityPath,
     [string[]]$ReuseResultPath = @(),
     [ValidateRange(2,16)][int]$ChunkSize = 8,
-    [switch]$ValidateOnly
+    [switch]$ValidateOnly,
+    [string]$UnityCliPath
 )
 
 Set-StrictMode -Version Latest
@@ -208,7 +209,8 @@ try {
     if (Test-Path -LiteralPath $progress) { Import-ModelReceipt $progress $true }
     foreach ($path in $ReuseResultPath) { Import-ModelReceipt $path $false }
     if ($results.Count -lt $jobs.Count -and !(Test-Path -LiteralPath $stop)) {
-        $session = Start-AssetBackgroundEditor -Project $project -Editor $editor -Cli (Join-Path $env:LOCALAPPDATA 'Unity/bin/unity.exe') -SourceSha256 $workerHash -TimeoutSeconds 300
+        if (!$UnityCliPath) { $UnityCliPath = Join-Path $env:LOCALAPPDATA 'Unity/bin/unity.exe' }
+        $session = Start-AssetBackgroundEditor -Project $project -Editor $editor -Cli $UnityCliPath -SourceSha256 $workerHash -TimeoutSeconds 300
     }
     while ($results.Count -lt $jobs.Count) {
         if (Test-Path -LiteralPath $stop) { $paused = $true; break }

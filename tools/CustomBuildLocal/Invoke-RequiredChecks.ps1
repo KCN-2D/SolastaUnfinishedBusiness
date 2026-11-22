@@ -255,24 +255,8 @@ try {
         $cleanupSources = @($cleanupSourcePaths | ForEach-Object { [ordered]@{path=$_;sha256=(Get-GtHash $_)} })
         # Wrapper changes revalidate the check contracts; cleanup reuse follows its own owners.
         $cleanupOwners = @($cleanupSources | Where-Object { $_.path -ine $PSCommandPath })
-        $cachedCleanupOwners = if ($cached -and $cached.PSObject.Properties['cleanupSources']) {
-            @($cached.cleanupSources | Where-Object { $_.path -ine $PSCommandPath })
-        } else { @() }
-        $cleanupCurrent = $cached -and $cached.status -eq 'PASS' -and $cached.PSObject.Properties['cleanupSources'] -and
-            $cached.PSObject.Properties['workDirectories'] -and $cached.PSObject.Properties['cleanupCompletedUtc'] -and
-            ($cachedCleanupOwners | ConvertTo-Json -Compress) -ceq ($cleanupOwners | ConvertTo-Json -Compress) -and
-            (ConvertTo-Json -InputObject @($cached.workDirectories) -Compress) -ceq (ConvertTo-Json -InputObject $workDirectories -Compress)
-        if ($cleanupCurrent) {
-            # Producers refresh this registry when managed work starts or resumes.
-            # Evidence written inside an already protected directory does not change cleanup ownership.
-            $registeredWork = Join-Path $script:GameTestArtifactRoot 'StorageReferences.json'
-            $cleanupCurrent = [IO.File]::Exists($registeredWork)
-            if ($cleanupCurrent) {
-                Assert-GtPlainPath $registeredWork
-                $completed = ConvertTo-GtUtcDate $cached.cleanupCompletedUtc
-                $cleanupCurrent = [IO.File]::GetLastWriteTimeUtc($registeredWork) -le $completed
-            }
-        }
+        $registeredWork = Join-Path $script:GameTestArtifactRoot 'StorageReferences.json'
+        $cleanupCurrent = Test-GtStorageCleanupCurrent $cached $PSCommandPath $cleanupOwners $workDirectories $registeredWork
         $cleanupCompletedUtc = if ($cleanupCurrent) { $cached.cleanupCompletedUtc } else { $null }
         if ($verificationChanged -or -not $cleanupCurrent) {
             Write-GtJson $cleanupPlan ([ordered]@{runner=(Join-Path $repositoryRoot 'tools/game-test/Clear-GameTestArtifacts.ps1');

@@ -9,6 +9,7 @@ using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.Helpers;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
@@ -42,15 +43,20 @@ public static class CharacterStageIdentityDefinitionPanelPatcher
     {
         [UsedImplicitly]
         public static void Prefix(CharacterStageIdentityDefinitionPanel __instance,
-            MorphotypeElementDefinition.ElementCategory elementCategory, out GraphicsCharacter __state)
+            MorphotypeElementDefinition.ElementCategory elementCategory,
+            out (GraphicsCharacter Character, Slider Slider) __state)
         {
+            var slider = elementCategory == MorphotypeElementDefinition.ElementCategory.Musculature
+                ? __instance.modifiers.FirstOrDefault(modifier =>
+                    modifier && modifier.isActiveAndEnabled && modifier.part == elementCategory)?.slider
+                : null;
             __state = RacesContext.EnterBodyShapePreview(elementCategory == MorphotypeElementDefinition.ElementCategory.Musculature
-                ? __instance.CommonData.CharacterViewportCustomization.GraphicsCharacter
-                : null);
+                ? (__instance.CommonData.CharacterViewportCustomization.GraphicsCharacter, slider)
+                : default);
         }
 
         [UsedImplicitly]
-        public static void Finalizer(GraphicsCharacter __state)
+        public static void Finalizer((GraphicsCharacter Character, Slider Slider) __state)
         {
             RacesContext.EnterBodyShapePreview(__state);
         }

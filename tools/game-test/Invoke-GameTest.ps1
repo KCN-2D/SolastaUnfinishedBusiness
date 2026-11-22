@@ -118,7 +118,7 @@ try {
         $referenceIndex++
         $hash=Get-GtHash $path
         $archived=Join-Path $run ('InputAdapterReferences/{0:D3}-{1}' -f $referenceIndex,[IO.Path]::GetFileName($path))
-        Copy-GtFile $path $archived -ExpectedSha256 $hash
+        Copy-GtProbeReference $path $archived -ExpectedSha256 $hash
         $result.adapterReferences+=[ordered]@{path=$path;sha256=$hash;archivePath=$archived}
         $runtimeReferencePaths+=$archived
     }
@@ -344,7 +344,7 @@ finally {
         if ($null -ne $operationLock) { $operationLock.ReleaseMutex(); $operationLock.Dispose() }
     }
 }
-Write-Host "$($result.status): $($result.reason)"
-Write-Host "Evidence: $run"
+Write-Information "$($result.status): $($result.reason)" -InformationAction Continue
+Write-Information "Evidence: $run" -InformationAction Continue
 if ($result.status -in @('FAIL','ERROR') -or ($result.status -eq 'BLOCKED' -and -not $ValidateOnly)) { throw "Game test $($result.status). See $run" }
 $run
