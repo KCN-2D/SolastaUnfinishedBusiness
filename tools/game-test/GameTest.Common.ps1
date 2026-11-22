@@ -12,6 +12,7 @@ $script:AssetAuthoringWorkspace = Join-Path $script:GameTestRepo 'tools\asset-au
 . (Join-Path $script:GameTestRepo 'tools\runtime-verification\WindowsDesktop.ps1')
 . (Join-Path $script:GameTestRepo 'tools\runtime-verification\EvidencePaths.ps1')
 $script:GtValidatedDirectories = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+$script:GtStorageReferenceCache = $null
 
 function Get-GtPath([string] $Path) {
     return [IO.Path]::GetFullPath($Path).TrimEnd('\', '/')
@@ -1056,26 +1057,34 @@ function Test-GtStorageCleanupCurrent($Cached, [string]$WrapperPath, [object[]]$
 }
 
 function Read-GtStorageReferences([string[]]$ReferencePath) {
-    $paths=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     $selected=@($ReferencePath)
     $workspaceReferences=Join-Path $script:GameTestArtifactRoot 'StorageReferences.json'
     if ([IO.File]::Exists($workspaceReferences) -and $workspaceReferences -notin $selected) { $selected=@($workspaceReferences)+$selected }
     $inputs=@(foreach($path in $selected | Select-Object -Unique){
         $manifestPath=Get-GtPath $path
         Assert-GtFile $manifestPath
+        [ordered]@{path=$manifestPath;sha256=Get-GtHash $manifestPath}
+    })
+    $identity=($inputs | ForEach-Object { $_.path + [Environment]::NewLine + $_.sha256 }) -join [Environment]::NewLine
+    if ($null -ne $script:GtStorageReferenceCache -and $script:GtStorageReferenceCache.identity -ceq $identity) {
+        return $script:GtStorageReferenceCache.references
+    }
+    $paths=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach($inputReference in $inputs){
+        $manifestPath=$inputReference.path
         if(Test-GtWithin $manifestPath $script:GameTestArtifactRoot){[void]$paths.Add($manifestPath)}
         $manifest=Read-GtObject $manifestPath
         Assert-GtProperties $manifest @('schemaVersion','paths') @('schemaVersion','paths')
         if($manifest.schemaVersion -ne 1 -or $manifest.paths -isnot [array]){throw 'Invalid storage reference manifest.'}
+        $manifestDirectory=[IO.Path]::GetDirectoryName($manifestPath)
         foreach($entry in $manifest.paths){
             if($entry -isnot [string] -or [string]::IsNullOrWhiteSpace($entry)){throw 'Storage references must be paths.'}
-            $resolved=if([IO.Path]::IsPathRooted($entry)){Get-GtPath $entry}else{Get-GtPath (Join-Path (Split-Path -Parent $manifestPath) $entry)}
+            $resolved=if([IO.Path]::IsPathRooted($entry)){Get-GtPath $entry}else{Get-GtPath ([IO.Path]::Combine($manifestDirectory,$entry))}
             if(-not(Test-GtWithin $resolved $script:GameTestArtifactRoot) -and
                -not(Test-GtWithin $resolved $script:AssetAuthoringWorkspace)){throw 'Storage references must identify owned tool workspace paths.'}
             [void]$paths.Add($resolved)
         }
-        [ordered]@{path=$manifestPath;sha256=Get-GtHash $manifestPath}
-    })
+    }
     $ancestors=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     foreach($entry in $paths){
         $parent=$entry
@@ -1083,7 +1092,10 @@ function Read-GtStorageReferences([string[]]$ReferencePath) {
             $parent=[IO.Path]::GetDirectoryName($parent)
         }
     }
-    return [pscustomobject]@{paths=$paths;ancestors=$ancestors;inputs=$inputs}
+    $references=[pscustomobject]@{paths=$paths;ancestors=$ancestors;inputs=$inputs}
+    Assert-GtStorageReferences $references
+    $script:GtStorageReferenceCache=@{identity=$identity;references=$references}
+    return $references
 }
 
 function Test-GtStorageReferenceOverlap([string]$Path,$References) {
@@ -1121,7 +1133,7 @@ function Clear-GtNativeUserData {
     if(-not(Test-GtWithin $run $script:GameTestArtifactRoot) -or $run -eq $script:GameTestArtifactRoot -or (Test-GtWithin $run (Join-Path $script:GameTestArtifactRoot '.native'))){throw 'Native data release requires its owning evidence run.'}
     if(-not [IO.Directory]::Exists($run)){throw 'The owning evidence run does not exist.'}
     Assert-GtTree $run
-    $lock=Enter-GtLock
+    $lock=if($Preview){$null}else{Enter-GtLock}
     $journal=$null
     $receiptPath=Join-Path $run 'NativeUserDataRelease.json'
     $journalPath=Join-Path $run 'NativeUserDataRelease.jsonl'
@@ -1230,7 +1242,10 @@ function Clear-GtNativeUserData {
         if($null -ne $journal){Write-NativeReleaseEvent 'release-retained' @{reason=$receipt.reason}}
     }finally{
         $receipt.actions=$actions.ToArray()
-        try{if(-not $Preview){Write-GtJson $receiptPath $receipt}}finally{if($null -ne $journal){$journal.Dispose()};$lock.ReleaseMutex();$lock.Dispose()}
+        try{if(-not $Preview){Write-GtJson $receiptPath $receipt}}finally{
+            if($null -ne $journal){$journal.Dispose()}
+            if($null -ne $lock){$lock.ReleaseMutex();$lock.Dispose()}
+        }
     }
     return [pscustomobject]$receipt
 }

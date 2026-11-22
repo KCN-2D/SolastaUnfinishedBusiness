@@ -2083,6 +2083,12 @@ def fit_bc7_rgb_field(payload,width,height,target,editable=None,maximum_rgb_erro
         padded=np.pad(image,((0,(-height)%4),(0,(-width)%4),(0,0)),mode='edge')
         return padded.reshape((height+3)//4,4,(width+3)//4,4,4).transpose(0,2,1,3,4).reshape(-1,16,4)
     decoded=installed
+    active=np.ones(length//16,bool)
+    if editable is not None:
+        mask=np.asarray(editable,bool)
+        if mask.shape!=(height,width):raise ValueError('BC7 field ownership dimensions differ.')
+        active,pixel_active=whole_block_pixels(mask)
+        target=target.copy();target[~pixel_active]=decoded[~pixel_active]
     original=blocks(decoded);desired=blocks(target)
     words=np.frombuffer(payload,dtype='<u8').reshape(-1,2).copy()
     def read_bits(ids,position,width):
@@ -2105,7 +2111,7 @@ def fit_bc7_rgb_field(payload,width,height,target,editable=None,maximum_rgb_erro
         subsets=(3,2,3,2,1,1,1,2)[mode];partition=(4,6,6,6,0,0,0,6)[mode]
         rgb_bits=(4,6,5,7,5,7,7,5)[mode];alpha_bits=(0,0,0,0,6,8,7,5)[mode]
         start=mode+1+partition;has_p=mode in (0,1,3,6,7);endpoints=subsets*2
-        all_ids=np.flatnonzero(modes==mode)
+        all_ids=np.flatnonzero((modes==mode)&active)
         for rotation in range(4 if mode in (4,5)else 1):
             ids=all_ids[read_bits(all_ids,start,2)==rotation]if mode in (4,5)else all_ids
             for at in range(0,len(ids),8192):
@@ -2130,13 +2136,7 @@ def fit_bc7_rgb_field(payload,width,height,target,editable=None,maximum_rgb_erro
                             replacement=np.argmin(np.abs(expanded.astype(float)-wanted[:,None]),axis=1).astype(np.uint64)
                             write_bits(selected,position,bits,replacement)
                         position+=bits
-    retained=0;active=np.ones(len(words),bool)
-    if editable is not None:
-        mask=np.asarray(editable,bool)
-        if mask.shape!=(height,width):raise ValueError('BC7 field ownership dimensions differ.')
-        active,pixel_active=whole_block_pixels(mask)
-        words[~active]=np.frombuffer(payload,dtype='<u8').reshape(-1,2)[~active];retained=int((~active).sum())
-        target=target.copy();target[~pixel_active]=decoded[~pixel_active]
+    retained=int((~active).sum())
     refined=0;reencoded=0
     if maximum_rgb_error is not None:
         if not isinstance(maximum_rgb_error,int)or maximum_rgb_error<0:raise ValueError('Invalid BC7 RGB error bound.')

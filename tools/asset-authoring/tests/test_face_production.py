@@ -29,6 +29,95 @@ PACKAGE_TEST_VERSION=datetime.date.min.isoformat().replace('-','.')+'.1'
 
 
 class FaceProductionContracts(unittest.TestCase):
+    def test_character_scene_header_accepts_blender_compression(self):
+        from compression import zstd
+
+        with tempfile.TemporaryDirectory() as folder:
+            scene = Path(folder) / 'Skin.blend'
+            for encode in (bytes, gzip.compress, zstd.compress):
+                scene.write_bytes(encode(b'BLENDER-v405'))
+                self.assertTrue(build.is_blender_scene(scene))
+                scene.write_bytes(encode(b'Another file'))
+                self.assertFalse(build.is_blender_scene(scene))
+
+    def test_sculpted_face_transports_stationary_corners_and_original_pose_shading(self):
+        from character_mesh_authoring import update_retained_mesh
+
+        surface, _ = build.source_owner()
+        base = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 0],
+                         [0, -1, 0], [1, 0, 0], [2, 0, 0], [3, 0, 0], [2, 1, 0]], dtype=np.float32)
+        triangles = np.array([[0, 1, 2], [3, 4, 5], [6, 7, 8]])
+        bent = base.copy()
+        bent[2, 2] = .25
+        frame = dict(weight=100, vertices=[0., .25, 0.] * len(base),
+                     normals=[0., .25, 0.] * len(base), tangents=[0., .125, 0.] * len(base))
+        packet = dict(vertices=base.ravel().tolist(), subMeshes=[triangles.ravel().tolist()],
+                      normals=[0., 0., 1.] * len(base), tangents=[1., 0., 0., 1.] * len(base),
+                      shapes=[dict(name='Expression', frames=[frame])])
+        result = update_retained_mesh(packet, bent, triangles, surface)
+        normals = np.asarray(result['normals']).reshape(-1, 3)
+        pose = result['shapes'][0]['frames'][0]
+        pose_normals = np.asarray(pose['normals']).reshape(-1, 3)
+        self.assertLess(normals[0, 1], -.05)
+        np.testing.assert_array_equal(normals[0], normals[3])
+        np.testing.assert_array_equal(pose_normals[0], pose_normals[3])
+        self.assertNotEqual(pose_normals[0, 2], 0.)
+        np.testing.assert_array_equal(normals[6:], [[0, 0, 1]] * 3)
+        self.assertEqual(pose['vertices'], frame['vertices'])
+        self.assertEqual(packet['shapes'][0]['frames'][0]['normals'], [0., .25, 0.] * len(base))
+
+    def test_a_new_skin_chart_preserves_pose_normals_and_transfers_tangent_twist(self):
+        from character_mesh_authoring import update_face_uv
+
+        surface, _ = build.source_owner()
+        base = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float32)
+        previous = [1., 0., 0., 1.] * 3
+        frame = dict(weight=100, vertices=[0., .125, 0.] * 3, normals=[.25, 0., 0.] * 3,
+                     tangents=[0., .25, 0.] * 3)
+        packet = dict(vertexCount=3, vertices=base.ravel().tolist(), subMeshes=[[0, 1, 2]],
+                      normals=[0., 0., 1.] * 3, tangents=previous, weights=[], boneIndices=[], colors=[], uv=[],
+                      shapes=[dict(name='Expression', frames=[frame])])
+        aliases = np.array([0, 1, 2, 0])
+        art = dict(source_vertices=aliases, positions=base[aliases], triangles=np.array([[3, 1, 2]]),
+                   material_slots=np.array([1]), tangents=np.array(previous + [0., 1., 0., -1.]).reshape(-1, 4))
+        result = update_face_uv(packet, art, surface, 0)
+        pose = result['shapes'][0]['frames'][0]
+        self.assertEqual(pose['normals'], [.25, 0., 0.] * 4)
+        self.assertEqual(pose['vertices'], [0., .125, 0.] * 4)
+        self.assertEqual(pose['tangents'], [0., .25, 0.] * 3 + [-.25, 0., 0.])
+
+    def test_body_size_frame_uses_face_geometry_and_preserves_skin_interfaces(self):
+        surface, _ = build.source_owner()
+        base = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 0],
+                         [0, -1, 0], [1, 0, 0]], dtype=np.float32)
+        offsets = np.zeros_like(base)
+        offsets[2, 2] = .25
+        frame = dict(weight=100, vertices=offsets.ravel().tolist(),
+                     normals=[0., 0., -2.] * 6, tangents=[-.5, 0., 0.] * 6)
+        expression = dict(index=1, name='Expression', frames=[copy.deepcopy(frame)])
+        packet = dict(vertexCount=6, indexFormat=0, vertices=base.ravel().tolist(), colors=[],
+                      bindPoses=[], subMeshes=[[0, 1, 2, 3, 4, 5]], uv=[],
+                      normals=[0., 0., 1.] * 6, tangents=[1., 0., 0., 1.] * 6,
+                      boneIndices=[1, 0, 0, 0] * 4 + [0] * 4 + [1, 0, 0, 0],
+                      weights=[1., 0., 0., 0.] * 6,
+                      shapes=[dict(index=0, name='Muscular', frames=[frame]), expression])
+        bones = ('Bip001/Bip001 Neck', 'Bip001/Bip001 Neck/Bip001 Head')
+        result, facts = surface.repair_head_body_frame_shading(packet, bones, protected_vertices=(1,))
+        actual = result['shapes'][0]['frames'][0]
+        pose_normals = np.asarray(actual['normals']).reshape(-1, 3) + [0, 0, 1]
+        self.assertEqual(facts[0]['vertices'], 3)
+        self.assertGreater(pose_normals[0, 2], .96)
+        self.assertLess(pose_normals[0, 1], -.08)
+        np.testing.assert_array_equal(pose_normals[0], pose_normals[3])
+        np.testing.assert_array_equal(pose_normals[[1, 4, 5]], [[0, 0, -1]] * 3)
+        self.assertEqual(actual['vertices'], frame['vertices'])
+        self.assertIs(result['shapes'][1], expression)
+        repeated, changes = surface.repair_head_body_frame_shading(result, bones, protected_vertices=(1,))
+        self.assertIs(repeated, result)
+        self.assertEqual(changes, [])
+        for key in ('vertices', 'normals', 'tangents', 'weights', 'boneIndices', 'subMeshes'):
+            self.assertIs(result[key], packet[key])
+
     def test_surface_bounds_keep_every_touching_candidate(self):
         production, _ = build.source_owner()
         rng = np.random.default_rng(216)
@@ -40,6 +129,57 @@ class FaceProductionContracts(unittest.TestCase):
         self.assertIn(16, chosen[0])
         for a, b, hits in zip(low, high, chosen, strict=True):
             np.testing.assert_array_equal(hits, np.flatnonzero(((skin_high >= a) & (skin_low <= b)).all(axis=1)))
+
+    def test_matching_skin_charts_share_color_without_touching_unowned_texels(self):
+        surface, _ = build.source_owner()
+        points = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 0, 0], [0, 0, 0], [0, -1, 0]]
+        texels = [[.10, .30], [.44, .30], [.31, .45], [.91, .70], [.57, .70], [.70, .52]]
+        uv = [coordinate for x, y in texels for coordinate in (x, y, 0., 0.)]
+        packet = dict(vertices=np.asarray(points).ravel().tolist(), normals=[0, 0, 1] * 6,
+                      subMeshes=[[0, 1, 2, 3, 4, 5]], uv=[dict(channel=0, values=uv)])
+        pairs = surface.skin_chart_boundary_pairs(packet, 0)
+        self.assertEqual(pairs.shape, (1, 2, 3, 2))
+        pixels = np.full((64, 64, 4), 130, np.uint8)
+        pixels[:, 32:, :3] = 162
+        pixels[:, :, 3] = np.arange(64)
+        owned = np.ones((64, 64), bool)
+        owned[:18, :] = False
+        result, proof = surface.reconcile_skin_chart_color(pixels, owned, pairs)
+        self.assertGreater(proof['samples'], 15)
+        self.assertGreater(result[20, 14, 0], 140)
+        self.assertLess(result[43, 45, 0], 152)
+        np.testing.assert_array_equal(result[:, :, 3], pixels[:, :, 3])
+        np.testing.assert_array_equal(result[~owned], pixels[~owned])
+        height, width = 61, 63
+        odd_pixels = pixels[:height, :width]
+        window = surface.skin_chart_raster_window(pairs, (height, width))[::-1]
+        full, _ = surface.reconcile_skin_chart_color(odd_pixels, owned[:height, :width], pairs)
+        restricted, _ = surface.reconcile_skin_chart_color(odd_pixels, owned[:height, :width] & window, pairs)
+        np.testing.assert_array_equal(full, restricted)
+
+    def test_scalp_fit_updates_pinned_rest_with_clearance_to_the_head(self):
+        surface, _ = build.source_owner()
+        frame = np.eye(4)
+        points = np.array([[.002, .002, .003], [.012, .002, .003], [.002, .012, .003]], dtype=np.float32)
+        head = np.array([[[0., 0., 0.], [.03, 0., 0.], [0., .03, 0.]]])
+        packet = dict(vertexCount=3, indexFormat=0, vertices=points.ravel().tolist(), subMeshes=[[0, 1, 2]],
+                      normals=[0., 0., 1.] * 3, tangents=[1., 0., 0., 1.] * 3, uv=[], colors=[],
+                      bindPoses=frame.ravel().tolist(), weights=[1., 0., 0., 0.] * 3,
+                      boneIndices=[0] * 12, shapes=[], bounds=[.007, .007, .003, .01, .01, 0.])
+        observed=dict(vertices=packet['vertices'], submeshes=packet['subMeshes'], skinMaterials=[False],
+                      localToWorld=frame.ravel().tolist(),
+                      bones=[dict(name='Head', localToWorld=frame.ravel().tolist())])
+        guide=dict(vertexCount=3, vertices=[0], offsets=[[0., 0., -.006]])
+        equipment, count = surface.fit_posed_garment(packet, observed, head, ['Rig/Head'], frame,
+            clearance=.001, maximum_offset=.02, head_surface=head, fixed_vertices=(0,), groom_guide=guide)
+        self.assertIs(equipment, packet)
+        self.assertEqual(count, 0)
+        fitted, count = surface.fit_posed_garment(packet, observed, head, ['Rig/Head'], frame,
+            clearance=.001, maximum_offset=.02, head_surface=head, fixed_vertices=(0,),
+            groom_guide=dict(guide, contactSurface='head'))
+        self.assertEqual(count, 1)
+        np.testing.assert_allclose(np.asarray(fitted['vertices']).reshape(-1, 3)[:, 2], [.001, .003, .003], atol=2e-9)
+        self.assertEqual(fitted['weights'], packet['weights'])
 
     def test_face_curvature_retains_fixed_neighbours_in_the_displacement_energy(self):
         production, _ = build.source_owner()
@@ -78,6 +218,16 @@ class FaceProductionContracts(unittest.TestCase):
         separate[:, :, 2] -= .1
         np.testing.assert_array_equal(production.fit_garment_crossings(cloth, triangles, separate,
             clearance=.0006, maximum_offset=.006), np.zeros_like(cloth))
+
+    def test_garment_clearance_continues_across_seams_on_the_same_piece(self):
+        production, _ = build.source_owner()
+        points = np.array([[0., 0., 0.], [.01, 0., 0.], [.02, 0., 0.],
+                           [0., .001, 0.], [.01, .001, 0.]])
+        edges = np.array([[0, 1], [1, 2], [3, 4]])
+        required = np.array([.011, 0., .001, 0., 0.])
+        result = production.continue_garment_clearance(required, points, edges)
+        np.testing.assert_allclose(result, [.011, .0074, .0038, 0., 0.], atol=1e-12)
+        np.testing.assert_array_equal(required, [.011, 0., .001, 0., 0.])
 
     def test_garment_coverage_uses_the_nearest_fold_and_preserves_the_open_hem(self):
         production, _ = build.source_owner()
@@ -1735,7 +1885,7 @@ class FaceProductionContracts(unittest.TestCase):
             inputs=[dict(path=str(p),sha256=build.sha(p))for p in files]
             job=root/'Job.json';build.write(job,dict(sha256='a'*64,inputs=inputs,counter=str(counter)))
             operation=dict(beforeSha256='a'*64,inputPlan=dict(path=str(job),sha256=build.sha(job)),
-                textures=[dict(object=1,raw=dict(path=str(raw),sha256=build.sha(raw)))])
+                textures=[dict(object=1,raw=dict(path=str(raw),sha256=build.sha(raw)),payloadSha256=build.sha(raw))])
             def check_saved_payload(value):
                 for row in value['textures']:
                     if build.sha(row['raw']['path'])!=row['raw']['sha256']:raise ValueError('Saved raw bytes changed.')
@@ -2170,6 +2320,12 @@ class FaceProductionContracts(unittest.TestCase):
         self.assertTrue(covered[0,3]);self.assertEqual(own[0,3],0.)
         self.assertTrue(covered[0,0]);self.assertEqual(own[0,0],1.)
         self.assertFalse(covered[6,6]);self.assertEqual(own[6,6],0.)
+        requested=np.zeros((size,size),dtype=bool)
+        requested[0,:5]=True
+        cropped=production.indexed_surface_uv_metrics(packet,skin,0,(size,size),.001,sampler,
+            vertex_field=np.array([1.]*3+[0.]*3+[1.]*3),requested_pixels=requested)
+        np.testing.assert_array_equal(cropped[0][requested],own[requested])
+        np.testing.assert_array_equal(cropped[3],covered&requested)
         # Wrapped aliases of one source triangle also use the minimum, rather
         # than the last witness in a repeated indexed assignment.
         packet['subMeshes']=[list(reversed(range(9)))]
@@ -4599,7 +4755,8 @@ class SkinCalculationReuse(unittest.TestCase):
         build.write(self.plan,dict(source=str(self.original),sha256=build.sha(self.original),inputs=self.inputs,
             textures=[dict(object=7,channel='color',profile=dict(pigmentRetain=.4),surfaces=[self.surface],domain={})]))
         self.operation=dict(kind='source-skin-detail',inputPlan=self.pin(self.plan),target=self.pin(self.target),
-            computationInputs=self.inputs,computationEnvironment=build.source_skin_computation_environment(),textures=[dict(object=7,raw=self.pin(self.raw))])
+            computationInputs=self.inputs,computationEnvironment=build.source_skin_computation_environment(),
+            textures=[dict(object=7,raw=self.pin(self.raw),bytes=self.raw.stat().st_size,payloadSha256=build.sha(self.raw))])
         self.proof=dict(appearanceFinishing=[self.operation])
         self.metadata=dict(m_Name='Source',m_Width=8,m_Height=8,m_MipCount=4,m_TextureFormat=25,m_ColorSpace=1,
             m_TextureSettings=dict(m_FilterMode=1,m_WrapU=0,m_WrapV=0),m_StreamData=dict(path='old'),**{'image data':b''})
@@ -4629,6 +4786,30 @@ class SkinCalculationReuse(unittest.TestCase):
         self.assertEqual(result['source'],dict(**self.pin(self.original),object=7))
         # The legacy authority API still recovers the same original detail.
         self.assertNotIn('reusable',build.source_skin_detail_authority(self.proof,7,'color'))
+
+    def test_bundle_mip_authority_can_be_reused_without_a_second_file(self):
+        texture = self.operation['textures'][0]
+        del texture['raw']
+        texture['payloadInBundle'] = True
+        saved_payload = self.raw.read_bytes()
+        self.saved.read = lambda: SimpleNamespace(get_image_data=lambda: saved_payload)
+        self.raw.unlink()
+        self.assertTrue(self.authority()['reusable'])
+        saved_payload = b'changed mip payload'.ljust(texture['bytes'], b'!')
+        with self.assertRaisesRegex(ValueError,'retained skin mip payload changed'):
+            self.authority()
+
+    def test_legacy_mip_authority_uses_bundle_when_the_identical_sidecar_is_archived(self):
+        saved_payload = self.raw.read_bytes()
+        self.saved.read = lambda: SimpleNamespace(get_image_data=lambda: saved_payload)
+        self.raw.write_bytes(b'wrong legacy copy'.ljust(len(saved_payload), b'!'))
+        with self.assertRaisesRegex(ValueError,'retained skin mip payload changed'):
+            self.authority()
+        self.raw.unlink()
+        self.assertTrue(self.authority()['reusable'])
+        self.operation['textures'][0]['raw']['sha256'] = 'f' * 64
+        with self.assertRaisesRegex(ValueError,'retained skin mip payload changed'):
+            self.authority()
 
     def test_code_normal_encoding_and_unknown_epoch_require_recalculation_but_release_metadata_does_not(self):
         for index in range(2):
@@ -4693,6 +4874,7 @@ class SkinCalculationReuse(unittest.TestCase):
             result=build.write_source_skin_bundle(job);before=build.source_skin_replay_key({},self.inputs)
         self.assertEqual(result['computationEnvironment'],environment)
         self.assertEqual(build.read(job['receipt'])['computationEnvironment'],environment)
+        self.assertFalse((self.root/'Fields').exists())
         with mock.patch.object(build,'source_skin_computation_environment',return_value=dict(environment,python=[3,99,2])):
             self.assertNotEqual(before,build.source_skin_replay_key({},self.inputs))
 

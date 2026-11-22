@@ -519,16 +519,20 @@ internal sealed partial class SimulacrumBehavior
         race = null;
         subRace = null;
 
-        if (!TryGetCurrentSnapshot(character, out var snapshot) ||
-            snapshot.HumanoidRace == null)
+        if (TryGetCurrentSnapshot(character, out var snapshot))
         {
-            return false;
+            race = snapshot.HumanoidRace;
+            subRace = snapshot.HumanoidSubRace;
+        }
+        else if (character is { LifecycleState: SimulacrumLifecycleState.Initializing } &&
+                 InitializingSnapshotSeeds.TryGetValue(character, out var seed))
+        {
+            var presentation = seed.Appearance.HumanoidPresentation;
+            race = presentation?.RaceDefinition;
+            subRace = presentation?.SubRaceDefinition;
         }
 
-        race = snapshot.HumanoidRace;
-        subRace = snapshot.HumanoidSubRace;
-
-        return true;
+        return race != null;
     }
 
     internal static bool TryGetClassLevels(

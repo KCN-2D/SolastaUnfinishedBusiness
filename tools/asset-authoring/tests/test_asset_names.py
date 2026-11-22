@@ -1072,6 +1072,17 @@ class CharacterResourceContracts(unittest.TestCase):
                     new.update(m_TextureFormat=format,m_CompleteImageSize=size,m_StreamData=dict(path='skin.resS',offset=0,size=size))
                     receipt['textures'][0].update(format=format,bytes=size,raw=pin(raw),payloadSha256=api.digest(raw))
                     api.validate_owned_texture_mips(receipt)
+                saved = receipt['textures'][0]
+                saved['payloadInBundle'] = True
+                with self.assertRaisesRegex(ValueError,'complete measured mip payload'):
+                    api.validate_owned_texture_mips(receipt)
+                del saved['raw']
+                raw.unlink()
+                api.validate_owned_texture_mips(receipt)
+                second.objects[1].payload = bytes([1]) * saved['bytes']
+                with self.assertRaisesRegex(ValueError,'complete measured mip payload'):
+                    api.validate_owned_texture_mips(receipt)
+                second.objects[1].payload = bytes(saved['bytes'])
                 new['m_ColorSpace']=1
                 with self.assertRaisesRegex(ValueError,'colour space'):api.validate_owned_texture_mips(receipt)
                 new['m_ColorSpace']=0

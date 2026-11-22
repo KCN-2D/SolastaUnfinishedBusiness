@@ -75,28 +75,72 @@ function Test-Preserved([string]$Path) {
     return $false
 }
 function Get-ArtifactBoundary([string]$Path,[switch]$IncludeEmpty) {
-    $pending=[Collections.Generic.Stack[IO.DirectoryInfo]]::new()
-    $pending.Push([IO.DirectoryInfo]::new($Path))
-    while ($pending.Count) {
-        $directory=$pending.Pop()
-        if ($directory.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "Reparse point in artifact boundary: $($directory.FullName)" }
-        # Re-enumerate every time this function is called. A new consumer or
-        # a late Build.json in an existing boundary must remain observable.
-        if (Test-ArtifactEnvironment $directory.FullName) { continue }
-        $boundary=$false
-        foreach ($name in @('Directory.json','Transaction.json','Build.json','Result.json','ToolsAudit.json')) {
-            if ([IO.File]::Exists([IO.Path]::Combine($directory.FullName,$name))) { $boundary=$true; break }
-        }
-        if ($boundary) { $directory; continue }
-        if($IncludeEmpty -and -not @($directory.EnumerateFileSystemInfos()).Count) { $directory;continue }
-        foreach ($child in $directory.EnumerateDirectories()) {
-            if ($child.Name -eq '.native') { continue }
-            $pending.Push($child)
+    if (-not ('SolastaUB.Tools.ArtifactBoundary' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.IO;
+
+namespace SolastaUB.Tools
+{
+    public static class ArtifactBoundary
+    {
+        private static readonly HashSet<string> ReceiptNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Directory.json", "Transaction.json", "Build.json", "Result.json", "ToolsAudit.json"
+        };
+
+        public static IEnumerable<DirectoryInfo> Enumerate(string path, bool includeEmpty)
+        {
+            var pending = new Stack<DirectoryInfo>();
+            var children = new List<DirectoryInfo>();
+            pending.Push(new DirectoryInfo(path));
+            while (pending.Count != 0)
+            {
+                var directory = pending.Pop();
+                if ((directory.Attributes & FileAttributes.ReparsePoint) != 0)
+                    throw new IOException("Reparse point in artifact boundary: " + directory.FullName);
+
+                children.Clear();
+                var empty = true;
+                var boundary = false;
+                var copiedEnvironment = false;
+                foreach (var item in directory.EnumerateFileSystemInfos())
+                {
+                    empty = false;
+                    var child = item as DirectoryInfo;
+                    if (child == null)
+                    {
+                        boundary |= ReceiptNames.Contains(item.Name);
+                        continue;
+                    }
+
+                    if (string.Equals(child.Name, "tools", StringComparison.OrdinalIgnoreCase))
+                        copiedEnvironment |= File.Exists(Path.Combine(child.FullName, "game-test", "GameTest.Common.ps1"));
+                    if (!string.Equals(child.Name, ".native", StringComparison.OrdinalIgnoreCase))
+                        children.Add(child);
+                }
+
+                if (copiedEnvironment)
+                    continue;
+                if (boundary || (includeEmpty && empty))
+                {
+                    yield return directory;
+                    continue;
+                }
+                foreach (var child in children)
+                    pending.Push(child);
+            }
         }
     }
 }
+'@
+    }
+    # Read current metadata on every call so a late consumer remains observable.
+    [SolastaUB.Tools.ArtifactBoundary]::Enumerate($Path,$IncludeEmpty.IsPresent)
+}
 
-$lock=Enter-GtLock
+$lock=if($Apply -or $GeneratedPayloadPlanPath){Enter-GtLock}else{$null}
 $actions=[Collections.Generic.List[object]]::new()
 $retained=[Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 $retentionReasons=[Collections.Generic.Dictionary[string,string]]::new([StringComparer]::OrdinalIgnoreCase)
@@ -596,10 +640,12 @@ try {
             foreach ($directory in @(Get-ArtifactBoundary $script:GameTestArtifactRoot)) {
                 if ($buildDirectories.Contains($directory.FullName)) { continue }
                 if (-not $Apply -and $plannedConsumers.Contains($directory.FullName)) { continue }
-                if (-not (Test-Path -LiteralPath (Join-Path $directory.FullName 'Result.json') -PathType Leaf) -and
-                    -not (Test-Path -LiteralPath (Join-Path $directory.FullName 'Transaction.json') -PathType Leaf)) { continue }
-                $path=Join-Path $directory.FullName 'Build.json'
-                if (Test-Path -LiteralPath $path -PathType Leaf) { [void]$hashes.Add((Get-GtHash $path)) }
+                $path=[IO.Path]::Combine($directory.FullName,'Build.json')
+                if (-not [IO.File]::Exists($path)) { continue }
+                if ([IO.File]::Exists([IO.Path]::Combine($directory.FullName,'Result.json')) -or
+                    [IO.File]::Exists([IO.Path]::Combine($directory.FullName,'Transaction.json'))) {
+                    [void]$hashes.Add((Get-GtHash $path))
+                }
             }
             return ,$hashes
         }
@@ -757,7 +803,8 @@ try {
     } finally {
         try { if($journal){Save-CleanupReport -Final} } finally {
             foreach($lease in $payloadInputLeases){$lease.Dispose()}
-            if($journal){$journal.Dispose()};$lock.ReleaseMutex();$lock.Dispose()
+            if($journal){$journal.Dispose()}
+            if($null -ne $lock){$lock.ReleaseMutex();$lock.Dispose()}
         }
     }
     if($cleanupCompleted){

@@ -243,6 +243,8 @@ Solastaの原本をBlenderへ読み込み、顔・髪・髭の全LODを造形し
 
 `character_mesh_authoring.py --source <元の組み立て済み資源> --output <制作先> --blender-export <エクスポート先>`でUnity入力を作ります。個別の`BlenderExport.json`も指定できます。`BuildPlan.json`の`meshRecipe.path`を`Invoke-UnityAssetBuild.ps1 -MeshRecipePath`へ渡します。分割してビルドした場合は各`unity-report.json`を`--unity-report`にまとめて指定します。`ResourceAssembly.json`に制作シーン、各LOD、Unityの再読み込み結果を記録します。
 
+組み立て済みの髪・髭を元のトポロジーで調整する場合は、書き出し指定の各LODに`retainedGroom: true`を設定します。
+
 組み込み時の`--workers`で同時に処理する資源数を指定できます。同じ入力で再実行すると、保存内容を照合して完了済みの資源を再利用します。
 
 髪・髭はバニラのメッシュ全体を`firstVertex=0`で書き出します。`nativeGroom`に元bundleの`path`と`sha256`、メッシュの`pathId`、rendererの`rendererPathId`を指定します。rendererが別bundleにある場合は`rendererBundle`でそのパスとSHA256も指定します。

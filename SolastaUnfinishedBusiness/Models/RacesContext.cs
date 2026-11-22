@@ -1365,10 +1365,11 @@ internal static class RacesContext
     }
 
     internal static IEnumerator PrepareCharacterModelCreation(GraphicsCharacterFactoryManager factory, IEnumerator native,
-        int requestId, GraphicsCharacter existing)
+        int requestId, GraphicsCharacter existing, RulesetCharacter requested)
     {
         GraphicsCharacter created = null;
         RulesetCharacter actor = null;
+        CharacterModelCatalog.PreparedSources rootPreparation = null;
         var generation = _characterModelPreparationGeneration;
         var completed = false;
         void RetainCreation()
@@ -1393,6 +1394,19 @@ internal static class RacesContext
             }
             if (!factory || _characterModelsUnloading) yield break;
             if (existing && factory.IsAbortingGraphicsCharacter(existing)) yield break;
+            if (requested != null && SettingsContext.GuiModManagerInstance.EnableCustomFaces &&
+                _characterModelCatalog is { UsesCompleteParts: true, IsRetiring: false } catalog &&
+                catalog.TryGetRootPrefab(CharacterModelRootKey(requested), out var root))
+            {
+                rootPreparation = catalog.PrepareSources();
+                // Native root creation releases the prefab object, so the actual load must use an
+                // Addressables-tracked handle after its file verification has completed.
+                while (factory && !_characterModelsUnloading && SettingsContext.GuiModManagerInstance.EnableCustomFaces &&
+                       ReferenceEquals(catalog, _characterModelCatalog) && !catalog.IsRetiring &&
+                       !factory.pendingAbortRequests.Contains(requestId) && !catalog.VerifyRootPrefab(root))
+                    yield return null;
+            }
+            if (!factory || _characterModelsUnloading) yield break;
             if (requestId >= 0 && factory.pendingAbortRequests.Contains(requestId) &&
                 !factory.characterPerRequestId.ContainsKey(requestId))
             {
@@ -1412,7 +1426,12 @@ internal static class RacesContext
         finally
         {
             var released = false;
-            try { (native as IDisposable)?.Dispose(); released = true; }
+            try
+            {
+                try { (native as IDisposable)?.Dispose(); }
+                finally { rootPreparation?.Dispose(); }
+                released = true;
+            }
             finally
             {
                 completed = EndCharacterModelCreation(factory, created, actor, completed && released);
@@ -1423,10 +1442,49 @@ internal static class RacesContext
             !factory.IsAbortingGraphicsCharacter(created)) RefreshNativeCharacterModel(factory, created);
     }
 
+    private static object CharacterModelRootKey(RulesetCharacter actor)
+    {
+        if (actor is RulesetCharacterMonster { HumanoidMonsterPresentationDefinition: null } monster)
+            return monster.GetPrefabReference();
+        if (actor is RulesetCharacterEffectProxy proxy) return proxy.EffectProxyDefinition.PrefabReference;
+        var prefix = actor.BodyAssetPrefix;
+        return prefix + "_Shape/Prefabs/" + prefix + ".prefab";
+    }
+
     private static object NativeCharacterModelResource(object key)
     {
         const string prefix = "UB/CharacterResources/";
         return key is string text && text.StartsWith(prefix, StringComparison.Ordinal) ? text.Substring(prefix.Length) : key;
+    }
+
+    internal static string OptionalMorphotypeAssetPrefix(MorphotypeElementDefinition.ElementCategory category,
+        CharacterRaceDefinition race, CharacterRaceDefinition subRace, CreatureSex sex)
+    {
+        if (!race) return null;
+        return category switch
+        {
+            MorphotypeElementDefinition.ElementCategory.HairShape =>
+                GraphicsCharacterDefinitions.GetHairShapeAssetPrefix(race, subRace, sex),
+            MorphotypeElementDefinition.ElementCategory.BeardShape =>
+                GraphicsCharacterDefinitions.GetBeardShapeAssetPrefix(race, subRace, sex),
+            MorphotypeElementDefinition.ElementCategory.Horns or MorphotypeElementDefinition.ElementCategory.Tail =>
+                GraphicsCharacterDefinitions.GetHornsTailAssetPrefix(race, subRace, sex),
+            _ => null
+        };
+    }
+
+    internal static string OptionalMorphotypePrefab(string prefix,
+        MorphotypeElementDefinition.ElementCategory category, string option)
+    {
+        if (string.IsNullOrEmpty(prefix) || string.IsNullOrEmpty(option) || option == category + "_None") return null;
+        var name = prefix + "_" + option;
+        return name + "/Prefabs/" + name + ".prefab";
+    }
+
+    internal static bool HasCharacterPartPrefab(string key)
+    {
+        return Addressables.ResourceLocators.Any(locator =>
+            locator.Locate(NativeCharacterModelResource(key), typeof(GameObject), out var locations) && locations.Count > 0);
     }
 
     internal static bool NativeClothMeshPoolingEnabled => Patches.RenderMeshDeformerPatcher.RuntimeMeshLifetime_Patch.Enabled;
@@ -1456,8 +1514,13 @@ internal static class RacesContext
     internal static AsyncOperationHandle<T> LoadCharacterModelResourceAsync<T>(object key) where T : UnityEngine.Object
     {
         if (!_characterModelsUnloading && SettingsContext.GuiModManagerInstance.EnableCustomFaces &&
-            _characterModelCatalog?.UsesCompleteParts == true && _characterModelCatalog.TryGetResource(key, out var part))
-            return _characterModelCatalog.LoadResourceAsync<T>(part);
+            _characterModelCatalog is { UsesCompleteParts: true } catalog)
+        {
+            if (catalog.TryGetResource(key, out var part)) return catalog.LoadResourceAsync<T>(part);
+            if (typeof(T) == typeof(GameObject) && key is AssetReference &&
+                catalog.TryGetRootPrefab(key, out var root) && catalog.VerifyRootPrefab(root))
+                return catalog.LoadResourceAsync<T>(root);
+        }
         return Addressables.LoadAssetAsync<T>(NativeCharacterModelResource(key));
     }
 
@@ -2627,6 +2690,7 @@ internal static class RacesContext
         private readonly Dictionary<string, CharacterModelBundle> _bundles;
         private readonly Dictionary<string, CharacterModelMeshAsset> _meshes;
         private readonly Dictionary<string, CharacterModelResource> _resources;
+        private readonly Dictionary<string, CharacterModelResource> _rootPrefabsByAsset;
         private readonly Dictionary<string, IResourceLocation> _resourceLocations = new(StringComparer.Ordinal);
         private readonly HashSet<string> _verifiedResourceFiles = new(StringComparer.Ordinal);
         // A chooser retains bodies, materials and animation assets as well as styles.
@@ -2784,6 +2848,37 @@ internal static class RacesContext
             if (text.StartsWith(prefix, StringComparison.Ordinal)) text = text.Substring(prefix.Length);
             return _resources.TryGetValue(text, out part);
         }
+
+        internal bool TryGetRootPrefab(object key, out CharacterModelResource prefab)
+        {
+            prefab = null;
+            if (key is AssetReference reference)
+            {
+                if (!reference.RuntimeKeyIsValid()) return false;
+                key = reference.RuntimeKey;
+            }
+            if (TryGetResource(key, out var direct) && direct.AssetType == typeof(GameObject))
+            {
+                prefab = direct;
+                return true;
+            }
+            if (key == null) return false;
+            foreach (var locator in Addressables.ResourceLocators)
+            {
+                if (ReferenceEquals(locator, this) ||
+                    !locator.Locate(key, typeof(GameObject), out var locations)) continue;
+                foreach (var location in locations)
+                {
+                    if ((!TryGetResource(location.PrimaryKey, out var candidate) || candidate.AssetType != typeof(GameObject)) &&
+                        !_rootPrefabsByAsset.TryGetValue(location.InternalId, out candidate)) continue;
+                    if (prefab != null && !ReferenceEquals(prefab, candidate)) return false;
+                    prefab = candidate;
+                }
+            }
+            return prefab != null;
+        }
+
+        internal bool VerifyRootPrefab(CharacterModelResource prefab) => VerifyResourceFiles(prefab);
         internal AsyncOperationHandle<T> LoadResourceAsync<T>(CharacterModelResource part) where T : UnityEngine.Object => VerifyResourceFiles(part)
             ? LoadVerifiedResource<T>(part)
             : Addressables.ResourceManager.StartOperation(new ResourceLoadOperation<T>(this, part), default);
@@ -2907,6 +3002,9 @@ internal static class RacesContext
             _directory = directory;
             UsesCompleteParts = manifest.schemaVersion == 3;
             _resources = (manifest.resources ?? []).ToDictionary(part => part.Source, StringComparer.Ordinal);
+            _rootPrefabsByAsset = _resources.Values.Where(part => part.AssetType == typeof(GameObject))
+                .GroupBy(part => part.Asset, StringComparer.Ordinal).Where(group => group.Count() == 1)
+                .ToDictionary(group => group.Key, group => group.Single(), StringComparer.Ordinal);
             _bodyTextureFingerprints = (manifest.textureRemaps ?? []).Concat(manifest.materials.SelectMany(material => material.properties))
                 .Select(property => property.sourceBodyTextureFingerprint).Where(value => value != null).ToHashSet(StringComparer.Ordinal);
             _nativeTextureProperties = (manifest.textureRemaps ?? []).Select(property => (property.sourceShader, Property: property))
@@ -7425,7 +7523,8 @@ internal static class RacesContext
         internal void CommitPreview()
         {
             if (_previewDeadline == 0f) return;
-            RestorePreview();
+            // ApplyBodyShape resets the preview when the native attachments are ready.
+            _previewSlider = null;
             RefreshBodyShape(_graphics);
         }
 
@@ -8035,7 +8134,7 @@ internal static class RacesContext
         private void LateUpdate()
         {
             if (_bodyShapesUnloading || !_graphics || _busy) return;
-            if (_previewDeadline != 0f && Time.realtimeSinceStartup >= _previewDeadline &&
+            if (!_refreshPending && _previewDeadline != 0f && Time.realtimeSinceStartup >= _previewDeadline &&
                 (!_previewSlider || !SliderIsPressed(_previewSlider)))
                 CommitPreview();
             if (_refreshPending && !DeferCharacterModelRefresh && !CharacterModelCreations.ContainsKey(_graphics) &&

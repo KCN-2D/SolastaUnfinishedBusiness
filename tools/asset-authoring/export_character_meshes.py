@@ -158,6 +158,8 @@ def export_request(request, folder, scene, graph):
             result["refinement"] = row["refinement"]
         if "nativeGroom" in row:
             result["nativeGroom"] = row["nativeGroom"]
+        if row.get("retainedGroom") is True:
+            result["retainedGroom"] = True
         rows.append(result)
     report = {"schemaVersion": 1, "status": "PASS_BLENDER_CHARACTER_MESH_EXPORT", "blenderVersion": bpy.app.version_string,
               "bundle": request["bundle"], "scene": scene, "meshes": rows}

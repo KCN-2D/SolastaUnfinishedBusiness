@@ -14,12 +14,20 @@ using SolastaUnfinishedBusiness.CustomUI;
 using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using BodyPart = GraphicsCharacterDefinitions.BodyPart;
+using Morphotype = MorphotypeElementDefinition.ElementCategory;
 
 namespace SolastaUnfinishedBusiness.Patches;
 
 [UsedImplicitly]
 public static class GraphicsCharacterFactoryManagerPatcher
 {
+    private static readonly (BodyPart Part, Morphotype Category)[] OptionalMorphotypeParts =
+    [
+        (BodyPart.Hair, Morphotype.HairShape), (BodyPart.Beard, Morphotype.BeardShape),
+        (BodyPart.Horns, Morphotype.Horns), (BodyPart.Tail, Morphotype.Tail)
+    ];
+
     private static IEnumerable<MethodBase> CharacterRootCreationMethods()
     {
         foreach (var name in new[]
@@ -42,7 +50,8 @@ public static class GraphicsCharacterFactoryManagerPatcher
         public static void Postfix(GraphicsCharacterFactoryManager __instance, object[] __args, ref IEnumerator __result)
         {
             __result = RacesContext.PrepareCharacterModelCreation(__instance, __result,
-                __args[0] is int requestId ? requestId : -1, __args[0] as GraphicsCharacter);
+                __args[0] is int requestId ? requestId : -1, __args[0] as GraphicsCharacter,
+                __args[0] is int ? __args[2] as RulesetCharacter : null);
         }
     }
 
@@ -85,6 +94,58 @@ public static class GraphicsCharacterFactoryManagerPatcher
             [HarmonyArgument(0)] GraphicsCharacter graphicsCharacter, ref IEnumerator __result)
         {
             __result = RacesContext.PrepareCharacterModelSources(__instance, graphicsCharacter, __result);
+        }
+    }
+
+    [HarmonyPatch(typeof(GraphicsCharacterFactoryManager), "CollectBodyPartsToLoadWherePossible_Morphotypes")]
+    [UsedImplicitly]
+    public static class CollectMorphotypeParts_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix([HarmonyArgument(0)] GraphicsCharacter graphics, string[] ___shapePartsToLoad)
+        {
+            var actor = graphics.RulesetCharacter;
+            foreach (var (part, category) in OptionalMorphotypeParts)
+            {
+                var address = ___shapePartsToLoad[(int)part];
+                if (string.IsNullOrEmpty(address) || RacesContext.HasCharacterPartPrefab(address)) continue;
+                var prefix = part switch
+                {
+                    BodyPart.Hair => actor.HairShapeAssetPrefix,
+                    BodyPart.Beard => actor.BeardShapeAssetPrefix,
+                    _ => actor.HornsTailAssetPrefix
+                };
+                actor.MorphotypeElements.TryGetValue(category, out var option);
+                if (part == BodyPart.Beard && !string.IsNullOrEmpty(actor.ForcedBeardShape))
+                    option = actor.ForcedBeardShape;
+                if (address != RacesContext.OptionalMorphotypePrefab(prefix, category, option)) continue;
+
+                // Leave saved morphotypes intact. Only the resolved optional part belongs to the factory.
+                ___shapePartsToLoad[(int)part] = ResolveAvailableMorphotype(actor, category, prefix) ?? string.Empty;
+            }
+        }
+
+        private static string ResolveAvailableMorphotype(RulesetCharacter actor, Morphotype category, string prefix)
+        {
+            var presentation = (actor as RulesetCharacterMonster)?.HumanoidMonsterPresentationDefinition;
+            var hero = actor as RulesetCharacterHero;
+            var race = hero?.RaceDefinition ?? presentation?.RaceDefinition;
+            var subRace = hero?.SubRaceDefinition ?? presentation?.SubRaceDefinition;
+            var service = ServiceRepository.GetService<ICharacterBuildingService>();
+            if (!race || service == null) return null;
+
+            CharacterSubclassDefinition subclass = null;
+            if (hero != null)
+            {
+                service.GetLastAssignedClassAndLevel(hero, out var characterClass, out _);
+                if (characterClass) hero.ClassesAndSubclasses.TryGetValue(characterClass, out subclass);
+            }
+            actor.MorphotypeElements.TryGetValue(Morphotype.Origin, out var origin);
+            actor.MorphotypeElements.TryGetValue(Morphotype.FaceShape, out var face);
+            return service.BuildMorphotypeOptionsList(category, actor.Sex, race, subRace, origin, face,
+                    subclass, hero != null)
+                .Select(option => RacesContext.OptionalMorphotypePrefab(prefix, category, option))
+                .FirstOrDefault(address => address != null && RacesContext.HasCharacterPartPrefab(address));
         }
     }
 

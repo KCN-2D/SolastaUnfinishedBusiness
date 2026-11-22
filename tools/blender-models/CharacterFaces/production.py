@@ -1284,6 +1284,38 @@ def garment_inside_faces(exterior, lining, search_distance):
     return covered
 
 
+def garment_edge_budget(lengths):
+    return .34 * lengths + .0002
+
+
+def continue_garment_clearance(clearance, points, edges):
+    """Continue the required clearance along cloth within its rest edge strain budget."""
+    import heapq
+    required = np.flatnonzero(clearance > 0)
+    if not len(required):
+        return clearance
+    spacing = garment_edge_budget(np.linalg.norm(points[edges[:, 0]] - points[edges[:, 1]], axis=1))
+    neighbours = [[] for _ in points]
+    for (first, second), allowance in zip(edges, spacing, strict=True):
+        if first == second:
+            continue
+        neighbours[first].append((second, allowance))
+        neighbours[second].append((first, allowance))
+    result = clearance.copy()
+    queue = [(-result[index], index) for index in required]
+    heapq.heapify(queue)
+    while queue:
+        negative, first = heapq.heappop(queue)
+        if -negative < result[first]:
+            continue
+        for second, allowance in neighbours[first]:
+            needed = -negative - allowance
+            if needed > result[second]:
+                result[second] = needed
+                heapq.heappush(queue, (-needed, second))
+    return result
+
+
 def fit_garment_crossings(positions, triangles, skin, *, clearance, maximum_offset):
     """Fit the outer garment in the drawn pose while moving UV duplicates together."""
     require(0 < clearance < maximum_offset and math.isfinite(maximum_offset),
@@ -1301,6 +1333,7 @@ def fit_garment_crossings(positions, triangles, skin, *, clearance, maximum_offs
     edges = np.sort(np.stack((group_faces, np.roll(group_faces, -1, axis=1)), axis=-1), axis=-1)
     unique_edges, edge_ids = np.unique(edges.reshape(-1, 2), axis=0, return_inverse=True)
     edges_for_faces = edge_ids.reshape(triangles.shape)
+    _, canonical = np.unique(groups, return_index=True)
     fitted = positions.copy()
     for _ in range(5):
         vertices = fitted[triangles]
@@ -1336,7 +1369,8 @@ def fit_garment_crossings(positions, triangles, skin, *, clearance, maximum_offs
             break
         displacement = next_displacement
         fitted = positions + directions * displacement[groups, None]
-    return fitted - positions
+    displacement = continue_garment_clearance(displacement, positions[canonical], unique_edges)
+    return directions * displacement[groups, None]
 
 
 def fit_groom_crossings(positions, triangles, obstacles, *, clearance, maximum_offset):
@@ -1515,6 +1549,20 @@ def garment_skinning_frame(packet, observed, points, posed, triangles, bone_path
     return linear, unbound & ~usable
 
 
+def fit_skin_distances(points, surface, reach):
+    """Measure the nearby skin triangles within a known maximum displacement."""
+    distances = np.full(len(points), reach)
+    if not len(surface):
+        return distances
+    nearby = overlapping_surface_faces(points - reach, points + reach, surface.min(axis=1), surface.max(axis=1))
+    for index, faces in enumerate(nearby):
+        if len(faces):
+            region = surface[faces].reshape(-1, 3)
+            distances[index] = anatomy_triangle_distances(points[index:index+1], region,
+                                                         np.arange(len(region)).reshape(-1, 3))[0]
+    return distances
+
+
 def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *, clearance, maximum_offset, previous=None,
                       head_surface=None, fixed_vertices=(), groom_guide=None):
     """Map correction of the posed surface into its original skinned mesh."""
@@ -1544,7 +1592,9 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
     if groom_guide is not None:
         indices = np.asarray(groom_guide['vertices'])
         directions = np.asarray(groom_guide['offsets'], dtype=float)
+        contact_surface = groom_guide.get('contactSurface', 'equipment')
         require(head_surface is not None and groom_guide['vertexCount'] == len(points) and
+                contact_surface in ('equipment', 'head') and
                 indices.ndim == 1 and np.issubdtype(indices.dtype, np.integer) and
                 len(indices) == len(np.unique(indices)) and np.all((indices >= 0) & (indices < len(points))) and
                 directions.shape == (len(indices), 3) and np.isfinite(directions).all(),
@@ -1552,7 +1602,16 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
         delta = np.zeros_like(posed)
         delta[indices] = directions @ world_to_prefab[:3, :3].T
         welded = art.weld_groups(points)
-        delta[np.isin(welded, welded[np.asarray(fixed_vertices, dtype=int)])] = 0.
+        if contact_surface == 'head':
+            # A scalp sculpt moves the visible rest and its pinned attachment
+            # together. The whole path must stay clear of the measured head.
+            reach = min(maximum_offset, .006)
+            head = to_prefab(np.asarray(head_surface, dtype=float)).reshape(-1, 3, 3)
+            safe = np.clip(fit_skin_distances((posed + prior)[indices], head, reach + clearance) - clearance, 0., reach)
+            length = np.linalg.norm(delta[indices], axis=1)
+            delta[indices] *= np.minimum(1., safe / np.maximum(length, 1e-12))[:, None]
+        else:
+            delta[np.isin(welded, welded[np.asarray(fixed_vertices, dtype=int)])] = 0.
     else:
         fit_crossings = fit_groom_crossings if head_surface is not None else fit_garment_crossings
         delta = fit_crossings(posed + prior, np.concatenate(outer).astype(np.intp).reshape(-1, 3), skin,
@@ -1562,16 +1621,7 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
         moving = np.flatnonzero(np.any(delta != 0, axis=1))
         if len(moving):
             head = to_prefab(np.asarray(head_surface, dtype=float)).reshape(-1, 3, 3)
-            contact_points = posed[moving]
-            reach = 2 * maximum_offset
-            nearby = overlapping_surface_faces(contact_points - reach, contact_points + reach,
-                                               head.min(axis=1), head.max(axis=1))
-            distances = np.full(len(moving), reach)
-            for index, faces in enumerate(nearby):
-                if len(faces):
-                    region = head[faces].reshape(-1, 3)
-                    distances[index] = anatomy_triangle_distances(contact_points[index:index+1], region,
-                                                                  np.arange(len(region)).reshape(-1, 3))[0]
+            distances = fit_skin_distances(posed[moving], head, 2 * maximum_offset)
             clearance_weight = np.clip((distances - maximum_offset) / maximum_offset, 0., 1.)
             delta[moving] *= (clearance_weight ** 2 * (3. - 2. * clearance_weight))[:, None]
         delta[np.asarray(fixed_vertices, dtype=int)] = 0.
@@ -1657,7 +1707,7 @@ def constrain_garment_rest(source, target, frame, maximum_offset):
     a, b = np.unique(np.sort(edges[edges[:, 0] != edges[:, 1]], axis=1), axis=0).T
     # Short edges around seams and trim must move together. The tolerance
     # prevents tiny native triangles from suppressing a whole fit.
-    limit = .34 * np.linalg.norm(grouped[a] - grouped[b], axis=1) + .0002
+    limit = garment_edge_budget(np.linalg.norm(grouped[a] - grouped[b], axis=1))
     for attempt in range(15):
         excessive = np.linalg.norm(field[a] - field[b], axis=1) > limit
         if not excessive.any():
@@ -1698,12 +1748,14 @@ def normal_groups(positions, native_normals):
 
 
 
-def cohere_skin_frame_normals(packet):
+def cohere_skin_frame_normals(packet, *, shape_indices=None, protected_vertices=()):
     """Keep an authored smooth skin surface smooth at every physical frame."""
     positions=np.asarray(packet['vertices'],float).reshape(-1,3);base_normals=np.asarray(packet['normals'],float).reshape(-1,3)
     base_tangents=np.asarray(packet['tangents'],float).reshape(-1,4)
     groups=normal_groups(positions,normalise(base_normals));weights=np.asarray(packet['weights']).reshape(-1,4);bones=np.asarray(packet['boneIndices']).reshape(-1,4)
-    frames=[frame for shape in packet['shapes']for frame in shape['frames']]
+    indices=tuple(range(len(packet['shapes'])))if shape_indices is None else tuple(shape_indices)
+    protected=set(protected_vertices)
+    frames=[frame for index in indices for frame in packet['shapes'][index]['frames']]
     offsets=[np.asarray(frame['vertices']).reshape(-1,3)for frame in frames]
     cohorts={};physical=[]
     for index,group in enumerate(groups):
@@ -1712,21 +1764,25 @@ def cohere_skin_frame_normals(packet):
         matched=next((entry for entry in candidates if all(np.linalg.norm(value[index]-value[entry[0]])<=1e-6 for value in offsets)),None)
         if matched is None:matched=[index,len(physical)];candidates.append(matched);physical.append([])
         physical[matched[1]].append(index)
-    aliases=[np.asarray(ids,int)for ids in physical if len(ids)>1]
+    aliases=[np.asarray(ids,int)for ids in physical if len(ids)>1 and protected.isdisjoint(ids)]
     triangles=np.concatenate([np.asarray(slot,int).reshape(-1,3)for slot in packet['subMeshes']])
     labels=np.empty(len(positions),int)
     for index,ids in enumerate(physical):labels[ids]=index
     rest_surface=surface_normals(positions,triangles,labels,positions,base_normals)
-    result=copy.deepcopy(packet);changed=0;maximum_before=0.;changed_frames=[]
-    for shape,source_shape in zip(result['shapes'],packet['shapes']):
-        for frame,source_frame in zip(shape['frames'],source_shape['frames']):
+    result=dict(packet,shapes=list(packet['shapes']));changed=0;maximum_before=0.;changed_frames=[]
+    for index in indices:
+        if not aliases:break
+        source_shape=packet['shapes'][index]
+        saved=list(source_shape['frames'])
+        before_shape=len(changed_frames)
+        for frame_index,source_frame in enumerate(source_shape['frames']):
             pose=positions+np.asarray(source_frame['vertices']).reshape(-1,3)
             normal=normalise(base_normals+np.asarray(source_frame['normals']).reshape(-1,3))
             tangent=normalise(base_tangents[:,:3]+np.asarray(source_frame['tangents']).reshape(-1,3))
             area=np.linalg.norm(np.cross(pose[triangles[:,1]]-pose[triangles[:,0]],pose[triangles[:,2]]-pose[triangles[:,0]]),axis=1)
             mass=np.zeros(len(positions))
             for corner in range(3):np.add.at(mass,triangles[:,corner],area)
-            destination=normal.copy();selected=[]
+            destination=normal.copy();selected=[];unsupported=0
             posed_surface=surface_normals(pose,triangles,labels,positions,base_normals)
             for ids in aliases:
                 used=ids[mass[ids]>0]
@@ -1734,18 +1790,32 @@ def cohere_skin_frame_normals(packet):
                 cosine=float(np.clip(np.min(normal[used]@normal[used].T),-1,1))
                 if cosine>1-1e-6:continue
                 base=normalise(np.sum(base_normals[used]*mass[used,None],axis=0))[None,:]
-                target=normalise(rotate_between(base,rest_surface[used[:1]],posed_surface[used[:1]]))[0]
+                rest,posed=rest_surface[used[0]],posed_surface[used[0]]
+                if np.dot(rest,posed) > -.9:
+                    target=normalise(rotate_between(base,rest[None,:],posed[None,:]))[0]
+                else:
+                    # A native frame can fold an incident triangle through its welded edge.
+                    target=base[0]
+                    unsupported+=len(ids)
                 destination[ids]=target;selected.extend(ids);maximum_before=max(maximum_before,float(np.degrees(np.arccos(cosine))))
             if not selected:continue
             selected=np.asarray(selected,int);safe=np.sum(normal[selected]*destination[selected],axis=1)>-.95
             rotated=np.empty((len(selected),3))
             if safe.any():rotated[safe]=rotate_between(tangent[selected[safe]],normal[selected[safe]],destination[selected[safe]])
-            if (~safe).any():rotated[~safe]=rotate_between(base_tangents[selected[~safe],:3],rest_surface[selected[~safe]],posed_surface[selected[~safe]])
+            if (~safe).any():
+                ids=selected[~safe]
+                neutral=normalise(base_normals[ids])
+                directions=base_tangents[ids,:3].copy()
+                supported=np.sum(neutral*destination[ids],axis=1)>-.9
+                directions[supported]=rotate_between(directions[supported],neutral[supported],destination[ids[supported]])
+                rotated[~safe]=directions
             rotated=normalise(rotated-destination[selected]*np.sum(rotated*destination[selected],axis=1)[:,None])
             normals=np.asarray(source_frame['normals']).reshape(-1,3).copy();tangents=np.asarray(source_frame['tangents']).reshape(-1,3).copy()
             normals[selected]=(destination[selected]-base_normals[selected]).astype(np.float32);tangents[selected]=(rotated-base_tangents[selected,:3]).astype(np.float32)
-            frame['normals']=normals.ravel().tolist();frame['tangents']=tangents.ravel().tolist()
-            changed+=len(selected);changed_frames.append(dict(shape=shape['name'],weight=frame['weight'],vertices=len(selected)))
+            saved[frame_index]=dict(source_frame,normals=normals.ravel().tolist(),tangents=tangents.ravel().tolist())
+            changed+=len(selected);changed_frames.append(dict(shape=source_shape['name'],weight=source_frame['weight'],
+                vertices=len(selected),foldedAliasVertices=unsupported))
+        if len(changed_frames)!=before_shape:result['shapes'][index]=dict(source_shape,frames=saved)
     return result,dict(changedFrameVertices=changed,frames=changed_frames,maximumAliasAngleBeforeDegrees=maximum_before,
         restChannelsExact=True,positionFramesExact=True,uvSkinTopologyAndChannelsExact=True,physicalAliasPoseNormalsCoherent=True)
 
@@ -2038,6 +2108,138 @@ def surface_basis(reference, positions, source_normals, source_tangents, triangl
         local -= np.sum(local * local_normals, axis=1)[:, None] * local_normals
         tangents[:, :3] = normalise(local)
     return local_normals, tangents
+
+
+def transfer_face_pose_shading(shapes, previous_normals, previous_tangents, normals, tangents,
+                               source_vertices=None):
+    """Express existing pose shading in the edited neutral tangent frame."""
+    changed = np.flatnonzero(
+        (np.linalg.norm(normals - previous_normals, axis=1) > 1e-6) |
+        (np.linalg.norm(tangents[:, :3] - previous_tangents[:, :3], axis=1) > 1e-6))
+    if not len(changed) and source_vertices is None:
+        return shapes
+
+    def axes(normals, tangents):
+        normal = normalise(normals[changed])
+        tangent = tangents[changed, :3]
+        tangent = normalise(tangent - normal * np.sum(tangent * normal, axis=1, keepdims=True))
+        return np.stack((tangent, np.cross(normal, tangent), normal), axis=1)
+
+    previous = axes(previous_normals, previous_tangents)
+    authored = axes(normals, tangents)
+    previous_normal, authored_normal = previous[:, 2], authored[:, 2]
+    if np.any(np.sum(previous_normal * authored_normal, axis=1) < -.95):
+        raise ValueError('An authored surface reversed its source normal.')
+    rotation = authored.transpose(0, 2, 1) @ previous
+    tangent_frame = (np.linalg.norm(previous[:, 0], axis=1) > .5) & (np.linalg.norm(authored[:, 0], axis=1) > .5)
+    transferred = []
+    for shape in shapes:
+        frames = []
+        for frame in shape['frames']:
+            offsets = {}
+            for key in ('vertices', 'normals', 'tangents'):
+                values = np.asarray(frame[key], dtype='<f4').reshape(-1, 3)
+                if source_vertices is not None:
+                    values = values[source_vertices]
+                elif key != 'vertices':
+                    values = values.copy()
+                if key == 'normals':
+                    # A UV direction change does not rotate the physical skin normal.
+                    values[changed] = rotate_between(values[changed], previous_normal, authored_normal)
+                elif key == 'tangents':
+                    delta = rotate_between(values[changed], previous_normal, authored_normal)
+                    delta[tangent_frame] = np.einsum('nij,nj->ni', rotation[tangent_frame],
+                                                     values[changed[tangent_frame]])
+                    values[changed] = delta
+                offsets[key] = values.ravel().tolist()
+            frames.append(dict(frame, **offsets))
+        transferred.append(dict(shape, frames=frames))
+    return transferred
+
+
+def repair_head_body_frame_shading(packet, bone_paths, protected_vertices=()):
+    """Keep body-size morphs from replacing the shading of articulated facial skin."""
+    body_shapes = tuple(i for i, shape in enumerate(packet['shapes']) if shape['name'].casefold() == 'muscular')
+    heads = {path for path in bone_paths if path.rsplit('/', 1)[-1].casefold() == 'bip001 head'}
+    if not body_shapes or len(heads) != 1 or not packet['weights']:
+        return packet, []
+    head = next(iter(heads))
+    owned_bones = np.array([path == head or path.startswith(head + '/') for path in bone_paths])
+    weights = np.asarray(packet['weights'], dtype=float).reshape(-1, 4)
+    bones = np.asarray(packet['boneIndices'], dtype=int).reshape(-1, 4)
+    head_weight = art.smooth((np.sum(weights * owned_bones[bones], axis=1) - .25) / .60)
+    pos = np.asarray(packet['vertices'], dtype=float).reshape(-1, 3)
+    n0 = np.asarray(packet['normals'], dtype=float).reshape(-1, 3)
+    t0 = np.asarray(packet['tangents'], dtype=float).reshape(-1, 4)[:, :3]
+    native = normalise(n0)
+    triangles = np.concatenate([np.asarray(slot, dtype=int).reshape(-1, 3) for slot in packet['subMeshes']])
+    if not len(triangles):
+        return packet, []
+    edges = np.cross(pos[triangles[:, 1]] - pos[triangles[:, 0]], pos[triangles[:, 2]] - pos[triangles[:, 0]])
+    if np.median(np.sum(edges * native[triangles].mean(axis=1), axis=1)) < 0:
+        triangles = triangles[:, ::-1]
+    groups = normal_groups(pos, native)
+    head_weight[np.isin(groups, groups[list(protected_vertices)])] = 0.
+    if not np.any(head_weight):
+        return packet, []
+
+    rest = surface_normals(pos, triangles, groups, pos, native)
+    # The neck retains its authored shading while strongly head-weighted skin
+    # has a small angular allowance around the actual posed surface.
+    tolerance = 2. - head_weight * 1.935
+    repaired = []
+    facts = []
+    for shape in packet['shapes']:
+        if shape['name'].casefold() != 'muscular':
+            repaired.append(shape)
+            continue
+        frames = []
+        for frame in shape['frames']:
+            pose = pos + np.asarray(frame['vertices'], dtype=float).reshape(-1, 3)
+            previous = normalise(n0 + np.asarray(frame['normals'], dtype=float).reshape(-1, 3))
+            # Split welded aliases only where their physical posed positions diverge.
+            pose_groups = np.unique(np.column_stack((groups, art.weld_groups(pose))), axis=0, return_inverse=True)[1]
+            posed = surface_normals(pose, triangles, pose_groups, pos, native)
+            supported = np.sum(rest * posed, axis=1) > .2
+            expected = native.copy()
+            expected[supported] = rotate_between(native[supported], rest[supported], posed[supported])
+            disparity = np.linalg.norm(previous - expected, axis=1)
+            selected = np.flatnonzero(disparity > tolerance + 1e-6)
+            if not len(selected):
+                frames.append(frame)
+                continue
+            centre = expected[selected]
+            old = previous[selected]
+            side = old - centre * np.sum(old * centre, axis=1, keepdims=True)
+            available = np.linalg.norm(side, axis=1) > 1e-5
+            cosine = 1. - tolerance[selected] ** 2 / 2.
+            target = centre.copy()
+            target[available] = (centre[available] * cosine[available, None] + normalise(side[available]) *
+                                 np.sqrt(1. - cosine[available, None] ** 2))
+            reversed_basis = np.sum(native[selected] * target, axis=1) < -.9
+            target[reversed_basis] = centre[reversed_basis]
+            tangent = rotate_between(t0[selected], native[selected], target)
+            tangent = normalise(tangent - target * np.sum(tangent * target, axis=1, keepdims=True))
+            normals = np.asarray(frame['normals'], dtype='<f4').reshape(-1, 3).copy()
+            tangents = np.asarray(frame['tangents'], dtype='<f4').reshape(-1, 3).copy()
+            normals[selected] = target - n0[selected]
+            valid_tangent = np.linalg.norm(tangent, axis=1) > .5
+            tangents[selected[valid_tangent]] = (tangent - t0[selected])[valid_tangent]
+            frames.append(dict(frame, normals=normals.ravel().tolist(), tangents=tangents.ravel().tolist()))
+            facts.append(dict(shape=shape['name'], weight=frame['weight'], vertices=len(selected),
+                              maximumBefore=float(disparity[selected].max()),
+                              maximumAfter=float(np.linalg.norm(target - expected[selected], axis=1).max())))
+        repaired.append(dict(shape, frames=frames))
+    result = dict(packet, shapes=repaired)
+    result, cohesion = cohere_skin_frame_normals(result, shape_indices=body_shapes,
+                                                protected_vertices=protected_vertices)
+    for frame in cohesion['frames']:
+        facts.append(dict(frame, weldedAliases=True, maximumAliasAngleBeforeDegrees=
+                          cohesion['maximumAliasAngleBeforeDegrees']))
+    if not facts:
+        return packet, []
+    result['sourceFingerprint'] = fingerprint(result)[0]
+    return result, facts
 
 
 def native_packet(skin: 'dict[str, Any]') -> 'dict[str, Any]':
@@ -3042,7 +3244,7 @@ def refine_attachment_surface(packet,frame,supports,profile,lod):
     return candidate,dict(root=root,passes=passes)
 
 
-def indexed_surface_uv_metrics(packet: 'dict[str, Any]',skin: 'dict[str, Any]',slot,shape,feather,sampler,vertex_field=None,bone_domain=None,additional_domains=None,triangle_field=None,sample_receiver=None):
+def indexed_surface_uv_metrics(packet: 'dict[str, Any]',skin: 'dict[str, Any]',slot,shape,feather,sampler,vertex_field=None,bone_domain=None,additional_domains=None,triangle_field=None,sample_receiver=None,requested_pixels=None):
     import heapq
     """Actual native slot sample support, source seam closure and rest metric."""
     h,w=shape
@@ -3055,6 +3257,15 @@ def indexed_surface_uv_metrics(packet: 'dict[str, Any]',skin: 'dict[str, Any]',s
         require(all(type(sampler[key])is int and sampler[key]in(0,1,2,3)for key in('wrapU','wrapV')),
                 'Unknown native texture wrap mode.')
     radius=0. if filter_mode is None else .5 if filter_mode==0 else 1.
+    halo=int(np.ceil(radius))
+    requested=None
+    if requested_pixels is not None:
+        requested=np.asarray(requested_pixels,dtype=bool)
+        require(requested.shape==(h,w),'A source raster mask must match its texture dimensions.')
+        if halo:
+            padding=('wrap','edge','symmetric','symmetric')
+            requested=np.pad(requested,((0,0),(halo,halo)),mode=padding[sampler['wrapU']])
+            requested=np.pad(requested,((halo,halo),(0,0)),mode=padding[sampler['wrapV']])
     positions=np.asarray(packet['vertices'],dtype='<f4').reshape(-1,3)
     transform=np.asarray(skin['rendererToPrefab']).reshape(4,4).T
     world=positions@transform[:3,:3].T+transform[:3,3]
@@ -3122,29 +3333,33 @@ def indexed_surface_uv_metrics(packet: 'dict[str, Any]',skin: 'dict[str, Any]',s
         delta=np.stack((tex[1]-tex[0],tex[2]-tex[0]),axis=1)
         determinant=np.linalg.det(delta)
         if abs(determinant)<1e-10:continue
+        # The sampler reads neighbouring texels around u*size-.5. Intersect
+        # that fetch footprint with the indexed source triangle, retaining a
+        # source barycentric witness rather than dilating the finished mask.
+        lo=np.maximum(-halo,np.ceil(tex.min(axis=0)-radius).astype(int))
+        hi=np.minimum((w-1+halo,h-1+halo),np.floor(tex.max(axis=0)+radius).astype(int))
+        if np.any(hi<lo):continue
+        needed=None if requested is None else requested[lo[1]+halo:hi[1]+halo+1,lo[0]+halo:hi[0]+halo+1]
+        if needed is not None and not np.any(needed):continue
         jacobian=np.stack((world[tri[1]]-world[tri[0]],world[tri[2]]-world[tri[0]]),axis=1)@np.linalg.inv(delta)
         singular=np.linalg.svd(jacobian,compute_uv=False)
         if singular[-1]<=0:continue
         density=float(np.sqrt(np.prod(singular)))
         ratio=float(singular[0]/singular[-1])
-        # The sampler reads neighbouring texels around u*size-.5. Intersect
-        # that fetch footprint with the indexed source triangle, retaining a
-        # source barycentric witness rather than dilating the finished mask.
-        halo=int(np.ceil(radius))
-        lo=np.maximum(-halo,np.ceil(tex.min(axis=0)-radius).astype(int))
-        hi=np.minimum((w-1+halo,h-1+halo),np.floor(tex.max(axis=0)+radius).astype(int))
-        if np.any(hi<lo):continue
         yy,xx=np.mgrid[lo[1]:hi[1]+1,lo[0]:hi[0]+1]
         ab=np.stack((xx-tex[0,0],yy-tex[0,1]),axis=-1)@np.linalg.inv(delta).T
         bary=np.dstack((1-ab.sum(axis=2),ab))
         inside=np.all(bary>=-1e-7,axis=2)
+        if needed is not None:
+            inside&=needed
         if filter_mode is not None:
             # Interior centres retain the existing sample. For gutter texels,
             # the intersection polygon vertices consist of triangle vertices,
             # box corners and edge/box-line crossings. Their mean lies on the
             # actual source surface, including subpixel triangles.
             flat=bary.reshape(-1,3);centres=np.column_stack((xx.ravel(),yy.ravel()))
-            outside_ids=np.flatnonzero(~inside.ravel());inverse=np.linalg.inv(delta)
+            outside=~inside if needed is None else needed&~inside
+            outside_ids=np.flatnonzero(outside.ravel());inverse=np.linalg.inv(delta)
             for start in range(0,len(outside_ids),4096):
                 ids=outside_ids[start:start+4096];centre=centres[ids];total=np.zeros((len(ids),3));count=np.zeros(len(ids),int)
                 for corner in range(3):
@@ -3213,13 +3428,15 @@ def indexed_surface_uv_metrics(packet: 'dict[str, Any]',skin: 'dict[str, Any]',s
         anisotropy[rows,cols]=ratio
         covered[rows,cols]=True
         physical_triangles+=1
-    require(np.any(covered),'Native source slot has no rasterizable UV surface.')
-    metric[~covered]=np.median(metric[covered])
+    has_coverage=np.any(covered)
+    require(has_coverage or requested is not None,'Native source slot has no rasterizable UV surface.')
+    if has_coverage:
+        metric[~covered]=np.median(metric[covered])
     report=dict(nativeTriangles=len(triangles),rasterizedTriangles=physical_triangles,nativeVertices=len(positions),
                 nativeWeldGroups=len(indices),trueOpenBoundaryGroups=len(boundary),
                 boundaryFadeMetres=6*feather,duplicatedUvCoveragePixels=overlaps,
-                metresPerTexelQuantiles=np.quantile(metric[covered],[0,.1,.5,.9,1]).tolist(),
-                anisotropyQuantiles=np.quantile(anisotropy[covered],[0,.1,.5,.9,1]).tolist(),
+                metresPerTexelQuantiles=np.quantile(metric[covered],[0,.1,.5,.9,1]).tolist() if has_coverage else [],
+                anisotropyQuantiles=np.quantile(anisotropy[covered],[0,.1,.5,.9,1]).tolist() if has_coverage else [],
                 nativeSourceChannelsWritten=False,
                 sampledSupport=('legacy texel centres'if filter_mode is None else
                     'native Point footprint'if filter_mode==0 else'native Bilinear footprint at this mip'),
@@ -5871,6 +6088,104 @@ def source_skin_region_mode(region):
     return mode
 
 
+def skin_chart_boundary_pairs(packet, slot):
+    """Find the two UV edges of a smooth, physically shared skin edge."""
+    points = np.asarray(packet['vertices']).reshape(-1, 3)
+    normals = normalise(np.asarray(packet['normals']).reshape(-1, 3))
+    groups = normal_groups(points, normals)
+    uv = np.asarray(next(channel['values'] for channel in packet['uv'] if channel['channel'] == 0))
+    uv = uv.reshape(-1, 4)[:, :2]
+    triangles = np.asarray(packet['subMeshes'][slot], dtype=int).reshape(-1, 3)
+    edges = {}
+    for triangle in triangles:
+        for i, j, k in ((0, 1, 2), (1, 2, 0), (2, 0, 1)):
+            a, b, c = triangle[[i, j, k]]
+            if groups[a] == groups[b]:
+                continue
+            forward = groups[a] < groups[b]
+            if not forward:
+                a, b = b, a
+            edges.setdefault((groups[a], groups[b]), []).append((forward, uv[[a, b, c]]))
+    return np.asarray([(left[1], right[1]) for pair in edges.values() if len(pair) == 2
+                       for left, right in (pair,) if left[0] != right[0]
+                       and not np.allclose(left[1][:2], right[1][:2], atol=1e-6, rtol=0.)],
+                      dtype=float).reshape(-1, 2, 3, 2)
+
+
+def skin_chart_raster_window(pairs, shape):
+    """Select the texture blocks that can receive a chart edge correction."""
+    height, width = shape
+    window = np.zeros(shape, dtype=bool)
+    edges = pairs[:, :, :2] * [width, height] - .5
+    # The correction reaches at most three texels from the edge sample.
+    # Include every pixel of the compressed blocks where a correction can land.
+    low = np.maximum(0, (np.floor(edges.min(axis=2) - 3.).astype(int) // 4) * 4)
+    high = np.minimum([width, height], ((np.ceil(edges.max(axis=2) + 3.).astype(int) // 4) + 1) * 4)
+    for (left, top), (right, bottom) in zip(low.reshape(-1, 2), high.reshape(-1, 2), strict=True):
+        if right > left and bottom > top:
+            window[top:bottom, left:right] = True
+    return window[::-1]
+
+
+def reconcile_skin_chart_color(pixels, writable, pairs):
+    """Bring adjacent skin pigment together across separate UV islands."""
+    import material_fields as fields
+
+    height, width = pixels.shape[:2]
+    color = fields.linear_rgba(pixels)[:, :, :3]
+    changes = np.zeros_like(color)
+    weight = np.zeros((height, width), dtype=float)
+    sampled = 0
+    uv_size = np.array([width, height])
+    for triangles in pairs * uv_size - .5:
+        direction = triangles[:, 1] - triangles[:, 0]
+        length = np.linalg.norm(direction, axis=1)
+        if np.any(length <= .75):
+            continue
+        normal = np.column_stack((-direction[:, 1], direction[:, 0])) / length[:, None]
+        altitude = np.sum((triangles[:, 2] - triangles[:, 0]) * normal, axis=1)
+        if np.any(np.abs(altitude) <= .5):
+            continue
+        normal *= np.sign(altitude)[:, None]
+        depth = np.minimum(np.abs(altitude) / 3., 1.25)
+        count = min(128, max(1, int(np.ceil(length.max()))))
+        along = (np.arange(count) + .5) / count
+        boundary = triangles[:, :1] + direction[:, None] * along[None, :, None]
+        inside = boundary + normal[:, None] * depth[:, None, None]
+        indices = np.rint(inside).astype(int)
+        valid = np.all((indices >= 0) & (indices < uv_size), axis=(0, 2))
+        indices = indices[:, valid]
+        if not indices.size:
+            continue
+        (x0, y0), (x1, y1) = indices.transpose(0, 2, 1)
+        usable = writable[y0, x0] & writable[y1, x1]
+        delta = color[y1, x1] - color[y0, x0]
+        usable &= np.linalg.norm(delta, axis=1) > .018
+        if not np.any(usable):
+            continue
+        sampled += int(usable.sum())
+        correction = np.clip(delta[usable] * .5, -.11, .11)
+        for i, sign in ((0, 1.), (1, -1.)):
+            seam = inside[i, valid][usable]
+            x, y = indices[i, usable].T
+            for offset_x, offset_y in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)):
+                u, v = x + offset_x, y + offset_y
+                hit = (u >= 0) & (u < width) & (v >= 0) & (v < height)
+                positions = np.flatnonzero(hit)
+                positions = positions[writable[v[positions], u[positions]]]
+                u, v = u[positions], v[positions]
+                distance = np.linalg.norm(np.column_stack((u, v)) - seam[positions], axis=1)
+                density = np.maximum(0., 1. - distance / 2.1)
+                np.add.at(changes, (v, u), sign * density[:, None] * correction[positions])
+                np.add.at(weight, (v, u), density)
+    edited = weight > 0.
+    result = pixels.copy()
+    desired = np.clip(color[edited] + changes[edited] / np.maximum(1., weight[edited, None]), 0, 1)
+    rgb = np.where(desired <= .0031308, 12.92 * desired, 1.055 * desired ** (1. / 2.4) - .055)
+    result[edited, :3] = np.rint(rgb * 255).astype(np.uint8)
+    return result, dict(pairedEdges=len(pairs), samples=sampled, touchedTexels=int(edited.sum()))
+
+
 def refine_source_skin_material(pixels, ownership, metres_per_texel, profile, channel, *, normal_encoding=None,luminance_regions=(),source_neighbourhoods=()):
     """Refine an explicitly owned source surface in physical units before packing."""
     import material_fields as fields
@@ -6552,7 +6867,7 @@ def fair_mandibular_contours(points, topology, groups, mobility, eyes, mouth, he
 
 
 def fair_assembled_face(native, assembled, skin, strength, collar_vertices, *, marks=None):
-    """Smooth the saved head while keeping its fitted anatomy and morph deltas."""
+    """Fair the saved head and update the shading of its authored poses."""
     transform = art.CONVERT @ art.matrix(skin['rendererToPrefab'])
     reference = np.asarray(assembled['vertices'], dtype=float).reshape(-1, 3)
     points = art.points(assembled['vertices'], transform)
@@ -6583,7 +6898,7 @@ def fair_assembled_face(native, assembled, skin, strength, collar_vertices, *, m
     mobility[list(collar_vertices)] = 0.
     selected = mobility > 0.
     if not np.any(selected):
-        return assembled, dict(fairedVertices=0, preservedMorphDeltas=True)
+        return assembled, dict(fairedVertices=0, preservedMorphPositionDeltas=True)
     limit = .015 * float(np.linalg.norm(np.ptp(points[selected], axis=0)))
     topology = facial_surface_topology(triangles, groups)
     # Continue the mandibular turn across abrupt facet changes while limiting
@@ -6617,7 +6932,7 @@ def fair_assembled_face(native, assembled, skin, strength, collar_vertices, *, m
     changed_groups = np.unique(groups[np.any(position != reference, axis=1)])
     changed = np.isin(groups, changed_groups)
     if not np.any(changed):
-        return assembled, dict(fairedVertices=0, preservedMorphDeltas=True)
+        return assembled, dict(fairedVertices=0, preservedMorphPositionDeltas=True)
     frame_vertices = np.unique(triangles[np.any(changed[triangles], axis=1)])
     update = np.zeros(len(reference), dtype=bool)
     update[frame_vertices] = mobility[frame_vertices] > 0.
@@ -6626,12 +6941,15 @@ def fair_assembled_face(native, assembled, skin, strength, collar_vertices, *, m
     normal, tangent = surface_basis(reference, position, normals, tangents, triangles, transform, mobility, False)
     result = copy.deepcopy(assembled)
     result['vertices'] = position.ravel().tolist()
-    result['normals'] = np.where(update[:, None], normal, normals).astype(np.float32).ravel().tolist()
-    result['tangents'] = np.where(update[:, None], tangent, tangents).astype(np.float32).ravel().tolist()
+    normal = np.where(update[:, None], normal, normals).astype(np.float32)
+    tangent = np.where(update[:, None], tangent, tangents).astype(np.float32)
+    result['normals'] = normal.ravel().tolist()
+    result['tangents'] = tangent.ravel().tolist()
+    result['shapes'] = transfer_face_pose_shading(assembled['shapes'], normals, tangents, normal, tangent)
     result['sourceFingerprint'] = fingerprint(result)[0]
     result['bounds'] = physical_mesh_bounds(result)
     return result, dict(fairedVertices=int(changed.sum()), lowerFaceVertices=int(np.count_nonzero(changed & (lower_face > .5))),
-        preservedMorphDeltas=True, authoredPoses=len(poses),
+        preservedMorphPositionDeltas=True, authoredPoses=len(poses),
         maximumDisplacementMm=float(np.max(np.linalg.norm(offset @ transform[:3, :3].T, axis=1)) * 1000))
 
 

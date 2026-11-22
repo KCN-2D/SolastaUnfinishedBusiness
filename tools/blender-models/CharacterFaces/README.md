@@ -52,7 +52,7 @@ UVで分かれた組織は`protectSourceCharts`で保護します。原本Mesh�
 
 `--channels color`または`--channels normal`で制作するチャンネルを選べます。省略時は両方を対象とします。再開時は同じ選択を指定します。
 
-制作時に元の画像形式と全mipを扱い、範囲外のブロック、材質アルファ、法線の保持チャンネル、samplerを照合します。共有資源の画像を対象rendererの材質へ収める場合は、`bind-skin-surfaces --source <同じ制作元> --fields <作成した資源> --output <最終候補>`を使います。共有元の画像は保持します。専有化済みの画像を調整した出力は、そのまま表示候補として使います。
+制作時に元の画像形式と全mipを扱い、範囲外のブロック、材質アルファ、法線の保持チャンネル、samplerを照合します。生成した肌のmipは完成bundleに収め、再読み込みした全mipを制作結果のハッシュと照合します。共有資源の画像を対象rendererの材質へ収める場合は、`bind-skin-surfaces --source <同じ制作元> --fields <作成した資源> --output <最終候補>`を使います。共有元の画像は保持します。専有化済みの画像を調整した出力は、そのまま表示候補として使います。
 
 元画像の資源はSHA256で照合します。参照先が移動した場合は、制作元catalogにある同じ資源から読み取り、候補の計算入力へ対応を記録します。
 
@@ -199,6 +199,8 @@ HeadはLOD0を先に生成し、その`Coefficient.json`のpath/SHAをLOD1/2の�
 
 `GeometryPreparation.json`に完了した形状と入力を記録します。同じ入力で再実行すると形状を再利用し、色の処理から続けます。人型以外の形態と元のパレットは、対応表で区別して保持します。
 
+`refine-skin-surfaces --channels color --chart-seams` は、同じ表面を共有するUVチャートの境界で、現在の肌テクスチャの色をなじませます。
+
 ## モデル資源の配布
 
 採用するカスタムキャラクターモデル資源を変更したときは、実ゲームで確認したモデルパックをGitHub Releasesへ公開し、MODに同梱するmanifestと配布パック一覧を同じ版へ更新します。
@@ -307,6 +309,8 @@ python .\tools\blender-models\CharacterFaces\build_models.py --workspace <新し
 ```
 
 髪とひげは、prefabの実際のLODGroupと描画部品から検査します。`complete-groom-frames`は、下位LODに残った無地の素材へ同じグループの仕上げ済み素材を割り当て、元のUVチャートと毛流れから描画用データを生成します。髪色を反映するパラメーターも各LODの描画部品へ設定し、保存後に照合します。
+
+制作済みの取付点を使って髪とひげの揺れ幅を調整するには、`refine-groom-frames --source <資源> --output <候補> --cloth-continuity-only --preserve-cloth-attachments`を使います。ターン中の輪郭と毛先の動きを、プレイヤーとNPCの両方で確認します。
 
 ```powershell
 python .\tools\blender-models\CharacterFaces\build_models.py --workspace <新しい出力先> `

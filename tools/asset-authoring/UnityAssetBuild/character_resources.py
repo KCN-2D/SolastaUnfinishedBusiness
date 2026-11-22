@@ -135,10 +135,15 @@ def replace_owned_texture_mips(source_path, source_sha256, target_path, replacem
         obj = file.objects[identifier]
         if obj.type.name != 'Texture2D' or obj.peek_name() != row['name']:
             raise ValueError('A mip target does not match its source texture identity.')
-        raw = Path(row['raw']['path'])
-        if digest(raw) != row['raw']['sha256']:
-            raise ValueError('A complete source mip payload changed.')
-        payload = raw.read_bytes()
+        if 'payload' in row:
+            payload = row['payload']
+            if type(payload) is not bytes or 'raw' in row:
+                raise ValueError('A complete source mip payload has conflicting storage.')
+        else:
+            raw = Path(row['raw']['path'])
+            payload = raw.read_bytes()
+            if hashlib.sha256(payload).hexdigest() != row['raw']['sha256']:
+                raise ValueError('A complete source mip payload changed.')
         storage_format = row.get('storageFormat', 4)
         if type(storage_format) is not int or storage_format not in (4, 10, 12, 25):
             raise ValueError('An owned skin field requires explicit RGBA32, DXT1, DXT5 or BC7 storage.')
@@ -209,11 +214,16 @@ def replace_owned_texture_mips(source_path, source_sha256, target_path, replacem
         expected[key] = changed
         if key in selected:
             row = selected[key][0]
-            reports.append(dict(object=key, name=tree['m_Name'], raw=row['raw'],
+            record = dict(object=key, name=tree['m_Name'],
                 width=tree['m_Width'], height=tree['m_Height'], mipCount=tree['m_MipCount'],
                 beforeFormat=tree['m_TextureFormat'], format=changed['m_TextureFormat'], bytes=len(replacement),
                 sourcePayloadSha256=hashlib.sha256(original).hexdigest(),
-                payloadSha256=hashlib.sha256(replacement).hexdigest()))
+                payloadSha256=hashlib.sha256(replacement).hexdigest())
+            if 'raw' in row:
+                record['raw'] = row['raw']
+            else:
+                record['payloadInBundle'] = True
+            reports.append(record)
     for member, state in streams.items():
         reader = EndianBinaryReader(bytes(state['output']))
         setattr(reader, 'flags', 0)
@@ -260,6 +270,22 @@ def replace_owned_texture_mips(source_path, source_sha256, target_path, replacem
         streamBytesBefore=sum(len(state['original']) for state in streams.values()),
         streamBytesAfter=sum(len(state['output']) for state in streams.values()),
         unusedTextureStreamSpansRetained=False)
+
+
+def skin_mip_payload_matches(row, actual):
+    if len(actual) != row['bytes'] or hashlib.sha256(actual).hexdigest() != row['payloadSha256']:
+        return False
+    if row.get('payloadInBundle') is True:
+        return 'raw' not in row
+    if 'payloadInBundle' in row or 'raw' not in row:
+        return False
+    reference = row['raw']
+    if reference['sha256'] != row['payloadSha256']:
+        return False
+    raw = Path(reference['path'])
+    # Legacy raw files duplicate the same digest already verified in the saved bundle.
+    # A remaining copy must agree before it can be treated as an interchangeable source.
+    return not raw.is_symlink() and (raw.read_bytes() == actual if raw.is_file() else not raw.exists())
 
 
 def validate_owned_texture_mips(receipt):
@@ -314,11 +340,9 @@ def validate_owned_texture_mips(receipt):
         if key not in selected:
             if original!=actual:raise ValueError('An owned skin field changed unselected texels.')
             continue
-        row=selected[key];raw=Path(row['raw']['path'])
-        if digest(raw)!=row['raw']['sha256']or actual!=raw.read_bytes()or \
-                hashlib.sha256(original).hexdigest()!=row['sourcePayloadSha256']or \
-                hashlib.sha256(actual).hexdigest()!=row['payloadSha256']or \
-                row['bytes']!=len(actual)or row['beforeFormat']!=first['m_TextureFormat']or \
+        row = selected[key]
+        if not skin_mip_payload_matches(row, actual) or hashlib.sha256(original).hexdigest()!=row['sourcePayloadSha256']or \
+                row['beforeFormat']!=first['m_TextureFormat']or \
                 row['format']!=last['m_TextureFormat']or row['format']not in (4,10,12,25)or \
                 (row['name'],row['width'],row['height'],row['mipCount'])!= \
                 (last['m_Name'],last['m_Width'],last['m_Height'],last['m_MipCount']):
@@ -833,6 +857,27 @@ def face_mesh_identifiers(file: Any) -> set[int]:
 
 
 
+def face_skin_bone_palettes(file: Any, identifiers: set[int], resolve: Any) -> dict[int, tuple[str, ...]]:
+    """Read skin palettes in mesh slot order and require agreement between renderers."""
+    palettes = {}
+    if not identifiers:
+        return palettes
+    for renderer in file.objects.values():
+        if renderer.type.name != 'SkinnedMeshRenderer':
+            continue
+        tree = renderer.read_typetree()
+        mesh = tree['m_Mesh']
+        identifier = mesh['m_PathID']
+        if mesh['m_FileID'] or identifier not in identifiers:
+            continue
+        bones = tuple(skin_bone_paths(file, tree, resolve))
+        if palettes.setdefault(identifier, bones) != bones:
+            raise ValueError(f'A face mesh has conflicting skin palettes: {file.name}/{identifier}')
+    if palettes.keys() != identifiers:
+        raise ValueError(f'A face mesh has no serialized skin palette: {file.name}')
+    return palettes
+
+
 def groom_lod_plan(file: Any) -> dict[str, Any]:
     """Follow actual LOD groups so an untextured native placeholder cannot disappear from coverage."""
     owned=groom_mesh_identifiers(file,1,flow_format=2);renderers={};groups=[]
@@ -971,7 +1016,7 @@ def moving_cloth_proxies(simulation):
             if selection == 1}
 
 
-def limit_groom_cloth_displacement(trees, file, groom_meshes):
+def limit_groom_cloth_displacement(trees, file, groom_meshes, *, preserve_attachments=False):
     """Keep authored hair and beard cloth within its skinned head-relative pose."""
     from copy import deepcopy
 
@@ -981,7 +1026,7 @@ def limit_groom_cloth_displacement(trees, file, groom_meshes):
     changes = {}
     children = {}
     anchor_sets = {}
-    maximum_at_root, maximum_at_tip = .0035, .018
+    maximum_at_root, maximum_at_tip = .003, .013
     for key, cloth in trees.items():
         if not cloth.get('m_Enabled') or 'virtualDeformer' not in cloth or 'clothParams' not in cloth:
             continue
@@ -1001,15 +1046,16 @@ def limit_groom_cloth_displacement(trees, file, groom_meshes):
         virtual = local(controller['deformer']['meshData'])
         if virtual is None:
             raise ValueError('The groom cloth controller has no serialized virtual mesh.')
-        fixed_vertices, moving_vertices = anchor_sets.setdefault(data_key, (set(), set()))
-        fixed_vertices.update(vertex for vertex, selection in zip(simulation['useVertexList'],
-                              simulation['selectionData'], strict=True) if selection == 2)
-        moving_vertices.update(moving)
-        for index, (mesh, child) in enumerate(zip(meshes, virtual['childDataList'], strict=True)):
-            owner = children.setdefault((data_key, index), (mesh['m_PathID'], child, set()))
-            if owner[0] != mesh['m_PathID']:
-                raise ValueError('A shared cloth child references different groom render meshes.')
-            owner[2].update(moving)
+        if not preserve_attachments:
+            fixed_vertices, moving_vertices = anchor_sets.setdefault(data_key, (set(), set()))
+            fixed_vertices.update(vertex for vertex, selection in zip(simulation['useVertexList'],
+                                  simulation['selectionData'], strict=True) if selection == 2)
+            moving_vertices.update(moving)
+            for index, (mesh, child) in enumerate(zip(meshes, virtual['childDataList'], strict=True)):
+                owner = children.setdefault((data_key, index), (mesh['m_PathID'], child, set()))
+                if owner[0] != mesh['m_PathID']:
+                    raise ValueError('A shared cloth child references different groom render meshes.')
+                owner[2].update(moving)
         parameters = cloth['clothParams']
         curve = parameters['clampPositionLength']
         enabled = bool(parameters['useClampPositionLength'])
@@ -1065,6 +1111,7 @@ def keep_groom_anchor_rotation(virtual_mesh, fixed, moving):
 
 def cohere_groom_attachment_boundary(mesh, child, moving, maximum_travel):
     """Smooth attachment weights at scalp joins and along connected strands."""
+    from math import hypot
     import numpy as np
     from UnityPy.helpers.MeshHelper import MeshHandler
 
@@ -1079,6 +1126,7 @@ def cohere_groom_attachment_boundary(mesh, child, moving, maximum_travel):
         return 0
     proxies = np.full((len(positions), width), -1, dtype=int)
     weights = np.zeros(proxies.shape)
+    attachment_radii = np.zeros(proxies.shape)
     packets = []
     for index, packed in enumerate(child['vertexInfoList']):
         size, start = packed >> 28, packed & 0x0fffffff
@@ -1088,6 +1136,7 @@ def cohere_groom_attachment_boundary(mesh, child, moving, maximum_travel):
         packets.append(packet)
         proxies[index, :size] = [row['parentIndex'] for row in packet]
         weights[index, :size] = [row['weight'] for row in packet]
+        attachment_radii[index, :size] = [hypot(*(row['localPos'][axis] for axis in ('x', 'y', 'z'))) for row in packet]
     mobile = np.isin(proxies, list(moving))
     mobile_weight = (weights * mobile).sum(axis=1)
     moving_limit = .025
@@ -1146,7 +1195,7 @@ def cohere_groom_attachment_boundary(mesh, child, moving, maximum_travel):
         moving_slots = mobile[index, :len(coefficients)]
         coefficients[moving_slots] *= cap / coefficients[moving_slots].sum()
         coefficients[~moving_slots] *= (1.0 - cap) / coefficients[~moving_slots].sum()
-    changed |= cohere_simulated_groom_edges(positions, proxies, weights, groups, half_edges, mobile_weight,
+    changed |= cohere_simulated_groom_edges(positions, proxies, weights, attachment_radii, groups, half_edges, mobile_weight,
                                            maximum_travel)
     for index in np.flatnonzero(changed):
         coefficients = weights[index, :len(packets[index])]
@@ -1155,7 +1204,8 @@ def cohere_groom_attachment_boundary(mesh, child, moving, maximum_travel):
     return int(changed.sum())
 
 
-def cohere_simulated_groom_edges(positions, proxies, weights, groups, half_edges, mobile_weight, maximum_travel):
+def cohere_simulated_groom_edges(positions, proxies, weights, attachment_radii, groups, half_edges, mobile_weight,
+                               maximum_travel):
     """Keep close points on one strand responsive to the same simulated parents."""
     import numpy as np
 
@@ -1166,9 +1216,11 @@ def cohere_simulated_groom_edges(positions, proxies, weights, groups, half_edges
     valid = (a != b) & fully_simulated[a] & fully_simulated[b]
     a, b = a[valid], b[valid]
     points = positions[representative]
-    # Parents can move apart by twice the tip travel. A short render edge
-    # needs more shared influence to follow that motion continuously.
-    allowance = np.maximum(.025, np.linalg.norm(points[a] - points[b], axis=1) / (2 * maximum_travel))
+    # Attachment points can separate through both proxy translation and the
+    # arc swept by the render vertex about those proxies.
+    radii = (weights[representative] * attachment_radii[representative]).sum(axis=1)
+    reach = 2 * (maximum_travel + radii[a] + radii[b])
+    allowance = np.maximum(.025, np.linalg.norm(points[a] - points[b], axis=1) / reach)
     nearby = allowance < 1.0
     a, b, allowance = a[nearby], b[nearby], allowance[nearby]
     if not len(a):
@@ -1204,6 +1256,8 @@ def refine_groom_resource_frames(job: dict[str, Any]) -> dict[str, Any]:
     identity=dict(sourceSha256=job['sha256'],codeSha256=job['codeSha256'])
     cloth_only=job.get('clothContinuityOnly',False)
     if cloth_only:identity['clothContinuityOnly']=True
+    preserve_attachments=job.get('preserveClothAttachments',False)
+    if preserve_attachments:identity['preserveClothAttachments']=True
     flow_only=job.get('flowOnly',False)
     missing_only=job.get('missingOnly',False)
     preserve_normals=job.get('preserveSupportNormals',False)
@@ -1283,7 +1337,11 @@ def refine_groom_resource_frames(job: dict[str, Any]) -> dict[str, Any]:
         raise ValueError('A declared groom resource has no source support or owning material.')
     if missing_only and{row['object']for row in meshes}!=set(coordinates):raise ValueError('The missing groom domains do not cover every declared LOD.')
     trees={key:obj.read_typetree()for key,obj in file.objects.items()if obj.type.name=='MonoBehaviour'}
-    continuity=limit_groom_cloth_displacement(trees,file,groom_mesh_identifiers(file,include_native_lods=True)) if cloth_only else {}
+    continuity = {}
+    if cloth_only:
+        groom_meshes = groom_mesh_identifiers(file, include_native_lods=True)
+        continuity = limit_groom_cloth_displacement(trees, file, groom_meshes,
+                                                   preserve_attachments=preserve_attachments)
     cloth=sorted(continuity) if cloth_only else transport_groom_cloth_frames(trees,bindings)
     for key in cloth:file.objects[key].save_typetree(trees[key]);changed[key]=file.objects[key].data
     temporary=target.with_suffix('.writing')

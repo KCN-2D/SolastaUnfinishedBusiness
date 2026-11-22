@@ -31,26 +31,30 @@ def checked(reference):
     return path
 
 
-def update_face(packet, positions, triangles, surface, sculpt_normals=None):
-    """Transfer the authored neutral surface while protecting original contact vertices."""
+def update_retained_mesh(packet, positions, triangles, surface, sculpt_normals=None):
+    """Transfer the authored neutral surface while retaining its skinned layout."""
     original = np.asarray(packet['vertices'], dtype='<f4').reshape(-1, 3)
     native_triangles = np.concatenate(packet['subMeshes']).reshape(-1, 3)
     if original.shape != positions.shape or not np.array_equal(native_triangles, triangles):
-        raise ValueError('A Blender face must retain the source vertex and submesh correspondence.')
+        raise ValueError('A Blender mesh must retain the source vertex and submesh correspondence.')
     moved = np.any(positions != original, axis=1)
     if not np.any(moved) and sculpt_normals is None:
         return packet
     # Original and authored coordinates use the same native renderer frame.
     _, orientation = surface.preserve_surface_orientation(original, positions, triangles, np.eye(4))
     if orientation['surfaceScaleFactor'] != 1:
-        raise ValueError('The Blender face reverses a native triangle.')
+        raise ValueError('The Blender mesh reverses a native triangle.')
     normals = np.asarray(packet['normals'], dtype='<f4').reshape(-1, 3)
     tangents = np.asarray(packet['tangents'], dtype='<f4').reshape(-1, 4)
     if sculpt_normals is None:
+        # Stationary corners and their UV aliases shade the same deformed faces.
+        neighbours = triangles[np.any(moved[triangles], axis=1)].ravel()
+        groups = surface.normal_groups(original, surface.normalise(normals))
+        affected = np.isin(groups, groups[neighbours]) | moved
         authored_normals, authored_tangents = surface.surface_basis(original, positions, normals, tangents,
                                                                    triangles, np.eye(4), moved, True)
-        authored_normals[~moved] = normals[~moved]
-        authored_tangents[~moved] = tangents[~moved]
+        authored_normals[~affected] = normals[~affected]
+        authored_tangents[~affected] = tangents[~affected]
     else:
         authored_normals = sculpt_normals
         if (authored_normals.shape != normals.shape or not np.isfinite(authored_normals).all()
@@ -60,20 +64,10 @@ def update_face(packet, positions, triangles, surface, sculpt_normals=None):
         before, after = surface.normalise(normals[changed_basis]), authored_normals[changed_basis]
         authored_tangents = tangents.copy()
         authored_tangents[changed_basis, :3] = surface.rotate_between(tangents[changed_basis, :3], before, after)
-        shapes = []
-        for shape in packet['shapes']:
-            frames = []
-            for frame in shape['frames']:
-                offsets = {}
-                for key in ('normals', 'tangents'):
-                    values = np.asarray(frame[key]).reshape(-1, 3)
-                    values[changed_basis] = surface.rotate_between(values[changed_basis], before, after)
-                    offsets[key] = values.ravel().tolist()
-                frames.append(dict(frame, **offsets))
-            shapes.append(dict(shape, frames=frames))
-        packet = dict(packet, shapes=shapes)
+    shapes = surface.transfer_face_pose_shading(packet['shapes'], normals, tangents,
+                                                authored_normals, authored_tangents)
     result = dict(packet, vertices=positions.ravel().tolist(), normals=authored_normals.ravel().tolist(),
-                  tangents=authored_tangents.ravel().tolist())
+                  tangents=authored_tangents.ravel().tolist(), shapes=shapes)
     result['bounds'] = surface.physical_mesh_bounds(result)
     return result
 
@@ -108,24 +102,16 @@ def update_face_uv(packet, art, surface, source_slot):
         result['uv'].append(dict(channel, values=values.ravel().tolist()))
     normals = np.asarray(result['normals']).reshape(-1, 3)
     authored = art.get('skin_normals', normals)
-    tangents = np.asarray(result['tangents']).reshape(-1, 4)
+    old_tangents = np.asarray(result['tangents']).reshape(-1, 4)
+    tangents = old_tangents.copy()
     moved = np.any(authored != normals, axis=1)
-    tangents[moved, :3] = surface.rotate_between(tangents[moved, :3], normals[moved], authored[moved])
+    tangents[moved, :3] = surface.rotate_between(tangents[moved, :3], surface.normalise(normals[moved]),
+                                                  authored[moved])
     tangents[source_count:] = art['tangents'][source_count:]
     result['normals'] = authored.ravel().tolist()
     result['tangents'] = tangents.ravel().tolist()
-    result['shapes'] = []
-    for shape in packet['shapes']:
-        frames = []
-        for frame in shape['frames']:
-            offsets = {key: np.asarray(frame[key]).reshape(-1, 3)[alias] for key in ('vertices', 'normals', 'tangents')}
-            delta = offsets['normals']
-            delta[moved] = surface.rotate_between(normals[moved] + delta[moved], normals[moved], authored[moved]) - authored[moved]
-            posed = surface.normalise(authored + delta)
-            offsets['tangents'][source_count:] = surface.rotate_between(tangents[source_count:, :3],
-                authored[source_count:], posed[source_count:]) - tangents[source_count:, :3]
-            frames.append(dict(frame, **{key: values.ravel().tolist() for key, values in offsets.items()}))
-        result['shapes'].append(dict(shape, frames=frames))
+    result['shapes'] = surface.transfer_face_pose_shading(packet['shapes'], normals, old_tangents, authored, tangents,
+                                                         source_vertices=alias)
     return result
 
 
@@ -197,7 +183,7 @@ def native_groom_mesh(current, identifier, row, surface, load_installed_bundle):
     refinement = row.get('refinement')
     basis, stencils = refine_authored_surface(native, refinement, surface) if refinement else (native, [])
     with np.load(checked(row['geometry']), allow_pickle=False) as art:
-        authored = update_face(basis, art['positions'], art['triangles'], surface, art.get('skin_normals'))
+        authored = update_retained_mesh(basis, art['positions'], art['triangles'], surface, art.get('skin_normals'))
     if len(authored['subMeshes']) != len(old_skin['m_Materials']) or len(new_skin['m_Materials']) < len(authored['subMeshes']):
         raise ValueError('The native groom material slots do not agree with its renderer.')
     # Extra material slots from earlier groom layers must have empty submeshes.
@@ -227,13 +213,27 @@ def native_groom_mesh(current, identifier, row, surface, load_installed_bundle):
 
 
 def prepare(args, source, output):
-    manifest = models.read(source / 'Catalog' / models.RESOURCE_FILES['manifest'])
+    manifest_path = source / 'Catalog' / models.RESOURCE_FILES['manifest']
+    manifest = models.read(manifest_path)
+    assembly = models.read(source / 'ResourceAssembly.json')
+    if assembly['catalogSha256'] != models.sha(manifest_path):
+        raise ValueError('The character resource assembly differs from its catalog.')
     available = models.catalog_payloads(manifest)
+    proofs = {row['file']: row for row in assembly['proofs']}
+    by_cab = {row['newCab']: name for name, row in proofs.items()}
     surface, _ = models.source_owner()
 
     @lru_cache(maxsize=8)
     def load_installed_bundle(path, sha256):
         return resources.load_serialized_bundle(checked(dict(path=path, sha256=sha256)), in_memory=True)[1]
+
+    def resolve(file, pointer):
+        if pointer['m_FileID']:
+            cab = file.externals[pointer['m_FileID'] - 1].name
+            name = by_cab[cab]
+            path = models.checked_catalog_path(source / 'Catalog', name)
+            file = load_installed_bundle(str(path), available[name])
+        return file, file.objects[pointer['m_PathID']]
 
     reports = []
     for path in args.blender_export:
@@ -274,19 +274,20 @@ def prepare(args, source, output):
         _, native = resources.load_serialized_bundle(native_path, in_memory=True)
         rows = {row['pathId']: row for row in report['meshes']}
         face_ids = resources.face_mesh_identifiers(native)
-        native_groom = any('nativeGroom' in row for row in rows.values())
-        groom_ids = resources.groom_mesh_identifiers(native, include_native_lods=native_groom)
+        groom_edit = any('nativeGroom' in row or row.get('retainedGroom') is True for row in rows.values())
+        groom_ids = resources.groom_mesh_identifiers(native, include_native_lods=groom_edit)
         faces = face_ids & rows.keys()
         hair = groom_ids & rows.keys()
         if (not rows or len(rows) != len(report['meshes']) or set(rows) != faces | hair or
                 (faces and faces != face_ids) or (hair and hair != groom_ids)):
             raise ValueError(f'The Blender export requires every LOD of the selected surfaces: {name}')
         recipe = output / 'UnityInput' / Path(name).stem / 'MeshRecipe.json'
-        meshes, textures, skin_slots, face_stencils = [], [], [], {}
+        meshes, textures, skin_slots, face_stencils, head_frames = [], [], [], {}, {}
         chart_ref, chart = charts.get(name, (None, None))
         layouts = {row['pathId']: row for row in chart['meshes'] if row['collar']} if chart else {}
         if chart and (not layouts or layouts.keys() - faces):
             raise ValueError('A skin chart requires an authored face mesh and its declared material source.')
+        face_palettes = resources.face_skin_bone_palettes(native, faces, resolve)
         for identifier in sorted(faces):
             row = rows[identifier]
             if row['firstVertex'] != 0:
@@ -300,19 +301,42 @@ def prepare(args, source, output):
                     packet, face_stencils[str(identifier)] = refine_authored_surface(packet, refinement, surface)
                 if identifier in layouts:
                     layout = layouts[identifier]['collar']
+                    aliases = art['source_vertices']
                     face = update_face_uv(packet, art, surface, layout['sourceSlot'])
                     skin_slots.append(dict(meshPathId=identifier, renderer=layouts[identifier]['name'], sourceSlot=layout['sourceSlot'],
                                            targetSlot=len(packet['subMeshes']), maps=layout['maps']))
                     textures.extend(stage_material_maps(recipe, layout['maps']))
                 else:
-                    face = update_face(packet, art['positions'], art['triangles'], surface, art.get('skin_normals'))
+                    face = update_retained_mesh(packet, art['positions'], art['triangles'], surface, art.get('skin_normals'))
+            if any(shape['name'].casefold() == 'muscular' for shape in face['shapes']):
+                contacts = models.resource_face_contact_vertices(proofs[name], identifier)
+                if identifier in layouts:
+                    contacts = np.flatnonzero(np.isin(aliases, sorted(contacts)))
+                face, frame_facts = surface.repair_head_body_frame_shading(face, face_palettes[identifier], contacts)
+                if frame_facts:
+                    head_frames[str(identifier)] = frame_facts
             meshes.append(models.recipe_mesh(dict(face, name=row['name'])))
         job = dict(blenderReport=report_ref, source=pin(native_path))
         if skin_slots:
             job.update(skinChart=chart_ref, skinSlots=skin_slots)
         if face_stencils:
             job['faceStencils'] = face_stencils
-        if hair:
+        if head_frames:
+            job['headBodyFrameShading'] = head_frames
+        retained_groom = {identifier for identifier in hair if rows[identifier].get('retainedGroom') is True}
+        if retained_groom:
+            if retained_groom != hair or any('nativeGroom' in rows[identifier] for identifier in hair):
+                raise ValueError('Use one source policy for all groom surfaces in a prefab.')
+            for identifier in sorted(hair):
+                row = rows[identifier]
+                if row['firstVertex'] != 0:
+                    raise ValueError('A retained groom export needs the complete skinned surface.')
+                packet = models.export_current_mesh(native.objects[identifier])
+                with np.load(checked(row['geometry']), allow_pickle=False) as art:
+                    groom = update_retained_mesh(packet, art['positions'], art['triangles'], surface,
+                                                 art.get('skin_normals'))
+                meshes.append(models.recipe_mesh(dict(groom, name=row['name'])))
+        elif hair:
             if any('nativeGroom' not in rows[identifier] for identifier in hair):
                 raise ValueError('A native groom build requires the installed surface of every groom renderer.')
             bindings, source_inputs = [], []
@@ -440,6 +464,7 @@ def bind_mesh_bundle(name, job, compiled_reference, recipe_sha, output, identity
             if pointer and pointer['m_FileID'] == 0:
                 cloth_meshes.add(pointer['m_PathID'])
     replacements = []
+    same_meshes = not slots and not groom_path
     for row in report['meshes']:
         identifier = row['pathId']
         mesh = unity_meshes[row['name']]
@@ -448,6 +473,8 @@ def bind_mesh_bundle(name, job, compiled_reference, recipe_sha, output, identity
             retained = attached[identifier]
         else:
             old = models.export_current_mesh(native.objects[identifier])
+            same_meshes = (same_meshes and old['sourceFingerprint'] == new['sourceFingerprint'] and
+                           old['bounds'] == new['bounds'])
             retained = dict(sourceFingerprint=old['sourceFingerprint'], sourcePathIds=[identifier], binding=None)
             if (identifier in cloth_meshes and (old['vertexCount'] == new['vertexCount'] or 'refinement' in row)
                     and any(old[field] != new[field] for field in ('vertices', 'normals', 'tangents'))):
@@ -455,6 +482,16 @@ def bind_mesh_bundle(name, job, compiled_reference, recipe_sha, output, identity
                 stencils = job.get('faceStencils', {}).get(str(identifier), [])
                 retained['binding'] = source_surface_binding(old, new, transform, stencils)
         replacements.append(dict(retained, compiledTree=mesh.read_typetree(), packet=new))
+    if same_meshes:
+        # A later contact fit may already own the exact Unity geometry. Keep its
+        # serialized mesh and cloth together when refreshing the authoring receipt.
+        if not mesh_target.exists():
+            mesh_target.hardlink_to(original)
+        elif not mesh_target.samefile(original):
+            raise ValueError(f'The verified source has a different candidate payload: {name}')
+        models.write(receipt_path, dict(file=name, source=job['source'], target=pin(mesh_target),
+                                        bindInputs=evidence, readbackOnly=True))
+        return receipt_path
     slot_updates = [dict(meshPathId=row['meshPathId'], slots=[dict(sourceSlot=row['sourceSlot'],
                     targetSlot=row['targetSlot'])]) for row in slots]
     receipt = resources.prepare_standalone_part(original, job['source']['sha256'], mesh_target,
@@ -553,6 +590,10 @@ def bind(args, source, output):
         inherited = [item for item in previous if any(row['pathId'] not in authored_meshes
             for row in models.read(checked(item['blenderReport']))['meshes'])]
         authoring[name] = [*inherited, declaration] if inherited else declaration
+        if receipt.get('readbackOnly'):
+            if part_slots or not target.samefile(original) or receipt['source']['sha256'] != entry['sha256']:
+                raise ValueError(f'The verified character mesh must retain its source payload: {name}')
+            continue
         proof = proofs[name]
         inputs = list(declaration.values())
         if 'groomBinding' in job:
@@ -567,9 +608,12 @@ def bind(args, source, output):
             inputs.extend([material, *declaration.get('sources', ())])
             for reference in declaration.get('sources', ()):
                 checked(reference)
-        proof.setdefault('appearanceFinishing', []).append(dict(kind='blender-character-mesh',
+        mesh_finishing = dict(kind='blender-character-mesh',
             beforeSha256=entry['sha256'], sha256=receipt['target']['sha256'], proof=pin(receipt_path),
-            authority=dict(inputs=inputs)))
+            authority=dict(inputs=inputs))
+        if 'headBodyFrameShading' in job:
+            mesh_finishing['headBodyFrameShading'] = job['headBodyFrameShading']
+        proof.setdefault('appearanceFinishing', []).append(mesh_finishing)
         entry['sha256'] = receipt['target']['sha256']
         added_objects = len(receipt['objectsAdded'])
         if part_slots:

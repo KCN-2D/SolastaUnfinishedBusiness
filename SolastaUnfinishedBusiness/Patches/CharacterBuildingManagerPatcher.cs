@@ -55,6 +55,27 @@ public static class CharacterBuildingManagerPatcher
         }
     }
 
+    [HarmonyPatch(typeof(CharacterBuildingManager), nameof(CharacterBuildingManager.BuildMorphotypeOptionsList))]
+    [UsedImplicitly]
+    public static class BuildMorphotypeOptionsList_Patch
+    {
+        [UsedImplicitly]
+        public static void Postfix([HarmonyArgument(0)] MorphotypeElementDefinition.ElementCategory category,
+            [HarmonyArgument(1)] CreatureSex sex, [HarmonyArgument(2)] CharacterRaceDefinition race,
+            [HarmonyArgument(3)] CharacterRaceDefinition subRace, [HarmonyArgument(7)] bool onlyPlayerSelectable,
+            List<string> __result)
+        {
+            if (!onlyPlayerSelectable || __result.Count == 0) return;
+            var prefix = RacesContext.OptionalMorphotypeAssetPrefix(category, race, subRace, sex);
+            if (string.IsNullOrEmpty(prefix)) return;
+
+            __result.RemoveAll(option =>
+                RacesContext.OptionalMorphotypePrefab(prefix, category, option) is { } address &&
+                !RacesContext.HasCharacterPartPrefab(address));
+            if (__result.Count == 0) __result.Add(category + "_None");
+        }
+    }
+
     internal static string BuildClassExtraSpellPoolName(
         CharacterClassDefinition classDefinition,
         int level,

@@ -581,6 +581,53 @@ class GroomAttachmentTests(unittest.TestCase):
         finally:sys.path.pop(0)
         return owner
 
+    def test_refining_cloth_tether_preserves_authored_anchors_and_tighter_limits(self):
+        owner = self.resource_owner()
+        virtual = {'childDataList': [{'weights': [0.65, 0.35]}], 'vertexToTriangleInfoList': [16777216, 0]}
+        cloth = {
+            'm_Enabled': 1, 'virtualDeformer': {'m_FileID': 0, 'm_PathID': 2},
+            'clothData': {'m_FileID': 0, 'm_PathID': 3}, 'clothParams': {
+                'useClampPositionLength': 1,
+                'clampPositionLength': {'startValue': .0035, 'endValue': .018, 'useEndValue': 1,
+                                        'curveValue': 0., 'useCurveValue': 0},
+                'clampPositionVelocityInfluence': .4
+            }
+        }
+        trees = {
+            1: cloth, 2: {'m_Enabled': 1, 'deformer': {
+                'renderDeformerList': [{'m_FileID': 0, 'm_PathID': 4}],
+                'meshData': {'m_FileID': 0, 'm_PathID': 5}}},
+            3: {'useVertexList': [0, 1], 'selectionData': [2, 1]},
+            4: {'deformer': {'sharedMesh': {'m_FileID': 0, 'm_PathID': 10}}}, 5: virtual,
+        }
+        before = copy.deepcopy(trees)
+        changes = owner.limit_groom_cloth_displacement(trees, None, {10}, preserve_attachments=True)
+        self.assertEqual(set(changes), {1})
+        self.assertEqual(changes[1]['movingPoints'], 1)
+        self.assertEqual(changes[1]['after']['curve']['startValue'], .003)
+        self.assertEqual(changes[1]['after']['curve']['endValue'], .013)
+        for identifier in (2, 3, 4, 5):
+            self.assertEqual(trees[identifier], before[identifier])
+        cloth['clothParams']['clampPositionLength'].update(startValue=.002, endValue=.010)
+        tighter = copy.deepcopy(trees)
+        self.assertEqual(owner.limit_groom_cloth_displacement(trees, None, {10}, preserve_attachments=True), {})
+        self.assertEqual(trees, tighter)
+
+    def test_groom_edge_continuity_accounts_for_attachment_leverage(self):
+        owner = self.resource_owner()
+        positions = np.array([[0., 0., 0.], [.020, 0., 0.], [.020, .006, 0.]])
+        parents = np.array([[0, 1, 2], [0, 1, 2], [3, 4, 5]])
+        weights = np.array([[.40, .50, .10], [.45, .18, .37], [.7, .2, .1]])
+        previous = weights.copy()
+        radii = np.array([[.017, .018, .022], [.013, .024, .020], [.017, .021, .022]])
+        changed = owner.cohere_simulated_groom_edges(positions, parents, weights, radii,
+                                                    np.arange(3), np.array([[0, 1], [1, 2]]),
+                                                    np.array([1., 1., 0.]), .013)
+        np.testing.assert_array_equal(changed, [True, True, False])
+        self.assertLess(np.abs(weights[0] - weights[1]).sum(), np.abs(previous[0] - previous[1]).sum())
+        np.testing.assert_allclose(weights.sum(axis=1), 1.)
+        np.testing.assert_array_equal(weights[2], previous[2])
+
     def test_existing_shader_reuse_checks_bundle_bytes_and_actual_material_object_reference(self):
         owner=self.resource_owner()
         with tempfile.TemporaryDirectory()as directory:

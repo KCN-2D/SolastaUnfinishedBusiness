@@ -1101,7 +1101,8 @@ class ResourceStorageTest(unittest.TestCase):
             before = references.read_bytes()
             current = dict(directory=candidate, sha256=fingerprint, accepted=True, modified=1)
             with patch.object(storage, "ARTIFACTS", root), patch.object(storage, "WORKSPACE", root / "Workspace"), \
-                    patch.object(storage, "PUBLIC", manifest), patch.object(storage, "discover", return_value=([current], [])):
+                    patch.object(storage, "PUBLIC", manifest), patch.object(storage, "discover", return_value=([current], [])), \
+                    patch.object(storage, "producer_processes", return_value=[]):
                 with self.assertRaisesRegex(ValueError, "source catalog changed"):
                     storage.plan(root / "Output", apply=True)
             self.assertEqual(references.read_bytes(), before)

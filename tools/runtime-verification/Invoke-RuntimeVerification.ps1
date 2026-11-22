@@ -81,14 +81,15 @@ function Read-SharedText([string] $Path) {
     try { return $reader.ReadToEnd() } finally { $reader.Dispose(); $stream.Dispose() }
 }
 
-function Get-CurrentRunLog {
-    $content = Read-SharedText $PlayerLogPath
-    # Unity normally replaces Player.log; also handle a host which appends instead.
-    if ($originalLogContent.Length -gt 0 -and
-        $content.StartsWith($originalLogContent, [StringComparison]::Ordinal)) {
-        return $content.Substring($originalLogContent.Length)
+function Get-RunLogSegment([string] $Content, [string] $Baseline) {
+    if ($Baseline.Length -gt 0 -and $Content.StartsWith($Baseline, [StringComparison]::Ordinal)) {
+        return $Content.Substring($Baseline.Length)
     }
-    return $content
+    return $Content
+}
+
+function Get-CurrentRunLog {
+    return Get-RunLogSegment (Read-SharedText $PlayerLogPath) $originalLogContent
 }
 
 function Test-StartupMarkers([string] $Content) {
@@ -300,6 +301,7 @@ $managedDirectory = Join-Path $gameDirectory 'Solasta_Data\Managed'
 $outputDirectory = Join-Path $repoRoot 'tools\CustomBuildLocal\Output\SolastaUnfinishedBusiness'
 $settingsPath = Join-Path $installedUbDirectory 'Settings.xml'
 $paramsPath = Join-Path $managedDirectory 'UnityModManager\Params.xml'
+$managerLogPath = Join-Path $managedDirectory 'UnityModManager\Log.txt'
 $nativePreferencesDirectory = Join-Path $env:USERPROFILE 'AppData\LocalLow\Tactical Adventures\Solasta'
 $nativeUserDataOwner = [guid]::NewGuid().ToString('N')
 $nativeUserDataRoot = Join-Path $allowedEvidenceRoot '.native'
@@ -673,6 +675,8 @@ try {
             $result['nativeIsolationLoadOrder'] = @{ before = $probeId; after = 'SolastaUnfinishedBusiness'; cyclesChecked = $true }
         }
         Assert-NoGameProcess
+        $managerLogBaseline = Read-SharedText $managerLogPath
+        $managerStartupFinished = $false
         $launchParameters = @{
             FilePath = $GameExePath; WorkingDirectory = $gameDirectory
             WindowStyle = $(if ($ShowGameWindow) { 'Normal' } else { 'Hidden' }); PassThru = $true
@@ -716,6 +720,22 @@ try {
                 throw "Game exited before verification completed (exit code $($exitObservation.exitCode))."
             }
             if ($requirePrivateDesktop) { [void](Save-ForegroundObservation 'running' -ObserveOnly:$RequireNonInputDesktop) }
+            if (-not $managerStartupFinished -and [IO.File]::GetLastWriteTimeUtc($managerLogPath) -ge $processStartTime.ToUniversalTime()) {
+                $managerLog = ''
+                try {
+                    $managerContent = Read-SharedText $managerLogPath
+                    $managerLog = if ($managerContent -ceq $managerLogBaseline) { $managerContent }
+                        else { Get-RunLogSegment $managerContent $managerLogBaseline }
+                }
+                catch [IO.IOException] { }
+                if ($managerLog -match '(?m)^\[Manager\] FINISH\. SUCCESSFUL LOADED \d+/\d+ MODS\.') {
+                    $managerStartupFinished = $true
+                    if (@(Get-RuntimeErrors $managerLog).Count -gt 0) {
+                        [IO.File]::WriteAllText((Join-Path $runDirectory 'Runtime-ManagerStartup.log'), $managerLog)
+                        throw 'Unity Mod Manager reported a startup error. See Runtime-ManagerStartup.log.'
+                    }
+                }
+            }
             if ($StartupOnly) {
                 $currentLog = Get-CurrentRunLog
                 if (@(Get-RuntimeErrors $currentLog).Count -gt 0) {
