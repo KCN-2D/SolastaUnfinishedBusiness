@@ -965,11 +965,245 @@ def verify_groom_shader_reuse(shader: dict[str,Any],sources: list[dict[str,Any]]
         sourceShaderBytesAndReferencesRetained=True)
 
 
+def moving_cloth_proxies(simulation):
+    """Return the virtual points that Magica moves for this cloth component."""
+    return {vertex for vertex, selection in zip(simulation['useVertexList'], simulation['selectionData'], strict=True)
+            if selection == 1}
+
+
+def limit_groom_cloth_displacement(trees, file, groom_meshes):
+    """Keep authored hair and beard cloth within its skinned head-relative pose."""
+    from copy import deepcopy
+
+    def local(pointer):
+        return trees.get(pointer['m_PathID']) if pointer and pointer['m_FileID'] == 0 else None
+
+    changes = {}
+    children = {}
+    anchor_sets = {}
+    maximum_at_root, maximum_at_tip = .0035, .018
+    for key, cloth in trees.items():
+        if not cloth.get('m_Enabled') or 'virtualDeformer' not in cloth or 'clothParams' not in cloth:
+            continue
+        controller = local(cloth['virtualDeformer'])
+        simulation = local(cloth.get('clothData'))
+        if not controller or not controller.get('m_Enabled') or simulation is None:
+            continue
+        renderers = [local(pointer) for pointer in controller['deformer']['renderDeformerList']]
+        meshes = [renderer['deformer']['sharedMesh'] for renderer in renderers if renderer]
+        if (not meshes or len(meshes) != len(renderers) or
+                any(mesh['m_FileID'] or mesh['m_PathID'] not in groom_meshes for mesh in meshes)):
+            continue
+        moving = moving_cloth_proxies(simulation)
+        if not moving:
+            continue
+        data_key = controller['deformer']['meshData']['m_PathID']
+        virtual = local(controller['deformer']['meshData'])
+        if virtual is None:
+            raise ValueError('The groom cloth controller has no serialized virtual mesh.')
+        fixed_vertices, moving_vertices = anchor_sets.setdefault(data_key, (set(), set()))
+        fixed_vertices.update(vertex for vertex, selection in zip(simulation['useVertexList'],
+                              simulation['selectionData'], strict=True) if selection == 2)
+        moving_vertices.update(moving)
+        for index, (mesh, child) in enumerate(zip(meshes, virtual['childDataList'], strict=True)):
+            owner = children.setdefault((data_key, index), (mesh['m_PathID'], child, set()))
+            if owner[0] != mesh['m_PathID']:
+                raise ValueError('A shared cloth child references different groom render meshes.')
+            owner[2].update(moving)
+        parameters = cloth['clothParams']
+        curve = parameters['clampPositionLength']
+        enabled = bool(parameters['useClampPositionLength'])
+        start = curve['startValue']
+        end = curve['endValue'] if curve['useEndValue'] else start
+        if enabled and start <= maximum_at_root and max(start, end) <= maximum_at_tip:
+            continue
+        old = dict(enabled=enabled, curve=deepcopy(curve),
+                   velocityInfluence=parameters['clampPositionVelocityInfluence'])
+        # Native clamp distances use the same metres as the authored cloth rest
+        # pose. Let the solver keep its original inertia, with more room at the tips.
+        parameters['useClampPositionLength'] = 1
+        tip = min(end, maximum_at_tip) if enabled else maximum_at_tip
+        root = min(start, tip, maximum_at_root) if enabled else maximum_at_root
+        curve.update(startValue=root, endValue=tip, useEndValue=1, curveValue=0.0, useCurveValue=0)
+        parameters['clampPositionVelocityInfluence'] = max(parameters['clampPositionVelocityInfluence'], .4)
+        changes[key] = dict(meshes=[mesh['m_PathID'] for mesh in meshes], movingPoints=len(moving), before=old,
+                            after=dict(enabled=True, curve=deepcopy(curve),
+                                       velocityInfluence=parameters['clampPositionVelocityInfluence']))
+    for data_key, (fixed, moving) in anchor_sets.items():
+        stabilized = keep_groom_anchor_rotation(trees[data_key], fixed - moving, moving)
+        if stabilized:
+            changes.setdefault(data_key, {})['fixedAnchorFrames'] = stabilized
+    for (data_key, _), (mesh, child, moving) in children.items():
+        corrected = cohere_groom_attachment_boundary(file.objects[mesh], child, moving, maximum_at_tip)
+        if corrected:
+            changes.setdefault(data_key, {}).setdefault('attachmentBoundaries', []).append(
+                dict(mesh=mesh, vertices=corrected))
+    return changes
+
+
+def keep_groom_anchor_rotation(virtual_mesh, fixed, moving):
+    """Keep the skinned rotation where a fixed proxy borders moving cloth."""
+    packed = virtual_mesh['vertexToTriangleInfoList']
+    if not packed:
+        return []
+    incident = virtual_mesh['vertexToTriangleIndexList']
+    triangles = virtual_mesh['triangleList']
+    stabilized = []
+    for vertex in sorted(fixed):
+        start = packed[vertex] & 0xffffff
+        count = packed[vertex] >> 24
+        fan = incident[start:start + count]
+        if len(fan) != count or any(not 0 <= face < len(triangles) // 3 for face in fan):
+            raise ValueError('A fixed groom proxy has an invalid triangle fan.')
+        if any(moving.intersection(triangles[face*3:face*3 + 3]) for face in fan):
+            # A zero count keeps the bone-derived rotation in Magica's
+            # triangle normal pass. The simulated triangles remain intact.
+            packed[vertex] = start
+            stabilized.append(vertex)
+    return stabilized
+
+
+def cohere_groom_attachment_boundary(mesh, child, moving, maximum_travel):
+    """Smooth attachment weights at scalp joins and along connected strands."""
+    import numpy as np
+    from UnityPy.helpers.MeshHelper import MeshHandler
+
+    data = MeshHandler(mesh.read())
+    data.process()
+    positions = np.asarray(data.m_Vertices)
+    if len(positions) != child['vertexCount'] or len(positions) != len(child['vertexInfoList']):
+        raise ValueError('The groom mesh and its attachment boundary differ.')
+    triangles = np.asarray([face for slot in data.get_triangles() for face in slot], dtype=int).reshape(-1, 3)
+    width = max((row >> 28 for row in child['vertexInfoList']), default=0)
+    if not width:
+        return 0
+    proxies = np.full((len(positions), width), -1, dtype=int)
+    weights = np.zeros(proxies.shape)
+    packets = []
+    for index, packed in enumerate(child['vertexInfoList']):
+        size, start = packed >> 28, packed & 0x0fffffff
+        packet = sorted(child['vertexWeightList'][start:start + size], key=lambda row: row['parentIndex'])
+        if len(packet) != size:
+            raise ValueError('The groom child has an invalid attachment weight span.')
+        packets.append(packet)
+        proxies[index, :size] = [row['parentIndex'] for row in packet]
+        weights[index, :size] = [row['weight'] for row in packet]
+    mobile = np.isin(proxies, list(moving))
+    mobile_weight = (weights * mobile).sum(axis=1)
+    moving_limit = .025
+    boundary = (mobile_weight > moving_limit) & (mobile_weight <= .85)
+    pinned = mobile_weight <= 1e-6
+    half_edges = np.concatenate((triangles[:, :2], triangles[:, 1:], triangles[:, [2, 0]]))
+    edges = np.concatenate((half_edges, half_edges[:, ::-1]), axis=0)
+    starts, ends = edges.T
+    def share_anchor(a, b):
+        return ((proxies[a, :, None] == proxies[b, None, :]) &
+                (~mobile[a, :, None]) & (weights[a, :, None] > 0) & (weights[b, None, :] > 0)).any(axis=(1, 2))
+
+    seam = boundary[starts] & pinned[ends]
+    a, b = starts[seam], ends[seam]
+    seeds = a[share_anchor(a, b)]
+    # Apply the same weights to UV duplicates with the same original attachment.
+    _, groups = np.unique(np.column_stack((np.rint(positions * 1e7), proxies, np.rint(weights * 1e6))),
+                          axis=0, return_inverse=True)
+    limit = np.full(groups.max() + 1, np.inf)
+    limit[groups[seeds]] = moving_limit
+
+    # A seam can contain several partially attached rows. Let motion recover
+    # over their actual edge lengths so clamping the first row does not move
+    # the tear into the next one. Fully simulated strands keep their weights.
+    mixed = boundary[starts] & boundary[ends]
+    a, b = starts[mixed], ends[mixed]
+    same_anchor = share_anchor(a, b)
+    a, b = a[same_anchor], b[same_anchor]
+    allowance = 3.0 * np.linalg.norm(positions[a] - positions[b], axis=1)
+    start_groups, end_groups = groups[a], groups[b]
+    while len(allowance):
+        proposed = limit[start_groups] + allowance
+        improves = proposed < limit[end_groups]
+        if not improves.any():
+            break
+        np.minimum.at(limit, end_groups[improves], proposed[improves])
+
+    # A seam adjustment must not move the discontinuity to the first
+    # fully simulated row. Propagate the original edge gradients back
+    # towards the seam before replacing any of the render weights.
+    _, representative = np.unique(groups, return_index=True)
+    native = mobile_weight[representative]
+    desired = np.minimum(native, limit)
+    left, right = np.unique(groups[edges], axis=0).T
+    difference = np.abs(native[left] - native[right])
+    while len(left):
+        proposed = desired[right] - difference
+        improves = proposed > desired[left] + 1e-8
+        if not improves.any():
+            break
+        np.maximum.at(desired, left[improves], proposed[improves])
+    changed = desired[groups] < mobile_weight - 1e-8
+    for index in np.flatnonzero(changed):
+        cap = desired[groups[index]]
+        coefficients = weights[index, :len(packets[index])]
+        moving_slots = mobile[index, :len(coefficients)]
+        coefficients[moving_slots] *= cap / coefficients[moving_slots].sum()
+        coefficients[~moving_slots] *= (1.0 - cap) / coefficients[~moving_slots].sum()
+    changed |= cohere_simulated_groom_edges(positions, proxies, weights, groups, half_edges, mobile_weight,
+                                           maximum_travel)
+    for index in np.flatnonzero(changed):
+        coefficients = weights[index, :len(packets[index])]
+        for row, weight in zip(packets[index], coefficients, strict=True):
+            row['weight'] = float(weight)
+    return int(changed.sum())
+
+
+def cohere_simulated_groom_edges(positions, proxies, weights, groups, half_edges, mobile_weight, maximum_travel):
+    """Keep close points on one strand responsive to the same simulated parents."""
+    import numpy as np
+
+    _, representative = np.unique(groups, return_index=True)
+    edges = np.unique(np.sort(groups[half_edges], axis=1), axis=0)
+    a, b = edges.T
+    fully_simulated = mobile_weight[representative] >= 1.0 - 1e-6
+    valid = (a != b) & fully_simulated[a] & fully_simulated[b]
+    a, b = a[valid], b[valid]
+    points = positions[representative]
+    # Parents can move apart by twice the tip travel. A short render edge
+    # needs more shared influence to follow that motion continuously.
+    allowance = np.maximum(.025, np.linalg.norm(points[a] - points[b], axis=1) / (2 * maximum_travel))
+    nearby = allowance < 1.0
+    a, b, allowance = a[nearby], b[nearby], allowance[nearby]
+    if not len(a):
+        return np.zeros(len(groups), dtype=bool)
+
+    parents = proxies[representative]
+    same = (parents[a, :, None] == parents[b, None, :]) & (parents[a, :, None] >= 0)
+    initial = weights[representative].copy()
+    blended = initial.copy()
+    for _ in range(4):
+        shared = np.minimum(blended[a, :, None], blended[b, None, :]) * same
+        overlap = shared.sum(axis=(1, 2))
+        active = (overlap > 1e-6) & (1.0 - overlap > allowance)
+        if not active.any():
+            break
+        blends = np.minimum(.6, 1.0 - allowance[active] / (1.0 - overlap[active]))
+        common = shared[active] / overlap[active, None, None]
+        proposal = np.zeros_like(blended)
+        mass = np.zeros(len(blended))
+        for vertices, towards in ((a[active], common.sum(axis=2)), (b[active], common.sum(axis=1))):
+            np.add.at(proposal, vertices, (towards - blended[vertices]) * blends[:, None])
+            np.add.at(mass, vertices, blends)
+        blended += proposal / np.maximum(mass, 1.0)[:, None]
+    changed = np.any(np.abs(initial - blended) > 1e-6, axis=1)[groups]
+    weights[changed] = blended[groups[changed]]
+    return changed
+
+
 def refine_groom_resource_frames(job: dict[str, Any]) -> dict[str, Any]:
     """Save one bounded, resumable groom frame update without re-encoding textures."""
     from UnityPy.helpers.MeshHelper import MeshHandler
     source=Path(job['source']);target=Path(job['target']);receipt=Path(job['receipt'])
     identity=dict(sourceSha256=job['sha256'],codeSha256=job['codeSha256'])
+    cloth_only=job.get('clothContinuityOnly',False)
+    if cloth_only:identity['clothContinuityOnly']=True
     flow_only=job.get('flowOnly',False)
     missing_only=job.get('missingOnly',False)
     preserve_normals=job.get('preserveSupportNormals',False)
@@ -991,6 +1225,8 @@ def refine_groom_resource_frames(job: dict[str, Any]) -> dict[str, Any]:
     streams={name:hashlib.sha256(member.bytes).hexdigest()for name,member in env.file.files.items()if name!=file.name}
     before={key:hashlib.sha256(serialized_object_bytes(obj)).hexdigest()for key,obj in file.objects.items()}
     material_copies=job.get('materialSources',[])
+    if cloth_only and (material_copies or flow_only or missing_only or gpu_bridge or declared_flows):
+        raise ValueError('Cloth continuity preparation preserves mesh and material frames.')
     if missing_only:
         import copy
         plan=groom_lod_plan(file)
@@ -1003,13 +1239,13 @@ def refine_groom_resource_frames(job: dict[str, Any]) -> dict[str, Any]:
     if set(declared_flows)-groom_ids:raise ValueError('A declared groom flow has no renderer-owned mesh.')
     material_ids=groom_material_identifiers(file)
     source_formats={dict(file.objects[key].read_typetree()['m_SavedProperties']['m_Floats']).get('_FlowInVertexFrame',0)for key in material_ids}
-    if len(source_formats)!=1:raise ValueError('A groom resource has conflicting source flow formats.')
-    source_format=int(next(iter(source_formats)))
+    if not cloth_only and len(source_formats)!=1:raise ValueError('A groom resource has conflicting source flow formats.')
+    source_format=int(next(iter(source_formats),0))
     material_ids|={row['object']for row in material_copies}
     if flow_only and(groom_ids!=groom_mesh_identifiers(file,1)or source_format not in (1,2)):
         raise ValueError('A fiber-only update requires an existing owned groom frame and flow field.')
     changed={row['object']:file.objects[row['object']].data for row in material_copies};bindings={};meshes=[];materials=[]
-    for key,obj in file.objects.items():
+    for key,obj in (() if cloth_only else file.objects.items()):
         if obj.type.name=='Mesh'and key in groom_ids:
             tree=obj.read_typetree();channels=tree['m_VertexData']['m_Channels']
             if missing_only and channels[6]['dimension']==4:continue
@@ -1043,12 +1279,18 @@ def refine_groom_resource_frames(job: dict[str, Any]) -> dict[str, Any]:
             if not flow_only and floats.get('_SupportInVertexFrame',0)!=0:raise ValueError('The source groom is already transported.')
             floats['_SupportInVertexFrame']=1.;floats['_FlowInVertexFrame']=2. if gpu_bridge else 1.;properties['m_Floats']=list(floats.items())
             obj.save_typetree(tree);changed[key]=obj.data;materials.append(tree['m_Name'])
-    if not meshes or(not flow_only and not missing_only and not materials):raise ValueError('A declared groom resource has no source support or owning material.')
+    if not cloth_only and (not meshes or(not flow_only and not missing_only and not materials)):
+        raise ValueError('A declared groom resource has no source support or owning material.')
     if missing_only and{row['object']for row in meshes}!=set(coordinates):raise ValueError('The missing groom domains do not cover every declared LOD.')
     trees={key:obj.read_typetree()for key,obj in file.objects.items()if obj.type.name=='MonoBehaviour'}
-    cloth=transport_groom_cloth_frames(trees,bindings)
+    continuity=limit_groom_cloth_displacement(trees,file,groom_mesh_identifiers(file,include_native_lods=True)) if cloth_only else {}
+    cloth=sorted(continuity) if cloth_only else transport_groom_cloth_frames(trees,bindings)
     for key in cloth:file.objects[key].save_typetree(trees[key]);changed[key]=file.objects[key].data
-    temporary=target.with_suffix('.writing');temporary.write_bytes(env.file.save(packer='lz4'))
+    temporary=target.with_suffix('.writing')
+    if cloth_only and not cloth:
+        temporary.hardlink_to(source)
+    else:
+        temporary.write_bytes(env.file.save(packer='lz4'))
     saved_env,saved=load_serialized_bundle(temporary,in_memory=True)
     saved_streams={name:hashlib.sha256(member.bytes).hexdigest()for name,member in saved_env.file.files.items()if name!=saved.name}
     if streams!=saved_streams:raise ValueError('A groom texture or resource stream changed during frame transport.')
@@ -1069,6 +1311,7 @@ def refine_groom_resource_frames(job: dict[str, Any]) -> dict[str, Any]:
     if flow_only:result['flowOnly']=True
     if gpu_bridge:result['gpuBridge']=True
     if preserve_normals:result['preserveSupportNormals']=True
+    if cloth_only:result['clothContinuity']=continuity
     receipt.parent.mkdir(parents=True,exist_ok=True)
     receipt.write_text(json.dumps(result,separators=(',',':'))+'\n',encoding='utf-8')
     return result
@@ -3070,8 +3313,7 @@ def fixed_cloth_render_vertices(trees, mesh_key):
         virtual_mesh = local(deformer['meshData'])
         if virtual_mesh is None:
             continue
-        fixed = {vertex for vertex, root, depth in zip(simulation['useVertexList'],
-                 simulation['rootList'], simulation['vertexDepthList']) if root == -1 and depth == 0}
+        moving = moving_cloth_proxies(simulation)
         for ordinal, pointer in enumerate(deformer['renderDeformerList']):
             renderer = local(pointer)
             if renderer is None:
@@ -3084,8 +3326,8 @@ def fixed_cloth_render_vertices(trees, mesh_key):
             matches = set()
             for vertex, packed in enumerate(child['vertexInfoList']):
                 count, start = packed >> 28, packed & 0x0fffffff
-                if child['parentIndexList'][vertex] in fixed and count and all(
-                        value['parentIndex'] in fixed for value in weights[start:start + count] if value['weight'] > 0):
+                if count and all(value['parentIndex'] not in moving
+                                 for value in weights[start:start + count] if value['weight'] > 0):
                     matches.add(vertex)
             attached = matches if attached is None else attached & matches
     return None if attached is None else sorted(attached)

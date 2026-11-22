@@ -38,6 +38,42 @@ try {
         [IO.File]::WriteAllText($changedFile,$original)
     }
     $results.Add([pscustomobject]@{name='build reuse requires matching staged files, output and archive';passed=$true})
+    $registeredWork = Join-Path $temporary 'StorageReferences.json'
+    Write-GtJson $registeredWork ([ordered]@{schemaVersion=1;paths=@()})
+    $completed = [DateTime]::UtcNow.AddMinutes(-2)
+    [IO.File]::SetLastWriteTimeUtc($registeredWork, $completed.AddSeconds(-5))
+    $work = Join-Path $temporary 'Work'
+    $kept = Join-Path $work 'Previous'
+    $additional = Join-Path $temporary 'Additional'
+    $owners = @([ordered]@{path=(Join-Path $temporary 'Cleanup.ps1');sha256='same'})
+    $cache = [pscustomobject]@{
+        status='PASS'
+        cleanupSources=@([ordered]@{path=$scriptPath;sha256='previous-wrapper'}) + $owners
+        cleanupCompletedUtc=$completed.ToString('O')
+        workDirectories=@($kept)
+    }
+    foreach ($scenario in @(
+        @{name='unchanged retention';directories=@($kept);expected=$true},
+        @{name='additional retention';directories=@($kept,$additional);expected=$true},
+        @{name='parent retention covers its previous child';directories=@($work);expected=$true},
+        @{name='removed retention';directories=@();expected=$false},
+        @{name='narrowed retention';directories=@((Join-Path $kept 'Child'));expected=$false},
+        @{name='path prefix does not cover a sibling';directories=@($kept+'-other');expected=$false}
+    )) {
+        if ((Test-GtStorageCleanupCurrent $cache $scriptPath $owners $scenario.directories $registeredWork) -ne $scenario.expected) {
+            throw "Storage cleanup reuse failed: $($scenario.name)"
+        }
+        $results.Add([pscustomobject]@{name=('storage cleanup: '+$scenario.name);passed=$true})
+    }
+    $changedOwners = @([ordered]@{path=$owners[0].path;sha256='changed'})
+    if (Test-GtStorageCleanupCurrent $cache $scriptPath $changedOwners @($kept) $registeredWork) {
+        throw 'A changed cleanup owner reused the workspace cleanup result.'
+    }
+    [IO.File]::SetLastWriteTimeUtc($registeredWork, $completed.AddSeconds(5))
+    if (Test-GtStorageCleanupCurrent $cache $scriptPath $owners @($kept,$additional) $registeredWork) {
+        throw 'New producer work reused the workspace cleanup result.'
+    }
+    $results.Add([pscustomobject]@{name='changed cleanup owners and new producer work require cleanup';passed=$true})
     $reportPath = Join-Path $temporary 'Checks.json'
     $requirements = [pscustomobject]@{reportFile='Checks.json';checks=@([pscustomobject]@{name='resource recovery';minimumCount=1},[pscustomobject]@{name='localized display';minimumCount=2})}
     $validChecks = @([pscustomobject]@{name='resource recovery';passed=$true},[pscustomobject]@{name='localized display';passed=$true},[pscustomobject]@{name='localized display';passed=$true})

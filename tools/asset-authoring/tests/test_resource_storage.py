@@ -816,6 +816,42 @@ class ResourceStorageTest(unittest.TestCase):
             self.assertEqual(retained, {unaffected, retiring})
             self.assertEqual(issues, [dict(path=str(neighbor), reason='changed-retained-input')])
 
+    def test_repeated_payloads_outside_retirement_share_path_validation(self):
+        with self.owned_workspace() as (_, source, output):
+            payload = source / 'Catalog/hero.bundle'
+            other = source / 'Catalog/unique.bin'
+            other.write_bytes(b'unique')
+            owner = output / 'ResourceAssembly.json'
+            pin = dict(path=str(payload), sha256=storage.sha(payload), role='payload')
+            isolated_pin = dict(path=str(other), sha256=storage.sha(other), role='payload')
+            storage.write(owner, {'inputs': [pin] * 200 + [isolated_pin]})
+            with patch.object(storage, 'checked_source_path', wraps=storage.checked_source_path) as checked:
+                retained = storage.declared_live_inputs([dict(owner=owner)], retirement_ancestors={output})
+            self.assertEqual(retained, {payload, other})
+            self.assertEqual(sum(call.args == (payload,) for call in checked.call_args_list), 2)
+            self.assertEqual(sum(call.args == (other,) for call in checked.call_args_list), 1)
+
+    def test_retained_payload_path_is_checked_again_before_retirement(self):
+        with self.owned_workspace() as (_, source, output):
+            payload = source / 'Catalog/hero.bundle'
+            owner = output / 'ResourceAssembly.json'
+            pin = dict(path=str(payload), sha256=storage.sha(payload), role='payload')
+            storage.write(owner, {'inputs': [pin, pin]})
+            original_check = storage.checked_source_path
+            opened = False
+
+            def remove_after_first_check(path):
+                nonlocal opened
+                if Path(path) == payload:
+                    if opened:
+                        payload.unlink()
+                    opened = True
+                return original_check(path)
+
+            with patch.object(storage, 'checked_source_path', side_effect=remove_after_first_check):
+                with self.assertRaisesRegex(storage._ReceiptBatchChanged, 'retained payload path changed'):
+                    storage.declared_live_inputs([dict(owner=owner)], retirement_ancestors={output})
+
     @unittest.skipUnless(os.name=='nt','Windows producer-input sharing contract')
     def test_cleanup_read_lease_blocks_producer_resume_before_output_changes(self):
         with self.owned_workspace()as(_,source,output):

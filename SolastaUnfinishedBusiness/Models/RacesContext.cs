@@ -25,6 +25,7 @@ using UnityEngine.ResourceManagement;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceLocations;
 using UnityEngine.ResourceManagement.ResourceProviders;
+using UnityEngine.UI;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionSenses;
 
@@ -251,12 +252,13 @@ internal static class RacesContext
         owner.BindDerivedBone(renderer, parent, bone, local);
     }
 
-    private static GraphicsCharacter _bodyShapePreview;
+    private static (GraphicsCharacter Character, Slider Slider) _bodyShapePreview;
 
-    internal static GraphicsCharacter EnterBodyShapePreview(GraphicsCharacter graphics)
+    internal static (GraphicsCharacter Character, Slider Slider) EnterBodyShapePreview(
+        (GraphicsCharacter Character, Slider Slider) preview)
     {
         var previous = _bodyShapePreview;
-        _bodyShapePreview = graphics;
+        _bodyShapePreview = preview;
         return previous;
     }
 
@@ -275,13 +277,11 @@ internal static class RacesContext
         }
     }
 
-    private readonly struct BodyShapeSelection(BodyShapeField field, float value, float defaultValue,
-        bool hasNativeShape, bool supplemental)
+    private readonly struct BodyShapeSelection(BodyShapeField field, float value, float defaultValue, bool supplemental)
     {
         internal readonly BodyShapeField Field = field;
         internal readonly float Value = value;
         internal readonly float DefaultValue = defaultValue;
-        internal readonly bool HasNativeShape = hasNativeShape;
         internal readonly bool Supplemental = supplemental;
     }
 
@@ -303,14 +303,14 @@ internal static class RacesContext
             BodyShapeFinite(savedValue)) value = Mathf.Clamp(savedValue, 0f, 100f);
         var supplemental = enabled || originallyAvailable;
         var field = supplemental ? GetBodyShapeField(character.Sex == CreatureSex.Female ? 1 : 0) : null;
-        selection = new BodyShapeSelection(field, value, presentation.DefaultMusculature, originallyAvailable, supplemental);
+        selection = new BodyShapeSelection(field, value, presentation.DefaultMusculature, supplemental);
         return true;
     }
 
     internal static bool TryPreviewBodyShape(GraphicsCharacter graphics) =>
-        !_bodyShapesUnloading && _bodyShapePreview == graphics &&
+        !_bodyShapesUnloading && _bodyShapePreview.Character == graphics &&
         TryGetBodyShapeSelection(graphics, out var selection) &&
-        graphics.GetComponent<BodyShapePresentation>()?.TryPreview(graphics, selection) == true;
+        graphics.GetComponent<BodyShapePresentation>()?.TryPreview(graphics, selection, _bodyShapePreview.Slider) == true;
 
     internal static bool ApplyBodyShape(GraphicsCharacter graphics)
     {
@@ -336,8 +336,7 @@ internal static class RacesContext
             if (IsProtectedBodyRenderer(graphics, renderer)) continue;
             var mesh = renderer ? renderer.sharedMesh : null;
             var index = NativeBodyShapeFrame(mesh);
-            if (index >= 0) SetBodyBlendShapeWeight(renderer, index,
-                selection.HasNativeShape ? selection.Value : selection.DefaultValue);
+            if (index >= 0) SetBodyBlendShapeWeight(renderer, index, selection.Value);
         }
         ApplySupplementalBodyShape(graphics, selection);
         return false;
@@ -7250,12 +7249,10 @@ internal static class RacesContext
         return false;
     }
 
-    private static List<BodyShapeRenderer> CaptureBodyShapeRenderers(GraphicsCharacter graphics)
+    private static List<BodyShapeRenderer> CaptureBodyShapeRenderers(GraphicsCharacter graphics, bool bodyShapeEnabled)
     {
         var result = new Dictionary<SkinnedMeshRenderer, BodyShapeRenderer>();
-        // Native frame eligibility follows the presentation's original musculature capability.
-        var useNativeFrame = !TryGetRaceIdentity(graphics.RulesetCharacter, out var race, out var subRace) ||
-            HasNativeBodyShape(subRace?.RacePresentation ?? race.RacePresentation);
+        var allowNativeFrames = bodyShapeEnabled || !UsesBodyShapeAppearance(graphics.RulesetCharacter);
         foreach (var slots in new[] { graphics.ShapeSkinnedMeshRenderersPerBodySlot, graphics.ArmorSkinnedMeshRenderersPerBodySlot })
         {
             if (slots == null) continue;
@@ -7277,7 +7274,10 @@ internal static class RacesContext
                     }
                     else result.Add(renderer, new BodyShapeRenderer
                     { Renderer = renderer, Identity = identityPart,
-                        HeadAttachment = headAttachment, UseNativeFrame = useNativeFrame,
+                        HeadAttachment = headAttachment,
+                        // A race can lack its own frame and still wear equipment with an authored frame.
+                        UseNativeFrame = allowNativeFrames && NativeBodyShapeFrame(renderer.sharedMesh) >= 0 &&
+                            graphics.BlendShapeRenderers.Contains(renderer),
                         CalibrationSource = calibrationSource });
                 }
             }
@@ -7368,6 +7368,9 @@ internal static class RacesContext
         private bool _interactivePreview;
         private bool _previewHasSupplementalTargets, _previewRequiresPhysicalRest;
         private float _previewDeadline;
+        private Slider _previewSlider;
+        private static readonly Func<Selectable, bool> SliderIsPressed =
+            AccessTools.MethodDelegate<Func<Selectable, bool>>(AccessTools.DeclaredMethod(typeof(Selectable), "IsPressed"));
 
         private sealed class PreviewChannel(SkinnedMeshRenderer renderer, CustomModels.SkinMeshSource source,
             int index, float baked, int direction)
@@ -7389,7 +7392,7 @@ internal static class RacesContext
             if (NeedsPreviewPreparation) DeferRefresh();
         }
 
-        internal bool TryPreview(GraphicsCharacter graphics, BodyShapeSelection selection)
+        internal bool TryPreview(GraphicsCharacter graphics, BodyShapeSelection selection, Slider slider)
         {
             if (_busy || _refreshPending || !isActiveAndEnabled ||
                 !UsesCurrentField(graphics, selection.Field, selection.DefaultValue, selection.Supplemental) ||
@@ -7401,7 +7404,10 @@ internal static class RacesContext
             var value = selection.Value;
             foreach (var channel in _previewChannels) channel.Set(value, _default);
             if (_previewRequiresPhysicalRest)
+            {
+                _previewSlider = slider;
                 _previewDeadline = value == _value ? 0f : Time.realtimeSinceStartup + PreviewIdleSeconds;
+            }
             else
                 _value = value;
             return true;
@@ -7409,6 +7415,7 @@ internal static class RacesContext
 
         internal void RestorePreview()
         {
+            _previewSlider = null;
             if (_previewDeadline == 0f) return;
             _previewDeadline = 0f;
             foreach (var channel in _previewChannels)
@@ -7717,7 +7724,7 @@ internal static class RacesContext
                 _graphics = graphics;
                 _value = value;
                 _default = defaultValue;
-                var rows = CaptureBodyShapeRenderers(graphics);
+                var rows = CaptureBodyShapeRenderers(graphics, supplemental);
                 var supplementalWeight = value - defaultValue;
                 bool NativeChannels(BodyShapeRenderer row) => NativeBodyShapeFrame(row.Original) >= 0 &&
                     graphics.BlendShapeRenderers.Contains(row.Renderer);
@@ -7736,7 +7743,7 @@ internal static class RacesContext
                 {
                     Release(false);
                     if (HasSources) throw new InvalidOperationException("Previous body sources have not finished restoring.");
-                    rows = CaptureBodyShapeRenderers(graphics);
+                    rows = CaptureBodyShapeRenderers(graphics, supplemental);
                 }
                 foreach (var row in rows)
                     if (_sourceGraph?.OriginalMesh(row.Renderer) is { } original) row.Original = original;
@@ -7753,7 +7760,7 @@ internal static class RacesContext
                 {
                     Release(false);
                     if (HasSources) throw new InvalidOperationException("Native body sources have not finished restoring.");
-                    rows = CaptureBodyShapeRenderers(graphics);
+                    rows = CaptureBodyShapeRenderers(graphics, supplemental);
                     sources = HighestDetailRows(graphics, rows.Where(row => row.CalibrationSource && row.UseNativeFrame && NativeBodyShapeFrame(row.Original) >= 0));
                     _baseField = field;
                     _supplemental = supplemental;
@@ -7915,12 +7922,15 @@ internal static class RacesContext
                         if (_sourceGraph?.Installed.TryGetValue(piece.Renderer, out var installed) == true) piece.Installed(installed);
                         else piece.Apply(graphics);
                     }
-                foreach (var row in rows.Where(row => !row.Identity || row.HeadAttachment))
+                if (UsesBodyShapeAppearance(graphics.RulesetCharacter))
                 {
-                    if (_sourceGraph?.ConsumesPhysicalChannels(row.Renderer) == true) continue;
-                    var native = NativeBodyShapeFrame(row.Original);
-                    if (native >= 0 && graphics.BlendShapeRenderers.Contains(row.Renderer))
-                        SetBodyBlendShapeWeight(row.Renderer, native, row.UseNativeFrame ? value : defaultValue);
+                    foreach (var row in rows.Where(row => !row.Identity || row.HeadAttachment))
+                    {
+                        if (_sourceGraph?.ConsumesPhysicalChannels(row.Renderer) == true) continue;
+                        var native = NativeBodyShapeFrame(row.Original);
+                        if (native >= 0 && graphics.BlendShapeRenderers.Contains(row.Renderer))
+                            SetBodyBlendShapeWeight(row.Renderer, native, row.UseNativeFrame ? value : defaultValue);
+                    }
                 }
                 foreach (var piece in _pieces)
                     if (_sourceGraph?.ConsumesPhysicalChannels(piece.Renderer) != true) piece.SetValue(value, defaultValue);
@@ -8025,13 +8035,12 @@ internal static class RacesContext
         private void LateUpdate()
         {
             if (_bodyShapesUnloading || !_graphics || _busy) return;
-            if (_previewDeadline != 0f)
-            {
-                if (Time.realtimeSinceStartup < _previewDeadline) return;
+            if (_previewDeadline != 0f && Time.realtimeSinceStartup >= _previewDeadline &&
+                (!_previewSlider || !SliderIsPressed(_previewSlider)))
                 CommitPreview();
-            }
             if (_refreshPending && !DeferCharacterModelRefresh && !CharacterModelCreations.ContainsKey(_graphics) &&
                 !NativePartsRetiring(_graphics)) RefreshPending();
+            if (_previewDeadline != 0f) return;
             foreach (var piece in _pieces)
                 if (_sourceGraph?.ConsumesPhysicalChannels(piece.Renderer) != true) piece.SetValue(_value, _default);
         }

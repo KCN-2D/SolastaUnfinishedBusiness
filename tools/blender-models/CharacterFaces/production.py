@@ -1339,6 +1339,121 @@ def fit_garment_crossings(positions, triangles, skin, *, clearance, maximum_offs
     return fitted - positions
 
 
+def fit_groom_crossings(positions, triangles, obstacles, *, clearance, maximum_offset):
+    """Lift connected hair over intersecting surfaces along their outward normals."""
+    if not len(obstacles):
+        return np.zeros_like(positions)
+    origin = obstacles[:, 0]
+    first, second = obstacles[:, 1] - origin, obstacles[:, 2] - origin
+    normal = normalise(np.cross(first, second))
+    cost = np.stack((np.sum(first * first, axis=1), np.sum(first * second, axis=1),
+                     np.sum(second * second, axis=1)), axis=1)
+    nearby = overlapping_surface_faces(positions - maximum_offset, positions + maximum_offset,
+                                       obstacles.min(axis=1), obstacles.max(axis=1))
+    vertex = np.repeat(np.arange(len(positions)), [len(matches) for matches in nearby])
+    face = np.concatenate(nearby)
+    offset = positions[vertex] - origin[face]
+    depth = np.sum(offset * normal[face], axis=1)
+    a, b, c = cost[face].T
+    det = a * c - b * b
+    q = np.sum(offset * first[face], axis=1)
+    r = np.sum(offset * second[face], axis=1)
+    u, v = (q * c - r * b), (r * a - q * b)
+    tolerance = 1e-6 * det
+    valid = ((det > 1e-20) & (np.abs(depth) < maximum_offset) &
+             (u >= -tolerance) & (v >= -tolerance) & (u + v <= det + tolerance))
+    indices = np.flatnonzero(valid)
+    if not len(indices):
+        return np.zeros_like(positions)
+    ordered = indices[np.lexsort((np.abs(depth[indices]), vertex[indices]))]
+    first_hit = ordered[np.concatenate(([True], vertex[ordered[1:]] != vertex[ordered[:-1]]))]
+    signed = np.full(len(positions), np.nan)
+    outside = np.zeros_like(positions)
+    signed[vertex[first_hit]] = depth[first_hit]
+    outside[vertex[first_hit]] = normal[face[first_hit]]
+
+    groups = art.weld_groups(positions)
+    edges = np.concatenate((triangles[:, :2], triangles[:, 1:], triangles[:, [2, 0]]))
+    edges = np.unique(np.sort(groups[edges], axis=1), axis=0)
+    edges = edges[edges[:, 0] != edges[:, 1]]
+    group_count = groups.max() + 1
+    inside_vertices = signed < 0.0
+    near_inside = np.zeros(group_count, bool)
+    near_outside = np.zeros(group_count, bool)
+    near_inside[groups[inside_vertices]] = True
+    near_outside[groups[signed >= 0.0]] = True
+    a, b = edges.T
+    crossing = (near_inside[a] & near_outside[b]) | (near_outside[a] & near_inside[b])
+    participating = np.zeros(group_count, bool)
+    participating[a[crossing]] = True
+    participating[b[crossing]] = True
+    participating &= near_inside
+    while participating.any():
+        previous = participating.copy()
+        participating[a[participating[b] & near_inside[a]]] = True
+        participating[b[participating[a] & near_inside[b]]] = True
+        if np.array_equal(previous, participating):
+            break
+    valid_seeds = inside_vertices & participating[groups]
+    if not valid_seeds.any():
+        return np.zeros_like(positions)
+    request = np.zeros((group_count, 3))
+    seeds = np.flatnonzero(valid_seeds)
+    seeds = seeds[np.argsort(-signed[seeds], kind='stable')]
+    request[groups[seeds]] = outside[seeds] * np.minimum(clearance - signed[seeds], maximum_offset)[:, None]
+
+    # Smooth the offset field along connected hair. A hair card keeps its
+    # profile when adjacent points follow the same correction at a contact.
+    _, representative = np.unique(groups, return_index=True)
+    grouped_positions = positions[representative]
+    lengths = np.linalg.norm(grouped_positions[a] - grouped_positions[b], axis=1)
+    edge_weights = 1 / np.maximum(lengths, .0015)
+    weights = np.bincount(np.concatenate((a, b)), weights=np.tile(edge_weights, 2), minlength=group_count)
+    field = request.copy()
+    for _ in range(14):
+        neighbours = np.zeros_like(field)
+        np.add.at(neighbours, a, field[b] * edge_weights[:, None])
+        np.add.at(neighbours, b, field[a] * edge_weights[:, None])
+        average = neighbours / np.maximum(weights[:, None], 1e-10)
+        field = .15 * field + .85 * np.where(participating[:, None], .42 * request + .58 * average, .9 * average)
+    return field[groups]
+
+
+def limit_groom_edge_motion(points, offset, triangles, fixed_vertices):
+    """Relax the accumulated fit field so it follows the original strand shape."""
+    groups = art.weld_groups(points)
+    _, representative = np.unique(groups, return_index=True)
+    field = offset[representative].copy()
+    editable = np.any(field != 0, axis=1)
+    editable[groups[np.asarray(fixed_vertices, dtype=int)]] = False
+    field[~editable] = 0
+    edges = np.concatenate((triangles[:, :2], triangles[:, 1:], triangles[:, [2, 0]]))
+    a, b = np.unique(np.sort(groups[edges], axis=1), axis=0).T
+    active = (a != b) & (editable[a] | editable[b])
+    a, b = a[active], b[active]
+    grouped = points[representative]
+    limits = .3 * np.maximum(np.linalg.norm(grouped[a] - grouped[b], axis=1), .0015)
+    for _ in range(20):
+        difference = field[b] - field[a]
+        length = np.linalg.norm(difference, axis=1)
+        excessive = length > limits
+        if not excessive.any():
+            break
+        first, last = a[excessive], b[excessive]
+        scale = 1.0 - limits[excessive] / length[excessive]
+        adjustment = difference[excessive] * scale[:, None]
+        counts = np.zeros(len(field))
+        totals = np.zeros_like(field)
+        for start, end, direction in ((first, last, 1.0), (last, first, -1.0)):
+            movable = editable[start]
+            target = start[movable]
+            amount = direction / (1 + editable[end[movable]].astype(float))
+            np.add.at(totals, target, adjustment[movable] * amount[:, None])
+            np.add.at(counts, target, 1)
+        field += totals / np.maximum(counts[:, None], 1)
+    return field[groups]
+
+
 def garment_skinning_frame(packet, observed, points, posed, triangles, bone_paths, tolerance, world_to_prefab):
     poses = np.asarray(packet['bindPoses']).reshape(-1, 4, 4).transpose(0, 2, 1)
     bones = observed['bones'][:len(poses)]
@@ -1400,8 +1515,9 @@ def garment_skinning_frame(packet, observed, points, posed, triangles, bone_path
     return linear, unbound & ~usable
 
 
-def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *, clearance, maximum_offset, previous=None):
-    """Map correction of the final posed cloth surface back into the original garment."""
+def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *, clearance, maximum_offset, previous=None,
+                      head_surface=None, fixed_vertices=(), groom_guide=None):
+    """Map correction of the posed surface into its original skinned mesh."""
     require(packet['subMeshes'] == observed['submeshes'], 'Drawn garment topology differs from its prefab.')
     points = np.asarray(packet['vertices']).reshape(-1, 3)
     # The character preview magnifies the actor independently of the camera.
@@ -1414,7 +1530,7 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
     skin = to_prefab(np.asarray(skin, dtype=float))
     require(np.isfinite(posed).all() and np.isfinite(skin).all(),
             'The observed garment or skin has non-finite vertices.')
-    triangles = np.concatenate(packet['subMeshes']).reshape(-1, 3)
+    triangles = np.concatenate([np.asarray(indices, dtype=np.intp) for indices in packet['subMeshes']]).reshape(-1, 3)
     outer = [indices for is_skin, indices in zip(observed['skinMaterials'], packet['subMeshes'], strict=True)
              if indices and not is_skin]
     current = previous if previous is not None else packet
@@ -1425,8 +1541,40 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
     current_points = np.asarray(current['vertices']).reshape(points.shape)
     offset = current_points - points
     prior = np.einsum('vij,vj->vi', linear, offset)
-    delta = fit_garment_crossings(posed + prior, np.concatenate(outer).reshape(-1, 3), skin,
-                                  clearance=clearance, maximum_offset=maximum_offset)
+    if groom_guide is not None:
+        indices = np.asarray(groom_guide['vertices'])
+        directions = np.asarray(groom_guide['offsets'], dtype=float)
+        require(head_surface is not None and groom_guide['vertexCount'] == len(points) and
+                indices.ndim == 1 and np.issubdtype(indices.dtype, np.integer) and
+                len(indices) == len(np.unique(indices)) and np.all((indices >= 0) & (indices < len(points))) and
+                directions.shape == (len(indices), 3) and np.isfinite(directions).all(),
+                'The Blender groom guide has a different source layout or invalid offsets.')
+        delta = np.zeros_like(posed)
+        delta[indices] = directions @ world_to_prefab[:3, :3].T
+        welded = art.weld_groups(points)
+        delta[np.isin(welded, welded[np.asarray(fixed_vertices, dtype=int)])] = 0.
+    else:
+        fit_crossings = fit_groom_crossings if head_surface is not None else fit_garment_crossings
+        delta = fit_crossings(posed + prior, np.concatenate(outer).astype(np.intp).reshape(-1, 3), skin,
+                              clearance=clearance, maximum_offset=maximum_offset)
+    if head_surface is not None and groom_guide is None:
+        # Leave the head interface and the native fixed cloth vertices anchored.
+        moving = np.flatnonzero(np.any(delta != 0, axis=1))
+        if len(moving):
+            head = to_prefab(np.asarray(head_surface, dtype=float)).reshape(-1, 3, 3)
+            contact_points = posed[moving]
+            reach = 2 * maximum_offset
+            nearby = overlapping_surface_faces(contact_points - reach, contact_points + reach,
+                                               head.min(axis=1), head.max(axis=1))
+            distances = np.full(len(moving), reach)
+            for index, faces in enumerate(nearby):
+                if len(faces):
+                    region = head[faces].reshape(-1, 3)
+                    distances[index] = anatomy_triangle_distances(contact_points[index:index+1], region,
+                                                                  np.arange(len(region)).reshape(-1, 3))[0]
+            clearance_weight = np.clip((distances - maximum_offset) / maximum_offset, 0., 1.)
+            delta[moving] *= (clearance_weight ** 2 * (3. - 2. * clearance_weight))[:, None]
+        delta[np.asarray(fixed_vertices, dtype=int)] = 0.
     moved = np.any(delta != 0, axis=1)
     if not moved.any():
         return current, 0
@@ -1436,6 +1584,14 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
     rest_offsets = np.linalg.solve(linear[moved], (requested / limit)[:, :, None])[:, :, 0]
     rest_distance = np.linalg.norm(rest_offsets @ renderer_to_prefab[:3, :3].T, axis=1, keepdims=True)
     offset[moved] = rest_offsets / np.maximum(1, rest_distance / maximum_offset)
+    if groom_guide is not None:
+        total = np.zeros((welded.max() + 1, 3))
+        np.add.at(total, welded, offset)
+        offset = (total / np.bincount(welded)[:, None])[welded]
+        distance = np.linalg.norm(offset @ renderer_to_prefab[:3, :3].T, axis=1, keepdims=True)
+        offset /= np.maximum(1., distance / maximum_offset)
+    elif head_surface is not None:
+        offset = limit_groom_edge_motion(points, offset, triangles, fixed_vertices)
     correction = points + offset - current_points
     welded = art.weld_groups(points)
     native_normals = np.asarray(packet['normals']).reshape(-1, 3)
@@ -1443,7 +1599,12 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
     before = surface_normals(points, triangles, groups, points, native_normals)
     for attempt in range(8):
         proposal = current_points + correction * (2.0 ** -attempt)
-        fitted, _ = preserve_surface_orientation(points, proposal, triangles, renderer_to_prefab, groups=welded)
+        # Keep the hair correction coherent across the rendered fibers when a thin card needs backtracking.
+        factors = None if head_surface is not None else welded
+        fitted, orientation = preserve_surface_orientation(points, proposal, triangles, renderer_to_prefab,
+                                                           groups=factors)
+        if head_surface is not None and orientation['surfaceScaleFactor'] == 0:
+            return current, 0
         after = surface_normals(fitted, triangles, groups, points, native_normals)
         if np.all(np.sum(before * after, axis=1) >= 0):
             break
@@ -1452,6 +1613,10 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
     changed = np.count_nonzero(np.any(fitted != current_points, axis=1))
     if not changed:
         return current, 0
+    return fitted_surface_frame(packet, fitted, before, after), int(changed)
+
+
+def fitted_surface_frame(packet, fitted, before, after):
     candidate = dict(packet, vertices=fitted.astype(np.float32).ravel().tolist())
     for field, width in [('normals', 3), ('tangents', 4)]:
         values = np.array(packet[field]).reshape(-1, width)
@@ -1464,7 +1629,53 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
     high = np.maximum(old_center + old_size / 2, center + size / 2)
     candidate['bounds'] = np.r_[(low + high) / 2, high - low].tolist()
     candidate['sourceFingerprint'] = fingerprint(candidate)[0]
-    return candidate, int(changed)
+    return candidate
+
+
+def constrain_garment_rest(source, target, frame, maximum_offset):
+    """Preserve the original rest shape when cloth fits accumulate across poses."""
+    require(all(source[key] == target[key] for key in
+                ('subMeshes', 'uv', 'weights', 'boneIndices', 'shapes', 'bindPoses')),
+            'The garment rest reference has a different topology, material layout or rig.')
+    if source['vertices'] == target['vertices']:
+        return target
+    reference = np.asarray(source['vertices']).reshape(-1, 3)
+    proposed = np.asarray(target['vertices']).reshape(-1, 3)
+    transform = frame[:3, :3]
+    groups = art.weld_groups(reference)
+    _, canonical = np.unique(groups, return_index=True)
+    grouped = reference[canonical] @ transform.T
+    offsets = (proposed - reference) @ transform.T
+    field = np.zeros_like(grouped)
+    np.add.at(field, groups, offsets)
+    field /= np.bincount(groups)[:, None]
+    magnitude = np.linalg.norm(field, axis=1, keepdims=True)
+    field /= np.maximum(1., magnitude / maximum_offset)
+    triangles = np.concatenate(source['subMeshes']).reshape(-1, 3)
+    faces = groups[triangles]
+    edges = np.concatenate((faces[:, :2], faces[:, 1:], faces[:, [2, 0]]))
+    a, b = np.unique(np.sort(edges[edges[:, 0] != edges[:, 1]], axis=1), axis=0).T
+    # Short edges around seams and trim must move together. The tolerance
+    # prevents tiny native triangles from suppressing a whole fit.
+    limit = .34 * np.linalg.norm(grouped[a] - grouped[b], axis=1) + .0002
+    for attempt in range(15):
+        excessive = np.linalg.norm(field[a] - field[b], axis=1) > limit
+        if not excessive.any():
+            break
+        affected = np.unique(np.r_[a[excessive], b[excessive]])
+        field[affected] *= .65 if attempt < 10 else 0.
+    else:
+        field.fill(0.)
+    displacement = np.linalg.solve(transform, field[groups].T).T
+    if np.array_equal((reference + displacement).astype(np.float32), proposed.astype(np.float32)):
+        return target
+    fitted, _ = preserve_surface_orientation(reference, reference + displacement, triangles, frame)
+    normals = np.asarray(source['normals']).reshape(-1, 3)
+    split_normals = normal_groups(reference, normals)
+    before = surface_normals(reference, triangles, split_normals, reference, normals)
+    after = surface_normals(fitted, triangles, split_normals, reference, normals)
+    geometry = dict(target, normals=source['normals'], tangents=source['tangents'], bounds=source['bounds'])
+    return fitted_surface_frame(geometry, fitted, before, after)
 
 
 def normal_groups(positions, native_normals):

@@ -463,6 +463,39 @@ function Copy-GtFile([string] $Source, [string] $Destination, [string] $Expected
     if ($expected -ne (Get-GtHash $Destination)) { throw "Copy verification failed: $Destination" }
 }
 
+function Copy-GtProbeReference([string] $Source, [string] $Destination, [string] $ExpectedSha256) {
+    if (-not (Test-GtWithin $Destination $script:GameTestArtifactRoot) -or
+        [IO.Path]::GetExtension($Source) -ine '.dll') {
+        Copy-GtFile $Source $Destination -ExpectedSha256 $ExpectedSha256
+        return
+    }
+    Assert-GtFile $Source
+    Assert-GtPlainPath $Destination
+    if ($ExpectedSha256 -notmatch '^[A-Fa-f0-9]{64}$') { throw 'A probe reference requires a SHA-256 digest.' }
+    $retained = Join-Path $script:GameTestArtifactRoot ('.reference-assemblies/{0}.dll' -f $ExpectedSha256.ToLowerInvariant())
+    Assert-GtPlainPath $retained
+    if (-not (Test-Path -LiteralPath $retained -PathType Leaf)) {
+        $pending = $retained + '.' + [guid]::NewGuid().ToString('N') + '.tmp'
+        try {
+            Copy-GtFile $Source $pending -ExpectedSha256 $ExpectedSha256
+            [IO.File]::Move($pending, $retained)
+        } finally {
+            if ([IO.File]::Exists($pending)) { [IO.File]::Delete($pending) }
+        }
+    }
+    if ((Get-GtHash $retained) -ne $ExpectedSha256) { throw "Stored probe reference changed: $retained" }
+    if (Test-Path -LiteralPath $Destination) { throw "Probe reference archive already exists: $Destination" }
+    New-Item -ItemType Directory -Path (Split-Path -Parent $Destination) -Force | Out-Null
+    try {
+        New-Item -ItemType HardLink -Path ('\\?\' + $Destination) -Target ('\\?\' + $retained) -ErrorAction Stop | Out-Null
+    } catch {
+        if (Test-Path -LiteralPath $Destination) { throw }
+        Copy-GtFile $Source $Destination -ExpectedSha256 $ExpectedSha256
+        return
+    }
+    if ((Get-GtHash $Destination) -ne $ExpectedSha256) { throw "Linked probe reference verification failed: $Destination" }
+}
+
 function Clear-GtSupersededBuildAssets {
     [CmdletBinding(SupportsShouldProcess=$true)]
     param(
@@ -998,6 +1031,28 @@ function Get-GtNativeUserDataCompanions([string]$Run) {
         }
         [pscustomobject]@{path=$path;owner=$location.owner;evidence=$evidence;locationPath=$manifest.FullName;locationSha256=Get-GtHash $manifest.FullName;bytes=[long]((Get-ChildItem -LiteralPath $path -File -Recurse -Force | Measure-Object Length -Sum).Sum)}
     }
+}
+
+function Test-GtStorageCleanupCurrent($Cached, [string]$WrapperPath, [object[]]$OwnerSources,
+    [string[]]$WorkDirectories, [string]$RegisteredWork) {
+    if (-not $Cached -or $Cached.status -ne 'PASS' -or -not $Cached.PSObject.Properties['cleanupSources'] -or
+        -not $Cached.PSObject.Properties['workDirectories'] -or -not $Cached.PSObject.Properties['cleanupCompletedUtc']) {
+        return $false
+    }
+    $cachedOwners = @($Cached.cleanupSources | Where-Object { $_.path -ine $WrapperPath })
+    if (($cachedOwners | ConvertTo-Json -Compress) -cne ($OwnerSources | ConvertTo-Json -Compress)) { return $false }
+    foreach ($previous in $Cached.workDirectories) {
+        $covered = $false
+        foreach ($directory in $WorkDirectories) {
+            if (Test-GtWithin $previous $directory) { $covered = $true; break }
+        }
+        if (-not $covered) { return $false }
+    }
+    # Registered producer activity can introduce new disposable output even
+    # when the previously held directories still have complete protection.
+    if (-not [IO.File]::Exists($RegisteredWork)) { return $false }
+    Assert-GtPlainPath $RegisteredWork
+    return [IO.File]::GetLastWriteTimeUtc($RegisteredWork) -le (ConvertTo-GtUtcDate $Cached.cleanupCompletedUtc)
 }
 
 function Read-GtStorageReferences([string[]]$ReferencePath) {

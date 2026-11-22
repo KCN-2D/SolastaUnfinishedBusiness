@@ -3483,24 +3483,27 @@ public static class CustomModels
                         var center = (first + last) * .5f;
                         var length = Vector3.Dot(last - first, axis) * .5f;
                         if (length < 0f) throw new InvalidOperationException("A physical body field reverses its capsule axis.");
+                        var radialA = Vector3.Cross(axis, Mathf.Abs(axis.x) < .5f ? Vector3.right : Vector3.up).normalized;
+                        var radialB = Vector3.Cross(axis, radialA);
                         var dilation = 0f; var residual = 0f;
                         for (var sample = 0; sample <= 8; sample++)
                         {
                             var fraction = sample / 8f;
                             var target = At(source.Center + axis * Mathf.Lerp(-source.Length, source.Length, fraction));
-                            var gram = target.Derivative.transpose * target.Derivative;
-                            var bound = 0f;
-                            for (var row = 0; row < 3; row++)
-                            {
-                                var sum = 0f;
-                                for (var column = 0; column < 3; column++) sum += Mathf.Abs(gram[row, column]);
-                                bound = Mathf.Max(bound, sum);
-                            }
-                            dilation = Mathf.Max(dilation, Mathf.Sqrt(bound));
-                            residual = Mathf.Max(residual, (target.Position - (center + axis * Mathf.Lerp(-length, length, fraction))).magnitude);
+                            var transpose = target.Derivative.transpose;
+                            var firstRadial = transpose.MultiplyVector(radialA);
+                            var secondRadial = transpose.MultiplyVector(radialB);
+                            var aa = firstRadial.sqrMagnitude;
+                            var bb = secondRadial.sqrMagnitude;
+                            var ab = Vector3.Dot(firstRadial, secondRadial);
+                            var difference = aa - bb;
+                            var maximumRadial = (aa + bb + Mathf.Sqrt(difference * difference + 4f * ab * ab)) * .5f;
+                            dilation = Mathf.Max(dilation, Mathf.Sqrt(maximumRadial));
+                            residual = Mathf.Max(residual, Vector3.ProjectOnPlane(
+                                target.Position - (center + axis * Mathf.Lerp(-length, length, fraction)), axis).magnitude);
                         }
-                        // The native collider keeps its authored axis. Its radii cover
-                        // the transported section and any centerline curvature.
+                        // Length covers axial deformation. The largest stretch projected onto the
+                        // perpendicular plane gives the radial scale, including shear into that plane.
                         return new PhysicalCapsuleGeometry(center, length,
                             source.Start * dilation + residual, source.End * dilation + residual);
                     }

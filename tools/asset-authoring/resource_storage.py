@@ -1176,6 +1176,7 @@ def receipt_references(owners,unresolved=None,*,generation_cache=None,strict=Fal
     generation_cache={}if generation_cache is None else generation_cache
     unresolved=[]if unresolved is None else unresolved
     completed=set();leased_edges=collections.OrderedDict()
+    retained_payload_paths={}
     # Match native Path equality and component boundaries without constructing
     # every ancestor for each edge. This is lexical only; FS guards stay below.
     owned_roots=tuple((key,key if key.endswith(os.sep)else key+os.sep,_batch.guard_key(root.anchor))
@@ -1229,6 +1230,9 @@ def receipt_references(owners,unresolved=None,*,generation_cache=None,strict=Fal
         payload=selected_role=='payload';metadata=selected_role=='metadata'
         if not payload and not metadata:return
         if path in owners:return
+        if payload and explicit and path in retained_payload_paths:
+            retained_payload_paths[path]=True
+            return
         if metadata and not explicit and path in plain:return
         cached_pin=_batch.pin(value,base,digest,role,selected_role,stamp,lookup_path in fresh_inputs)if explicit and _batch is not None else None
         if cached_pin is not None:exists[path]=True
@@ -1244,7 +1248,8 @@ def receipt_references(owners,unresolved=None,*,generation_cache=None,strict=Fal
             # A changed payload would protect its directory. When there is no
             # retirement under that directory, retain the leaf without rehashing it.
             if path.parent not in retirement_ancestors:
-                visited.add(path);result.add(path)
+                retained_payload_paths[path]=False
+                result.add(path)
                 return
         if explicit:
             path,actual=cached_pin if cached_pin is not None else checked_reference_hash(path,digest,role,reference_versions,payload=payload and path not in fresh_inputs)
@@ -1314,6 +1319,15 @@ def receipt_references(owners,unresolved=None,*,generation_cache=None,strict=Fal
             except (OSError,ValueError,KeyError,TypeError):
                 if strict:raise
                 result.add(owner.parent);issue(owner,'unverified-retained-recipe')
+        # Recheck names whose path validation was reused before returning the
+        # closure. Each other retained name already had its own path check.
+        for path, reused in retained_payload_paths.items():
+            if not reused:
+                continue
+            try:
+                checked_source_path(path)
+            except (OSError, ValueError) as error:
+                raise _ReceiptBatchChanged('A retained payload path changed during discovery: '+str(path)) from error
         return result,generations
     finally:
         if _batch is None:reference_versions.close()

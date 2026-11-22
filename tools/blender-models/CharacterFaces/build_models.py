@@ -2952,6 +2952,8 @@ def validate_prepared_resource(row,assembly,verified):
                     raise ValueError('A garment fit lost its source mesh or catalog ownership.')
                 pinned(receipt['source'])
                 pinned(receipt['target'])
+                if 'restSource' in receipt:
+                    pinned(receipt['restSource'])
                 for mesh in receipt['meshes']:
                     for pose in mesh['poses']:
                         pinned(pose['source'])
@@ -6695,7 +6697,8 @@ def repair_skin_interface_cloth():
     print('Skin interface cloth bundles repaired:', repairs, flush=True)
 
 
-def observed_garment_surfaces(capture, selected, layers=frozenset(), *, layer_reference=None, layer_distance=.01):
+def observed_garment_surfaces(capture, selected, layers=frozenset(), *, layer_reference=None, layer_distance=.01,
+                              groom_contact=False):
     """Pair equipment with skin from the same presentation and detail level."""
     import numpy as np
     production, _ = source_owner()
@@ -6736,6 +6739,22 @@ def observed_garment_surfaces(capture, selected, layers=frozenset(), *, layer_re
     for level, parts in levels.items():
         equipment = [(slot['source'].removeprefix('UB/CharacterResources/'), part)
                      for part in parts for slot in part['sourceSlots'] if not slot['shape']]
+        if groom_contact:
+            sources = parts + (levels.get(None, []) if level is not None else [])
+            grooms = [(slot['source'].removeprefix('UB/CharacterResources/'), part)
+                      for part in parts for slot in part['sourceSlots'] if slot['shape'] and slot['part'] in ('Hair','Beard')]
+            head = [part for part in sources if any(slot['shape'] and slot['part']=='Head' for slot in part['sourceSlots'])]
+            if not head or not any(address in selected for address, _ in grooms):
+                continue
+            head_surface = np.concatenate([triangles_for(part, True) for part in head])
+            obstacles = np.concatenate([*(triangles_for(part, True) for part in sources),
+                                       *(triangles_for(part, False) for _, part in equipment)])
+            if not len(head_surface) or not len(obstacles):
+                raise ValueError('The observed groom has no head or clothing surfaces.')
+            for address, part in grooms:
+                if address in selected:
+                    yield address, dict(part, fittedLayers=[], headSurface=head_surface), obstacles
+            continue
         equipment = [(address, part) for address, part in equipment if address in selected]
         if not equipment:
             continue
@@ -6776,15 +6795,30 @@ def fit_garment_resources():
     parser.add_argument('--pose', type=Path, nargs='+')
     parser.add_argument('--equipment', nargs='+')
     parser.add_argument('--selection', type=Path, help='JSON mapping equipment addresses to their observed pose paths')
+    parser.add_argument('--repair-rest', action='store_true', help='Restrain previously fitted garment surfaces to their original rest shape')
     parser.add_argument('--layer', nargs=2, action='append', default=[], metavar=('RENDERER', 'RENDERER'))
-    parser.add_argument('--clearance', type=float, required=True)
+    parser.add_argument('--groom-contact', action='store_true')
+    parser.add_argument('--groom-guide', type=Path, action='append', default=[])
+    parser.add_argument('--clearance', type=float)
     parser.add_argument('--maximum-offset', type=float, required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    if args.selection and (args.pose or args.equipment) or not args.selection and not (args.pose and args.equipment):
-        parser.error('Use --selection or supply both --pose and --equipment.')
+    if args.repair_rest:
+        if any((args.selection, args.pose, args.equipment, args.layer, args.groom_contact, args.groom_guide)):
+            parser.error('--repair-rest uses the catalog’s existing garment fits.')
+    elif (args.selection is not None and (args.pose or args.equipment) or
+            args.selection is None and not (args.pose and args.equipment)):
+        parser.error('Use --repair-rest, --selection, or supply both --pose and --equipment.')
+    if not math.isfinite(args.maximum_offset) or args.maximum_offset <= 0:
+        parser.error('--maximum-offset must be finite and positive.')
+    if not args.repair_rest and (args.clearance is None or not 0 < args.clearance < args.maximum_offset):
+        parser.error('--clearance must be positive and smaller than --maximum-offset.')
     if args.layer and not args.selection:
         parser.error('Layer fitting requires a selection with native reference poses.')
+    if args.groom_contact and args.layer:
+        parser.error('Groom contact is measured against the visible clothing and skin.')
+    if args.groom_guide and not args.groom_contact:
+        parser.error('Use --groom-guide with --groom-contact.')
     source = checked_catalog_path(args.source)
     output = checked_catalog_path(args.output)
     if output.is_relative_to(source):
@@ -6795,6 +6829,52 @@ def fit_garment_resources():
     except BaseException:
         shutil.rmtree(checked_catalog_path(output))
         raise
+
+
+def fitted_garment_meshes(proof):
+    """Find the most recent dedicated fit that owns each affected equipment mesh."""
+    fitted = {}
+    for operation in proof.get('appearanceFinishing', []):
+        if operation['kind'] != 'posed-garment-fit':
+            continue
+        receipt_ref = operation['proof']
+        path = checked_source_path(receipt_ref['path'])
+        if sha(path) != receipt_ref['sha256']:
+            raise ValueError('A previous garment fit receipt has changed.')
+        receipt = read(path)
+        if (receipt['file'] != proof['file'] or receipt['target']['sha256'] != operation['sha256']
+                or receipt['source']['sha256'] != operation['beforeSha256']):
+            raise ValueError('A previous garment fit has a different bundle owner.')
+        fitted.update((mesh['object'], mesh['after']) for mesh in receipt['meshes'])
+    return fitted
+
+
+def existing_garment_fits(file, fitted):
+    """Resolve original mesh IDs through their local skinned renderers."""
+    import character_resources as resources
+    import numpy as np
+
+    def local(owner, pointer):
+        if pointer['m_FileID']:
+            raise ValueError('A garment fit references an external rest transform.')
+        return owner, owner.objects[pointer['m_PathID']]
+
+    entries = {}
+    for renderer in file.objects.values():
+        if renderer.type.name != 'SkinnedMeshRenderer':
+            continue
+        pointer = renderer.read_typetree()['m_Mesh']
+        key = pointer['m_PathID']
+        if pointer['m_FileID'] or key not in fitted:
+            continue
+        mesh = export_current_mesh(file.objects[key])
+        if mesh['sourceFingerprint'] != fitted[key]:
+            continue
+        frame = resources.renderer_frame(renderer, local)
+        if key in entries and not np.array_equal(entries[key]['frame'], frame):
+            raise ValueError('A fitted garment has inconsistent rest transforms.')
+        entries[key] = dict(native=mesh, target=mesh, frame=frame, poses=[])
+    return entries
 
 
 def write_posed_garments(args, source, output):
@@ -6838,10 +6918,22 @@ def write_posed_garments(args, source, output):
                 raise ValueError('The garment selection needs poses for ' + key)
             for path in paths:
                 selection[checked_source_path(path)].add(key.removeprefix(prefix))
-    else:
+    elif args.pose:
         for path in args.pose:
             selection[checked_source_path(path)].update(key.removeprefix(prefix) for key in args.equipment)
     selected = set().union(*selection.values())
+    guides = {}
+    for path in args.groom_guide:
+        guide_pin = pin(checked_source_path(path))
+        guide = read(Path(guide_pin['path']))
+        capture = checked_source_path(Path(guide['capture']))
+        address = guide['resource'].removeprefix(prefix)
+        if address not in selection.get(capture, ()) or sha(capture) != guide['captureSha256']:
+            raise ValueError('The Blender guide does not match the selected groom and native pose.')
+        key = (capture, address, guide['renderer'])
+        if key in guides:
+            raise ValueError('The same groom renderer and pose have more than one Blender guide.')
+        guides[key] = (guide_pin, guide)
     layers = {tuple(pair) for pair in args.layer}
     if any(inner == outer for inner, outer in layers):
         raise ValueError('A renderer cannot be its own garment underlayer.')
@@ -6850,6 +6942,7 @@ def write_posed_garments(args, source, output):
     jobs = {}
     seen = set()
     seen_layers = set()
+    used_guides = set()
     @lru_cache(maxsize=8)
     def load_pose(path):
         with gzip.open(path, 'rt', encoding='utf8') as stream:
@@ -6858,7 +6951,7 @@ def write_posed_garments(args, source, output):
         capture, pose_pin = load_pose(pose_path)
         reference, reference_pin = load_pose(references[pose_path]) if pose_path in references else (None, None)
         for address, part, skin in observed_garment_surfaces(capture, pose_equipment, layers,
-                layer_reference=reference, layer_distance=args.maximum_offset * 2):
+                layer_reference=reference, layer_distance=args.maximum_offset * 2, groom_contact=args.groom_contact):
             renderers, resolve = resource_prefab_skins(manifest, proofs, address, load)
             matches = []
             for path, renderer in renderers:
@@ -6874,13 +6967,23 @@ def write_posed_garments(args, source, output):
             seen.add(address)
             entries = jobs.setdefault(by_cab[file.name]['file'], {})
             if mesh.path_id not in entries:
+                fixed = ()
+                if args.groom_contact:
+                    trees = {obj.path_id:obj.read_typetree() for obj in file.objects.values() if obj.type.name=='MonoBehaviour'}
+                    fixed = resources.fixed_cloth_render_vertices(trees, mesh.path_id) or ()
                 entries[mesh.path_id] = dict(native=export_current_mesh(mesh), target=None, poses=[],
-                                             frame=resources.renderer_frame(renderer, resolve))
+                                             frame=resources.renderer_frame(renderer, resolve), fixed=fixed)
             entry = entries[mesh.path_id]
             bones = resources.skin_bone_paths(file, tree, resolve)
+            guide_key = (pose_path, address, part['renderer'])
+            guide_pin, guide = guides.get(guide_key, (None, None))
             try:
-                target, count = production.fit_posed_garment(entry['native'], part, skin, bones, entry['frame'],
-                    clearance=args.clearance, maximum_offset=args.maximum_offset, previous=entry['target'])
+                if guides and guide is None:
+                    target, count = entry['target'] or entry['native'], 0
+                else:
+                    target, count = production.fit_posed_garment(entry['native'], part, skin, bones, entry['frame'],
+                        clearance=args.clearance, maximum_offset=args.maximum_offset, previous=entry['target'],
+                        head_surface=part.get('headSurface'), fixed_vertices=entry['fixed'], groom_guide=guide)
             except ValueError as error:
                 raise ValueError(f'Could not fit {part["renderer"]} from {pose_path}: {error}') from error
             entry['target'] = target
@@ -6889,24 +6992,56 @@ def write_posed_garments(args, source, output):
                               layers=part['fittedLayers'], fittedVertices=count)
             if part['fittedLayers']:
                 observation['layerReference'] = reference_pin
+            if guide_pin:
+                observation['groomGuide'] = guide_pin
+                used_guides.add(guide_key)
             entry['poses'].append(observation)
     if seen != selected:
         raise ValueError('Equipment absent from the supplied poses: ' + ', '.join(sorted(selected - seen)))
     if seen_layers != layers:
         raise ValueError('Garment layer pairs absent from the supplied poses: ' + str(sorted(layers - seen_layers)))
+    if used_guides != guides.keys():
+        raise ValueError('A Blender guide did not resolve to a drawn groom renderer.')
 
     for bundle in manifest['bundles']:
         name = bundle['file']
         original = checked_catalog_path(source / 'Catalog', name)
         destination = checked_catalog_path(catalog, name)
-        entries = {key: record for key, record in jobs.get(name, {}).items()
+        proof = proofs[name]
+        if not args.repair_rest and name not in jobs:
+            destination.hardlink_to(original)
+            continue
+        fitted = fitted_garment_meshes(proof) if not args.groom_contact else {}
+        if args.repair_rest and not fitted:
+            destination.hardlink_to(original)
+            continue
+        if sha(original) != bundle['sha256']:
+            raise ValueError('The observed garment changed before fitting.')
+        env, file = resources.load_serialized_bundle(original, in_memory=True)
+        entries = existing_garment_fits(file, fitted) if args.repair_rest else jobs[name]
+        rest_source = None
+        if not args.groom_contact and entries:
+            reference_file = None
+            if fitted.keys() & entries.keys():
+                raw = checked_source_path(proof['source'])
+                rest_source = pin(raw)
+                if rest_source['sha256'] != proof['sourceSha256']:
+                    raise ValueError('The original garment bundle has changed.')
+                reference_file = resources.load_serialized_bundle(raw, in_memory=True)[1]
+            for key, record in entries.items():
+                reference = record['native']
+                if reference_file is not None and reference['sourceFingerprint'] == fitted.get(key):
+                    obj = reference_file.objects.get(key)
+                    if obj is None or obj.type.name != 'Mesh' or obj.peek_name() != reference['name']:
+                        raise ValueError('The original equipment mesh no longer has the expected identity.')
+                    reference = export_current_mesh(obj)
+                record['target'] = production.constrain_garment_rest(reference, record['target'],
+                    record['frame'], args.maximum_offset)
+        entries = {key: record for key, record in entries.items()
                    if record['target']['sourceFingerprint'] != record['native']['sourceFingerprint']}
         if not entries:
             destination.hardlink_to(original)
             continue
-        env, file = resources.load_serialized_bundle(original, in_memory=True)
-        if sha(original) != bundle['sha256']:
-            raise ValueError('The observed garment changed before fitting.')
         edits, physics = rebuild_surface_cloth(file, {key: (v['native'], v['target'], v['frame'], {})
                                                       for key, v in entries.items()})
         for key, record in entries.items():
@@ -6923,10 +7058,12 @@ def write_posed_garments(args, source, output):
                        meshes=[dict(object=key, before=v['native']['sourceFingerprint'],
                                     after=export_current_mesh(saved.objects[key])['sourceFingerprint'], poses=v['poses'])
                                for key, v in entries.items()])
+        if rest_source is not None:
+            receipt['restSource'] = rest_source
         path = output / 'Receipts' / (name + '.json')
         write(path, receipt)
-        proof = proofs[name]
-        proof.setdefault('appearanceFinishing', []).append(dict(kind='posed-garment-fit', proof=pin(path),
+        kind = 'posed-groom-contact' if args.groom_contact else 'posed-garment-fit'
+        proof.setdefault('appearanceFinishing', []).append(dict(kind=kind, proof=pin(path),
             beforeSha256=bundle['sha256'], sha256=receipt['target']['sha256']))
         bundle['sha256'] = receipt['target']['sha256']
         proof.update(sha256=bundle['sha256'], bytes=destination.stat().st_size, allRetainedObjectFieldsExactAfterReferenceRebasing=False)
@@ -9798,6 +9935,7 @@ def prepare_groom_frame_resources():
     parser.add_argument('--files',nargs='*',default=[])
     parser.add_argument('--shader-only',action='store_true')
     parser.add_argument('--preset-only',action='store_true')
+    parser.add_argument('--cloth-continuity-only',action='store_true')
     parser.add_argument('--before-preset',type=Path,action='append',default=[])
     parser.add_argument('--after-preset',type=Path)
     parser.add_argument('--workers',type=int,choices=range(1,5),default=2)
@@ -9807,9 +9945,15 @@ def prepare_groom_frame_resources():
     if bool(args.before_preset)!=bool(args.after_preset):raise ValueError('Groom preset migration requires both compiled presets.')
     if args.preset_only and (not args.before_preset or args.shader_report or args.texture_report):
         parser.error('Use --preset-only with compiled presets and the existing shader and textures.')
+    if args.cloth_continuity_only and (args.shader_only or args.preset_only or args.shader_report or
+                                     args.texture_report or args.before_preset):
+        parser.error('Use --cloth-continuity-only with the existing groom mesh and material assets.')
     source=checked_catalog_path(args.source);output=checked_catalog_path(args.output)
     if not output.is_relative_to(ROOT/'tools')or output==source:raise ValueError('Groom output requires an independent tools workspace.')
-    assembly=read(source/'ResourceAssembly.json');manifest=read(source/(Path('Catalog')/RESOURCE_FILES['manifest']))
+    manifest_path=source/'Catalog'/RESOURCE_FILES['manifest']
+    assembly=read(source/'ResourceAssembly.json');manifest=read(manifest_path)
+    if sha(manifest_path)!=assembly['catalogSha256']:
+        raise ValueError('The source groom catalog differs from the assembly receipt.')
     prior_frames=assembly.get('groomVertexFrames',{})
     selected={r['bundles'][0]['file']for r in manifest['resources']if any(p.get('set')=='Groom'for p in r.get('parameters',[]))}
     all_grooms=set(selected)
@@ -9823,7 +9967,7 @@ def prepare_groom_frame_resources():
         if args.files or args.texture_report is not None:raise ValueError('A shader-only update cannot also change groom meshes or textures.')
         selected=set()
     prior_files=set(prior_frames.get('files',[]))
-    if selected & prior_files:
+    if not args.cloth_continuity_only and selected & prior_files:
         raise ValueError('Regenerating the same groom requires its original frame catalog.')
     shader=None;shader_path=None;shader_reuse=None
     if args.shader_report is not None:
@@ -9877,6 +10021,8 @@ def prepare_groom_frame_resources():
             raise ValueError('The compiled groom texture bundle has no existing resource owner.')
         pins.extend(dict(path=str(Path(path).resolve()),sha256=sha(path))for path in (args.texture_report,texture_path))
     marker=dict(sourceCatalogSha256=sha(source/(Path('Catalog')/RESOURCE_FILES['manifest'])),selectedFiles=sorted(selected),inputs=pins)
+    if args.cloth_continuity_only:
+        marker['clothContinuityOnly']=True
     if args.preset_only:
         marker['presetFiles'] = sorted(preset_files)
     output.mkdir(parents=True,exist_ok=True);catalog=output/'Catalog';catalog.mkdir(exist_ok=True)
@@ -9893,6 +10039,10 @@ def prepare_groom_frame_resources():
         if row['file']in selected:
             job=dict(source=str(original),target=str(target),sha256=row['sha256'],codeSha256=sha(resources.__file__),
                      receipt=str(output/'Receipts'/(row['file']+'.json')),gpuBridge=True)
+            if args.cloth_continuity_only:
+                job.update(gpuBridge=False,clothContinuityOnly=True)
+                jobs.append(job)
+                continue
             for operation in reversed(proofs[row['file']].get('appearanceFinishing',[])):
                 if operation['kind']!='source-owned-groom-surface':continue
                 if sha(operation['proof']['path'])!=operation['proof']['sha256']:raise ValueError('An authored groom frame authority changed.')
@@ -9920,10 +10070,12 @@ def prepare_groom_frame_resources():
                 failures.append(dict(file=Path(futures[future]['source']).name,error=str(error)))
                 print('Groom validation failed:',failures[-1],flush=True)
                 continue
-            row=proofs[result['file']];row['sha256']=result['sha256'];row['bytes']=result['bytes']
-            row['allRetainedObjectFieldsExactAfterReferenceRebasing']=False
-            row.setdefault('appearanceFinishing',[]).append(dict(kind='groom-vertex-normal-frame',beforeSha256=result['identity']['sourceSha256'],authority=dict(inputs=pins),**result))
-            completed.append(result);print('Groom frames:',len(completed),'/',len(jobs),result['file'],flush=True)
+            row=proofs[result['file']]
+            if row['sha256']!=result['sha256']:
+                kind='groom-cloth-continuity' if args.cloth_continuity_only else 'groom-vertex-normal-frame'
+                row.update(sha256=result['sha256'],bytes=result['bytes'],allRetainedObjectFieldsExactAfterReferenceRebasing=False)
+                row.setdefault('appearanceFinishing',[]).append(dict(kind=kind,beforeSha256=result['identity']['sourceSha256'],authority=dict(inputs=pins),**result))
+            completed.append(result);print('Groom resources:',len(completed),'/',len(jobs),result['file'],flush=True)
     if failures:
         write(output/'GroomFailures.json',dict(owner=marker,failures=failures))
         raise ValueError('Groom validation failed for '+str(len(failures))+' resources; see GroomFailures.json.')
@@ -9980,12 +10132,22 @@ def prepare_groom_frame_resources():
     if shader_reuse is not None:finishing['shader']['retainedSource']=shader_reuse
     if texture_receipt is not None:finishing['textures']=texture_receipt
     if args.shader_only:assembly['groomShaderFinishing']=finishing
+    elif args.cloth_continuity_only:
+        finishing['changedFiles']=sorted(row['file'] for row in completed if row['clothContinuity'])
+        changes = [change for row in completed for change in row['clothContinuity'].values()]
+        finishing['simulations'] = sum('movingPoints' in change for change in changes)
+        finishing['attachmentBoundaries'] = sum(len(change.get('attachmentBoundaries', ())) for change in changes)
+        finishing['fixedAnchorFrames'] = sum(len(change.get('fixedAnchorFrames', ())) for change in changes)
+        assembly['groomClothContinuity']=finishing
     elif not args.preset_only:
         assembly['groomVertexFrames']=dict(prior_frames,**finishing)
         assembly['groomVertexFrames'].update(files=sorted(prior_files|selected),meshes=prior_frames.get('meshes',0)+finishing['meshes'])
     assembly['artAccepted']=False
     write(output/'ResourceAssembly.json',assembly)
-    status = 'PREPARED_GROOM_MATERIALS_REVIEW_PENDING' if args.preset_only else 'PREPARED_GROOM_VERTEX_FRAMES_REVIEW_PENDING'
+    if args.cloth_continuity_only:
+        status = 'PREPARED_GROOM_CLOTH_CONTINUITY_REVIEW_PENDING'
+    else:
+        status = 'PREPARED_GROOM_MATERIALS_REVIEW_PENDING' if args.preset_only else 'PREPARED_GROOM_VERTEX_FRAMES_REVIEW_PENDING'
     write(output/'Preparation.json',dict(status=status,**finishing))
     print(json.dumps(dict(status=status,groomFiles=len(selected),catalog=assembly['catalogSha256'])))
 
