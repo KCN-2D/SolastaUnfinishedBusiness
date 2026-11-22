@@ -52,7 +52,7 @@ function Assert-File([string] $Path) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "Missing file: $Path" }
 }
 
-function Resolve-VerificationAssemblyReferences([string[]] $Paths) {
+function Resolve-VerificationAssemblyReference([string[]] $Paths) {
     $byName = [Collections.Generic.Dictionary[string,object]]::new([StringComparer]::OrdinalIgnoreCase)
     foreach ($value in $Paths) {
         $path = Get-FullPath $value
@@ -92,7 +92,7 @@ function Get-CurrentRunLog {
     return Get-RunLogSegment (Read-SharedText $PlayerLogPath) $originalLogContent
 }
 
-function Test-StartupMarkers([string] $Content) {
+function Test-StartupMarker([string] $Content) {
     $ubStarted = $Content -match '\[SolastaUnfinishedBusiness\]\s+Version .*Loading\.' -and
         $Content -match '\[SolastaUnfinishedBusiness\]\s+Active\.' -and
         $Content -match '\[SolastaUnfinishedBusiness\]\s+enabled in '
@@ -102,7 +102,7 @@ function Test-StartupMarkers([string] $Content) {
         $managerMatch.Groups[1].Value -eq $managerMatch.Groups[2].Value
 }
 
-function Get-RuntimeErrors([string] $Content) {
+function Get-RuntimeError([string] $Content) {
     $errors = @($Content -split '\r?\n' | Where-Object {
         $_ -match '^\[[^\]]+\].*\[(Error|Exception)\]' -or
         $_ -match '^(?:[\w.]+)?(?:Exception|Error):|^Uploading Crash Report|HarmonyException'
@@ -179,9 +179,12 @@ function Get-VerificationModLoadPlan([object[]] $ModInfos, [string] $Verificatio
     return $ub
 }
 
-function New-VerificationNativeUserData([string] $SourceDirectory, [string] $Destination,
-    [string] $PreferencesDirectory, [string] $Owner) {
+function New-VerificationNativeUserData {
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Low')]
+    param([string] $SourceDirectory, [string] $Destination, [string] $PreferencesDirectory, [string] $Owner)
+
     if (Test-Path -LiteralPath $Destination) { throw 'The isolated native data directory already exists.' }
+    if (!$PSCmdlet.ShouldProcess($Destination, 'Stage isolated native verification inputs')) { return }
     [void][IO.Directory]::CreateDirectory($Destination)
     [IO.File]::WriteAllText((Join-Path $Destination '.ub-runtime-userdata'), $Owner)
     $inputs = @()
@@ -220,7 +223,7 @@ function New-VerificationNativeUserData([string] $SourceDirectory, [string] $Des
     return $receipt
 }
 
-function Get-VerificationNativeUserFiles([string] $Directory) {
+function Get-VerificationNativeUserFile([string] $Directory) {
     $paths = [Collections.Generic.SortedSet[string]]::new([StringComparer]::Ordinal)
     foreach ($name in @('UserPreferences.xml', 'PlatformPreferences.xml')) { [void]$paths.Add((Join-Path $Directory $name)) }
     foreach ($name in @('Saves', 'Characters')) {
@@ -242,7 +245,10 @@ function Get-VerificationNativeUserFiles([string] $Directory) {
     }
 }
 
-function Remove-OwnedDirectory([string] $Path, [string] $Parent) {
+function Remove-OwnedDirectory {
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Low')]
+    param([string] $Path, [string] $Parent)
+
     $resolved = Get-FullPath $Path
     if (-not (Test-IsWithin $resolved $Parent) -or $resolved -eq (Get-FullPath $Parent)) {
         throw "Refusing to remove a path outside its owned parent: $resolved"
@@ -256,7 +262,9 @@ function Remove-OwnedDirectory([string] $Path, [string] $Parent) {
                 Where-Object { ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 }) {
             throw "Refusing recursive removal through a reparse point: $resolved"
         }
-        Remove-Item -LiteralPath $resolved -Recurse -Force
+        if ($PSCmdlet.ShouldProcess($resolved, 'Remove the owned verification directory')) {
+            Remove-Item -LiteralPath $resolved -Recurse -Force -Confirm:$false
+        }
     }
 }
 
@@ -292,7 +300,7 @@ if (-not $PlayerLogPath) {
 $PlayerLogPath = Get-FullPath $PlayerLogPath
 New-Item -ItemType Directory -Path $runDirectory | Out-Null
 Write-Json (Join-Path $runDirectory 'Directory.json') $evidencePathPlan
-Write-Host "Verification evidence: $runDirectory"
+Write-Information "Verification evidence: $runDirectory" -InformationAction Continue
 $workDirectory = Join-Path $runDirectory 'Build'
 $modsDirectory = Join-Path $gameDirectory 'Mods'
 $probeDirectory = Join-Path $modsDirectory $probeId
@@ -452,7 +460,7 @@ try {
         $result.hashes[$assemblyName] = (Get-FileHash -LiteralPath $assemblyPath -Algorithm SHA256).Hash
     }
     $managerVersion = [version] $result.assemblyVersions['UnityModManager']
-    Write-Host "Unity Mod Manager runtime: $managerVersion (minimum $minimumManagerVersion)"
+    Write-Information "Unity Mod Manager runtime: $managerVersion (minimum $minimumManagerVersion)" -InformationAction Continue
     if ($managerVersion -lt $minimumManagerVersion) {
         throw "Unity Mod Manager $minimumManagerVersion or newer is required; installed runtime is $managerVersion."
     }
@@ -566,7 +574,7 @@ try {
         $references += Join-Path $managedDirectory 'UnityModManager\UnityModManager.dll'
         $references += @(Get-ChildItem -LiteralPath $managedDirectory -Filter 'Unity*.dll' | Select-Object -ExpandProperty FullName)
         $references += @($ReferencePath | ForEach-Object { (Resolve-Path -LiteralPath $_).Path })
-        $result['compilationReferences'] = @(Resolve-VerificationAssemblyReferences $references)
+        $result['compilationReferences'] = @(Resolve-VerificationAssemblyReference $references)
         $references = @($result.compilationReferences | ForEach-Object { $_.path })
         $probeDll = Join-Path $workDirectory "$probeId.dll"
         $arguments = @('/nologo', '/target:library', '/nostdlib', '/langversion:latest', "/out:$probeDll")
@@ -610,7 +618,7 @@ try {
         Assert-NoGameProcess
         $result.execution.sideEffectsStarted=$true
         if (-not $StartupOnly) {
-            $nativeUserFilesBefore = @(Get-VerificationNativeUserFiles $nativePreferencesDirectory)
+            $nativeUserFilesBefore = @(Get-VerificationNativeUserFile $nativePreferencesDirectory)
             Write-Json (Join-Path $runDirectory 'Native-OriginalFiles-Before.json') $nativeUserFilesBefore
             $nativeInputs = @(New-VerificationNativeUserData $nativePreferencesDirectory $nativeUserDataDirectory $NativePreferencesInputDirectory $nativeUserDataOwner)
             [IO.File]::WriteAllText((Join-Path $nativeUserDataDirectory '.ub-runtime-evidence'), $runDirectory)
@@ -727,10 +735,10 @@ try {
                     $managerLog = if ($managerContent -ceq $managerLogBaseline) { $managerContent }
                         else { Get-RunLogSegment $managerContent $managerLogBaseline }
                 }
-                catch [IO.IOException] { }
+                catch [IO.IOException] { Write-Verbose "Unity Mod Manager log is temporarily unavailable: $($_.Exception.Message)" }
                 if ($managerLog -match '(?m)^\[Manager\] FINISH\. SUCCESSFUL LOADED \d+/\d+ MODS\.') {
                     $managerStartupFinished = $true
-                    if (@(Get-RuntimeErrors $managerLog).Count -gt 0) {
+                    if (@(Get-RuntimeError $managerLog).Count -gt 0) {
                         [IO.File]::WriteAllText((Join-Path $runDirectory 'Runtime-ManagerStartup.log'), $managerLog)
                         throw 'Unity Mod Manager reported a startup error. See Runtime-ManagerStartup.log.'
                     }
@@ -738,10 +746,10 @@ try {
             }
             if ($StartupOnly) {
                 $currentLog = Get-CurrentRunLog
-                if (@(Get-RuntimeErrors $currentLog).Count -gt 0) {
+                if (@(Get-RuntimeError $currentLog).Count -gt 0) {
                     throw 'An error was reported during startup; see Runtime-Player.log.'
                 }
-                if (Test-StartupMarkers $currentLog) {
+                if (Test-StartupMarker $currentLog) {
                     if ($null -eq $startupStableSince) { $startupStableSince = Get-Date }
                     elseif ((Get-Date) -ge $startupStableSince.AddSeconds(5)) {
                         $result.status = 'success'
@@ -836,13 +844,13 @@ finally {
             $runtimeLog = Read-SharedText $PlayerLogPath
             [IO.File]::WriteAllText((Join-Path $runDirectory 'Runtime-Player.log'), $runtimeLog)
             $currentRunLog = Get-CurrentRunLog
-            $errors = @(Get-RuntimeErrors $currentRunLog)
+            $errors = @(Get-RuntimeError $currentRunLog)
             if ($errors.Count -gt 0) {
                 $result.status = 'failed'
                 $result.reason += ' Runtime errors detected; see Runtime-errors.log.'
                 $errors | Set-Content (Join-Path $runDirectory 'Runtime-errors.log') -Encoding UTF8
             }
-            $startupSucceeded = Test-StartupMarkers $currentRunLog
+            $startupSucceeded = Test-StartupMarker $currentRunLog
             $result['startupSucceeded'] = [bool] $startupSucceeded
             if ($result.status -eq 'success' -and -not $startupSucceeded) {
                 $result.status = 'failed'
@@ -994,7 +1002,7 @@ finally {
     if ($gameStopped) {
         if ($null -ne $nativeUserFilesBefore) {
             try {
-                $nativeUserFilesAfter = @(Get-VerificationNativeUserFiles $nativePreferencesDirectory)
+                $nativeUserFilesAfter = @(Get-VerificationNativeUserFile $nativePreferencesDirectory)
                 Write-Json (Join-Path $runDirectory 'Native-OriginalFiles-After.json') $nativeUserFilesAfter
                 if (($nativeUserFilesBefore | ConvertTo-Json -Depth 8 -Compress) -cne
                     ($nativeUserFilesAfter | ConvertTo-Json -Depth 8 -Compress)) {
@@ -1071,9 +1079,9 @@ finally {
     catch { $result.status = 'failed'; $result.reason += " Build cleanup failed: $($_.Exception.Message)" }
     $result['completedUtc'] = [datetime]::UtcNow.ToString('O')
     Write-Json (Join-Path $runDirectory 'Result.json') $result
-    Write-Host "Status: $($result.status); passed=$($result.passed), failed=$($result.failed), incomplete=$($result.incomplete)"
-    Write-Host $result.reason
-    Write-Host "Evidence: $runDirectory"
+    Write-Information "Status: $($result.status); passed=$($result.passed), failed=$($result.failed), incomplete=$($result.incomplete)" -InformationAction Continue
+    Write-Information $result.reason -InformationAction Continue
+    Write-Information "Evidence: $runDirectory" -InformationAction Continue
 }
 
 if ($failure) { throw $failure }

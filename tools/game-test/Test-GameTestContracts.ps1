@@ -87,7 +87,7 @@ function Invoke-DisplayCleanupContracts($RuntimeAst,[string]$Directory) {
 
 function Invoke-AssemblyReferenceContracts($RuntimeAst,[string]$Directory) {
     [void][IO.Directory]::CreateDirectory($Directory)
-    foreach ($name in @('Get-FullPath','Assert-File','Resolve-VerificationAssemblyReferences')) {
+    foreach ($name in @('Get-FullPath','Assert-File','Resolve-VerificationAssemblyReference')) {
         . ([scriptblock]::Create((Read-ContractFunction $RuntimeAst $name)))
     }
     $compiler=Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
@@ -115,25 +115,25 @@ function Invoke-AssemblyReferenceContracts($RuntimeAst,[string]$Directory) {
         $rows.Add([ordered]@{name=$Name;status=$(if($Pass){'PASS'}else{'FAIL'})})
     }
     function Test-ReferenceConflict([string[]]$Paths) {
-        try { $null=@(Resolve-VerificationAssemblyReferences $Paths) }
+        try { $null=@(Resolve-VerificationAssemblyReference $Paths) }
         catch { return $_.Exception.Message -like 'Conflicting compiler reference assembly*' }
         return $false
     }
-    $native=@(Resolve-VerificationAssemblyReferences @($fixturePaths.default))
+    $native=@(Resolve-VerificationAssemblyReference @($fixturePaths.default))
     Add-ReferenceCheck 'effective metadata and bytes are recorded' ($native.Count -eq 1 -and $native[0].path -ceq [IO.Path]::GetFullPath($fixturePaths.default) -and $native[0].fullIdentity -ceq [Reflection.AssemblyName]::GetAssemblyName($fixturePaths.default).FullName -and $native[0].sha256 -ceq (Get-FileHash -LiteralPath $fixturePaths.default -Algorithm SHA256).Hash)
-    $same=@(Resolve-VerificationAssemblyReferences @($fixturePaths.default,$fixturePaths.default))
+    $same=@(Resolve-VerificationAssemblyReference @($fixturePaths.default,$fixturePaths.default))
     Add-ReferenceCheck 'same path is represented once' ($same.Count -eq 1)
-    $same=@(Resolve-VerificationAssemblyReferences @($fixturePaths.default,$copy))
+    $same=@(Resolve-VerificationAssemblyReference @($fixturePaths.default,$copy))
     Add-ReferenceCheck 'identical bytes retain the default first path' ($same.Count -eq 1 -and $same[0].path -ceq [IO.Path]::GetFullPath($fixturePaths.default))
-    $same=@(Resolve-VerificationAssemblyReferences @($copy,$fixturePaths.default))
+    $same=@(Resolve-VerificationAssemblyReference @($copy,$fixturePaths.default))
     Add-ReferenceCheck 'identical bytes preserve supplied order' ($same.Count -eq 1 -and $same[0].path -ceq [IO.Path]::GetFullPath($copy))
     Add-ReferenceCheck 'same identity with different bytes rejects' (Test-ReferenceConflict @($fixturePaths.default,$fixturePaths.changed))
     Add-ReferenceCheck 'conflicting bytes reject in either order' (Test-ReferenceConflict @($fixturePaths.changed,$fixturePaths.default))
     Add-ReferenceCheck 'same simple name with a different version rejects' (Test-ReferenceConflict @($fixturePaths.default,$fixturePaths.version))
-    $different=@(Resolve-VerificationAssemblyReferences @($fixturePaths.other,$fixturePaths.default))
+    $different=@(Resolve-VerificationAssemblyReference @($fixturePaths.other,$fixturePaths.default))
     Add-ReferenceCheck 'distinct assembly names retain their order' ($different.Count -eq 2 -and $different[0].path -ceq [IO.Path]::GetFullPath($fixturePaths.other) -and $different[1].path -ceq [IO.Path]::GetFullPath($fixturePaths.default))
     $rejected=$false
-    try { $null=@(Resolve-VerificationAssemblyReferences @((Join-Path $Directory 'Missing.dll'))) }
+    try { $null=@(Resolve-VerificationAssemblyReference @((Join-Path $Directory 'Missing.dll'))) }
     catch { $rejected=$_.Exception.Message -like 'Missing file:*' }
     Add-ReferenceCheck 'missing metadata is rejected before compilation' $rejected
     [ordered]@{status=$(if(@($rows|Where-Object status -ne 'PASS').Count){'FAIL'}else{'PASS'});scope='Actual runtime reference normalization AST with owned compiled assemblies. Metadata inspection and hash equality only; no game or assembly code execution.';cases=$rows.ToArray()}
@@ -685,7 +685,7 @@ $record | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $report -Encoding 
 function Invoke-NativeUserDataContracts([object]$Ast,[string]$Directory) {
     [void][IO.Directory]::CreateDirectory($Directory)
     $probe=Join-Path $Directory 'Probe.ps1'
-    $definitions=@(foreach ($name in @('Get-FullPath','Test-IsWithin','New-VerificationNativeUserData','Get-VerificationNativeUserFiles')) {
+    $definitions=@(foreach ($name in @('Get-FullPath','Test-IsWithin','New-VerificationNativeUserData','Get-VerificationNativeUserFile')) {
         Read-ContractFunction $Ast $name
     }) -join [Environment]::NewLine
     $source=@'
@@ -703,7 +703,7 @@ function Put([string]$Root,[string]$Relative,[string]$Text) {
     [IO.File]::WriteAllText($path,$Text,[Text.UTF8Encoding]::new($false))
 }
 function Snapshot([string]$Root) {
-    ConvertTo-Json -InputObject @(Get-VerificationNativeUserFiles $Root) -Depth 8 -Compress
+    ConvertTo-Json -InputObject @(Get-VerificationNativeUserFile $Root) -Depth 8 -Compress
 }
 $native=Join-Path $fixture 'NativeOriginal';$prefs=Join-Path $fixture 'CasePreferences';$owned=Join-Path $fixture 'OwnedNativeData'
 foreach ($entry in @(
@@ -736,7 +736,7 @@ Check 'every staged input receipt matches source and destination hashes' (@($cop
     $_.sha256 -cne (Get-FileHash -LiteralPath (Join-Path $owned $_.relative) -Algorithm SHA256).Hash
 }).Count -eq 0)
 Check 'staging preserves original preference, save and character bytes, sizes and write times' ((Snapshot $native) -ceq $before)
-$snapshot=@(Get-VerificationNativeUserFiles $native)
+$snapshot=@(Get-VerificationNativeUserFile $native)
 Check 'snapshot covers both preferences and all original save and character files' ($snapshot.Count -eq 4 -and
     @($snapshot | Where-Object { -not $_.exists -or !$_.sha256 -or !$_.size -or !$_.lastWriteUtcTicks }).Count -eq 0)
 Put $owned 'UserPreferences.xml' 'verification-export';Put $owned 'Saves/new.sav' 'verification-save';Put $owned 'Characters/new.chr' 'verification-character'
@@ -749,16 +749,16 @@ Check 'an existing destination is refused without overwriting its outputs' ($exi
 $prefPath=Join-Path $native 'UserPreferences.xml';$prefBefore=$snapshot | Where-Object path -EQ $prefPath
 Put $native 'UserPreferences.xml' 'mutant-user'
 [IO.File]::SetLastWriteTimeUtc($prefPath,[datetime]::new([long]$prefBefore.lastWriteUtcTicks,[DateTimeKind]::Utc))
-$prefAfter=Get-VerificationNativeUserFiles $native | Where-Object path -EQ $prefPath
+$prefAfter=Get-VerificationNativeUserFile $native | Where-Object path -EQ $prefPath
 Check 'preference byte changes are detected even at equal size and write time' ($prefAfter.size -eq $prefBefore.size -and
     $prefAfter.lastWriteUtcTicks -eq $prefBefore.lastWriteUtcTicks -and $prefAfter.sha256 -cne $prefBefore.sha256)
 $savePath=Join-Path $native 'Saves/original.sav';$saveBefore=$snapshot | Where-Object path -EQ $savePath
 [IO.File]::AppendAllText($savePath,'changed')
-$saveAfter=Get-VerificationNativeUserFiles $native | Where-Object path -EQ $savePath
+$saveAfter=Get-VerificationNativeUserFile $native | Where-Object path -EQ $savePath
 Check 'original save changes are detected' ($saveAfter.size -gt $saveBefore.size -and $saveAfter.sha256 -cne $saveBefore.sha256)
 $characterPath=Join-Path $native 'Characters/original.chr';$characterBefore=$snapshot | Where-Object path -EQ $characterPath
 [IO.File]::SetLastWriteTimeUtc($characterPath,[datetime]::new([long]$characterBefore.lastWriteUtcTicks,[DateTimeKind]::Utc).AddSeconds(2))
-$characterAfter=Get-VerificationNativeUserFiles $native | Where-Object path -EQ $characterPath
+$characterAfter=Get-VerificationNativeUserFile $native | Where-Object path -EQ $characterPath
 Check 'character write-time changes are detected without a content change' ($characterAfter.sha256 -ceq $characterBefore.sha256 -and
     $characterAfter.lastWriteUtcTicks -ne $characterBefore.lastWriteUtcTicks)
 $record=[ordered]@{status=$(if(@($checks | Where-Object status -ne 'PASS').Count){'FAIL'}else{'PASS'});checks=@($checks.ToArray())}
