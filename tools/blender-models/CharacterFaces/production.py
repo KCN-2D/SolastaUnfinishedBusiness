@@ -1288,6 +1288,159 @@ def garment_edge_budget(lengths):
     return .34 * lengths + .0002
 
 
+def garment_components(positions, triangles, *, weld_seams=True):
+    """Find separate garment pieces or their indexed charts."""
+    groups = art.weld_groups(positions)[triangles] if weld_seams else triangles
+    parents = np.arange(len(triangles))
+    edges = {}
+
+    def root(face):
+        while parents[face] != face:
+            parents[face] = parents[parents[face]]
+            face = parents[face]
+        return face
+
+    for face, (a, b, c) in enumerate(groups):
+        for first, second in ((a, b), (b, c), (c, a)):
+            if first == second:
+                continue
+            edge = min(first, second), max(first, second)
+            if edge in edges:
+                parents[root(face)] = root(edges[edge])
+            else:
+                edges[edge] = face
+
+    islands = {}
+    for face, triangle in enumerate(triangles):
+        islands.setdefault(root(face), []).append(triangle)
+    return [np.asarray(island, dtype=np.intp) for island in islands.values() if len(island) >= 3]
+
+
+def garment_self_layers(positions, triangles, distance):
+    """Identify covered lining faces on disconnected pieces of one skinned mesh."""
+    pieces = []
+    for indices in garment_components(positions, triangles):
+        surface = positions[indices]
+        pieces.append((indices, surface, surface.min(axis=(0, 1)), surface.max(axis=(0, 1))))
+
+    for first, (outer, outside, low, high) in enumerate(pieces):
+        for inner, inside, inner_low, inner_high in pieces[first + 1:]:
+            if np.any(low > inner_high + distance) or np.any(inner_low > high + distance):
+                continue
+            covered = garment_inside_faces(outside, inside, distance)
+            opposite = garment_inside_faces(inside, outside, distance)
+            # A nearly balanced overlap can be an intentional fold. Only inset
+            # the side with consistent coverage in the observed reference pose.
+            count, reverse = np.count_nonzero(covered), np.count_nonzero(opposite)
+            if count >= max(3, reverse) and covered.mean() > 2 * opposite.mean():
+                yield outer, inner[covered]
+            elif reverse >= max(3, count) and opposite.mean() > 2 * covered.mean():
+                yield inner, outer[opposite]
+
+
+def garment_fold_layers(positions, triangles, distance):
+    """Find nearby opposing surfaces sewn into the same garment piece."""
+    for piece in garment_components(positions, triangles):
+        charts = []
+        for chart in garment_components(positions, piece, weld_seams=False):
+            surface = positions[chart]
+            charts.append((chart, surface, surface.min(axis=(0, 1)), surface.max(axis=(0, 1))))
+        for index, (first, front, low, high) in enumerate(charts):
+            for second, back, back_low, back_high in charts[index + 1:]:
+                if np.any(low > back_high + distance) or np.any(back_low > high + distance):
+                    continue
+                minimum = max(3, min(len(first), len(second)) * .08)
+                if np.count_nonzero(garment_inside_faces(front, back[:, ::-1], distance)) < minimum:
+                    continue
+                if np.count_nonzero(garment_inside_faces(back, front[:, ::-1], distance)) >= minimum:
+                    yield first, second
+
+
+def follow_garment_trim(prior, target, frame, distance):
+    """Carry separate trim with the fabric supporting it before the garment fit."""
+    require(all(prior[key] == target[key] for key in ('subMeshes', 'weights', 'boneIndices', 'bindPoses')),
+            'Garment trim and its support must share their original mesh layout.')
+    original = np.asarray(target['vertices']).reshape(-1, 3)
+    reference = art.points(prior['vertices'], frame)
+    proposed = art.points(target['vertices'], frame)
+    result = proposed.copy()
+    welded = art.weld_groups(reference)
+    triangles = np.concatenate(target['subMeshes']).reshape(-1, 3)
+    pieces = []
+    for indices in garment_components(reference, triangles):
+        surface = reference[indices]
+        area = np.linalg.norm(np.cross(surface[:, 1] - surface[:, 0], surface[:, 2] - surface[:, 0]), axis=1).sum()
+        pieces.append((indices, area, surface.min(axis=(0, 1)), surface.max(axis=(0, 1))))
+
+    changed = False
+    for trim, area, low, high in pieces:
+        if area == 0:
+            continue
+        supports = [piece for piece, support_area, support_low, support_high in pieces
+                    if support_area >= 8 * area and np.all(support_low <= high + distance)
+                    and np.all(support_high >= low - distance)]
+        if not supports:
+            continue
+        points = np.unique(trim)
+        support = np.concatenate(supports)
+        if np.isin(welded[points], welded[support]).any():
+            continue
+        surface = reference[support]
+        nearby = overlapping_surface_faces(reference[points] - distance, reference[points] + distance,
+                                           surface.min(axis=1), surface.max(axis=1))
+        point = np.repeat(np.arange(len(points)), [len(matches) for matches in nearby])
+        face = np.concatenate(nearby)
+        if not len(face):
+            continue
+        origin = surface[:, 0]
+        first, second = surface[:, 1] - origin, surface[:, 2] - origin
+        outward = np.cross(first, second)
+        supported = np.linalg.norm(outward, axis=1) > 1e-12
+        normal = normalise(outward)
+        basis = np.linalg.pinv(np.stack((first, second), axis=2))
+        offset = reference[points[point]] - origin[face]
+        depth = np.sum(offset * normal[face], axis=1)
+        uv = np.einsum('nij,nj->ni', basis[face], offset)
+        valid = np.flatnonzero(supported[face] & (np.abs(depth) <= distance) &
+                               (uv >= -1e-6).all(axis=1) & (uv.sum(axis=1) <= 1+1e-6))
+        ordered = valid[np.lexsort((np.abs(depth[valid]), point[valid]))]
+        _, first_hit = np.unique(point[ordered], return_index=True)
+        closest = ordered[first_hit]
+        exterior = closest[depth[closest] >= -.0002]
+        if len(exterior) < .7 * len(points):
+            continue
+        attached = points[point[exterior]]
+        anchors = support[face[exterior]]
+        coordinates = uv[exterior]
+        bary = np.column_stack((1 - coordinates.sum(axis=1), coordinates))
+        covered = proposed[anchors]
+        attachment = np.einsum('ni,nij->nj', bary, covered)
+        outward = normalise(np.cross(covered[:, 1] - covered[:, 0], covered[:, 2] - covered[:, 0]))
+        if np.count_nonzero(np.sum((proposed[attached] - attachment) * outward, axis=1) < -.0002) < 3:
+            continue
+        movement = np.einsum('ni,nij->nj', bary, covered - reference[anchors])
+        nearest = np.linalg.norm(reference[points, None] - reference[attached], axis=2).argmin(axis=1)
+        result[points] = reference[points] + movement[nearest]
+        changed = True
+    if not changed:
+        return target
+    fitted = np.linalg.solve(frame[:3, :3], (result - frame[:3, 3]).T).T
+    normals = np.asarray(target['normals']).reshape(-1, 3)
+    groups = normal_groups(original, normals)
+    seams = art.weld_groups(original)
+    before = surface_normals(original, triangles, groups, original, normals)
+    correction = fitted - original
+    for _ in range(8):
+        fitted, _ = preserve_surface_orientation(original, original + correction, triangles, frame,
+                                                  groups=seams, group_falloff=.4 * distance)
+        after = surface_normals(fitted, triangles, groups, original, normals)
+        reversed_normals = np.sum(before * after, axis=1) < 0
+        if not reversed_normals.any():
+            return fitted_surface_frame(target, fitted, before, after)
+        correction[np.isin(seams, seams[reversed_normals])] *= .5
+    return target
+
+
 def continue_garment_clearance(clearance, points, edges):
     """Continue the required clearance along cloth within its rest edge strain budget."""
     import heapq
@@ -1585,7 +1738,8 @@ def project_garment_fit(packet, candidate, observed, bone_paths, renderer_to_pre
 
 
 def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *, clearance, maximum_offset, previous=None,
-                      head_surface=None, fixed_vertices=(), groom_guide=None):
+                      head_surface=None, fixed_vertices=(), groom_guide=None, lining_only=False,
+                      layer_cache=None, layer_key=None):
     """Map correction of the posed surface into its original skinned mesh."""
     require(packet['subMeshes'] == observed['submeshes'], 'Drawn garment topology differs from its prefab.')
     points = np.asarray(packet['vertices']).reshape(-1, 3)
@@ -1600,13 +1754,29 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
     outer = [indices for is_skin, indices in zip(observed['skinMaterials'], packet['subMeshes'], strict=True)
              if indices and not is_skin]
     current = previous if previous is not None else packet
-    if not outer:
+    layer_reference = observed.get('layerReferenceVertices')
+    if not outer or lining_only and layer_reference is None:
+        return current, 0
+    shell = np.concatenate(outer).astype(np.intp).reshape(-1, 3)
+    layers, folds = [], []
+    if layer_reference is not None:
+        layer_plan = layer_cache.get(layer_key) if layer_cache is not None else None
+        if layer_plan is None:
+            frame = garment_pose_frame({'localToWorld': observed['layerReferenceFrame']}, renderer_to_prefab)
+            reference = np.asarray(layer_reference, dtype=float).reshape(points.shape) @ frame[:3, :3].T + frame[:3, 3]
+            layer_plan = (list(garment_self_layers(reference, shell, maximum_offset * 2)),
+                          list(garment_fold_layers(reference, shell, maximum_offset)))
+            if layer_cache is not None:
+                layer_cache[layer_key] = layer_plan
+        layers, folds = layer_plan
+    if lining_only and not (layers or folds):
         return current, 0
     linear, unbound = garment_skinning_frame(packet, observed, points, posed, triangles, bone_paths, clearance,
                                               world_to_prefab)
     current_points = np.asarray(current['vertices']).reshape(points.shape)
     offset = current_points - points
     prior = np.einsum('vij,vj->vi', linear, offset)
+    welded = art.weld_groups(points)
     local_orientation = False
     if groom_guide is not None:
         indices = np.asarray(groom_guide['vertices'])
@@ -1624,7 +1794,6 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
         local_orientation = orientation_support == 'welded'
         delta = np.zeros_like(posed)
         delta[indices] = directions @ world_to_prefab[:3, :3].T
-        welded = art.weld_groups(points)
         if contact_surface == 'head':
             # A scalp sculpt moves the visible rest and its pinned attachment
             # together. The whole path must stay clear of the measured head.
@@ -1636,9 +1805,32 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
         else:
             delta[np.isin(welded, welded[np.asarray(fixed_vertices, dtype=int)])] = 0.
     else:
-        fit_crossings = fit_groom_crossings if head_surface is not None else fit_garment_crossings
-        delta = fit_crossings(posed + prior, np.concatenate(outer).astype(np.intp).reshape(-1, 3), skin,
-                              clearance=clearance, maximum_offset=maximum_offset)
+        delta = np.zeros_like(posed)
+        if not lining_only:
+            if layers:
+                covered = {tuple(face) for _, lining in layers for face in lining}
+                # Skin may pass through covered lining. Pushing those faces
+                # outward would expose them through the visible garment.
+                shell = shell[[tuple(face) not in covered for face in shell]]
+            fit_crossings = fit_groom_crossings if head_surface is not None else fit_garment_crossings
+            delta = fit_crossings(posed + prior, shell, skin, clearance=clearance, maximum_offset=maximum_offset)
+        for exterior, lining in layers:
+            fitted = posed + prior + delta
+            # Fit from the reverse side to keep the lining within the outer garment.
+            delta += fit_garment_crossings(fitted, lining[:, ::-1], fitted[exterior[:, ::-1]],
+                                           clearance=clearance, maximum_offset=min(maximum_offset, 3 * clearance))
+        for first, second in folds:
+            fitted = posed + prior + delta
+            limit = min(maximum_offset, 4.5 * clearance)
+            front = fit_garment_crossings(fitted, first, fitted[second[:, ::-1]],
+                                          clearance=clearance, maximum_offset=limit)
+            back = fit_garment_crossings(fitted, second, fitted[first[:, ::-1]],
+                                         clearance=clearance, maximum_offset=limit)
+            # Separate a reversed fold along both normals and anchor its sewn rim.
+            shared = np.intersect1d(welded[first], welded[second])
+            correction = (front + back) * .5
+            correction[np.isin(welded, shared)] = 0.
+            delta += correction
     if head_surface is not None and groom_guide is None:
         # Leave the head interface and the native fixed cloth vertices anchored.
         moving = np.flatnonzero(np.any(delta != 0, axis=1))
@@ -1666,7 +1858,6 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
     elif head_surface is not None:
         offset = limit_groom_edge_motion(points, offset, triangles, fixed_vertices)
     correction = points + offset - current_points
-    welded = art.weld_groups(points)
     native_normals = np.asarray(packet['normals']).reshape(-1, 3)
     groups = normal_groups(points, native_normals)
     before = surface_normals(points, triangles, groups, points, native_normals)
@@ -1675,7 +1866,8 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
         # Fade a local correction around thin cards while sharing every UV seam.
         factors = welded if head_surface is None or local_orientation else None
         fitted, orientation = preserve_surface_orientation(points, proposal, triangles, renderer_to_prefab,
-                                                           groups=factors, group_falloff=.022 if local_orientation else 0.)
+                                                           groups=factors, group_falloff=.022 if local_orientation else 0.,
+                                                           anchor=current_points if lining_only else None)
         if head_surface is not None and factors is None and orientation['surfaceScaleFactor'] == 0:
             return current, 0
         after = surface_normals(fitted, triangles, groups, points, native_normals)
@@ -1705,7 +1897,36 @@ def fitted_surface_frame(packet, fitted, before, after):
     return candidate
 
 
-def constrain_garment_rest(source, target, frame, maximum_offset):
+def limit_garment_edge_offsets(field, first, second, limit):
+    """Share corrections with neighbouring vertices when their edge would stretch too far."""
+    if np.all(np.linalg.norm(field[first] - field[second], axis=1) <= limit):
+        return
+    pending = np.arange(len(first), dtype=np.intp)
+    passes = []
+    # Each pass can project all its edges together because their endpoints are disjoint.
+    while len(pending):
+        a, b = first[pending], second[pending]
+        earliest = np.full(len(field), len(first), dtype=np.intp)
+        np.minimum.at(earliest, a, pending)
+        np.minimum.at(earliest, b, pending)
+        independent = (earliest[a] == pending) & (earliest[b] == pending)
+        rows = pending[independent]
+        passes.append((first[rows], second[rows], limit[rows] * .99))
+        pending = pending[~independent]
+    for _ in range(64):
+        for a, b, margin in passes:
+            difference = field[b] - field[a]
+            distance = np.linalg.norm(difference, axis=1)
+            correction = .5 * (1 - np.minimum(1, margin / np.maximum(distance, 1e-12)))
+            field[a] += difference * correction[:, None]
+            field[b] -= difference * correction[:, None]
+        ratios = np.linalg.norm(field[first] - field[second], axis=1) / limit
+        if np.all(ratios <= 1):
+            return
+    field /= max(1, ratios.max())
+
+
+def constrain_garment_rest(source, target, frame, maximum_offset, *, baseline=None):
     """Preserve the original rest shape when cloth fits accumulate across poses."""
     require(all(source[key] == target[key] for key in
                 ('subMeshes', 'uv', 'weights', 'boneIndices', 'shapes', 'bindPoses')),
@@ -1731,18 +1952,23 @@ def constrain_garment_rest(source, target, frame, maximum_offset):
     # Short edges around seams and trim must move together. The tolerance
     # prevents tiny native triangles from suppressing a whole fit.
     limit = garment_edge_budget(np.linalg.norm(grouped[a] - grouped[b], axis=1))
-    for attempt in range(15):
-        excessive = np.linalg.norm(field[a] - field[b], axis=1) > limit
-        if not excessive.any():
-            break
-        affected = np.unique(np.r_[a[excessive], b[excessive]])
-        field[affected] *= .65 if attempt < 10 else 0.
-    else:
-        field.fill(0.)
+    limit_garment_edge_offsets(field, a, b, limit)
     displacement = np.linalg.solve(transform, field[groups].T).T
     if np.array_equal((reference + displacement).astype(np.float32), proposed.astype(np.float32)):
         return target
-    fitted, _ = preserve_surface_orientation(reference, reference + displacement, triangles, frame)
+    anchor = None
+    if baseline is not None:
+        current = np.asarray(baseline['vertices']).reshape(reference.shape)
+        current_offset = (current[canonical] - reference[canonical]) @ transform.T
+        if (np.linalg.norm(current_offset, axis=1).max() <= maximum_offset + 1e-6 and
+                np.all(np.linalg.norm(current_offset[a] - current_offset[b], axis=1) <= limit + 1e-6)):
+            anchor = current
+    if anchor is None:
+        fitted, _ = preserve_surface_orientation(reference, reference + displacement, triangles, frame)
+    else:
+        fitted, _ = preserve_surface_orientation(reference, reference + displacement, triangles, frame,
+            groups=groups, group_falloff=.4 * maximum_offset, anchor=anchor,
+            edge_limits=(canonical[a], canonical[b], limit))
     normals = np.asarray(source['normals']).reshape(-1, 3)
     split_normals = normal_groups(reference, normals)
     before = surface_normals(reference, triangles, split_normals, reference, normals)
@@ -1863,7 +2089,10 @@ def surface_normals(positions, triangles, groups, source_positions=None, native_
     return normalise(normals)
 
 
-def preserve_surface_orientation(reference, candidate, triangles, transform, *, groups=None, group_falloff=0.):
+def preserve_surface_orientation(reference, candidate, triangles, transform, *, groups=None, group_falloff=0.,
+                                 anchor=None, edge_limits=None):
+    if anchor is None:
+        anchor = reference
     source = art.points(reference.ravel().tolist(), transform)
     source_edges = np.stack((source[triangles[:, 1]] - source[triangles[:, 0]],
                              source[triangles[:, 2]] - source[triangles[:, 0]]), axis=1)
@@ -1884,7 +2113,7 @@ def preserve_surface_orientation(reference, candidate, triangles, transform, *, 
         slope = np.linalg.norm(points[first] - points[last], axis=1) / group_falloff
     for attempt in range(12):
         factor = (2.0 ** -attempt if attempt < 9 else 0.) if factors is None else factors[groups, None]
-        local = (reference + (candidate - reference) * factor).astype(np.float32)
+        local = (anchor + (candidate - anchor) * factor).astype(np.float32)
         points = art.points(local.ravel().tolist(), transform)
         area = np.cross(points[triangles[:, 1]] - points[triangles[:, 0]],
                         points[triangles[:, 2]] - points[triangles[:, 0]])
@@ -1892,12 +2121,19 @@ def preserve_surface_orientation(reference, candidate, triangles, transform, *, 
         bad = supported & (projection < squared * .05)
         if initial_bad is None:
             initial_bad = int(np.count_nonzero(bad))
-        if not np.any(bad):
+        restrained_edges = []
+        if edge_limits is not None:
+            a, b, allowance = edge_limits
+            motion = points - source
+            too_far = np.linalg.norm(motion[a] - motion[b], axis=1) > allowance + 1e-6
+            if np.any(too_far):
+                restrained_edges = np.concatenate((a[too_far], b[too_far]))
+        if not np.any(bad) and not len(restrained_edges):
             return local, dict(surfaceScaleFactor=float(np.min(factor)), surfaceBacktrackingAttempts=attempt,
                 initialFacingFailures=initial_bad, supportedFacingTriangles=int(supported.sum()),
                 floatLimitedTriangles=int((~supported).sum()), minimumSourceProjectedAreaRatio=.05)
         if factors is not None:
-            affected = np.unique(groups[triangles[bad]])
+            affected = np.unique(groups[np.r_[triangles[bad].ravel(), np.asarray(restrained_edges, dtype=np.intp)]])
             if attempt < 9:
                 factors[affected] *= .5
             else:
@@ -1910,10 +2146,11 @@ def preserve_surface_orientation(reference, candidate, triangles, transform, *, 
                     if np.array_equal(smoothed, factors):
                         break
                     factors = smoothed
-    if factors is not None and group_falloff > 0:
+    if factors is not None:
         # Keep the local restraints when the remaining surface needs a smaller bend.
-        restrained = reference + (candidate - reference) * factors[groups, None]
-        result, proof = preserve_surface_orientation(reference, restrained, triangles, transform)
+        restrained = anchor + (candidate - anchor) * factors[groups, None]
+        result, proof = preserve_surface_orientation(reference, restrained, triangles, transform,
+                                                     anchor=anchor, edge_limits=edge_limits)
         proof['initialFacingFailures'] = initial_bad
         proof['surfaceScaleFactor'] *= float(factors.min())
         return result, proof

@@ -66,6 +66,12 @@ public static class CharacterBuildingManagerPatcher
             List<string> __result)
         {
             if (!onlyPlayerSelectable || __result.Count == 0) return;
+            if (category == MorphotypeElementDefinition.ElementCategory.FaceShape && __result.Count > 1)
+            {
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                __result.RemoveAll(option => !seen.Add(option));
+            }
+
             var prefix = RacesContext.OptionalMorphotypeAssetPrefix(category, race, subRace, sex);
             if (string.IsNullOrEmpty(prefix)) return;
 

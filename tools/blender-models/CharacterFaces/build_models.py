@@ -2687,7 +2687,7 @@ def validate_shared_skin_cut_mutation(operation, expected, pin):
             raise ValueError('A shared skin-cut mutation changed protected skin or exceeded its physical tolerance.')
 
 
-def validate_creature_material_mutation(receipt):
+def validate_model_material_mutation(receipt):
     import tempfile
     import character_resources as resources
 
@@ -2695,12 +2695,12 @@ def validate_creature_material_mutation(receipt):
     updates = receipt['materialFloatUpdates']
     if (not updates or receipt['changedObjects'] != sorted(update['pathId'] for update in updates) or
             receipt['objectsAdded'] or receipt['meshes']):
-        raise ValueError('A creature finish must own only the declared material floats.')
-    with tempfile.TemporaryDirectory(prefix='creature-material-', dir=Path(receipt['target']['path']).parent) as directory:
+        raise ValueError('A model material finish must own only the declared material floats.')
+    with tempfile.TemporaryDirectory(prefix='model-material-', dir=Path(receipt['target']['path']).parent) as directory:
         replay = resources.prepare_standalone_part(source, receipt['source']['sha256'], Path(directory) / source.name,
                                                    [], export_mesh=None, material_updates=updates)
         if replay['target']['sha256'] != receipt['target']['sha256']:
-            raise ValueError('The creature material settings cannot reproduce the saved resource.')
+            raise ValueError('The model material settings cannot reproduce the saved resource.')
 
 
 def validate_prepared_resource(row,assembly,verified):
@@ -2925,14 +2925,14 @@ def validate_prepared_resource(row,assembly,verified):
             elif kind=='shared-skin-boundary':
                 validate_shared_skin_cut_mutation(operation, expected, pinned)
                 expected=operation['sha256']
-            elif kind=='creature-material-floats':
+            elif kind in ('creature-material-floats', 'model-material-floats'):
                 receipt = document(operation['proof'])
                 if (operation['beforeSha256'] != expected or receipt['source']['sha256'] != expected or
                         receipt['target']['sha256'] != operation['sha256'] or Path(receipt['target']['path']).name != row['file']):
-                    raise ValueError('A creature material lost its serialized source owner.')
+                    raise ValueError('A model material lost its serialized source owner.')
                 for reference in (receipt['source'], receipt['target'], operation['presets']):
                     pinned(reference)
-                validate_creature_material_mutation(receipt)
+                validate_model_material_mutation(receipt)
                 expected = operation['sha256']
             elif kind=='saved-skin-lod-pigment':
                 if operation['beforeSha256']!=expected:raise ValueError('A skin LOD pigment lost its preceding resource owner.')
@@ -3036,6 +3036,8 @@ def validate_prepared_resource(row,assembly,verified):
                 if 'restSource' in receipt:
                     pinned(receipt['restSource'])
                 for mesh in receipt['meshes']:
+                    if 'trimSource' in mesh:
+                        pinned(mesh['trimSource'])
                     for pose in mesh['poses']:
                         pinned(pose['source'])
                         if 'layerReference'in pose:pinned(pose['layerReference'])
@@ -3477,7 +3479,7 @@ def retone_materials():
         sourceOwner=dict(path=fields.__file__,sha256=sha(fields.__file__)),nativeRuntimeMaterialsChanged=False))
 
 
-def model_surface_multipliers(role, shader, saved):
+def model_surface_multipliers(role, shader, saved, humanoid_skin_normal=1.):
     """Select the relevant scalars for a mapped, opaque or alpha-cutout surface."""
     floats = dict(saved['m_SavedProperties']['m_Floats'])
     textures = dict(saved['m_SavedProperties']['m_TexEnvs'])
@@ -3488,6 +3490,10 @@ def model_surface_multipliers(role, shader, saved):
         return {}
     if not (bound('_MainTex') and bound('_BumpMap')):
         return {}
+    if (role in ('character', 'npc') and humanoid_skin_normal != 1. and
+            shader in ('Lux/Human/Skin', 'Lux/Human/Skin (double sided)') and
+            floats.get('_UseMicroBumps', 0.) > 0. and bound('_MicroBumpMap')):
+        return {'_BumpMapScale': humanoid_skin_normal}
     if role == 'npc' and shader in ('Standard', 'Standard (Double Sided)'):
         # Standard takes smoothness from the active texture's alpha when a map is bound.
         keywords = set(saved.get('m_ValidKeywords', []) or (saved.get('m_ShaderKeywords') or '').split())
@@ -3507,7 +3513,7 @@ def model_surface_multipliers(role, shader, saved):
 
 
 def retone_model_materials(source, output, presets_path):
-    """Finish fixed NPC and creature materials at their serialized owners."""
+    """Finish character and creature materials at their serialized owners."""
     import character_resources as resources
 
     if output.exists() or not output.is_relative_to(ROOT / 'tools'):
@@ -3525,7 +3531,10 @@ def retone_model_materials(source, output, presets_path):
     declaration = read(presets_path)
     presets = declaration['presets']
     if declaration.get('schemaVersion') != 1 or not presets:
-        raise ValueError('Unknown creature material preset schema.')
+        raise ValueError('Unknown model material preset schema.')
+    humanoid_skin_normal = declaration.get('humanoidSkinNormalMultiplier', 1.)
+    if type(humanoid_skin_normal) not in (int, float) or not 0. < humanoid_skin_normal <= 1.:
+        raise ValueError('The humanoid skin normal multiplier must be positive and at most one.')
     for preset in presets.values():
         if (not preset['shader'] or not preset['multipliers'] or
                 any(type(amount) not in (int, float) or not math.isfinite(amount) or amount <= 0
@@ -3539,6 +3548,8 @@ def retone_model_materials(source, output, presets_path):
         path = prefab['asset'].casefold()
         if path.startswith('assets/data/monsters/'):
             prefab_roles[prefab['source']] = 'npc' if path.startswith('assets/data/monsters/npc/') else 'creature'
+        elif humanoid_skin_normal != 1. and path.startswith('assets/data/characters/editablecharacters/'):
+            prefab_roles[prefab['source']] = 'character'
 
     @lru_cache(maxsize=12)
     def load(cab):
@@ -3552,7 +3563,7 @@ def retone_model_materials(source, output, presets_path):
     def original_values(file):
         values = {}
         for operation in proofs[file].get('appearanceFinishing', []):
-            if operation['kind'] != 'creature-material-floats':
+            if operation['kind'] not in ('creature-material-floats', 'model-material-floats'):
                 continue
             receipt = operation['proof']
             if pin(Path(receipt['path'])) != receipt:
@@ -3598,7 +3609,7 @@ def retone_model_materials(source, output, presets_path):
             saved = material.read_typetree()
             shader_file, shader = resolve(owner, saved['m_Shader'])
             shader_name, properties = shader_contract(shader_file.name, shader.path_id)
-            multipliers = model_surface_multipliers(role, shader_name, saved)
+            multipliers = model_surface_multipliers(role, shader_name, saved, humanoid_skin_normal)
             if multipliers:
                 if preset and shader_name == preset['shader']:
                     multipliers.update(preset['multipliers'])
@@ -3664,7 +3675,7 @@ def retone_model_materials(source, output, presets_path):
         write(receipt_path, receipt)
         digest = receipt['target']['sha256']
         proof = proofs[name]
-        proof.setdefault('appearanceFinishing', []).append(dict(kind='creature-material-floats',
+        proof.setdefault('appearanceFinishing', []).append(dict(kind='model-material-floats',
             beforeSha256=bundle['sha256'], sha256=digest, proof=pin(receipt_path), presets=presets_reference))
         bundle['sha256'] = digest
         proof.update(sha256=digest, bytes=destination.stat().st_size, allRetainedObjectFieldsExactAfterReferenceRebasing=False)
@@ -3673,7 +3684,7 @@ def retone_model_materials(source, output, presets_path):
     write(target_manifest, manifest)
     assembly.update(catalogSha256=sha(target_manifest), bytes=sum(row['bytes'] for row in proofs.values()),
                     preparedSource=dict(assembly=pin(assembly_path), catalog=pin(manifest_path)),
-                    creatureMaterials=dict(presets=presets_reference, files=sorted(changes), review='pending',
+                    modelMaterials=dict(presets=presets_reference, files=sorted(changes), review='pending',
                         prefabCoverage=[dict(source=address, role=role, materials=len(covered[address]))
                                         for address, role in sorted(prefab_roles.items())],
                         sharedMaterials=sum(len(addresses) > 1 for key, addresses in consumers.items()
@@ -7100,10 +7111,11 @@ def repair_skin_interface_cloth():
 
 
 def observed_garment_surfaces(capture, selected, layers=frozenset(), *, layer_reference=None, layer_distance=.01,
-                              groom_contact=False, groom_drape=False):
+                              groom_contact=False, groom_drape=False, self_layers=False):
     """Pair equipment with skin from the same presentation and detail level."""
     import numpy as np
-    production, _ = source_owner()
+    if layers:
+        production, _ = source_owner()
     reference_parts = collections.defaultdict(list)
     if layer_reference:
         for part in layer_reference['meshes']:
@@ -7198,7 +7210,17 @@ def observed_garment_surfaces(capture, selected, layers=frozenset(), *, layer_re
                 mask = production.garment_inside_faces(rest_outer, rest_inner, distance)
                 if mask.any():
                     lining.append(triangles_for(mesh, False)[mask])
-            yield address, dict(part, fittedLayers=sorted(used_layers)), np.concatenate([skin, *lining]) if lining else skin
+            reference_vertices = None
+            reference_frame = None
+            if self_layers and any(slot['part'] == 'Body' and not slot['shape'] for slot in part['sourceSlots']):
+                reference = reference_surface(part)
+                if reference is None:
+                    raise ValueError(f'Garment {address} requires a matching reference pose to fit its lining.')
+                reference_vertices = reference['vertices']
+                reference_frame = reference['localToWorld']
+            yield address, dict(part, fittedLayers=sorted(used_layers), layerReferenceVertices=reference_vertices,
+                                layerReferenceFrame=reference_frame), \
+                np.concatenate([skin, *lining]) if lining else skin
 
 
 def fit_garment_resources():
@@ -7210,6 +7232,9 @@ def fit_garment_resources():
     parser.add_argument('--selection', type=Path, help='JSON mapping equipment addresses to their observed pose paths')
     parser.add_argument('--repair-rest', action='store_true', help='Restrain previously fitted garment surfaces to their original rest shape')
     parser.add_argument('--layer', nargs=2, action='append', default=[], metavar=('RENDERER', 'RENDERER'))
+    parser.add_argument('--self-layers', action='store_true', help='Fit covered lining in torso meshes using their reference poses')
+    parser.add_argument('--lining-only', action='store_true', help='Finish lining and trim on an already fitted garment')
+    parser.add_argument('--pose-passes', type=int, default=1, help='Reconcile garment clearance across the supplied poses')
     parser.add_argument('--groom-contact', action='store_true')
     parser.add_argument('--groom-guide', type=Path, action='append', default=[])
     parser.add_argument('--groom-drape', action='store_true', help='Fit hanging hair against observed body armor and capes')
@@ -7217,8 +7242,14 @@ def fit_garment_resources():
     parser.add_argument('--maximum-offset', type=float, required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
+    if args.pose_passes < 1:
+        parser.error('--pose-passes must be positive.')
+    if args.pose_passes > 1 and (args.repair_rest or args.groom_contact):
+        parser.error('Multiple pose passes require observed garment fits.')
+    if args.lining_only and not args.self_layers:
+        parser.error('--lining-only requires --self-layers.')
     if args.repair_rest:
-        if any((args.selection, args.pose, args.equipment, args.layer, args.groom_contact, args.groom_guide,
+        if any((args.selection, args.pose, args.equipment, args.layer, args.self_layers, args.groom_contact, args.groom_guide,
                 args.groom_drape)):
             parser.error('--repair-rest uses the catalog’s existing garment fits.')
     elif (args.selection is not None and (args.pose or args.equipment) or
@@ -7228,9 +7259,9 @@ def fit_garment_resources():
         parser.error('--maximum-offset must be finite and positive.')
     if not args.repair_rest and (args.clearance is None or not 0 < args.clearance < args.maximum_offset):
         parser.error('--clearance must be positive and smaller than --maximum-offset.')
-    if args.layer and not args.selection:
+    if (args.layer or args.self_layers) and not args.selection:
         parser.error('Layer fitting requires a selection with native reference poses.')
-    if args.groom_contact and args.layer:
+    if args.groom_contact and (args.layer or args.self_layers):
         parser.error('Groom contact is measured against the visible clothing and skin.')
     if args.groom_guide and not args.groom_contact:
         parser.error('Use --groom-guide with --groom-contact.')
@@ -7248,9 +7279,8 @@ def fit_garment_resources():
         raise
 
 
-def fitted_garment_meshes(proof):
-    """Find the most recent dedicated fit that owns each affected equipment mesh."""
-    fitted = {}
+def garment_fit_receipts(proof):
+    """Read the verified recorded fits owned by the equipment bundle."""
     for operation in proof.get('appearanceFinishing', []):
         if operation['kind'] != 'posed-garment-fit':
             continue
@@ -7262,8 +7292,7 @@ def fitted_garment_meshes(proof):
         if (receipt['file'] != proof['file'] or receipt['target']['sha256'] != operation['sha256']
                 or receipt['source']['sha256'] != operation['beforeSha256']):
             raise ValueError('A previous garment fit has a different bundle owner.')
-        fitted.update((mesh['object'], mesh['after']) for mesh in receipt['meshes'])
-    return fitted
+        yield receipt
 
 
 def existing_garment_fits(file, fitted):
@@ -7396,11 +7425,15 @@ def write_posed_garments(args, source, output):
                 return False
         return True
 
-    for pose_path, pose_equipment in selection.items():
+    pose_runs = ((sweep, path, equipment) for sweep in range(args.pose_passes) for path, equipment in selection.items())
+    for index, (sweep, pose_path, pose_equipment) in enumerate(pose_runs, 1):
+        if index % 24 == 0:
+            print(f'Fitting garment observation {index}/{len(selection) * args.pose_passes}', flush=True)
         capture, pose_pin = load_pose(pose_path)
         reference, reference_pin = load_pose(references[pose_path]) if pose_path in references else (None, None)
         for address, part, skin in observed_garment_surfaces(capture, pose_equipment, layers,
-                layer_reference=reference, layer_distance=args.maximum_offset * 2, groom_contact=args.groom_contact):
+                layer_reference=reference, layer_distance=args.maximum_offset * 2,
+                groom_contact=args.groom_contact, self_layers=args.self_layers):
             renderers, resolve = resource_prefab_skins(manifest, proofs, address, load)
             matches = []
             for path, renderer in renderers:
@@ -7430,9 +7463,12 @@ def write_posed_garments(args, source, output):
                 if (guides or args.groom_drape) and guide is None:
                     target, count = entry['target'] or entry['native'], 0
                 else:
+                    layer_key = reference_pin['sha256'] if part.get('layerReferenceVertices') is not None else None
                     target, count = production.fit_posed_garment(entry['native'], part, skin, bones, entry['frame'],
                         clearance=args.clearance, maximum_offset=args.maximum_offset, previous=entry['target'],
-                        head_surface=part.get('headSurface'), fixed_vertices=entry['fixed'], groom_guide=guide)
+                        head_surface=part.get('headSurface'), fixed_vertices=entry['fixed'], groom_guide=guide,
+                        lining_only=args.lining_only, layer_cache=entry.setdefault('layerCache', {}) if layer_key else None,
+                        layer_key=layer_key)
                     if args.groom_drape and count:
                         observations = drape_poses[(address, part['renderer'])]
                         if len(observations) > 1 and not keeps_shared_groom_clearance(entry, target, bones, observations):
@@ -7443,8 +7479,12 @@ def write_posed_garments(args, source, output):
             seen_layers.update(part['fittedLayers'])
             observation = dict(source=pose_pin, equipment=address, renderer=part['renderer'],
                               layers=part['fittedLayers'], fittedVertices=count)
-            if part['fittedLayers']:
+            if args.pose_passes > 1:
+                observation['posePass'] = sweep + 1
+            if part['fittedLayers'] or part.get('layerReferenceVertices') is not None:
                 observation['layerReference'] = reference_pin
+            if part.get('layerReferenceVertices') is not None:
+                observation['selfLayers'] = True
             if guide_pin:
                 observation['groomDrape' if args.groom_drape else 'groomGuide'] = guide_pin
                 used_guides.add(guide_key)
@@ -7464,7 +7504,8 @@ def write_posed_garments(args, source, output):
         if not args.repair_rest and name not in jobs:
             destination.hardlink_to(original)
             continue
-        fitted = fitted_garment_meshes(proof) if not args.groom_contact else {}
+        receipts = list(garment_fit_receipts(proof)) if not args.groom_contact else []
+        fitted = {mesh['object']: mesh['after'] for receipt in receipts for mesh in receipt['meshes']}
         if args.repair_rest and not fitted:
             destination.hardlink_to(original)
             continue
@@ -7475,6 +7516,9 @@ def write_posed_garments(args, source, output):
         rest_source = None
         if not args.groom_contact and entries:
             reference_file = None
+            trim_sources = {mesh['object']: mesh.get('trimSource', receipt['source'])
+                            for receipt in receipts for mesh in receipt['meshes']}
+            trim_bundles = {}
             if fitted.keys() & entries.keys():
                 raw = checked_source_path(proof['source'])
                 rest_source = pin(raw)
@@ -7483,13 +7527,28 @@ def write_posed_garments(args, source, output):
                 reference_file = resources.load_serialized_bundle(raw, in_memory=True)[1]
             for key, record in entries.items():
                 reference = record['native']
+                if args.lining_only and fitted.get(key) == reference['sourceFingerprint']:
+                    source_pin = trim_sources[key]
+                    path = checked_source_path(source_pin['path'])
+                    if path not in trim_bundles:
+                        if sha(path) != source_pin['sha256']:
+                            raise ValueError('The garment trim reference has changed.')
+                        trim_bundles[path] = resources.load_serialized_bundle(path, in_memory=True)[1]
+                    old = trim_bundles[path].objects.get(key)
+                    if old is None or old.type.name != 'Mesh' or old.peek_name() != reference['name']:
+                        raise ValueError('The garment trim reference no longer has its source mesh.')
+                    detail = production.follow_garment_trim(export_current_mesh(old), record['target'],
+                                                           record['frame'], args.maximum_offset)
+                    if detail is not record['target']:
+                        record['target'] = detail
+                        record['trimSource'] = source_pin
                 if reference_file is not None and reference['sourceFingerprint'] == fitted.get(key):
                     obj = reference_file.objects.get(key)
                     if obj is None or obj.type.name != 'Mesh' or obj.peek_name() != reference['name']:
                         raise ValueError('The original equipment mesh no longer has the expected identity.')
                     reference = export_current_mesh(obj)
                 record['target'] = production.constrain_garment_rest(reference, record['target'],
-                    record['frame'], args.maximum_offset)
+                    record['frame'], args.maximum_offset, baseline=record['native'] if args.lining_only else None)
         entries = {key: record for key, record in entries.items()
                    if record['target']['sourceFingerprint'] != record['native']['sourceFingerprint']}
         if not entries:
@@ -7509,10 +7568,13 @@ def write_posed_garments(args, source, output):
         receipt = dict(file=name, source=pin(original), target=pin(destination), clearance=args.clearance,
                        maximumOffset=args.maximum_offset, physics=physics, objects=sorted(edits),
                        meshes=[dict(object=key, before=v['native']['sourceFingerprint'],
-                                    after=export_current_mesh(saved.objects[key])['sourceFingerprint'], poses=v['poses'])
+                                    after=export_current_mesh(saved.objects[key])['sourceFingerprint'], poses=v['poses'],
+                                    **({'trimSource': v['trimSource']} if 'trimSource' in v else {}))
                                for key, v in entries.items()])
         if rest_source is not None:
             receipt['restSource'] = rest_source
+        if args.lining_only:
+            receipt['liningOnly'] = True
         path = output / 'Receipts' / (name + '.json')
         write(path, receipt)
         kind = 'posed-groom-contact' if args.groom_contact else 'posed-garment-fit'
@@ -7527,6 +7589,9 @@ def write_posed_garments(args, source, output):
     if args.groom_drape:
         assembly['retainedSourceInputs'] = resource_producer_archives(output,
             [Path(__file__), Path(production.__file__), Path(drape.__file__)], assembly.get('retainedSourceInputs', []))
+    elif args.self_layers:
+        assembly['retainedSourceInputs'] = resource_producer_archives(output,
+            [Path(__file__), Path(production.__file__), Path(production.art.__file__)], assembly.get('retainedSourceInputs', []))
     write(output / 'ResourceAssembly.json', assembly)
 
 

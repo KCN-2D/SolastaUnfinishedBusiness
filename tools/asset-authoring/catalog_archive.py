@@ -2,10 +2,13 @@
 import argparse
 from collections import Counter, defaultdict
 import contextlib
+import json
+import os
 from pathlib import Path
 import re
 import shutil
 import stat
+import tempfile
 
 
 from resource_storage import (
@@ -18,6 +21,7 @@ from resource_storage import (
 ARCHIVE_NAME = 'CatalogArchive.json'
 ARCHIVE_KIND = 'SolastaUBRetiredCharacterCatalog'
 BLOBS = WORKSPACE / 'CatalogArchive'
+EXTERNAL_LOCATION = 'ExternalStore.json'
 DIGEST = re.compile(r'[a-f0-9]{64}')
 
 
@@ -39,6 +43,102 @@ def blob_path(digest):
     if DIGEST.fullmatch(digest) is None:
         raise ValueError('A model archive blob requires a SHA-256 identity.')
     return bundle_path(BLOBS, digest + '.bundle')
+
+
+def external_path(path):
+    path = Path(path)
+    if not path.is_absolute() or path == Path(path.anchor) or path.resolve() != path or path.is_relative_to(BLOBS):
+        raise ValueError('The external archive requires an absolute folder outside the local archive.')
+    for member in (path, *path.parents):
+        if member.is_symlink() or member.exists() and getattr(member.lstat(), 'st_file_attributes', 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+            raise ValueError(f'The external archive traverses a link: {member}')
+    return path
+
+
+def external_store():
+    locator = checked_catalog_path(BLOBS, EXTERNAL_LOCATION)
+    if not locator.is_file():
+        return None
+    location = read(locator)
+    if set(location) != {'schemaVersion', 'directory'} or location['schemaVersion'] != 1:
+        raise ValueError('The external archive locator has an unknown format.')
+    return external_path(location['directory'])
+
+
+def verify_blob(path, digest, size):
+    identity = file_stamp(path)
+    if identity[2] != size or sha(path, payload=True) != digest or file_stamp(path) != identity:
+        raise ValueError(f'The archive object differs from its SHA256 identity: {path}')
+
+
+def copy_blob(source, target, digest, size):
+    if target.exists():
+        verify_blob(target, digest, size)
+        return
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=target.parent, prefix='.catalog-', delete=False) as destination:
+            temporary = Path(destination.name)
+            with source.open('rb') as data:
+                shutil.copyfileobj(data, destination, length=1024 * 1024)
+            destination.flush()
+            os.fsync(destination.fileno())
+        verify_blob(temporary, digest, size)
+        if not target.exists():
+            try:
+                temporary.rename(target)
+            except FileExistsError:
+                pass
+        verify_blob(target, digest, size)
+    finally:
+        if temporary is not None and temporary.exists():
+            temporary.unlink()
+
+
+def offload_blobs(directory, evidence, apply, *, copy_only=False):
+    source = checked_catalog_path(BLOBS)
+    directory = external_path(directory)
+    previous = external_store()
+    if previous is not None and previous != directory:
+        raise ValueError('The local archive already refers to another external store.')
+    objects = {path.stem: file_stamp(checked_source_path(path)) for path in source.glob('*.bundle')
+               if DIGEST.fullmatch(path.stem)}
+    result = dict(status='PASS_ARCHIVE_OFFLOAD_PREVIEW', directory=str(directory), files=len(objects),
+                  logicalBytes=sum(identity[2] for identity in objects.values()), removed=0,
+                  availableBytesBefore=shutil.disk_usage(ROOT).free)
+    report = evidence / 'ArchiveOffload.json'
+    write(report, result)
+    if not (apply or copy_only) or not objects:
+        return result
+    directory.mkdir(parents=True, exist_ok=True)
+    for digest, stamp in objects.items():
+        local = blob_path(digest)
+        target = external_path(directory / local.name)
+        verify_blob(local, digest, stamp[2])
+        copy_blob(local, target, digest, stamp[2])
+        if file_stamp(local) != stamp:
+            raise ValueError(f'A local archive object changed while offloading: {local}')
+    sample = min(objects, key=lambda digest: objects[digest][2])
+    with tempfile.TemporaryDirectory(dir=evidence) as temporary:
+        copy_blob(external_path(directory / (sample + '.bundle')), Path(temporary) / (sample + '.bundle'),
+                  sample, objects[sample][2])
+    result['sampleRestored'] = sample
+    if copy_only:
+        result['status'] = 'PASS_ARCHIVE_COPIED'
+        write(report, result)
+        return result
+    write(checked_catalog_path(BLOBS, EXTERNAL_LOCATION), dict(schemaVersion=1, directory=str(directory)))
+    for digest, stamp in objects.items():
+        local = blob_path(digest)
+        if file_stamp(local) != stamp:
+            raise ValueError(f'A local archive object changed before removal: {local}')
+        target = external_path(directory / local.name)
+        verify_blob(target, digest, stamp[2])
+        local.unlink()
+        result['removed'] += 1
+    result.update(status='PASS_ARCHIVE_OFFLOADED', availableBytesAfter=shutil.disk_usage(ROOT).free)
+    write(report, result)
+    return result
 
 
 def owner_catalog(owner):
@@ -193,19 +293,32 @@ def restore_catalog(owner, names=()):
     if unknown := set(names) - entries.keys():
         raise ValueError(f'The receipt does not own these bundles: {sorted(unknown)}')
     missing = []
+    store = None
     for name in sorted(names or entries):
         record = entries[name]
         digest = record['sha256']
-        source = checked_source_path(blob_path(digest))
+        source = blob_path(digest)
+        local = source.is_file()
+        if local:
+            source = checked_source_path(source)
+        else:
+            store = store or external_store()
+            if store is None:
+                raise FileNotFoundError(f'The archived object is missing: {digest}')
+            source = external_path(store / source.name)
         leaf = bundle_path(owner / 'Catalog', name)
-        if catalog.get(name) != digest or source.stat().st_size != record['bytes'] or sha(source, payload=True) != digest:
+        if catalog.get(name) != digest:
             raise ValueError(f'The stored payload differs from its verified catalog: {leaf}')
+        verify_blob(source, digest, record['bytes'])
         if not leaf.exists():
-            missing.append((leaf, source))
+            missing.append((leaf, source, local, digest, record['bytes']))
         elif not leaf.samefile(source) and sha(checked_source_path(leaf), payload=True) != digest:
             raise ValueError(f'A different bundle already exists in the restored catalog: {leaf}')
-    for leaf, source in missing:
-        leaf.hardlink_to(source)
+    for leaf, source, local, digest, size in missing:
+        if local:
+            leaf.hardlink_to(source)
+        else:
+            copy_blob(source, leaf, digest, size)
     return len(missing)
 
 
@@ -214,14 +327,21 @@ def main():
     task = parser.add_mutually_exclusive_group(required=True)
     task.add_argument('--report', type=Path)
     task.add_argument('--restore', type=Path)
+    task.add_argument('--offload', type=Path, metavar='PROJECT_STORAGE',
+                      help='Move archived objects under the project storage directory and verify a restore.')
     parser.add_argument('--preserve', action='append', type=Path, default=[])
     parser.add_argument('--output', type=Path)
     parser.add_argument('--max-catalogs', type=int, default=0)
     parser.add_argument('--apply', action='store_true')
+    parser.add_argument('--copy-only', action='store_true', help='Verify external copies without retiring the local archive.')
     parser.add_argument('--file', action='append', default=[], help='Restore only this receipt-owned bundle.')
     args = parser.parse_args()
     if args.report and args.output is None:
         parser.error('--report requires --output.')
+    if args.offload and (args.output is None or args.preserve or args.max_catalogs or args.file):
+        parser.error('--offload requires --output and accepts --apply or --copy-only.')
+    if args.copy_only and (not args.offload or args.apply):
+        parser.error('--copy-only is available with --offload in place of --apply.')
     if args.max_catalogs < 0 or (args.report and args.file):
         parser.error('Use a nonnegative catalog limit and --file only with --restore.')
     if args.restore and (args.apply or args.preserve or args.output or args.max_catalogs):
@@ -238,6 +358,11 @@ def main():
         output = owner_path(args.output)
         if not output.is_relative_to(ARTIFACTS):
             raise ValueError('The catalog archive report belongs in game-test/artifacts.')
+        if args.offload:
+            directory = external_path(args.offload) / 'ColdStorage' / 'CatalogObjects'
+            print(json.dumps(offload_blobs(directory, output, args.apply, copy_only=args.copy_only),
+                             ensure_ascii=False), flush=True)
+            return
         groups, owners = archive_plan(args.report, args.preserve, args.max_catalogs, verify_inputs=args.apply)
         stored = sum(rows[0][2] for rows in groups.values())
         expanded = sum(row[2] for rows in groups.values() for row in rows)

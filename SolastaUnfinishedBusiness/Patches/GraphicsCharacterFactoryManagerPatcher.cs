@@ -243,7 +243,7 @@ public static class GraphicsCharacterFactoryManagerPatcher
                 RacesContext.SyncNativeBodyRest(graphicsCharacter);
             }
             RefreshNativeFallbackHairColor(graphicsCharacter, category);
-            RacesContext.RefreshCharacterModelMaterials(graphicsCharacter, category == MorphotypeElementDefinition.ElementCategory.Skin);
+            RacesContext.RefreshCharacterModelMaterials(graphicsCharacter, category);
         }
 
         [UsedImplicitly]

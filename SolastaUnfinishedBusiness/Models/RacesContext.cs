@@ -26,6 +26,7 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceLocations;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using UnityEngine.UI;
+using BodyPart = GraphicsCharacterDefinitions.BodyPart;
 using static RuleDefinitions;
 using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionSenses;
 
@@ -49,6 +50,13 @@ internal static class RacesContext
     internal static HashSet<CharacterRaceDefinition> Subraces { get; private set; } = [];
 
     private static readonly Dictionary<RacePresentation, bool> OriginalBodyShapeCategories = [];
+    private static readonly (BodyPart Receiver, BodyPart Donor)[] SkinJoints =
+    [
+        (BodyPart.Head, BodyPart.Body),
+        (BodyPart.Forearms, BodyPart.Body),
+        (BodyPart.Hands, BodyPart.Forearms),
+        (BodyPart.Feet, BodyPart.Body)
+    ];
     private static readonly MethodInfo BindCharacterCustomizationElements =
         AccessTools.Method(typeof(CharacterStageIdentityDefinitionPanel), "BindCharacterCustomizationElements");
     private static readonly AccessTools.FieldRef<CharacterStagePanel, RulesetCharacterHero> IdentityHero =
@@ -57,6 +65,8 @@ internal static class RacesContext
         AccessTools.Field(typeof(CharacterStageIdentityDefinitionPanel), "selectedOptionsByPart");
     private static readonly FieldInfo IdentityCustomizationOptions =
         AccessTools.Field(typeof(CharacterStageIdentityDefinitionPanel), "customizationOptionsBySelectedOrigin");
+    private static readonly FieldInfo CharacterLodGroupField =
+        AccessTools.Field(typeof(GraphicsCharacter), "sharedLodGroup");
     private static readonly AccessTools.FieldRef<RacePresentation, MorphotypeElementDefinition.ElementCategory[]>
         BodyShapeCategories = AccessTools.FieldRefAccess<RacePresentation,
             MorphotypeElementDefinition.ElementCategory[]>("availableMorphotypeCategories");
@@ -412,11 +422,13 @@ internal static class RacesContext
         if (state.Count > 1) { CharacterModelCreations[graphics] = (state.Count - 1, failed); return !failed; }
         CharacterModelCreations.Remove(graphics);
         if (!graphics) return false;
+        var current = !failed && factory && !_characterModelsUnloading && !_bodyShapesUnloading &&
+                      ReferenceEquals(actor, graphics.RulesetCharacter) && !factory.IsAbortingGraphicsCharacter(graphics);
+        if (current && UsesCompleteCharacterModels) RefreshCharacterModels(graphics);
+
         var owner = graphics.GetComponent<BodyShapePresentation>();
         if (owner?.IsPending != true) return !failed;
-        if (!failed && factory && !_characterModelsUnloading && !_bodyShapesUnloading &&
-            ReferenceEquals(actor, graphics.RulesetCharacter) && !factory.IsAbortingGraphicsCharacter(graphics))
-            RefreshBodyShape(graphics);
+        if (current) RefreshBodyShape(graphics);
         else owner.Release(false);
         return !failed;
     }
@@ -430,6 +442,11 @@ internal static class RacesContext
 
     private static bool UsesCompleteCharacterModels =>
         SettingsContext.GuiModManagerInstance.EnableCustomFaces && _characterModelCatalog?.UsesCompleteParts == true;
+
+    private static CharacterModelCatalog CharacterModelMeshCatalog =>
+        SettingsContext.GuiModManagerInstance.EnableCustomFaces && !UsesCompleteCharacterModels
+            ? _characterModelCatalog
+            : null;
 
     private const string BodyVolumePositive = "UB_BodyVolumePositive";
     private const string BodyVolumeNegative = "UB_BodyVolumeNegative";
@@ -701,14 +718,20 @@ internal static class RacesContext
                 if (owner && (owner.HasSources || owner.IsPending)) owner.Release(false, owner.HasSources);
                 return;
             }
+            HashSet<SkinnedMeshRenderer> jointRenderers = null;
             if (UsesCompleteCharacterModels)
             {
-                if (owner && (owner.HasSources || owner.IsPending)) owner.Release(false, false);
                 var lease = graphics.GetComponent<CharacterModelResourceLease>() ??
                     graphics.gameObject.AddComponent<CharacterModelResourceLease>();
                 lease.Bind(graphics, _characterModelCatalog);
                 lease.Synchronize();
-                return;
+                if (CharacterModelCreations.ContainsKey(graphics)) return;
+                jointRenderers = CompleteSkinJointRenderers(graphics);
+                if (jointRenderers.Count == 0)
+                {
+                    if (owner && (owner.HasSources || owner.IsPending)) owner.Release(false, owner.HasSources);
+                    return;
+                }
             }
             owner ??= graphics.gameObject.AddComponent<CharacterModelPresentation>();
             owner.Bind(graphics);
@@ -730,17 +753,20 @@ internal static class RacesContext
                     return;
                 }
             }
-            owner.Refresh(graphics, SettingsContext.GuiModManagerInstance.EnableCustomFaces ? _characterModelCatalog : null);
+            owner.Refresh(graphics, CharacterModelMeshCatalog, jointRenderers);
         }
         catch (Exception exception) { ReportCharacterModelError("refresh", exception); }
     }
 
-    internal static void RefreshCharacterModelMaterials(GraphicsCharacter graphics, bool skinChanged)
+    internal static void RefreshCharacterModelMaterials(GraphicsCharacter graphics, MorphotypeElementDefinition.ElementCategory category)
     {
         if (_characterModelsUnloading || !graphics || !SettingsContext.GuiModManagerInstance.EnableCustomFaces) return;
         try
         {
-            if (skinChanged) graphics.GetComponent<CharacterModelResourceLease>()?.RefreshBodySkinTint();
+            if (category == MorphotypeElementDefinition.ElementCategory.Skin)
+                graphics.GetComponent<CharacterModelResourceLease>()?.RefreshBodySkinTint();
+            else if (category == MorphotypeElementDefinition.ElementCategory.Age)
+                graphics.GetComponent<CharacterModelResourceLease>()?.ApplySkinNormalStrength();
             graphics.GetComponent<CharacterModelPresentation>()?.RefreshMaterials();
         }
         catch (Exception exception) { ReportCharacterModelError("materials", exception); }
@@ -759,21 +785,21 @@ internal static class RacesContext
                 !_characterModelCatalog.TryGetResource(shapes[head].Key, out var resource) ||
                 resource.AssetType != typeof(GameObject)) return;
         }
-        var group = AccessTools.Field(typeof(GraphicsCharacter), "sharedLodGroup")?.GetValue(graphics) as LODGroup;
-        if (!group) return;
-        var lods = group.GetLODs();
-        if (lods.Length < 3 || lods[1].renderers.Length == 0) return;
-        var retained = new HashSet<Renderer>(lods.Take(2).SelectMany(lod => lod.renderers));
-        var hidden = lods.Skip(2).SelectMany(lod => lod.renderers).Where(renderer => renderer && !retained.Contains(renderer))
-            .Distinct().ToDictionary(renderer => renderer, renderer => renderer.forceRenderingOff);
-        CharacterModelLodStates.Add(graphics, (group, (LOD[])lods.Clone(), hidden));
-        // A renderer removed from an LODGroup becomes independently visible.
-        // Keep those source renderers hidden until their native levels return.
-        foreach (var renderer in hidden.Keys) renderer.forceRenderingOff = true;
-        // Select the complete actor at one detail level. Native far-distance
-        // body, garments and grooms can lose their shared cuts, including on NPCs.
-        for (var index = 2; index < lods.Length; index++) lods[index].renderers = lods[1].renderers;
-        group.SetLODs(lods);
+        var group = CharacterLodGroupField?.GetValue(graphics) as LODGroup;
+        var lods = group ? group.GetLODs() : [];
+        if (lods.Length >= 3 && lods[1].renderers.Length != 0)
+        {
+            var retained = new HashSet<Renderer>(lods.Take(2).SelectMany(lod => lod.renderers));
+            var hidden = lods.Skip(2).SelectMany(lod => lod.renderers).Where(renderer => renderer && !retained.Contains(renderer))
+                .Distinct().ToDictionary(renderer => renderer, renderer => renderer.forceRenderingOff);
+            CharacterModelLodStates.Add(graphics, (group, (LOD[])lods.Clone(), hidden));
+            // Removed renderers would draw independently. Use the complete actor's
+            // second level at distance so the attached parts share its cuts.
+            foreach (var renderer in hidden.Keys) renderer.forceRenderingOff = true;
+            for (var index = 2; index < lods.Length; index++) lods[index].renderers = lods[1].renderers;
+            group.SetLODs(lods);
+        }
+        RefreshCharacterModels(graphics);
     }
 
     internal static void RestoreCharacterModelLods(GraphicsCharacter graphics)
@@ -3154,11 +3180,21 @@ internal static class RacesContext
                 parameters.Add((renderer, parameter.Slot, owners));
             }
             var skinScale = shape && bodyPart == GraphicsCharacterDefinitions.BodyPart.Head ? part.BodySkinColorScale : null;
-            if (parameters.Count == 0 && skinScale == null) return;
+            var slots = shape ? graphics.ShapeMaterialsPerBodySlot : graphics.ArmorMaterialsPerBodySlot;
+            var index = (int)bodyPart;
+            var nativeMaterials = slots != null && index < slots.Length ? slots[index] ?? [] : [];
+            if (parameters.Count == 0 && skinScale == null && !nativeMaterials.Any(graphics.SkinMaterials.Contains)) return;
             var lease = graphics.GetComponent<CharacterModelResourceLease>() ??
                 graphics.gameObject.AddComponent<CharacterModelResourceLease>();
             lease.Bind(graphics, this);
-            if (parameters.Count != 0) lease.BindMaterials(instance, bodyPart, shape, parameters);
+            if (parameters.Count != 0)
+            {
+                lease.BindMaterials(instance, bodyPart, shape, parameters);
+                foreach (var (renderer, slot, owners) in parameters)
+                    if (ReferenceEquals(owners, graphics.SkinMaterials))
+                        lease.BindSkinNormalStrength(renderer.sharedMaterials[slot]);
+            }
+            foreach (var material in nativeMaterials) lease.BindSkinNormalStrength(material);
             if (skinScale is { } scale) lease.BindBodySkinTint(instance, scale);
         }
         internal static CharacterModelBlueprint ReadBlueprint(string directory, CharacterModelBlueprint previous)
@@ -4682,7 +4718,11 @@ internal static class RacesContext
         private CharacterModelCatalog _catalog;
         private readonly HashSet<UnityEngine.Object> _sources = [];
         private readonly HashSet<Material> _headSkin = [];
+        private readonly Dictionary<Material, float> _skinNormalStrengths = [];
         private static readonly int SkinColor = Shader.PropertyToID("_Color");
+        private static readonly int SkinNormalStrength = Shader.PropertyToID("_BumpMapScale");
+        private static readonly int UseMicroBumps = Shader.PropertyToID("_UseMicroBumps");
+        private static readonly int MicroBumpMap = Shader.PropertyToID("_MicroBumpMap");
         private GameObject _skinTintHead;
         private Color _bodySkinTint;
         private int _loading;
@@ -4709,6 +4749,29 @@ internal static class RacesContext
             var color = definition.MainColor * _bodySkinTint;
             foreach (var material in Graphics.SkinMaterials)
                 if (material && !_headSkin.Contains(material) && material.HasProperty(SkinColor)) material.SetColor(SkinColor, color);
+        }
+
+        internal void BindSkinNormalStrength(Material material)
+        {
+            if (!material || !Graphics.SkinMaterials.Contains(material) ||
+                !Graphics.MaterialsToDestroy.Contains(material) || _skinNormalStrengths.ContainsKey(material) ||
+                !material.shader || material.shader.name is not ("Lux/Human/Skin" or "Lux/Human/Skin (double sided)") ||
+                material.renderQueue >= 2500 || !material.HasProperty(SkinNormalStrength) ||
+                !material.HasProperty(UseMicroBumps) || material.GetFloat(UseMicroBumps) <= 0f ||
+                !material.HasProperty(MicroBumpMap) || !material.GetTexture(MicroBumpMap)) return;
+            var strength = material.GetFloat(SkinNormalStrength);
+            if (strength >= 0f && strength != 1f && !float.IsInfinity(strength))
+                _skinNormalStrengths.Add(material, strength);
+        }
+
+        internal void ApplySkinNormalStrength()
+        {
+            if (Graphics.RulesetCharacter?.MorphotypeElementAdditionalValues
+                    .ContainsKey(MorphotypeElementDefinition.ElementCategory.Age) != true) return;
+            // The native age callback has just supplied the actor's age factor.
+            foreach (var pair in _skinNormalStrengths)
+                if (pair.Key && Graphics.SkinMaterials.Contains(pair.Key))
+                    pair.Key.SetFloat(SkinNormalStrength, pair.Key.GetFloat(SkinNormalStrength) * pair.Value);
         }
 
         internal void BindMaterials(GameObject part, GraphicsCharacterDefinitions.BodyPart bodyPart, bool shape,
@@ -4771,6 +4834,10 @@ internal static class RacesContext
         }
         internal void SynchronizeMaterials()
         {
+            if (_skinNormalStrengths.Count != 0)
+                foreach (var material in _skinNormalStrengths.Keys.Where(material =>
+                             !material || !Graphics || !Graphics.SkinMaterials.Contains(material)).ToArray())
+                    _skinNormalStrengths.Remove(material);
             if (_materialBindings.Count == 0) return;
             var released = new HashSet<Material>();
             foreach (var pair in _materialBindings.ToArray())
@@ -4795,6 +4862,7 @@ internal static class RacesContext
         }
         private void ReleaseMaterial(Material material)
         {
+            _skinNormalStrengths.Remove(material);
             if (!ReferenceEquals(Graphics, null))
             {
                 Graphics.MaterialsToDestroy.Remove(material);
@@ -4845,6 +4913,7 @@ internal static class RacesContext
         internal void Release()
         {
             SynchronizeMaterials();
+            _skinNormalStrengths.Clear();
             var catalog = _catalog;_catalog = null;
             catalog?.ReleaseNativeSources(_sources);
             CharacterModelResourceOwners.Remove(this);
@@ -4964,6 +5033,7 @@ internal static class RacesContext
         private readonly HashSet<UnityEngine.Object> _nativeSources = [];
         private readonly HashSet<UnityEngine.Object> _requiredNativeSources = [];
         private CharacterModelCatalog _catalog;
+        private LOD[] _jointLods;
         private CharacterModelCatalog.PreparedSources _preparedSources, _sourcePreparationReceipt;
         private IEnumerator _sourcePreparation;
         private Coroutine _sourcePreparationCoroutine;
@@ -5247,21 +5317,30 @@ internal static class RacesContext
         }
 
         private void PrepareJoints(GraphicsCharacter graphics,
-            Dictionary<SkinnedMeshRenderer, CustomModels.SkinMeshSource.SurfaceBinding> bindings)
+            Dictionary<SkinnedMeshRenderer, CustomModels.SkinMeshSource.SurfaceBinding> bindings, LOD[] jointLods)
         {
             const float weld = 0.0001f;
             var slots = graphics.ShapeSkinnedMeshRenderersPerBodySlot;
             if (slots == null) return;
-            var heads = Part(slots, GraphicsCharacterDefinitions.BodyPart.Head).ToHashSet();
-            var bodies = Part(slots, GraphicsCharacterDefinitions.BodyPart.Body)
-                .Concat(Part(graphics.ArmorSkinnedMeshRenderersPerBodySlot, GraphicsCharacterDefinitions.BodyPart.Body)).ToHashSet();
-            var lodGroup = AccessTools.Field(graphics.GetType(), "sharedLodGroup")?.GetValue(graphics) as LODGroup;
-            var lods = lodGroup ? lodGroup.GetLODs() : [];
+            var jointSkins = SkinJoints.SelectMany(pair => new[] { pair.Receiver, pair.Donor }).Distinct()
+                .ToDictionary(part => part, part =>
+                {
+                    var partRenderers = CharacterSkinPartRenderers(graphics, part).ToHashSet();
+                    return _skins.Where(skin => partRenderers.Contains(skin.Renderer)).ToArray();
+                });
+            var lods = jointLods ?? SkinJointLods(graphics);
             var changes = new Dictionary<CharacterModelSkin, Dictionary<int,
                 (BoneWeight Weights, Vector3 Normal, Vector4 Tangent, Vector3? DeltaNormal, Vector3? DeltaTangent)>>();
             var positions = new Dictionary<CharacterModelSkin, Dictionary<int,
                 (Vector3 Original, Vector3 Position, float MaximumDistance)>>();
             var blendShapePositions = new Dictionary<CharacterModelSkin, Dictionary<int, Vector3>>();
+            var repairedShading = new Dictionary<CharacterModelSkin, (Vector3[] Normals, Vector3[] Tangents)>();
+            foreach (var head in jointSkins[BodyPart.Head])
+            {
+                if (NativeBodyShapeFrame(head.Authored) < 0) continue;
+                var repair = ReadBodyShapeRest(head.Authored).RepairedShading;
+                if (repair.Normals != null) repairedShading.Add(head, repair);
+            }
             var dependencies = new List<string>();
             var coupled = new HashSet<CharacterModelSkin>();
             // Resolve every declaration against the immutable initial authored bases.
@@ -5270,7 +5349,8 @@ internal static class RacesContext
             foreach (var receiver in _skins.Where(skin => _catalog?.HasJointAttachments(skin.Fingerprint) == true && IsJointSkin(skin.Renderer)))
             foreach (var donorPart in _catalog.JointDonorParts(receiver.Fingerprint))
             {
-                var donors = Part(slots, donorPart).Concat(Part(graphics.ArmorSkinnedMeshRenderersPerBodySlot, donorPart)).ToHashSet();
+                var donors = CharacterPartRenderers(slots, donorPart)
+                    .Concat(CharacterPartRenderers(graphics.ArmorSkinnedMeshRenderersPerBodySlot, donorPart)).ToHashSet();
                 foreach (var donor in _skins.Where(skin => skin != receiver && donors.Contains(skin.Renderer) && IsJointSkin(skin.Renderer)))
                 {
                     if (coupled.Contains(receiver)) break;
@@ -5278,9 +5358,11 @@ internal static class RacesContext
                     if (TryPreparedJoint(graphics, receiver, donor, bindings, donorPart, jointBases[receiver], jointBases[donor])) coupled.Add(receiver);
                 }
             }
-            foreach (var head in _skins.Where(skin => heads.Contains(skin.Renderer) && IsJointSkin(skin.Renderer)))
-            foreach (var body in _skins.Where(skin => bodies.Contains(skin.Renderer) && skin != head && IsJointSkin(skin.Renderer)))
+            foreach (var (receiver, donor) in SkinJoints)
+            foreach (var head in jointSkins[receiver])
+            foreach (var body in jointSkins[donor])
             {
+                if (head == body) continue;
                 if (lods.Length != 0 && !lods.Any(lod => lod.renderers.Contains(head.Renderer) && lod.renderers.Contains(body.Renderer))) continue;
                 if (coupled.Contains(head)) continue;
                 // Retopology requires its original source map. A joint must not
@@ -5302,13 +5384,18 @@ internal static class RacesContext
                     var matches = correspondence.Value.Vertices;
                     var first = matches[0];
                     // Prefer the body's existing influences; both palettes must already contain every selected bone.
+                    var donorWeight = bRest.Weights[first];
                     BoneWeight hWeight, bWeight;
-                    if (Remap(bRest.Weights[first], bToH, hRest.BindPoses.Length, out hWeight)) bWeight = bRest.Weights[first];
-                    else if (Remap(hRest.Weights[vertex], hToB, bRest.BindPoses.Length, out bWeight)) hWeight = hRest.Weights[vertex];
-                    else continue;
+                    if (!Remap(donorWeight, null, bRest.BindPoses.Length, out bWeight) ||
+                        !Remap(donorWeight, bToH, hRest.BindPoses.Length, out hWeight))
+                    {
+                        var receiverWeight = hRest.Weights[vertex];
+                        if (!Remap(receiverWeight, null, hRest.BindPoses.Length, out hWeight) ||
+                            !Remap(receiverWeight, hToB, bRest.BindPoses.Length, out bWeight)) continue;
+                    }
                     var bNormal = bRest.Normals[first];
                     var hNormal = normalToHead.MultiplyVector(bNormal);
-                    var hDelta = hRest.Muscular == null ? (Vector3?)null : hRest.MuscularNormals[vertex];
+                    var hDelta = hRest.Muscular == null ? (Vector3?)null : MuscleNormal(head, hRest, vertex);
                     var bDelta = bRest.Muscular == null ? (Vector3?)null : bRest.MuscularNormals[first];
                     if (hDelta.HasValue && bDelta.HasValue) hDelta = normalToHead.MultiplyVector(bDelta.Value);
                     Add(head, vertex, hWeight, hNormal, hDelta);
@@ -5344,7 +5431,8 @@ internal static class RacesContext
                 if (paired) dependencies.Add(head.Fingerprint + ":" + CharacterModelFingerprint(head.Authored) + ":" +
                     body.Fingerprint + ":" + CharacterModelFingerprint(body.Authored) + ":" + string.Join(",", bToH) + ":" + string.Join(",", hToB));
             }
-            if (dependencies.Count == 0) return;
+            foreach (var skin in repairedShading.Keys)
+                if (!changes.ContainsKey(skin)) changes.Add(skin, []);
             var dependency = string.Join("|", dependencies.OrderBy(value => value, StringComparer.Ordinal));
             foreach (var row in changes)
             {
@@ -5353,11 +5441,13 @@ internal static class RacesContext
                 var rest = ReadBodyShapeRest(baseline);
                 positions.TryGetValue(skin, out var positionOverrides);
                 blendShapePositions.TryGetValue(skin, out var blendShapePositionOverrides);
-                if (positionOverrides == null && blendShapePositionOverrides == null && !row.Value.Any(pair => !rest.Weights[pair.Key].Equals(pair.Value.Weights) ||
+                repairedShading.TryGetValue(skin, out var frameRepair);
+                if (frameRepair.Normals == null && positionOverrides == null && blendShapePositionOverrides == null && !row.Value.Any(pair => !rest.Weights[pair.Key].Equals(pair.Value.Weights) ||
                     !rest.Normals[pair.Key].Equals(pair.Value.Normal) || rest.Tangents.Length == rest.Vertices.Length && !rest.Tangents[pair.Key].Equals(pair.Value.Tangent) ||
                     pair.Value.DeltaNormal.HasValue && !rest.MuscularNormals[pair.Key].Equals(pair.Value.DeltaNormal.Value) ||
                     pair.Value.DeltaTangent.HasValue && !rest.MuscularTangents[pair.Key].Equals(pair.Value.DeltaTangent.Value))) continue;
-                var retained = RetainDerivedData("skin-joint:3:" + skin.Fingerprint + ":" + CharacterModelFingerprint(baseline) + ":" + dependency, () =>
+                var retained = RetainDerivedData("skin-joint:5:" + skin.Fingerprint + ":" + CharacterModelFingerprint(baseline) + ":" +
+                    (frameRepair.Normals != null) + ":" + dependency, () =>
                 {
                     Mesh readable = null, owned = null;
                     try
@@ -5365,13 +5455,31 @@ internal static class RacesContext
                         readable = baseline.isReadable ? baseline : ReadNativeRestMesh(baseline, native =>
                         {
                             var clone = UnityEngine.Object.Instantiate(native);
-                            clone.name = baseline.name;
-                            clone.bounds = baseline.bounds;
-                            clone.bindposes = baseline.bindposes;
-                            clone.boneWeights = baseline.boneWeights;
-                            CopyFrames(baseline, clone, null);
-                            return clone;
+                            try
+                            {
+                                clone.name = baseline.name;
+                                clone.bounds = baseline.bounds;
+                                clone.bindposes = baseline.bindposes;
+                                clone.boneWeights = baseline.boneWeights;
+                                CopyFrames(baseline, clone, null, shading: frameRepair);
+                                return clone;
+                            }
+                            catch
+                            {
+                                UnityEngine.Object.Destroy(clone);
+                                throw;
+                            }
                         });
+                        if (baseline.isReadable && frameRepair.Normals != null)
+                        {
+                            // The face's frame correction forms the source for the attachment.
+                            // Boundary validation then only sees changes at the matched cut.
+                            readable = UnityEngine.Object.Instantiate(baseline);
+                            readable.name = baseline.name;
+                            CopyFrames(baseline, readable, null, shading: frameRepair);
+                        }
+                        if (row.Value.Count == 0) return [readable];
+
                         owned = UnityEngine.Object.Instantiate(readable);
                         owned.name = baseline.name;
                         var weights = readable.boneWeights; var normals = readable.normals; var tangents = readable.tangents;
@@ -5393,7 +5501,7 @@ internal static class RacesContext
                         }
                         CopyFrames(readable, owned, row.Value, blendShapePositionOverrides);
                         CustomModels.SkinMeshSource.VerifySkinEncoding(owned, row.Value.ToDictionary(pair => pair.Key, pair => pair.Value.Weights));
-                        return baseline.isReadable ? [owned] : [owned, readable];
+                        return readable == baseline ? [owned] : [owned, readable];
                     }
                     catch
                     {
@@ -5403,7 +5511,12 @@ internal static class RacesContext
                     }
                 });
                 var replacement = (Mesh)retained[0];
-                var boundarySource = baseline.isReadable ? baseline : (Mesh)retained[1];
+                if (row.Value.Count == 0)
+                {
+                    skin.SetAuthored(replacement);
+                    continue;
+                }
+                var boundarySource = retained.Length == 1 ? baseline : (Mesh)retained[1];
                 bindings.TryGetValue(skin.Renderer, out var binding);
                 binding ??= _catalog?.BaseBinding(skin.Source.Original, skin.Fingerprint);
                 var vertices = binding?.Vertices ?? Enumerable.Range(0, baseline.vertexCount)
@@ -5413,28 +5526,45 @@ internal static class RacesContext
                     pair => (canonicalWeights[pair.Key], pair.Value.Normal, pair.Value.Tangent));
                 var declaredBlendShapePositions = blendShapePositionOverrides?.ToDictionary(pair => pair.Key,
                     pair => (ReadBodyShapeRest(boundarySource).Muscular[pair.Key], pair.Value));
+                var nativeFrame = NativeBodyShapeFrame(boundarySource);
                 bindings[skin.Renderer] = new CustomModels.SkinMeshSource.SurfaceBinding(binding?.Fingerprint ?? skin.Fingerprint,
                     binding?.RendererToPrefab ?? Matrix4x4.identity, binding?.SourceTangents ?? ReadNativeRestMesh(skin.Source.Original, mesh => mesh.tangents), vertices,
-                    boundarySource, declared, "Muscular", positionOverrides, null, declaredBlendShapePositions, skinEncodingSource: binding, authoredBase: binding?.AuthoredBase);
+                    boundarySource, declared, nativeFrame >= 0 ? boundarySource.GetBlendShapeName(nativeFrame) : null,
+                    positionOverrides, null, declaredBlendShapePositions, skinEncodingSource: binding, authoredBase: binding?.AuthoredBase);
                 skin.SetAuthored(replacement);
             }
             return;
 
-            static IEnumerable<SkinnedMeshRenderer> Part(SkinnedMeshRenderer[][] parts, GraphicsCharacterDefinitions.BodyPart part) =>
-                parts != null && (int)part < parts.Length ? parts[(int)part] ?? [] : [];
+            Vector3 MuscleNormal(CharacterModelSkin skin, BodyShapeRest rest, int vertex) =>
+                repairedShading.TryGetValue(skin, out var repair) ? repair.Normals[vertex] : rest.MuscularNormals[vertex];
+
             static bool Remap(BoneWeight source, int[] indices, int targetCount, out BoneWeight result)
             {
                 result = default;
-                var mapped = new int[4];
+                var mapped = new (int Bone, float Weight)[4];
+                var count = 0;
+                var merged = false;
                 for (var influence = 0; influence < 4; influence++)
                 {
-                    if (BodyShapeWeight(source, influence) <= 0f) continue;
+                    var weight = BodyShapeWeight(source, influence);
+                    if (weight <= 0f) continue;
                     var index = BodyShapeWeightIndex(source, influence);
-                    if (index < 0 || index >= indices.Length || indices[index] < 0 || indices[index] >= targetCount) return false;
-                    mapped[influence] = indices[index];
+                    if (index < 0 || indices != null && index >= indices.Length) return false;
+                    var bone = indices == null ? index : indices[index];
+                    if (bone < 0 || bone >= targetCount) return false;
+                    // Several source slots can resolve to the same target bind frame.
+                    var slot = 0;
+                    while (slot < count && mapped[slot].Bone != bone) slot++;
+                    if (slot == count) count++;
+                    else merged = true;
+                    mapped[slot] = (bone, mapped[slot].Weight + weight);
                 }
-                result = new BoneWeight { boneIndex0 = mapped[0], boneIndex1 = mapped[1], boneIndex2 = mapped[2], boneIndex3 = mapped[3],
-                    weight0 = source.weight0, weight1 = source.weight1, weight2 = source.weight2, weight3 = source.weight3 };
+                if (count == 0) return false;
+                if (merged)
+                    Array.Sort(mapped, 0, count, Comparer<(int Bone, float Weight)>.Create((a, b) => b.Weight.CompareTo(a.Weight)));
+                result = new BoneWeight { boneIndex0 = mapped[0].Bone, boneIndex1 = mapped[1].Bone,
+                    boneIndex2 = mapped[2].Bone, boneIndex3 = mapped[3].Bone, weight0 = mapped[0].Weight,
+                    weight1 = mapped[1].Weight, weight2 = mapped[2].Weight, weight3 = mapped[3].Weight };
                 return true;
             }
             void Add(CharacterModelSkin skin, int vertex, BoneWeight weight, Vector3 normal, Vector3? deltaNormal)
@@ -5447,8 +5577,12 @@ internal static class RacesContext
                 tangent = new Vector4(newTangent.x, newTangent.y, newTangent.z, tangent.w);
                 Vector3? deltaTangent = null;
                 if (deltaNormal.HasValue && rest.Muscular != null)
-                    deltaTangent = Quaternion.FromToRotation(rest.Normals[vertex] + rest.MuscularNormals[vertex], normal + deltaNormal.Value) *
-                        (oldTangent + rest.MuscularTangents[vertex]) - newTangent;
+                {
+                    var oldNormal = rest.Normals[vertex] + MuscleNormal(skin, rest, vertex);
+                    var posedTangent = oldTangent + (repairedShading.TryGetValue(skin, out var repair)
+                        ? repair.Tangents[vertex] : rest.MuscularTangents[vertex]);
+                    deltaTangent = Quaternion.FromToRotation(oldNormal, normal + deltaNormal.Value) * posedTangent - newTangent;
+                }
                 if (values.TryGetValue(vertex, out var existing))
                 {
                     if (!existing.Weights.Equals(weight) || (existing.Normal - normal).sqrMagnitude > weld * weld ||
@@ -5463,28 +5597,37 @@ internal static class RacesContext
 
             static void CopyFrames(Mesh source, Mesh target, Dictionary<int,
                 (BoneWeight Weights, Vector3 Normal, Vector4 Tangent, Vector3? DeltaNormal, Vector3? DeltaTangent)> overrides,
-                IReadOnlyDictionary<int, Vector3> musclePositions = null)
+                IReadOnlyDictionary<int, Vector3> musclePositions = null,
+                (Vector3[] Normals, Vector3[] Tangents) shading = default)
             {
                 target.ClearBlendShapes();
                 var positions = new Vector3[source.vertexCount]; var normals = new Vector3[source.vertexCount]; var tangents = new Vector3[source.vertexCount];
+                var nativeFrame = NativeBodyShapeFrame(source);
                 for (var shape = 0; shape < source.blendShapeCount; shape++)
                 for (var frame = 0; frame < source.GetBlendShapeFrameCount(shape); frame++)
                 {
                     var name = source.GetBlendShapeName(shape); var value = source.GetBlendShapeFrameWeight(shape, frame);
                     source.GetBlendShapeFrameVertices(shape, frame, positions, normals, tangents);
-                    if (name == "Muscular" && overrides != null) foreach (var pair in overrides)
+                    if (shape == nativeFrame && shading.Normals != null)
+                        for (var index = 0; index < normals.Length; index++)
+                        {
+                            normals[index] = shading.Normals[index] * (value / 100f);
+                            tangents[index] = shading.Tangents[index] * (value / 100f);
+                        }
+                    if (shape == nativeFrame && overrides != null) foreach (var pair in overrides)
                     {
                         if (pair.Value.DeltaNormal.HasValue) normals[pair.Key] = pair.Value.DeltaNormal.Value * (value / 100f);
                         if (pair.Value.DeltaTangent.HasValue) tangents[pair.Key] = pair.Value.DeltaTangent.Value * (value / 100f);
                     }
-                    if (name == "Muscular" && musclePositions != null)
+                    if (shape == nativeFrame && musclePositions != null)
                         foreach (var pair in musclePositions) positions[pair.Key] = pair.Value * (value / 100f);
                     target.AddBlendShapeFrame(name, value, positions, normals, tangents);
                 }
             }
         }
 
-        internal void Refresh(GraphicsCharacter graphics, CharacterModelCatalog catalog)
+        internal void Refresh(GraphicsCharacter graphics, CharacterModelCatalog catalog,
+            HashSet<SkinnedMeshRenderer> jointRenderers)
         {
             if (_busy || IsInitializing || !isActiveAndEnabled) return;
             if (!EnsurePreparedSources(graphics, catalog)) return;
@@ -5495,7 +5638,9 @@ internal static class RacesContext
             CharacterModelOwners.Add(this);
             try
             {
-                var renderers = CharacterModelRenderers(graphics);
+                var renderers = jointRenderers ?? CharacterModelRenderers(graphics);
+                var jointLods = jointRenderers == null ? null : SkinJointLods(graphics);
+                var sameLods = SameSkinJointLods(_jointLods, jointLods, renderers);
                 if (renderers.Count == 0)
                 {
                     if (HasSources) Release(false, true);
@@ -5504,13 +5649,13 @@ internal static class RacesContext
                 }
                 var sources = CustomModels.SkinMeshSource.Capture(graphics, renderers);
                 if (sources == null) throw new InvalidOperationException("Native face source ownership could not be resolved.");
-                if (preparedSources == null && ReferenceEquals(_actor, graphics.RulesetCharacter) && _catalog == catalog &&
+                if (preparedSources == null && sameLods && ReferenceEquals(_actor, graphics.RulesetCharacter) && _catalog == catalog &&
                     renderers.Count == _skins.Count && _skins.All(skin => sources.TryGetValue(skin.Renderer, out var source) && skin.IsCurrent(graphics, source)))
                 {
                     RefreshMaterials();
                     return;
                 }
-                if (preparedSources == null && catalog == null && ReferenceEquals(_actor, graphics.RulesetCharacter) &&
+                if (preparedSources == null && sameLods && catalog == null && ReferenceEquals(_actor, graphics.RulesetCharacter) &&
                     SnapshotScopeCurrent && OnlySourceSnapshots && _skins.All(skin => renderers.Contains(skin.Renderer) &&
                         sources.TryGetValue(skin.Renderer, out var source) && skin.IsCurrent(graphics, source)))
                 {
@@ -5524,7 +5669,7 @@ internal static class RacesContext
                     // New native inputs can introduce a real joint correction.
                     // Plan it using the original sources; any output falls back
                     // to the normal upper-restore/lower-apply transaction below.
-                    PrepareJoints(graphics, new Dictionary<SkinnedMeshRenderer, CustomModels.SkinMeshSource.SurfaceBinding>());
+                    PrepareJoints(graphics, new Dictionary<SkinnedMeshRenderer, CustomModels.SkinMeshSource.SurfaceBinding>(), jointLods);
                     if (OnlySourceSnapshots) { RefreshBodyShape(graphics); return; }
                 }
                 Release(false, false);
@@ -5550,7 +5695,7 @@ internal static class RacesContext
                 var bindings = new Dictionary<SkinnedMeshRenderer, CustomModels.SkinMeshSource.SurfaceBinding>();
                 foreach (var skin in _skins.Where(skin => skin.ChangesSource))
                     if (_catalog?.Binding(skin.Source.Original, skin.Fingerprint) is { } binding) bindings.Add(skin.Renderer, binding);
-                PrepareJoints(graphics, bindings);
+                PrepareJoints(graphics, bindings, jointLods);
                 foreach (var skin in _skins) skin.ValidateSource(bindings.ContainsKey(skin.Renderer));
                 var changes = _skins.Where(skin => skin.ChangesSource).ToDictionary(skin => skin.Renderer,
                     skin => (skin.Source, skin.Authored));
@@ -5563,6 +5708,7 @@ internal static class RacesContext
                     _sourceGraph.Apply();
                 }
                 foreach (var skin in _skins) skin.Apply(_sourceGraph?.Installed);
+                _jointLods = jointLods;
                 RefreshMaterials();
                 RefreshBodyShape(graphics);
                 published = true;
@@ -5761,10 +5907,12 @@ internal static class RacesContext
             _busy = true;
             try
             {
-                var renderers = CharacterModelRenderers(_graphics);
+                var complete = UsesCompleteCharacterModels;
+                var renderers = complete ? CompleteSkinJointRenderers(_graphics) : CharacterModelRenderers(_graphics);
                 var sources = CustomModels.SkinMeshSource.Capture(_graphics, renderers);
                 var same = ReferenceEquals(_actor, _graphics.RulesetCharacter) &&
-                    ReferenceEquals(_catalog, SettingsContext.GuiModManagerInstance.EnableCustomFaces ? _characterModelCatalog : null) && sources != null &&
+                    ReferenceEquals(_catalog, CharacterModelMeshCatalog) && sources != null &&
+                    SameSkinJointLods(_jointLods, complete ? SkinJointLods(_graphics) : null, renderers) &&
                     renderers.Count == _skins.Count && _skins.All(skin =>
                         sources.TryGetValue(skin.Renderer, out var source) && skin.IsNativeCurrent(source)) &&
                     (_sourceGraph == null || _sourceGraph.CanReapply());
@@ -5822,7 +5970,7 @@ internal static class RacesContext
             if (_nativeSources.Count != 0)
                 (_catalog ?? throw new InvalidOperationException("Owned native appearance sources lost their catalog.")).ReleaseNativeSources(_nativeSources);
             _requiredNativeSources.Clear();
-            if (!HasSources) { _catalog = null; _actor = null; CharacterModelOwners.Remove(this); }
+            if (!HasSources) { _catalog = null; _actor = null; _jointLods = null; CharacterModelOwners.Remove(this); }
             if (reapplyBody && !destroying && _graphics) RefreshBodyShape(_graphics);
             }
             finally
@@ -5868,6 +6016,48 @@ internal static class RacesContext
         foreach (var renderer in graphics.GetComponentsInChildren<SkinnedMeshRenderer>(true))
             if (renderer && renderer.sharedMesh && !wielded.Any(root => renderer.transform == root || renderer.transform.IsChildOf(root)))
                 result.Add(renderer);
+        return result;
+    }
+
+    private static IEnumerable<SkinnedMeshRenderer> CharacterPartRenderers(SkinnedMeshRenderer[][] parts, BodyPart part) =>
+        parts != null && (int)part < parts.Length ? parts[(int)part] ?? [] : [];
+
+    private static LOD[] SkinJointLods(GraphicsCharacter graphics) =>
+        CharacterLodGroupField?.GetValue(graphics) is LODGroup group && group ? group.GetLODs() : [];
+
+    private static bool SameSkinJointLods(LOD[] previous, LOD[] current, HashSet<SkinnedMeshRenderer> renderers)
+    {
+        if (previous == null || current == null) return previous == current;
+        if (previous.Length != current.Length) return false;
+        for (var index = 0; index < previous.Length; index++)
+            if (!previous[index].renderers.Where(IsJointRenderer).SequenceEqual(current[index].renderers.Where(IsJointRenderer)))
+                return false;
+        return true;
+
+        bool IsJointRenderer(Renderer renderer) => renderer is SkinnedMeshRenderer skin && renderers.Contains(skin);
+    }
+
+    private static IEnumerable<SkinnedMeshRenderer> CharacterSkinPartRenderers(GraphicsCharacter graphics, BodyPart part)
+    {
+        var shape = CharacterPartRenderers(graphics.ShapeSkinnedMeshRenderersPerBodySlot, part);
+        var renderers = part == BodyPart.Head
+            ? shape
+            : shape.Concat(CharacterPartRenderers(graphics.ArmorSkinnedMeshRenderersPerBodySlot, part));
+        return renderers.Where(renderer => renderer && renderer.sharedMesh && IsJointSkin(renderer));
+    }
+
+    private static HashSet<SkinnedMeshRenderer> CompleteSkinJointRenderers(GraphicsCharacter graphics)
+    {
+        var result = new HashSet<SkinnedMeshRenderer>();
+        foreach (var (receiver, donor) in SkinJoints)
+        {
+            var receivers = CharacterSkinPartRenderers(graphics, receiver).ToArray();
+            if (receivers.Length == 0) continue;
+            var donors = CharacterSkinPartRenderers(graphics, donor).ToArray();
+            if (donors.Length == 0) continue;
+            result.UnionWith(receivers);
+            result.UnionWith(donors);
+        }
         return result;
     }
 
@@ -6483,7 +6673,89 @@ internal static class RacesContext
         internal int[] Triangles;
         internal bool[] Boundary;
         private BodyShapeCut _cut;
+        private bool _shadingChecked;
+        private (Vector3[] Normals, Vector3[] Tangents) _repairedShading;
         internal BodyShapeCut Cut => _cut ??= new BodyShapeCut(Vertices, Triangles);
+        internal (Vector3[] Normals, Vector3[] Tangents) RepairedShading
+        {
+            get
+            {
+                if (_shadingChecked) return _repairedShading;
+                _repairedShading = RepairShading();
+                _shadingChecked = true;
+                return _repairedShading;
+            }
+        }
+
+        private (Vector3[] Normals, Vector3[] Tangents) RepairShading()
+        {
+            const float movementTolerance = 0.00001f * 0.00001f;
+            var moving = new HashSet<(Vector3 Vertex, Vector3 Normal)>();
+            for (var index = 0; index < Triangles.Length; index += 3)
+            {
+                var first = Triangles[index]; var second = Triangles[index + 1]; var third = Triangles[index + 2];
+                // A translated triangle keeps its normal. Shared rest normals also
+                // depend on triangles across a split UV seam.
+                if ((Muscular[first] - Muscular[second]).sqrMagnitude <= movementTolerance &&
+                    (Muscular[first] - Muscular[third]).sqrMagnitude <= movementTolerance &&
+                    (Muscular[second] - Muscular[third]).sqrMagnitude <= movementTolerance) continue;
+                moving.Add((Vertices[first], Normals[first])); moving.Add((Vertices[second], Normals[second]));
+                moving.Add((Vertices[third], Normals[third]));
+            }
+            var stationary = new List<int>();
+            var largeCorrections = 0;
+            for (var index = 0; index < Vertices.Length; index++)
+            {
+                var normal = MuscularNormals[index];
+                var tangent = MuscularTangents[index];
+                if (normal.sqrMagnitude <= 0.00000001f && tangent.sqrMagnitude <= 0.00000001f ||
+                    moving.Contains((Vertices[index], Normals[index]))) continue;
+                stationary.Add(index);
+                if (Vector3.Angle(Normals[index], Normals[index] + normal) > 5f) largeCorrections++;
+            }
+            if (stationary.Count == 0) return default;
+            if (largeCorrections < Math.Max(3, Vertices.Length / 100))
+            {
+                var normals = (Vector3[])MuscularNormals.Clone();
+                var tangents = (Vector3[])MuscularTangents.Clone();
+                foreach (var index in stationary) normals[index] = tangents[index] = Vector3.zero;
+                return (normals, tangents);
+            }
+
+            // A damaged frame can contain discontinuities at moving vertices too.
+            // Transport the imported rest frame across the actual deformed triangles.
+            var groups = new Dictionary<(Vector3 Vertex, Vector3 Normal, Vector3 Motion), int>();
+            var rest = new List<Vector3>();
+            var posed = new List<Vector3>();
+            var indices = new int[Vertices.Length];
+            for (var index = 0; index < Vertices.Length; index++)
+            {
+                var key = (Vertices[index], Normals[index], Muscular[index]);
+                if (!groups.TryGetValue(key, out var group))
+                {
+                    groups.Add(key, group = rest.Count);
+                    rest.Add(key.Item1);
+                    posed.Add(key.Item1 + key.Item3);
+                }
+                indices[index] = group;
+            }
+            var triangles = Triangles.Select(index => indices[index]).ToArray();
+            var before = BodyShapeNormals(rest.ToArray(), triangles);
+            var after = BodyShapeNormals(posed.ToArray(), triangles);
+            var repairedNormals = new Vector3[Vertices.Length];
+            var repairedTangents = new Vector3[Vertices.Length];
+            for (var index = 0; index < Vertices.Length; index++)
+            {
+                var group = indices[index];
+                if (before[group].sqrMagnitude == 0f || after[group].sqrMagnitude == 0f) continue;
+                var rotation = Quaternion.FromToRotation(before[group], after[group]);
+                repairedNormals[index] = rotation * Normals[index] - Normals[index];
+                if (Tangents.Length != Vertices.Length) continue;
+                var tangent = (Vector3)Tangents[index];
+                repairedTangents[index] = rotation * tangent - tangent;
+            }
+            return (repairedNormals, repairedTangents);
+        }
     }
 
     private sealed class BodyShapeCut

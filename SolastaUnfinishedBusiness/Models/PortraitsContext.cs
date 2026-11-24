@@ -15,6 +15,65 @@ public static class PortraitsContext
 {
     private static readonly ConditionalWeakTable<CharacterViewport, Transform> ViewportFramingTargets = new();
     private static readonly ConditionalWeakTable<GraphicsCharacter, HashSet<Component>> ViewportClothResets = new();
+    private static ConditionalWeakTable<CharacterViewport, List<Light>> _viewportFillLights = new();
+    private static readonly Dictionary<Light, (LightShadows Shadows, int Owners)> FillLightShadows = [];
+
+    internal static void BindViewportLighting(CharacterViewport viewport)
+    {
+        ReleaseViewportLighting(viewport);
+        var rig = viewport.portraitLighting;
+        var camera = viewport.portraitCamera;
+        if (!rig || !camera) return;
+
+        var lights = rig.GetComponentsInChildren<Light>();
+        var directionalMask = 0;
+        foreach (var light in lights)
+            if (light.enabled && light.type == LightType.Directional && light.shadows != LightShadows.None)
+                directionalMask |= light.cullingMask;
+
+        var fills = new List<Light>();
+        foreach (var light in lights)
+        {
+            var mask = light.cullingMask & camera.cullingMask;
+            if (!light.enabled || light.type != LightType.Point || mask == 0 || (mask & directionalMask) != mask)
+                continue;
+            if (FillLightShadows.TryGetValue(light, out var state))
+                FillLightShadows[light] = (state.Shadows, state.Owners + 1);
+            else
+            {
+                if (light.shadows == LightShadows.None) continue;
+                FillLightShadows.Add(light, (light.shadows, 1));
+                // The key light already supplies the portrait's shape and contact shadows.
+                light.shadows = LightShadows.None;
+            }
+            fills.Add(light);
+        }
+        if (fills.Count != 0) _viewportFillLights.Add(viewport, fills);
+    }
+
+    internal static void ReleaseViewportLighting(CharacterViewport viewport)
+    {
+        if (!_viewportFillLights.TryGetValue(viewport, out var fills)) return;
+        _viewportFillLights.Remove(viewport);
+        foreach (var light in fills)
+        {
+            var state = FillLightShadows[light];
+            if (state.Owners > 1) FillLightShadows[light] = (state.Shadows, state.Owners - 1);
+            else
+            {
+                if (light && light.shadows == LightShadows.None) light.shadows = state.Shadows;
+                FillLightShadows.Remove(light);
+            }
+        }
+    }
+
+    internal static void RestoreViewportLighting()
+    {
+        foreach (var pair in FillLightShadows)
+            if (pair.Key && pair.Key.shadows == LightShadows.None) pair.Key.shadows = pair.Value.Shadows;
+        FillLightShadows.Clear();
+        _viewportFillLights = new ConditionalWeakTable<CharacterViewport, List<Light>>();
+    }
 
     internal static void PrepareViewportClothForRotation(GraphicsCharacter graphics)
     {

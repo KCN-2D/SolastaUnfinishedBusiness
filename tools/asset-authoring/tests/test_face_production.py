@@ -236,6 +236,23 @@ class FaceProductionContracts(unittest.TestCase):
         faces = np.array([lining, lining + [.12, 0., 0.], lining + [0., 0., .008]])
         np.testing.assert_array_equal(production.garment_inside_faces(shell, faces, .03), [True, False, False])
 
+    def test_garment_fold_layers_find_sewn_opposing_charts(self):
+        production, _ = build.source_owner()
+        outside = np.array([[0., 0., 0.], [.1, 0., 0.], [.1, .1, 0.], [0., .1, 0.], [.05, .05, 0.]])
+        inside = outside.copy()
+        inside[[1, 2, 4], 2] = -.006
+        faces = np.array([(0, 1, 4), (1, 2, 4), (2, 3, 4), (3, 0, 4)])
+        opposing = faces[:, ::-1] + len(outside)
+        sewn = np.concatenate((outside, inside))
+        shell = np.concatenate((faces, opposing))
+
+        [(first, second)] = production.garment_fold_layers(sewn, shell, .015)
+        np.testing.assert_array_equal(first, faces)
+        np.testing.assert_array_equal(second, opposing)
+        self.assertEqual(list(production.garment_fold_layers(sewn, np.concatenate((faces, opposing[:, ::-1])), .015)), [])
+        inside[:, 2] -= .015
+        self.assertEqual(list(production.garment_fold_layers(np.concatenate((outside, inside)), shell, .03)), [])
+
     def test_appearance_capture_pairs_gear_with_its_own_skin_detail_level(self):
         def part(key, detail, height, skin):
             return dict(renderer=f'Mesh_LOD{detail}', mesh=dict(id=key, name=f'Mesh_LOD{detail}', bindPoses=[]), forceRenderingOff=False,
@@ -1377,6 +1394,15 @@ class FaceProductionContracts(unittest.TestCase):
                          {'_GlossinessFactor': .95, '_BumpMapScale': 1.08})
         self.assertEqual(build.model_surface_multipliers('npc', 'Standard', dict(saved, m_CustomRenderQueue=3000)), {})
         self.assertEqual(build.model_surface_multipliers('creature', 'Custom/CharacterEye', saved), {})
+        soft_skin = dict(saved, m_SavedProperties=dict(m_Floats=[('_UseMicroBumps', 1)],
+            m_TexEnvs=[*textures, ('_MicroBumpMap', dict(m_Texture=dict(m_PathID=2)))]))
+        for role in ('character', 'npc'):
+            self.assertEqual(build.model_surface_multipliers(role, 'Lux/Human/Skin', soft_skin, .5),
+                             {'_BumpMapScale': .5})
+        self.assertEqual(build.model_surface_multipliers('character', 'Lux/Human/Skin', saved, .5), {})
+        self.assertEqual(build.model_surface_multipliers('character', 'Lux/Human/SkinDragonborn', soft_skin, .5), {})
+        self.assertEqual(build.model_surface_multipliers('creature', 'Lux/Human/Skin', soft_skin, .5),
+                         {'_BumpMapScale': 1.07})
 
     def test_retired_skin_interface_resolves_its_exact_native_normal_input(self):
         with tempfile.TemporaryDirectory() as folder:

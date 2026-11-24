@@ -177,6 +177,7 @@ internal static class Main
         TryCleanup(PlayerControllerContext.Unload);
         TryCleanup(CivilianAnimationContext.SuspendCivilianReactions);
         TryCleanup(RacesContext.UnloadBodyShapes);
+        TryCleanup(PortraitsContext.RestoreViewportLighting);
         TryCleanup(CombatAnimationContext.Unload);
         TryCleanup(MultiplayerSettingsContext.Invalidate);
         TryCleanup(GuiWrapperContext.Unload);

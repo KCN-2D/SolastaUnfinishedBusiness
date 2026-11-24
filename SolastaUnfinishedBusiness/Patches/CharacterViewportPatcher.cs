@@ -48,6 +48,7 @@ public static class CharacterViewportPatcher
         {
             // A reused render target still contains the previous actor until the factory completes.
             __instance.rawImage.enabled = __instance.GraphicsCharacter != null;
+            PortraitsContext.BindViewportLighting(__instance);
         }
 
         [UsedImplicitly]
@@ -76,6 +77,7 @@ public static class CharacterViewportPatcher
         [UsedImplicitly]
         public static void Prefix(CharacterViewport __instance)
         {
+            PortraitsContext.ReleaseViewportLighting(__instance);
             PortraitsContext.ReleaseViewportFraming(__instance);
             PortraitsContext.ReleaseViewportCloth(__instance.GraphicsCharacter);
             __instance.backToCenterCoroutine.Reset();

@@ -404,6 +404,8 @@ RGBAの各チャンネルに材質データを保存するPNGは、共通関数`
 
 旧catalogで重複するbundleは、`catalog_archive.py --report <ResourceLifecycle.json> --output <証跡フォルダー>`で容量を確認し、`--apply`でSHA256ごとに保管できます。再制作で旧catalogを使う場合は、`--restore <旧catalogの作業先>`で元のパスを復元します。特定のbundleだけが必要な場合は`--file <bundle名>`を指定します。
 
+保管済みbundleを開発共有に移すには、`catalog_archive.py --offload <共有内のプロジェクトフォルダー> --output <証跡フォルダー> --apply`を実行します。移動先はプロジェクトフォルダー内の `ColdStorage\CatalogObjects` です。コピーと照合を先に行う場合は`--copy-only`を指定します。移したbundleは`--restore`で復元できます。
+
 ```powershell
 & .\tools\asset-authoring\Invoke-UnityAssetBuild.ps1 -Cleanup `
   -GuiProjectPath '<Projectのパス>' -ReferencePath '<参照JSON>' `
