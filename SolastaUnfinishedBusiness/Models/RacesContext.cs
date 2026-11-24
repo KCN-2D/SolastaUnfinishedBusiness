@@ -428,6 +428,9 @@ internal static class RacesContext
         SettingsContext.GuiModManagerInstance.EnableCustomFaces ||
         SettingsContext.GuiModManagerInstance.EnableAllRaceBodyShapes && UsesBodyShapeAppearance(graphics?.RulesetCharacter);
 
+    private static bool UsesCompleteCharacterModels =>
+        SettingsContext.GuiModManagerInstance.EnableCustomFaces && _characterModelCatalog?.UsesCompleteParts == true;
+
     private const string BodyVolumePositive = "UB_BodyVolumePositive";
     private const string BodyVolumeNegative = "UB_BodyVolumeNegative";
     // The factory registers native body renderers by blend-shape count and drives
@@ -698,7 +701,7 @@ internal static class RacesContext
                 if (owner && (owner.HasSources || owner.IsPending)) owner.Release(false, owner.HasSources);
                 return;
             }
-            if (_characterModelCatalog?.UsesCompleteParts == true)
+            if (UsesCompleteCharacterModels)
             {
                 if (owner && (owner.HasSources || owner.IsPending)) owner.Release(false, false);
                 var lease = graphics.GetComponent<CharacterModelResourceLease>() ??
@@ -835,7 +838,7 @@ internal static class RacesContext
         if (!graphics) return null;
         ReleaseBodyShape(graphics);
         var owner = graphics.GetComponent<CharacterModelPresentation>();
-        if (!owner && _characterModelCatalog?.UsesCompleteParts == true) return null;
+        if (!owner && UsesCompleteCharacterModels) return null;
         if (!owner && !_characterModelsUnloading && graphics.RulesetCharacter != null &&
             UsesCharacterModelPresentation(graphics))
         {
@@ -6902,6 +6905,29 @@ internal static class RacesContext
                         _gradient[row, column] = (float)value;
                         Derivative[row, column] += _gradient[row, column];
                     }
+                var determinant = Derivative.determinant;
+                if (!BodyShapeFinite(determinant) || determinant < 0.001f)
+                {
+                    // A thin or sparsely weighted surface can give the fit a
+                    // collapsing extrapolation away from its samples. Preserve
+                    // the fitted motion at the sample center and limit the gradient.
+                    var squaredNorm = 0d;
+                    for (var row = 0; row < 3; row++)
+                    for (var column = 0; column < 3; column++)
+                    {
+                        var coefficient = (double)_gradient[row, column];
+                        squaredNorm += coefficient * coefficient;
+                    }
+
+                    var amount = (float)(0.8d / Math.Sqrt(squaredNorm));
+                    Derivative = Matrix4x4.identity;
+                    for (var row = 0; row < 3; row++)
+                    for (var column = 0; column < 3; column++)
+                    {
+                        _gradient[row, column] *= amount;
+                        Derivative[row, column] += _gradient[row, column];
+                    }
+                }
                 _center = new Vector3((float)center[0], (float)center[1], (float)center[2]);
                 _mean = new Vector3((float)mean[0], (float)mean[1], (float)mean[2]);
             }
@@ -7769,8 +7795,8 @@ internal static class RacesContext
                             field.FindAffineRest(anchor.name) is not { } anchorField) continue;
                         var toAnchor = anchorRest.inverse * boneRest;
                         var fromAnchor = toAnchor.inverse;
-                        var derivative = fromAnchor * anchorField.Derivative * toAnchor;
-                        derivative.m03 = derivative.m13 = derivative.m23 = 0f;
+                        var derivative = CustomModels.SkinMeshSource.RestDeformation.RebaseDerivative(
+                            anchorField.Derivative, toAnchor, fromAnchor);
                         basis = (anchorField, toAnchor, fromAnchor, derivative);
                         anchors.Add((group, bone), basis);
                         break;

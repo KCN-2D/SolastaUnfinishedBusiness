@@ -30,7 +30,9 @@ def export_mesh(obj, transform, graph, destination, *, retained_topology):
         linear = np.asarray(frame.to_3x3(), dtype=float)
         inverse_linear = np.linalg.inv(linear)
         handedness = np.sign(np.linalg.det(linear))
-        positions = (positions.reshape(-1, 3) @ linear.T + frame.translation).astype("<f4")
+        positions = positions.reshape(-1, 3)
+        if not np.array_equal(linear, np.eye(3)) or any(frame.translation):
+            positions = (positions @ linear.T + frame.translation).astype("<f4")
         retained = mesh.attributes.get("retained_vertex")
         if retained is not None:
             saved = mesh.attributes.get("retained_position")

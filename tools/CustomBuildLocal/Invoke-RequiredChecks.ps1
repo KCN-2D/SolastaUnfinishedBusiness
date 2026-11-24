@@ -7,10 +7,11 @@ $ErrorActionPreference = 'Stop'
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $eventName = 'Manual'
 $eventInput = $null
+$gitWrite = $null
 $lease = $null
 $script:logPath = $null
 
-function Test-GitWrite([string]$Command) {
+function Get-GitWrite([string]$Command) {
     $tokens = $null; $errors = $null
     $tree = [Management.Automation.Language.Parser]::ParseInput($Command,[ref]$tokens,[ref]$errors)
     foreach ($call in $tree.FindAll({param($node) $node -is [Management.Automation.Language.CommandAst]},$true)) {
@@ -23,9 +24,12 @@ function Test-GitWrite([string]$Command) {
         while ($index -lt $words.Count -and $words[$index].StartsWith('-')) {
             if ($words[$index] -in @('-C','-c','--git-dir','--work-tree','--namespace','--config-env')) { $index += 2 } else { $index++ }
         }
-        if ($index -lt $words.Count -and $words[$index] -in @('commit','push')) { return $true }
+        if ($index -lt $words.Count -and $words[$index] -in @('commit','push')) {
+            $refspecs = @($words | Select-Object -Skip ($index + 1) | Where-Object { -not $_.StartsWith('-') } | Select-Object -Skip 1)
+            $tagOnly = $refspecs.Count -gt 0 -and -not ($refspecs -notmatch '^(?:[^:]+:)?refs/tags/[^:]+$')
+            return @{action=$words[$index];amend=('--amend' -in $words);tagOnly=$tagOnly}
+        }
     }
-    return $false
 }
 
 function Invoke-CheckProcess([string]$File, [string[]]$Arguments) {
@@ -56,8 +60,8 @@ try {
         try { $eventInput = $inputReader.ReadToEnd() | ConvertFrom-Json } finally { $inputReader.Dispose() }
         $eventName = [string]$eventInput.hook_event_name
         if ($eventName -eq 'PreToolUse') {
-            $command = [string]$eventInput.tool_input.command
-            if (-not (Test-GitWrite $command)) {
+            $gitWrite = Get-GitWrite ([string]$eventInput.tool_input.command)
+            if (-not $gitWrite) {
                 Write-Output '{}'
                 exit 0
             }
@@ -95,6 +99,13 @@ try {
         try { $ErrorActionPreference = 'Continue'; & git rev-parse --verify '@{upstream}' 2>$null | Out-Null; $hasUpstream = $LASTEXITCODE -eq 0 }
         finally { $ErrorActionPreference = $previousPreference }
         $base = if ($hasUpstream) { [string](Invoke-GtGit @('merge-base','HEAD','@{upstream}')) } else { $head }
+        if ($gitWrite -and $gitWrite.action -eq 'commit') {
+            $comparison = if ($gitWrite.amend) { 'HEAD^' } else { 'HEAD' }
+            Assert-GtModelDistributionChange @(Invoke-GtGit @('diff','--cached','--name-only',$comparison,'--'))
+        } elseif ($gitWrite -and $gitWrite.action -eq 'push') {
+            $publishedCommit = if (-not $gitWrite.tagOnly) { $head } else { '' }
+            Assert-GtModelDistributionChange @(Invoke-GtGit @('diff','--name-only',$base,$head,'--')) $publishedCommit
+        }
         $translationArguments = @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',
             (Join-Path $repositoryRoot 'tools/localization/Test-Translations.ps1'),'-RepositoryRoot',$repositoryRoot,'-BaseCommit',$base)
         if ($plan.PSObject.Properties['translations']) {
@@ -103,7 +114,7 @@ try {
                 '-TerminologyReportPath',$plan.translations.terminologyReportPath)
         }
         [void](Invoke-CheckProcess 'powershell.exe' $translationArguments)
-        if ($CodexHook -and $eventName -eq 'PreToolUse' -and $command -match '(?i)\bcommit\b') {
+        if ($gitWrite -and $gitWrite.action -eq 'commit') {
             [void](Invoke-CheckProcess 'powershell.exe' ($translationArguments + '-Staged'))
         }
         $analyzer = if ($plan.PSObject.Properties['scriptAnalyzer']) { $plan.scriptAnalyzer } else { 'PSScriptAnalyzer' }

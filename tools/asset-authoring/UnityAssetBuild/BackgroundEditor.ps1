@@ -357,6 +357,7 @@ function Invoke-AssetBackgroundHost([string]$ConfigPath) {
         $start = [Diagnostics.ProcessStartInfo]::new()
         $start.FileName=$cfg.cli; $start.WorkingDirectory=$cfg.project; $start.UseShellExecute=$false; $start.CreateNoWindow=$true
         $start.RedirectStandardOutput=$true; $start.RedirectStandardError=$true
+        $start.StandardOutputEncoding=[Text.Encoding]::UTF8; $start.StandardErrorEncoding=[Text.Encoding]::UTF8
         foreach ($arg in @('open',$cfg.project,'--editor-version','2019.4.37f1','--editor-path',$cfg.editor,'--json','--args',$extraArgs)) {
             $start.ArgumentList.Add($arg)
         }

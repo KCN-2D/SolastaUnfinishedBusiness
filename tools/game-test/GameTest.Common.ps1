@@ -240,6 +240,42 @@ function Invoke-GtGit([string[]] $Arguments) {
     return $result
 }
 
+function Assert-GtModelDistributionChange([string[]]$ChangedPaths, [string]$PublishedCommit) {
+    $distribution = 'SolastaUnfinishedBusiness/BlenderModels/CharacterModels'
+    $catalog = "$distribution/CharacterModels.manifest.json"
+    $packs = "$distribution/CharacterModels.packs.json"
+    $catalogChanged = $catalog -in $ChangedPaths
+    $packsChanged = $packs -in $ChangedPaths
+    $appearanceChanged = $ChangedPaths -match '^tools/blender-models/Character[^/]+/(?!resource-package\.json$).+\.(?:json|blend|fbx|shader|cginc)$'
+
+    if (($catalogChanged -or $packsChanged -or $appearanceChanged) -and -not ($catalogChanged -and $packsChanged)) {
+        throw 'Include both CharacterModels.manifest.json and CharacterModels.packs.json from the same game-verified model release.'
+    }
+    if ($packsChanged -and $PublishedCommit) {
+        $distributionFile = (Invoke-GtGit @('show', "${PublishedCommit}:$packs")) -join "`n" | ConvertFrom-Json
+        $configuration = Read-GtObject (Join-Path $script:GameTestRepo 'tools/blender-models/CharacterFaces/resource-package.json')
+        $tag = $configuration.tagName.Replace('{version}', [string]$distributionFile.version)
+        if ($tag -cnotmatch '^[A-Za-z0-9_.-]+$' -or $distributionFile.baseUrl -cne $configuration.downloadBaseUrl.Replace('{tag}', $tag)) {
+            throw 'The character model distribution has an invalid release location.'
+        }
+        $receiptPath = Join-Path $script:AssetAuthoringWorkspace "ModelReleaseReceipts/$tag.json"
+        if (-not (Test-Path -LiteralPath $receiptPath -PathType Leaf)) {
+            throw 'Publish and verify the model release referenced by this branch before pushing it.'
+        }
+        $receipt = Read-GtObject $receiptPath
+        if ($receipt.status -cne 'PASS_PUBLISHED_MODEL_RESOURCES' -or $receipt.tag -cne $tag -or
+            $receipt.catalogSha256 -cne $distributionFile.catalogSha256) {
+            throw 'The release receipt does not identify the model distribution in this push.'
+        }
+        foreach ($path in $catalog, $packs) {
+            $name = [IO.Path]::GetFileName($path)
+            if ($receipt.metadataBlobs.$name -cne [string](Invoke-GtGit @('rev-parse', "${PublishedCommit}:$path"))) {
+                throw "The published model metadata differs from the pushing commit: $name"
+            }
+        }
+    }
+}
+
 function Get-GtSourceIdentity([string] $TargetCommit = 'HEAD') {
     $headCommit = [string](Invoke-GtGit @('rev-parse','--verify','HEAD^{commit}'))
     $target = [string](Invoke-GtGit @('rev-parse','--verify', ($TargetCommit + '^{commit}')))

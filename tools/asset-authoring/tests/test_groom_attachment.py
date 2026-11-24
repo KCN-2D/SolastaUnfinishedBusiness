@@ -22,6 +22,19 @@ class GroomAttachmentTests(unittest.TestCase):
         owner=importlib.util.module_from_spec(spec);spec.loader.exec_module(owner)
         return owner
 
+    def test_equipment_exit_requires_the_first_surface_to_face_outward(self):
+        folder = Path(__file__).resolve().parents[2] / 'blender-models/CharacterHair'
+        with mock.patch.object(sys, 'path', [str(folder), *sys.path]):
+            from GroomGuides import equipment_exits
+
+        near = np.array([[0., 0., 0.], [0., 0., 1.], [0., 1., 0.]])
+        far = near[[0, 2, 1]] + [1., 0., 0.]
+        points = np.array([[-.1, .2, .2], [.5, .2, .2], [1.1, .2, .2]])
+        directions = np.tile([1., 0., 0.], (len(points), 1))
+        depths, normals = equipment_exits(points, directions, np.array([far, near]), 2.)
+        np.testing.assert_allclose(depths, [0., .5, 0.])
+        np.testing.assert_array_equal(normals, [[0., 0., 0.], [1., 0., 0.], [0., 0., 0.]])
+
     def test_groom_producer_ledger_keeps_versions_and_rejects_unproven_archives(self):
         owner=self.build_owner()
         with tempfile.TemporaryDirectory()as directory:

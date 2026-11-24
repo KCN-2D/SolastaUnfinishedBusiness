@@ -83,6 +83,7 @@ geometryと法線だけを仕上げる場合は、shaderの引数を省略しま
 揺れで毛束が裂けて見える髪・髭は、`refine-groom-frames --cloth-continuity-only --source <制作済み資源> --output <候補の作業先>`で生え際から毛先までの振れ幅を調整します。プレイヤーとNPCで毛束の揺れと輪郭を確認します。
 
 身体や装備を貫く髪・髭は、着用時の姿勢を記録して`fit-garments --groom-contact`へ渡します。元の生え際に近い部分と物理上の固定点を基準に、装備に触れる毛束を調整します。
+首より下の髪が鎧やケープに埋まる場合は、複数の着用姿勢を指定して`--groom-drape`を加えます。LODごとに干渉の大きい姿勢から毛束の曲がりを求め、同じ毛束を使う他の装備でも適合を確かめます。
 Blenderで毛束全体を曲げる場合は、同じ着用姿勢で調整して`--groom-guide <ガイドJSON>`へ渡します。ガイドには捕捉ファイルとSHA-256を`capture`と`captureSha256`、対象を`resource`と`renderer`、元の頂点数を`vertexCount`に記録します。`vertices`の各頂点番号に対応する移動を、捕捉時の座標の差分として`offsets`に指定します。
 
 ```powershell

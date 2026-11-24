@@ -1345,6 +1345,76 @@ class FaceProductionContracts(unittest.TestCase):
             source.write_text('{}',encoding='utf-8')
             with self.assertRaisesRegex(ValueError,'retained source'):build.validate_skin_plan_snapshot(plans,{'A'},pin)
 
+    def test_normal_finishing_keeps_the_pore_band_and_checks_the_resumed_shader(self):
+        profile = {'normalRetain': .5, 'normalRadiusMetres': .001, 'microNormalRetain': .87}
+        finishing = {'normalRetainMultiplier': .8, 'macroNormalRetain': .92, 'macroNormalRadiusMetres': .007}
+        result = build.source_skin_normal_profile(profile, finishing)
+        self.assertEqual(result['normalRetain'], .4)
+        self.assertEqual(result['microNormalRetain'], .87)
+        self.assertEqual(result['macroNormalRetain'], .92)
+        self.assertEqual(profile['normalRetain'], .5)
+        with self.assertRaisesRegex(ValueError, 'invalid physical radius'):
+            build.source_skin_normal_profile(profile, dict(finishing, macroNormalRadiusMetres=.0005))
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / 'plans.json.source'
+            plans = {'Face': dict(profile=profile, renderers=[dict(shader='Skin')])}
+            source.write_text(json.dumps(dict(surfaces=plans, normalFinishing={'Skin': finishing})), encoding='utf-8')
+            reference = dict(path=str(source), sha256=build.sha(source))
+            build.validate_skin_plan_snapshot(plans, {'Face'}, reference,
+                normal_finishing={'Skin': finishing, 'OtherSkin': {}})
+            with self.assertRaisesRegex(ValueError, 'skin shader declarations changed'):
+                build.validate_skin_plan_snapshot(plans, {'Face'}, reference, normal_finishing={'Skin': {}})
+
+    def test_full_model_finishing_uses_the_active_smoothness_sampler(self):
+        textures = [(name, dict(m_Texture=dict(m_PathID=1))) for name in ('_MainTex', '_BumpMap', '_MetallicGlossMap')]
+        saved = dict(m_SavedProperties=dict(m_Floats=[('_Mode', 1)], m_TexEnvs=textures),
+                     m_CustomRenderQueue=2450, m_ValidKeywords=['_METALLICGLOSSMAP', '_NORMALMAP'])
+        self.assertEqual(build.model_surface_multipliers('npc', 'Standard (Double Sided)', saved),
+                         {'_GlossMapScale': .94, '_BumpScale': .98})
+        self.assertEqual(build.model_surface_multipliers('npc', 'Standard', dict(saved, m_ValidKeywords=['_NORMALMAP'])),
+                         {'_Glossiness': .94, '_BumpScale': 1.04})
+        self.assertEqual(build.model_surface_multipliers('creature', 'Custom/CharacterArmor', saved),
+                         {'_GlossinessFactor': .95, '_BumpMapScale': 1.08})
+        self.assertEqual(build.model_surface_multipliers('npc', 'Standard', dict(saved, m_CustomRenderQueue=3000)), {})
+        self.assertEqual(build.model_surface_multipliers('creature', 'Custom/CharacterEye', saved), {})
+
+    def test_retired_skin_interface_resolves_its_exact_native_normal_input(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            def save(name, value):
+                path = root / name
+                path.write_text(json.dumps(value), encoding='utf-8')
+                return dict(path=str(path), sha256=build.sha(path))
+
+            native = save('Native.json', {'texture': 'unfiltered'})
+            source = dict(path=str(root / 'Retired.bundle'), sha256='a' * 64)
+            field = dict(target=dict(sha256='b' * 64), source=native,
+                         textures=[dict(object=2, payloadSha256='c' * 64)])
+            binding = dict(target=source, materialUpdates=[dict(property='_BumpMap', after=dict(m_PathID=5))],
+                           textures=[dict(object=5, source=field['target'], sourceObject=2, payloadSha256='c' * 64)])
+            interface = save('Interface.json', dict(binding=binding, fields=[field]))
+            plan = save('Skin.json', dict(source=source['path'], sha256=source['sha256'],
+                                         textures=[dict(object=5, channel='normal', profile={'normalRetain': .5})]))
+            proof = dict(appearanceFinishing=[
+                dict(kind='source-skin-interface', sha256=source['sha256'], proof=interface),
+                dict(kind='source-skin-detail', inputPlan=plan)])
+            recovered = build.source_skin_detail_authority(proof, 5, 'normal')
+            self.assertEqual(recovered['source'], dict(native, object=2))
+            self.assertEqual(recovered['recovery']['mode'], 'native-normal-before-interface')
+
+    def test_restored_skin_binding_uses_the_serialized_source_object(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            native = root / 'Native.bundle'
+            native.write_bytes(b'original texture')
+            source = dict(path=str(native), sha256=build.sha(native), name='Normal')
+            binding = root / 'Binding.json'
+            binding.write_text(json.dumps(dict(textures=[dict(object=11, source=source, sourceObject=19)])), encoding='utf-8')
+            proof = dict(appearanceFinishing=[dict(kind='source-skin-interface-materials',
+                proof=dict(path=str(binding), sha256=build.sha(binding)))])
+            expected = dict(path=str(native), sha256=source['sha256'], object=19)
+            self.assertEqual(build.source_skin_detail_authority(proof, 11, 'normal')['source'], expected)
+
     def test_observed_skin_interface_requires_the_actual_visible_body_and_clothing(self):
         with tempfile.TemporaryDirectory()as folder:
             path=Path(folder)/'display.json'
@@ -2050,6 +2120,40 @@ class FaceProductionContracts(unittest.TestCase):
                 build.write(older, dict(template, bundles=[reuse, upgrade]))
                 with self.assertRaisesRegex(ValueError, 'other inputs'):
                     build.create_resource_packs(catalog, root / 'packs', PACKAGE_TEST_VERSION, previous_manifest=older)
+
+    def test_resource_release_consumes_only_verified_packs_and_resumes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            manifest = root / build.RESOURCE_FILES['manifest']
+            output = root / 'packs'
+            bundles = []
+            for index in range(3):
+                source = root / f'part{index}.bundle'
+                source.write_bytes(bytes([index]) * 40)
+                bundles.append(dict(file=source.name, sha256=build.sha(source)))
+            build.write(manifest, dict(schemaVersion=3, meshes=[], materials=[], textureRemaps=[], bundles=bundles))
+            confirmed = {}
+
+            def consume(pack, path):
+                if path is None:
+                    self.assertEqual(confirmed[pack['file']], pack['sha256'])
+                else:
+                    self.assertEqual(list(output.glob('*.zip')), [path])
+                    self.assertEqual(build.sha(path), pack['sha256'])
+                    confirmed[pack['file']] = pack['sha256']
+
+            with mock.patch.object(build, 'checked_catalog_path',
+                                   side_effect=lambda path, name=None: Path(path) / name if name else Path(path)):
+                with self.assertRaisesRegex(ValueError, 'upload failed'):
+                    build.create_resource_packs(manifest, output, PACKAGE_TEST_VERSION, 210,
+                                                consume_pack=mock.Mock(side_effect=ValueError('upload failed')))
+                self.assertEqual(len(list(output.glob('*.zip'))), 1)
+                packs = build.create_resource_packs(manifest, output, PACKAGE_TEST_VERSION, 210, consume_pack=consume)
+                self.assertEqual(len(packs['packs']), 3)
+                self.assertEqual(len(confirmed), 3)
+                self.assertEqual(list(output.glob('*.zip')), [])
+                self.assertEqual(build.create_resource_packs(manifest, output, PACKAGE_TEST_VERSION, 210,
+                                                            consume_pack=consume), packs)
 
     def test_resource_publication_preserves_the_verified_catalog_digest(self):
         with tempfile.TemporaryDirectory()as folder:

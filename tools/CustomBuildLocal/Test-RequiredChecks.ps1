@@ -20,6 +20,22 @@ if ($PlanPath) { $cases += @{name='verified project';event='Stop';expected='allo
 $results = [Collections.Generic.List[object]]::new()
 try {
     . (Join-Path $PSScriptRoot '../game-test/GameTest.Common.ps1')
+    $modelCatalog = 'SolastaUnfinishedBusiness/BlenderModels/CharacterModels/CharacterModels.manifest.json'
+    $modelPacks = 'SolastaUnfinishedBusiness/BlenderModels/CharacterModels/CharacterModels.packs.json'
+    $artInput = 'tools/blender-models/CharacterFaces/face-designs.json'
+    foreach ($scenario in @(
+        @{name='authoring tool refactor';files=@('tools/blender-models/CharacterFaces/build_models.py');allowed=$true},
+        @{name='release configuration';files=@('tools/blender-models/CharacterFaces/resource-package.json');allowed=$true},
+        @{name='unpublished appearance';files=@($artInput);allowed=$false},
+        @{name='catalog without packs';files=@($artInput,$modelCatalog);allowed=$false},
+        @{name='packs without catalog';files=@($modelPacks);allowed=$false},
+        @{name='coordinated distribution';files=@($artInput,$modelCatalog,$modelPacks);allowed=$true}
+    )) {
+        $allowed = $true
+        try { Assert-GtModelDistributionChange $scenario.files } catch { $allowed = $false }
+        if ($allowed -ne $scenario.allowed) { throw "Model distribution check failed: $($scenario.name)" }
+        $results.Add([pscustomobject]@{name=('model distribution: '+$scenario.name);passed=$true})
+    }
     $stage = Join-Path $temporary 'Stage'
     $formalOutput = Join-Path $temporary 'Output'
     $archive = Join-Path $temporary 'Package.zip'

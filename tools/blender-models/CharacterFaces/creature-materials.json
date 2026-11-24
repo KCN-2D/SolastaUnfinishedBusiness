@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "presets": {
+    "Bear": {
+      "shader": "Custom/CharacterArmor",
+      "multipliers": { "_GlossinessFactor": 0.76, "_BumpMapScale": 1.10 }
+    },
+    "Bulette": {
+      "shader": "Custom/CharacterArmor",
+      "multipliers": { "_GlossinessFactor": 0.83, "_BumpMapScale": 1.16 }
+    },
+    "Bulette_Snow": {
+      "shader": "Custom/CharacterArmor",
+      "multipliers": { "_GlossinessFactor": 0.77, "_BumpMapScale": 1.13 }
+    },
+    "Dragon": {
+      "shader": "Lux/Human/Skin (double sided)",
+      "multipliers": { "_BumpMapScale": 1.14 }
+    },
+    "Elemental_Stone": {
+      "shader": "Custom/CharacterArmor",
+      "multipliers": { "_GlossinessFactor": 0.79, "_BumpMapScale": 1.12 }
+    },
+    "Giant_Spider": {
+      "shader": "Custom/CharacterArmor",
+      "multipliers": { "_GlossinessFactor": 0.93, "_BumpMapScale": 1.15 }
+    },
+    "Golem": {
+      "shader": "Custom/CharacterArmor",
+      "multipliers": { "_GlossinessFactor": 0.74, "_BumpMapScale": 1.15 }
+    },
+    "Remorhaz": {
+      "shader": "Lux/Human/Skin (double sided)",
+      "multipliers": { "_BumpMapScale": 1.16 }
+    },
+    "Spider_Queen": {
+      "shader": "Custom/CharacterArmor",
+      "multipliers": { "_GlossinessFactor": 0.90, "_BumpMapScale": 1.13 }
+    },
+    "Wolf": {
+      "shader": "Custom/CharacterArmor",
+      "multipliers": { "_GlossinessFactor": 0.76, "_BumpMapScale": 1.10 }
+    }
+  }
+}

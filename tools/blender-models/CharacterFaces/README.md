@@ -38,6 +38,8 @@ UVで分かれた組織は`protectSourceCharts`で保護します。原本Mesh�
 
 法線の細部は`normalRetain`と`normalRadiusMetres`、より細かい肌の粒度は`microNormalRetain`と`microNormalRadiusMetres`で調整します。法線画像に残った広いくぼみや隆起は、より大きい半径の`macroNormalRadiusMetres`と`macroNormalRetain`で調整します。各帯域の保持率は0〜1で指定します。色素画像の線状の描写を残す強さは`pigmentCoherenceRetain`、それより細い線は`pigmentFineCoherenceRetain`で指定します。設定の改訂は記録された元画像から計算し、前回の平滑化を重ねません。制作ソースを保存し、再実行と再検証に使います。
 
+`normalFinishing`でシェーダーごとに法線の帯域を調整できます。ドラゴンボーンの頭部は鱗の細部を保ち、広い範囲の陰影を整えます。
+
 広い陰影は`luminanceRegions`で対象の肌、隣接する参照の肌、保護する模様を指定します。各範囲は`native-rest-prefab-dcc-metres`の座標と楕円体で定義し、元の三角形とUV上で照合します。本人の参照範囲から低周波の明るさを補います。黒く焼き込まれた肌は`reconstruction: adjacent-low-frequency-rgb`で隣接する肌のRGBを参照します。`detailRetain`は0で範囲内の細部を滑らかにし、1で前段の肌調整後の細部を保ちます。
 
 頭皮など、離れた領域から基準色を求める場合は`reconstruction: reference-mean-rgb`を指定します。参照する本人の肌のRGBを実表面の面積で重み付けし、対象領域の基準色に使います。対象の低周波成分は`sourceLowFrequencySigmaMetres`、補正の強さは`strength`、変化の上限は`maximumLinearRgbDelta`で指定します。局所参照用の`referenceSigmaMetres`は使いません。
@@ -67,6 +69,8 @@ UVで分かれた組織は`protectSourceCharts`で保護します。原本Mesh�
 頭部と身体の接続には、実際の表示から得た`head`と`body`の組を`finish-skin-interfaces --source <制作済み資源> --contexts <組み合わせJSON> --output <新しい候補>`へ渡します。全LODの接合点、骨のウェイト、変形フレームと、肌色・法線・散乱光の画像を合わせます。`pigmentReference`は身体の色に合わせる`body`と、顔固有の色を残す`source`から指定します。同じ画像とsamplerを使うLOD材質は一つの生成結果を共有し、既に専有している画像はその参照先で更新します。
 
 胴につなぐメッシュと接続用の肌テクスチャは装備を変えた状態でも共に使います。旧版の装備判定で接続用の画像が置き換わった資源は、`finish-skin-interfaces --source <制作済み資源> --repair-covered-materials --output <新しい候補>`で復旧できます。
+
+`finish-skin-interfaces --source <制作済み資源> --repair-body-frames --output <新しい候補>`は、全身型の各LODで、体格変形時も滑らかにつながる頂点の法線を揃えます。
 
 衣装から肌が突き出る箇所は、ゲーム内で記録した姿勢と装備のプレハブを指定して補正します。`fit-garments --source <制作済み資源> --pose <姿勢JSON.gz> ... --equipment <プレハブのアドレス> ... --clearance <肌との間隔> --maximum-offset <補正の上限> --output <新しい候補>`を使います。距離の単位はメートルです。体格や表示距離によって着用時の形状が変わる場合は、それぞれの姿勢を渡します。
 
@@ -201,9 +205,13 @@ HeadはLOD0を先に生成し、その`Coefficient.json`のpath/SHAをLOD1/2の�
 
 `refine-skin-surfaces --channels color --chart-seams` は、同じ表面を共有するUVチャートの境界で、現在の肌テクスチャの色をなじませます。
 
+固定モデルのNPCとモンスターの凹凸と光沢は、`retone-materials --source <制作済み資源> --model-presets <材質設定JSON> --output <新しい候補>`で調整します。[creature-materials.json](creature-materials.json)で固有の質感を持つモデルの調整量を指定し、共通処理が各LODの材質と共有先を照合します。
+
 ## モデル資源の配布
 
 採用するカスタムキャラクターモデル資源を変更したときは、実ゲームで確認したモデルパックをGitHub Releasesへ公開し、MODに同梱するmanifestと配布パック一覧を同じ版へ更新します。
+
+配信には`release_resources.py`を使います。`stage`は実ゲームの`Result.json`から候補manifestを照合し、分割ZIPを1本ずつ下書きへ送り、GitHub上のSHA256が一致したZIPを作業先から取り除きます。生成した配布パック一覧と候補manifestをMOD同梱先へ反映し、正式ビルドと実ゲーム検証の後、同じコミットの配布タグをプッシュします。`publish`はタグ先の同梱ファイルと下書きの内容を照合して公開し、利用者向けダウンロードURLを確認します。確認後に配布コミットをブランチへプッシュします。
 
 `package-resources`は、manifestに載るbundleを分割ZIPにまとめ、`CharacterModels.packs.json`と公開設定の`CharacterModels.release.json`を作成します。
 
@@ -233,6 +241,8 @@ HeadはLOD0を先に生成し、その`Coefficient.json`のpath/SHAをLOD1/2の�
 公開名は原本モデル・部位・各モデルのLOD・用途で決めます（例：`human_male_af-as-ca-ho_hands_lod0-1_pn.bundle`）。原本の対応表を`capture`または`publish`の`--name-source-metadata <原本inventory.json>`で指定すると、既存の共有名を保ち、ハッシュ・連番を付けずに名前とmanifest参照を同時更新します。同名衝突は原本との対応を示して停止します。ハッシュは検証用メタデータへ残します。
 
 制作コード、元bundle、NativeSources、採用catalog、品質の記録、代表プレビューを保持します。抽出Mesh、数値レシピ、Unity取込用コピー、失敗・旧候補は、採用結果と原本への参照を確認した後に[共通の整理手順](../../asset-authoring/README.md#作業データの整理)で整理します。
+
+制作・検証用の作業フォルダーでは、大きなJSONを保存時にNTFS圧縮します。制作記録のSHA256と参照パスを維持したまま読み戻せます。
 
 ### 旧catalogの整理
 

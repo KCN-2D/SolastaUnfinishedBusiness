@@ -1563,15 +1563,33 @@ def fit_skin_distances(points, surface, reach):
     return distances
 
 
+def garment_pose_frame(observed, renderer_to_prefab):
+    # The character preview magnifies the actor independently of the camera.
+    # Measure in the same prefab metres as the equipment and its simulation.
+    rendered_frame = np.asarray(observed['localToWorld']).reshape(4, 4).T
+    return np.linalg.solve(rendered_frame.T, renderer_to_prefab.T).T
+
+
+def project_garment_fit(packet, candidate, observed, bone_paths, renderer_to_prefab, clearance):
+    """Project a rest edit through the bones and cloth of another supplied pose."""
+    require(packet['subMeshes'] == observed['submeshes'], 'Drawn garment topology differs from its prefab.')
+    source = np.asarray(packet['vertices']).reshape(-1, 3)
+    world = np.asarray(observed['vertices'], dtype=float).reshape(source.shape)
+    frame = garment_pose_frame(observed, renderer_to_prefab)
+    posed = world @ frame[:3, :3].T + frame[:3, 3]
+    triangles = np.concatenate(packet['subMeshes']).astype(np.intp).reshape(-1, 3)
+    linear, _ = garment_skinning_frame(packet, observed, source, posed, triangles, bone_paths, clearance, frame)
+    displacement = np.asarray(candidate['vertices']).reshape(source.shape) - source
+    posed_displacement = np.einsum('vij,vj->vi', linear, displacement)
+    return world, world + posed_displacement @ np.linalg.inv(frame[:3, :3]).T
+
+
 def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *, clearance, maximum_offset, previous=None,
                       head_surface=None, fixed_vertices=(), groom_guide=None):
     """Map correction of the posed surface into its original skinned mesh."""
     require(packet['subMeshes'] == observed['submeshes'], 'Drawn garment topology differs from its prefab.')
     points = np.asarray(packet['vertices']).reshape(-1, 3)
-    # The character preview magnifies the actor independently of the camera.
-    # Measure in the same prefab metres as the equipment and its simulation.
-    rendered_frame = np.asarray(observed['localToWorld']).reshape(4, 4).T
-    world_to_prefab = np.linalg.solve(rendered_frame.T, renderer_to_prefab.T).T
+    world_to_prefab = garment_pose_frame(observed, renderer_to_prefab)
     def to_prefab(vertices):
         return vertices @ world_to_prefab[:3, :3].T + world_to_prefab[:3, 3]
     posed = to_prefab(np.asarray(observed['vertices'], dtype=float).reshape(points.shape))
@@ -1589,16 +1607,21 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
     current_points = np.asarray(current['vertices']).reshape(points.shape)
     offset = current_points - points
     prior = np.einsum('vij,vj->vi', linear, offset)
+    local_orientation = False
     if groom_guide is not None:
         indices = np.asarray(groom_guide['vertices'])
         directions = np.asarray(groom_guide['offsets'], dtype=float)
         contact_surface = groom_guide.get('contactSurface', 'equipment')
+        orientation_support = groom_guide.get('orientationSupport')
         require(head_surface is not None and groom_guide['vertexCount'] == len(points) and
                 contact_surface in ('equipment', 'head') and
+                orientation_support in (None, 'welded') and
+                (orientation_support is None or contact_surface == 'equipment') and
                 indices.ndim == 1 and np.issubdtype(indices.dtype, np.integer) and
                 len(indices) == len(np.unique(indices)) and np.all((indices >= 0) & (indices < len(points))) and
                 directions.shape == (len(indices), 3) and np.isfinite(directions).all(),
                 'The Blender groom guide has a different source layout or invalid offsets.')
+        local_orientation = orientation_support == 'welded'
         delta = np.zeros_like(posed)
         delta[indices] = directions @ world_to_prefab[:3, :3].T
         welded = art.weld_groups(points)
@@ -1649,11 +1672,11 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
     before = surface_normals(points, triangles, groups, points, native_normals)
     for attempt in range(8):
         proposal = current_points + correction * (2.0 ** -attempt)
-        # Keep the hair correction coherent across the rendered fibers when a thin card needs backtracking.
-        factors = None if head_surface is not None else welded
+        # Fade a local correction around thin cards while sharing every UV seam.
+        factors = welded if head_surface is None or local_orientation else None
         fitted, orientation = preserve_surface_orientation(points, proposal, triangles, renderer_to_prefab,
-                                                           groups=factors)
-        if head_surface is not None and orientation['surfaceScaleFactor'] == 0:
+                                                           groups=factors, group_falloff=.022 if local_orientation else 0.)
+        if head_surface is not None and factors is None and orientation['surfaceScaleFactor'] == 0:
             return current, 0
         after = surface_normals(fitted, triangles, groups, points, native_normals)
         if np.all(np.sum(before * after, axis=1) >= 0):
@@ -1840,7 +1863,7 @@ def surface_normals(positions, triangles, groups, source_positions=None, native_
     return normalise(normals)
 
 
-def preserve_surface_orientation(reference, candidate, triangles, transform, *, groups=None):
+def preserve_surface_orientation(reference, candidate, triangles, transform, *, groups=None, group_falloff=0.):
     source = art.points(reference.ravel().tolist(), transform)
     source_edges = np.stack((source[triangles[:, 1]] - source[triangles[:, 0]],
                              source[triangles[:, 2]] - source[triangles[:, 0]]), axis=1)
@@ -1852,6 +1875,13 @@ def preserve_surface_orientation(reference, candidate, triangles, transform, *, 
     supported = np.sqrt(squared) > representable_area
     initial_bad = None
     factors = np.ones(groups.max() + 1) if groups is not None else None
+    if factors is not None and group_falloff > 0:
+        corners = groups[triangles]
+        edges = np.concatenate((corners[:, :2], corners[:, 1:], corners[:, [2, 0]]))
+        first, last = np.unique(np.sort(edges, axis=1), axis=0).T
+        _, representative = np.unique(groups, return_index=True)
+        points = source[representative]
+        slope = np.linalg.norm(points[first] - points[last], axis=1) / group_falloff
     for attempt in range(12):
         factor = (2.0 ** -attempt if attempt < 9 else 0.) if factors is None else factors[groups, None]
         local = (reference + (candidate - reference) * factor).astype(np.float32)
@@ -1872,6 +1902,21 @@ def preserve_surface_orientation(reference, candidate, triangles, transform, *, 
                 factors[affected] *= .5
             else:
                 factors[affected] = 0.
+            if group_falloff > 0:
+                for _ in range(16):
+                    smoothed = factors.copy()
+                    np.minimum.at(smoothed, first, factors[last] + slope)
+                    np.minimum.at(smoothed, last, factors[first] + slope)
+                    if np.array_equal(smoothed, factors):
+                        break
+                    factors = smoothed
+    if factors is not None and group_falloff > 0:
+        # Keep the local restraints when the remaining surface needs a smaller bend.
+        restrained = reference + (candidate - reference) * factors[groups, None]
+        result, proof = preserve_surface_orientation(reference, restrained, triangles, transform)
+        proof['initialFacingFailures'] = initial_bad
+        proof['surfaceScaleFactor'] *= float(factors.min())
+        return result, proof
     raise ValueError('The native reference surface cannot retain its source-facing triangles.')
 
 
@@ -2167,7 +2212,10 @@ def repair_head_body_frame_shading(packet, bone_paths, protected_vertices=()):
     owned_bones = np.array([path == head or path.startswith(head + '/') for path in bone_paths])
     weights = np.asarray(packet['weights'], dtype=float).reshape(-1, 4)
     bones = np.asarray(packet['boneIndices'], dtype=int).reshape(-1, 4)
-    head_weight = art.smooth((np.sum(weights * owned_bones[bones], axis=1) - .25) / .60)
+    active = weights > 0
+    require(np.all((bones[active] >= 0) & (bones[active] < len(owned_bones))),
+            'A posed face uses a bone outside its assembled palette.')
+    head_weight = art.smooth((np.sum(weights * owned_bones[np.where(active, bones, 0)], axis=1) - .25) / .60)
     pos = np.asarray(packet['vertices'], dtype=float).reshape(-1, 3)
     n0 = np.asarray(packet['normals'], dtype=float).reshape(-1, 3)
     t0 = np.asarray(packet['tangents'], dtype=float).reshape(-1, 4)[:, :3]

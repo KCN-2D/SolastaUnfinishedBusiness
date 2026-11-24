@@ -1071,6 +1071,21 @@ public static class CustomModels
         internal sealed class RestDeformation
         {
             internal readonly string Key;
+
+            internal static Matrix4x4 RebaseDerivative(Matrix4x4 derivative, Matrix4x4 toSource, Matrix4x4 fromSource)
+            {
+                // The derivative acts on directions. Exclude the translation
+                // and homogeneous row of the affine coordinate frames.
+                var result = Matrix4x4.identity;
+                for (var axis = 0; axis < 3; axis++)
+                {
+                    var direction = derivative.MultiplyVector(toSource.GetColumn(axis));
+                    result.SetColumn(axis, fromSource.MultiplyVector(direction));
+                }
+
+                return result;
+            }
+
             internal sealed class Group(IReadOnlyList<SkinnedMeshRenderer> renderers,
                 IReadOnlyDictionary<Transform, Matrix4x4> bones,
                 IReadOnlyDictionary<SkinnedMeshRenderer, (Mesh Source, Mesh Target)> surfaces,
@@ -3473,7 +3488,8 @@ public static class CustomModels
                         {
                             var target = _restDeformation.Evaluate(group, anchor, local.MultiplyPoint3x4(point));
                             ValidatePhysicalDerivative(target.Derivative);
-                            var result = (inverse.MultiplyPoint3x4(target.Position), inverse * target.Derivative * local);
+                            var result = (inverse.MultiplyPoint3x4(target.Position),
+                                RestDeformation.RebaseDerivative(target.Derivative, local, inverse));
                             if (!Finite(result.Item1)) throw new InvalidOperationException("A physical collider has a nonfinite rest point.");
                             ValidatePhysicalDerivative(result.Item2);
                             return result;

@@ -1924,6 +1924,10 @@ def renderer_repeat_uv(file: Any,renderer: dict[str,Any],resolve: Any) -> bool:
 
 
 def prefab_skin_renderers(root: Any,resolve: Any):
+    return prefab_renderers(root, resolve, ('SkinnedMeshRenderer',))
+
+
+def prefab_renderers(root: Any, resolve: Any, renderer_types=('SkinnedMeshRenderer', 'MeshRenderer')):
     """Visit renderer instances belonging to one typed prefab hierarchy."""
     if root.type.name!='GameObject':raise ValueError('A character prefab root must be a typed GameObject.')
     pending=[(root,'')];seen=set()
@@ -1932,13 +1936,16 @@ def prefab_skin_renderers(root: Any,resolve: Any):
         if identity in seen:raise ValueError('A character prefab hierarchy is cyclic or multiply owned.')
         seen.add(identity)
         for component in game_object.read_typetree()['m_Component']:
+            if not component['component']['m_PathID']:
+                continue
             _,obj=resolve(game_object.assets_file,component['component'])
-            if obj.type.name=='Transform':
+            if obj.type.name in ('Transform', 'RectTransform'):
                 for pointer in obj.read_typetree()['m_Children']:
                     child_file,child=resolve(obj.assets_file,pointer)
                     _,child_object=resolve(child_file,child.read_typetree()['m_GameObject'])
                     pending.append((child_object,(path+'/'if path else'')+child_object.peek_name()))
-            elif obj.type.name=='SkinnedMeshRenderer':yield path,obj
+            elif obj.type.name in renderer_types:
+                yield path, obj
 
 
 def complete_resource_dependencies(resources: list[dict[str, Any]], dependencies: dict[str, set[str]]) -> list[dict[str, Any]]:

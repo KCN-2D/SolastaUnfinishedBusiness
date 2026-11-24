@@ -18,6 +18,117 @@ def ease(value):
     return bounded * bounded * (3. - 2. * bounded)
 
 
+def equipment_exits(points, directions, surface, reach):
+    """Measure the depth and normal of each first outward equipment crossing."""
+    origins = surface[:, 0]
+    first = surface[:, 1] - origins
+    second = surface[:, 2] - origins
+    normals = np.cross(first, second)
+    normal_lengths = np.linalg.norm(normals, axis=1)
+    lower, upper = surface.min(axis=1), surface.max(axis=1)
+    depths = np.zeros(len(points))
+    exit_normals = np.zeros_like(points, dtype=float)
+    for index, (point, direction) in enumerate(zip(points, directions)):
+        end = point + direction * reach
+        facing = normals @ direction
+        candidates = np.flatnonzero(
+            (lower <= np.maximum(point, end)).all(axis=1) &
+            (upper >= np.minimum(point, end)).all(axis=1) &
+            (np.abs(facing) > normal_lengths * .18))
+        if not len(candidates):
+            continue
+        along = np.cross(direction, second[candidates])
+        determinant = np.sum(first[candidates] * along, axis=1)
+        offset = point - origins[candidates]
+        u = np.sum(offset * along, axis=1) / determinant
+        cross = np.cross(offset, first[candidates])
+        v = (cross @ direction) / determinant
+        distance = np.sum(second[candidates] * cross, axis=1) / determinant
+        hits = np.flatnonzero((u >= -1e-6) & (v >= -1e-6) & (u + v <= 1 + 1e-6) &
+                              (distance > 0) & (distance < reach))
+        if len(hits):
+            closest = hits[np.argmin(distance[hits])]
+            surface_index = candidates[closest]
+            if facing[surface_index] > 0.:
+                depths[index] = distance[closest]
+                exit_normals[index] = normals[surface_index] / normal_lengths[surface_index]
+    return depths, exit_normals
+
+
+def equipment_drape(points, surface, head_origin, neck_height, scale):
+    """Lift hanging sections from the torso with a smooth bend below the neck."""
+    outward = points - head_origin
+    outward[:, 1] = 0.
+    outward = unit(outward)
+    height = (head_origin[1] - points[:, 1]) / scale
+    hanging = height > neck_height
+    depth = np.zeros(len(points))
+    hanging_depths, exit_normals = equipment_exits(points[hanging], outward[hanging], surface, .065 * scale)
+    hanging_depths /= scale
+    depth[hanging] = hanging_depths
+    contact = depth > .002
+    if np.count_nonzero(contact) < 7 or height.max() < neck_height + .025:
+        return np.zeros_like(points), depth, contact
+
+    # A section follows a common bend so adjacent fibers keep their shape.
+    sectors = 16
+    axes = np.linspace(0, 2 * np.pi, sectors, endpoint=False)
+    radial = np.column_stack((np.sin(axes), np.zeros(sectors), np.cos(axes)))
+    field = np.zeros((sectors, 4))
+    exit_normals[:, 1] = 0.
+    hanging_contact = contact[hanging]
+    for sector, directions in enumerate(radial @ outward[hanging].T > .72):
+        hits = hanging_contact & directions
+        if np.count_nonzero(hits) >= 4:
+            samples = hanging_depths[hits]
+            field[sector, 0] = np.percentile(samples, 88) + .003
+            field[sector, 1:] = np.average(exit_normals[hits], axis=0, weights=samples)
+    for _ in range(4):
+        field = .24 * np.roll(field, 1, axis=0) + .52 * field + .24 * np.roll(field, -1, axis=0)
+    angle = np.arctan2(outward[:, 0], outward[:, 2]) * (sectors / (2 * np.pi)) % sectors
+    lower_sector = np.floor(angle).astype(int)
+    fraction = (angle - lower_sector)[:, None]
+    bend_field = field[lower_sector] * (1 - fraction) + field[(lower_sector + 1) % sectors] * fraction
+    offset = bend_field[:, 0]
+    transition = np.maximum(.060, 1.65 * offset)
+    bend = np.minimum(offset * ease((height - neck_height + .030) / transition), .060)
+    direction = unit(outward + .9 * unit(bend_field[:, 1:]))
+    return direction * (bend * scale)[:, None], depth, contact
+
+
+def equipment_pose(part):
+    head = next((bone for bone in part['bones'] if bone and bone['name'] == 'Bip001 Head'), None)
+    if head is None or 'drapeNeck' not in part:
+        return None
+    frame = np.asarray(head['localToWorld']).reshape(4, 4, order='F')
+    scale = np.linalg.norm(frame[:3, :3], axis=0).max()
+    if not np.isfinite(frame).all() or scale <= 0.:
+        raise ValueError('The captured groom has an invalid head frame.')
+    origin = frame[:3, 3]
+    neck_height = (origin[1] - part['drapeNeck']['localToWorld'][13]) / scale
+    return origin, neck_height, scale
+
+
+def posed_equipment_guide(part, pose=None):
+    """Build pose-space offsets from the captured rig and its worn equipment."""
+    pose = equipment_pose(part) if pose is None else pose
+    if pose is None:
+        return None, 0.
+    points = np.asarray(part['vertices']).reshape(-1, 3)
+    offsets, depth, contact = equipment_drape(points, part['drapeSurface'], *pose)
+    vertices = np.flatnonzero(np.linalg.norm(offsets, axis=1) > .0003 * pose[2])
+    if len(vertices) < 7:
+        return None, 0.
+    return dict(vertexCount=len(points), vertices=vertices, offsets=offsets[vertices],
+                orientationSupport='welded'), float(depth[contact].sum())
+
+
+def equipment_pose_depth(part, points, pose):
+    """Measure the remaining depth in an unchanged captured outfit."""
+    _, depth, contact = equipment_drape(points, part['drapeSurface'], *pose)
+    return float(depth[contact].sum())
+
+
 def radial(theta, elevation):
     theta, elevation = np.broadcast_arrays(theta, elevation)
     return np.stack((np.sin(theta) * np.cos(elevation), np.sin(elevation),
