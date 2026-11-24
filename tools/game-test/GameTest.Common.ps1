@@ -262,7 +262,6 @@ function Get-GtSourceIdentity([string] $TargetCommit = 'HEAD') {
     $state = [ordered]@{
         head = $headCommit; targetCommit = $target
         branch = [string](Invoke-GtGit @('branch','--show-current'))
-        branches = @(Invoke-GtGit @('branch','--all','--no-color'))
         status = @(Invoke-GtGit (@('status','--porcelain=v1') + $sourcePaths))
         index = @(Invoke-GtGit (@('diff','--cached','--raw','--full-index') + $sourcePaths)); overlayFiles = $files
     }

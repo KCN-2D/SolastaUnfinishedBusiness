@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using HarmonyLib;
 using UnityModManagerNet;
 
 namespace SolastaUnfinishedBusiness.Api.ModKit;
@@ -18,7 +19,7 @@ internal static class UmmCompatibility
         // UMM checks Info.json's ManagerVersion before calling the mod entry point.
         Main.Info(
             $"Unity Mod Manager runtime assembly={assemblyVersion?.ToString() ?? "unknown"}, " +
-            $"file={fileVersion}, product={productVersion}.");
+            $"file={fileVersion}, product={productVersion}, Harmony={typeof(Harmony).Assembly.GetName().Version}.");
     }
 
     private static FileVersionInfo GetVersionInfo(Assembly assembly)

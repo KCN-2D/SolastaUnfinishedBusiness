@@ -1124,17 +1124,24 @@ function Invoke-SourceIdentityContracts([object]$Ast,[string]$Directory) {
 param($fixture,$report)
 $ErrorActionPreference='Stop'
 $script:GameTestRepo=$fixture
+$script:otherRefs=@('  dev','  remotes/origin/HEAD -> test')
+$script:indexDelta=@()
 function Get-GtHash($Path) { (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash }
 function Invoke-GtGit([string[]]$Arguments) {
     switch ($Arguments[0]) {
         'rev-parse' { '0123456789abcdef0123456789abcdef01234567' }
-        'branch' { $name='test/<>&'+[char]39+[char]0x65E5+[char]0x672C; if ($Arguments -contains '--all') { @('* '+$name,'  remotes/origin/HEAD -> test') } else { $name } }
-        'diff' { if ($Arguments -contains '--name-only') { @('alpha.cs','Bulette_Snow.cs','Bulette.cs') } }
+        'branch' { $name='test/<>&'+[char]39+[char]0x65E5+[char]0x672C; if ($Arguments -contains '--all') { @('* '+$name)+$script:otherRefs } else { $name } }
+        'diff' { if ($Arguments -contains '--name-only') { @('alpha.cs','Bulette_Snow.cs','Bulette.cs') } else { $script:indexDelta } }
         'ls-files' { @('Bulette.cs','tools/ignored.cs') }
     }
 }
 '@ + [Environment]::NewLine + (Read-ContractFunction $Ast 'Get-GtSourceIdentity') + [Environment]::NewLine + (Read-ContractFunction $Ast 'Test-GtSourceContent') + [Environment]::NewLine + @'
 $before=Get-GtSourceIdentity
+$script:otherRefs=@('  remotes/origin/HEAD -> test')
+if ($before.digest -cne (Get-GtSourceIdentity).digest) { throw 'An unrelated branch deletion changed the source identity.' }
+$script:indexDelta=@('changed-index-metadata')
+if ($before.digest -ceq (Get-GtSourceIdentity).digest) { throw 'A source index change was not detected.' }
+$script:indexDelta=@()
 [IO.File]::AppendAllText((Join-Path $fixture 'alpha.cs'),'changed')
 $after=Get-GtSourceIdentity
 [IO.File]::WriteAllText((Join-Path $fixture 'alpha.cs'),'alpha.cs')
@@ -1142,7 +1149,6 @@ if ($before.digest -eq $after.digest) { throw 'A source change was not detected.
 if (Test-GtSourceContent $before $after) { throw 'Build reuse accepted changed source bytes.' }
 $metadataOnly=($before|ConvertTo-Json -Depth 12)|ConvertFrom-Json
 $metadataOnly.state.status=@('M  alpha.cs');$metadataOnly.state.index=@('changed-index-metadata')
-$metadataOnly.state.branches=@('an-unrelated-ref')
 if (-not (Test-GtSourceContent $before $metadataOnly)) { throw 'Staging identical source bytes invalidated the build.' }
 $differentHead=($before|ConvertTo-Json -Depth 12)|ConvertFrom-Json
 $differentHead.state.head='different-head'

@@ -458,7 +458,7 @@ public sealed class RuntimeVerificationHarness : MonoBehaviour
             receipt.originSha256 = AssemblyFileHash(receipt.originLocation);
             receipt.managerVersion = UnityModManager.version.ToString();
             receipt.managerSha256 = AssemblyFileHash(typeof(UnityModManager).Assembly.Location);
-            // UMM 0.33.2 ModEntry.Load derives the first-load cache key in the game runtime.
+            // Match the cache key ModEntry.Load derives on the game runtime's CLR.
             var cacheStamp = (long)new FileInfo(receipt.originLocation).LastWriteTimeUtc.GetHashCode() +
                 UnityModManager.version.GetHashCode() + entry.ManagerVersion.GetHashCode();
             receipt.expectedCacheLocation = receipt.originLocation + "." +

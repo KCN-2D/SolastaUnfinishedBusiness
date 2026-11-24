@@ -3,8 +3,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Xml;
-using System.Xml.Serialization;
 using JetBrains.Annotations;
 using SolastaUnfinishedBusiness.Api.ModKit;
 using SolastaUnfinishedBusiness.CustomUI;
@@ -19,9 +17,8 @@ internal static class Main
 {
     internal static readonly string ModFolder = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
     private static MenuManager Menu { get; set; }
-    private static ModManager<Core, Settings> Mod { get; set; }
+    private static ModManager<Settings> Mod { get; set; }
     private static UnityModManager.ModEntry ModEntry { get; set; }
-    private static bool ApplicationQuitCleanupStarted { get; set; }
 
     internal static bool Enabled { get; private set; }
     internal static bool IsApplicationQuitting { get; private set; }
@@ -85,49 +82,37 @@ internal static class Main
     {
         ModEntry = modEntry;
         IsApplicationQuitting = false;
-        ApplicationQuitCleanupStarted = false;
 
-        var now = DateTime.Now;
-        var assembly = Assembly.GetExecutingAssembly();
+        var startup = Stopwatch.StartNew();
         var translationsStarted = false;
-
-        UmmCompatibility.LogRuntime();
 
         try
         {
+            UmmCompatibility.LogRuntime();
             EnsureFolderExists(SettingsFolder);
             PortraitsContext.EnsureFolderExists();
             SaveByLocationContext.EnsureFoldersExist();
 
-            Mod = new ModManager<Core, Settings>();
-            Mod.Enable(modEntry, assembly);
+            var types = typeof(Main).Assembly.GetTypes();
+            Mod = new ModManager<Settings>();
+            Mod.Enable(modEntry, types);
             LoadingContext.Initialize();
-
-            modEntry.OnUnload = OnUnload;
-            modEntry.OnShowGUI = _ =>
-            {
-                if (Settings.EnableHeroesControlledByComputer)
-                {
-                    PlayerControllerContext.RefreshGuiState();
-                }
-            };
 
             Enable = () =>
             {
-                var finished = DateTime.Now;
-
-                Menu = new MenuManager();
-                Menu.Enable(modEntry, assembly);
                 LoadSettingFilenames();
-                ModEntry.Logger.Log($"enabled in {finished - now:T}.");
+                Menu = new MenuManager();
+                Menu.Enable(modEntry, types);
 
                 Enabled = true;
+                Enable = null;
+                Info($"enabled in {startup.Elapsed}.");
             };
 
             translationsStarted = true;
             TranslatorContext.EarlyLoad();
 
-            Application.quitting -= OnApplicationQuitting;
+            modEntry.OnUnload = OnUnload;
             Application.quitting += OnApplicationQuitting;
         }
         catch (Exception ex)
@@ -139,8 +124,6 @@ internal static class Main
             }
 
             TryCleanup(() => Mod?.Unload(modEntry));
-            modEntry.OnUnload = null;
-            modEntry.OnShowGUI = null;
             Enable = null;
             Enabled = false;
 
@@ -153,23 +136,23 @@ internal static class Main
 
     private static void OnApplicationQuitting()
     {
-        IsApplicationQuitting = true;
-
-        if (ApplicationQuitCleanupStarted)
+        if (IsApplicationQuitting)
         {
             return;
         }
 
-        ApplicationQuitCleanupStarted = true;
+        IsApplicationQuitting = true;
+        StopBackgroundWork(false);
+    }
 
-        // Stop managed work before UMM starts tearing down Unity objects. These
-        // cleanup paths are intentionally safe to invoke again from OnUnload.
+    private static void StopBackgroundWork(bool destroyUnityObjects)
+    {
         TryCleanup(LoadingContext.Unload);
         TryCleanup(CooperativeExplorationContext.Reset);
         TryCleanup(BootContext.Unload);
-        TryCleanup(() => SpeechContext.Unload(false));
+        TryCleanup(() => SpeechContext.Unload(destroyUnityObjects));
         TryCleanup(UpdateContext.Unload);
-        TryCleanup(() => CampaignTranslationExecutor.Unload(false));
+        TryCleanup(() => CampaignTranslationExecutor.Unload(destroyUnityObjects));
         TryCleanup(TranslationServiceFactory.Unload);
     }
 
@@ -177,17 +160,18 @@ internal static class Main
     {
         var applicationQuitting = IsApplicationQuitting;
 
-        TryCleanup(LoadingContext.Unload);
-        TryCleanup(BootContext.Unload);
+        if (!applicationQuitting)
+        {
+            StopBackgroundWork(true);
+        }
+
         TryCleanup(() =>
         {
             Menu?.Unload(modEntry);
             Menu = null;
         });
-        TryCleanup(() => modEntry.OnShowGUI = null);
-        TryCleanup(() => Application.quitting -= OnApplicationQuitting);
-        TryCleanup(() => SpeechContext.Unload(!applicationQuitting));
-        TryCleanup(UpdateContext.Unload);
+        Application.quitting -= OnApplicationQuitting;
+        modEntry.OnUnload -= OnUnload;
         TryCleanup(() => SaveByLocationContext.Unload(!applicationQuitting));
         TryCleanup(CombatAiContext.Unload);
         TryCleanup(PlayerControllerContext.Unload);
@@ -195,12 +179,9 @@ internal static class Main
         TryCleanup(RacesContext.UnloadBodyShapes);
         TryCleanup(CombatAnimationContext.Unload);
         TryCleanup(MultiplayerSettingsContext.Invalidate);
-        TryCleanup(CooperativeExplorationContext.Reset);
         TryCleanup(GuiWrapperContext.Unload);
         TryCleanup(() => Tooltips.Unload(!applicationQuitting));
-        TryCleanup(() => CampaignTranslationExecutor.Unload(!applicationQuitting));
         TryCleanup(CampaignTranslationRuntimeRepairContext.Unload);
-        TryCleanup(TranslationServiceFactory.Unload);
 
         if (!applicationQuitting)
         {
@@ -212,7 +193,7 @@ internal static class Main
         }
 
         TryCleanup(Global.ResetTransientStateForUnload);
-        TryCleanup(() => { Mod?.Unload(modEntry); });
+        TryCleanup(() => Mod?.Unload(modEntry));
 
         Enabled = false;
         Enable = null;
@@ -283,7 +264,7 @@ internal static class Main
         try
         {
             EnsureFolderExists(SettingsFolder);
-            WriteSettingsFile(Path.Combine(SettingsFolder, normalizedFilename), Settings);
+            Settings.WriteTo(Path.Combine(SettingsFolder, normalizedFilename));
             LoadSettingFilenames();
         }
         catch (Exception ex)
@@ -304,7 +285,7 @@ internal static class Main
 
             var profile = MultiplayerSettingsContext.ReadSettingsProfile(normalizedXml, Settings);
             EnsureFolderExists(SettingsFolder);
-            WriteSettingsFile(Path.Combine(SettingsFolder, "MultiplayerHost.xml"), profile);
+            profile.WriteTo(Path.Combine(SettingsFolder, "MultiplayerHost.xml"));
             LoadSettingFilenames();
             SettingsOperationMessage = "ModUi/&MultiplayerSettingsSaved";
             return true;
@@ -341,12 +322,11 @@ internal static class Main
             }
 
             var profile = MultiplayerSettingsContext.ReadSettingsProfile(File.ReadAllText(path), Settings);
-            var settingsPath = Path.Combine(ModEntry.Path, "Settings.xml");
             var backupPath = Path.Combine(ModEntry.Path, "Settings.before-import.xml");
 
             // Back up the settings actually in use, including changes made since the last UMM save.
-            WriteSettingsFile(backupPath, Settings);
-            WriteSettingsFile(settingsPath, profile);
+            Settings.WriteTo(backupPath);
+            profile.Save(ModEntry);
             Mod.SettingsForSave = profile;
             SettingsOperationMessage = null;
         }
@@ -366,7 +346,7 @@ internal static class Main
 
         try
         {
-            WriteSettingsFile(Path.Combine(ModEntry.Path, "Settings.xml"), Settings);
+            Settings.Save(ModEntry);
             Mod.SettingsForSave = null;
             SettingsOperationMessage = null;
         }
@@ -374,34 +354,6 @@ internal static class Main
         {
             Error(ex);
             SettingsOperationMessage = "ModUi/&SettingsImportFailed";
-        }
-    }
-
-    private static void WriteSettingsFile(string path, Settings settings)
-    {
-        var temporaryPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        try
-        {
-            using (var writer = XmlWriter.Create(temporaryPath, new XmlWriterSettings { Indent = true }))
-            {
-                new XmlSerializer(typeof(Settings)).Serialize(writer, settings);
-            }
-
-            if (File.Exists(path))
-            {
-                File.Replace(temporaryPath, path, null);
-            }
-            else
-            {
-                File.Move(temporaryPath, path);
-            }
-        }
-        finally
-        {
-            if (File.Exists(temporaryPath))
-            {
-                File.Delete(temporaryPath);
-            }
         }
     }
 

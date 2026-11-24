@@ -1,10 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
-using System.Reflection;
-using System.Runtime.CompilerServices;
+using I2.Loc;
 using SolastaUnfinishedBusiness.Api.LanguageExtensions;
+using SolastaUnfinishedBusiness.Models;
 using UnityEngine;
 using UnityModManagerNet;
 
@@ -26,45 +25,26 @@ internal interface IMenuSelectablePage : IMenuPage;
 
 internal interface IMenuBottomPage : IMenuPage;
 
-internal sealed class MenuManager : INotifyPropertyChanged
+internal sealed class MenuManager
 {
-    private static Exception _caughtException;
+    private Exception _caughtException;
     private readonly List<IMenuBottomPage> _bottomPages = [];
     private readonly List<IMenuSelectablePage> _selectablePages = [];
     private readonly List<IMenuTopPage> _topPages = [];
-    private NamedAction[] _selectablePageActions = [];
-    private static int SelectedTab => Main.Settings.SelectedTab;
+    private string _tabLanguage;
+    private string[] _tabTitles;
 
-    private int TabIndex
+    internal void Enable(UnityModManager.ModEntry modEntry, Type[] types)
     {
-        set
+        foreach (var type in types)
         {
-            if (Main.Settings.SelectedTab == value)
+            if (type.IsAbstract || type.IsInterface || type.ContainsGenericParameters ||
+                !typeof(IMenuPage).IsAssignableFrom(type))
             {
-                return;
+                continue;
             }
 
-            Main.Settings.SelectedTab = value;
-            NotifyPropertyChanged();
-        }
-    }
-
-    public event PropertyChangedEventHandler PropertyChanged;
-
-    // This method is called by the Set accessor of each property.
-    // The CallerMemberName attribute that is applied to the optional propertyName
-    // parameter causes the property name of the caller to be substituted as an argument.
-    private void NotifyPropertyChanged([CallerMemberName] string propertyName = "")
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
-
-    internal void Enable(UnityModManager.ModEntry modEntry, Assembly assembly)
-    {
-        foreach (var type in AssemblyTypeCache.GetTypes(assembly)
-                     .Where(type => !type.IsInterface && !type.IsAbstract && typeof(IMenuPage).IsAssignableFrom(type)))
-        {
-            var page = Activator.CreateInstance(type, true) as IMenuPage;
+            var page = (IMenuPage)Activator.CreateInstance(type, true);
 
             if (page is IMenuTopPage topPage)
             {
@@ -82,32 +62,36 @@ internal sealed class MenuManager : INotifyPropertyChanged
             }
         }
 
-        _topPages.Sort(Comparison);
-        _selectablePages.Sort(Comparison);
-        _bottomPages.Sort(Comparison);
-        _selectablePageActions = _selectablePages
-            .Select(page => new NamedAction(page.Name, () => page.OnGUI(modEntry)))
-            .ToArray();
+        _topPages.Sort(ComparePriority);
+        _selectablePages.Sort(ComparePriority);
+        _bottomPages.Sort(ComparePriority);
 
         modEntry.OnGUI += OnGUI;
-
-        return;
-
-        static int Comparison(IMenuPage x, IMenuPage y)
-        {
-            return x.Priority.CompareTo(y.Priority);
-        }
+        modEntry.OnShowGUI += OnShowGUI;
     }
 
     internal void Unload(UnityModManager.ModEntry modEntry)
     {
         modEntry.OnGUI -= OnGUI;
+        modEntry.OnShowGUI -= OnShowGUI;
         _topPages.Clear();
         _selectablePages.Clear();
         _bottomPages.Clear();
-        _selectablePageActions = [];
-        PropertyChanged = null;
+        _tabTitles = null;
         _caughtException = null;
+    }
+
+    private static int ComparePriority(IMenuPage first, IMenuPage second)
+    {
+        return first.Priority.CompareTo(second.Priority);
+    }
+
+    private static void OnShowGUI(UnityModManager.ModEntry _)
+    {
+        if (Main.Settings.EnableHeroesControlledByComputer)
+        {
+            PlayerControllerContext.RefreshGuiState();
+        }
     }
 
     private void OnGUI(UnityModManager.ModEntry modEntry)
@@ -124,8 +108,6 @@ internal sealed class MenuManager : INotifyPropertyChanged
             return;
         }
 
-        var hasPriorPage = false;
-
         try
         {
             if (_caughtException != null)
@@ -133,8 +115,7 @@ internal sealed class MenuManager : INotifyPropertyChanged
                 GUILayout.Label("ERROR".Red().Bold() +
                                 $": caught exception {_caughtException}");
 
-                if (GUILayout.Button("Reset".Orange().Bold(),
-                        GUILayout.ExpandWidth(false)))
+                if (GUILayout.Button("Reset".Orange().Bold(), GUILayout.ExpandWidth(false)))
                 {
                     _caughtException = null;
                 }
@@ -142,56 +123,73 @@ internal sealed class MenuManager : INotifyPropertyChanged
                 return;
             }
 
-            var e = Event.current;
-
-            UI.UserHasHitReturn = e.keyCode == KeyCode.Return;
+            UI.UserHasHitReturn = Event.current.keyCode == KeyCode.Return;
             UI.FocusedControlName = GUI.GetNameOfFocusedControl();
 
-            if (_topPages.Count > 0)
+            var hasPriorPage = false;
+            DrawPages(_topPages, modEntry, ref hasPriorPage);
+
+            if (_selectablePages.Count > 0)
             {
-                foreach (var page in _topPages)
-                {
-                    if (hasPriorPage)
-                    {
-                        GUILayout.Space(10f);
-                    }
-
-                    page.OnGUI(modEntry);
-                    hasPriorPage = true;
-                }
-            }
-
-            if (_selectablePages.Count is > 0 and > 1)
-            {
-                if (hasPriorPage)
-                {
-                    //GUILayout.Space(10f);
-                }
-
-                var tabIndex = SelectedTab;
-                UI.TabBar(ref tabIndex, null, _selectablePageActions);
-                TabIndex = tabIndex;
-            }
-
-            if (_bottomPages.Count <= 0)
-            {
-                return;
-            }
-
-            foreach (var page in _bottomPages)
-            {
-                if (hasPriorPage)
-                {
-                    GUILayout.Space(10f);
-                }
-
-                page.OnGUI(modEntry);
+                DrawSelectedPage(modEntry);
                 hasPriorPage = true;
             }
+
+            DrawPages(_bottomPages, modEntry, ref hasPriorPage);
         }
         catch (Exception e)
         {
             _caughtException = e;
+        }
+    }
+
+    private void DrawSelectedPage(UnityModManager.ModEntry modEntry)
+    {
+        var selected = Main.Settings.SelectedTab;
+
+        if (selected < 0 || selected >= _selectablePages.Count)
+        {
+            selected = 0;
+        }
+
+        if (_selectablePages.Count > 1)
+        {
+            UI.TabBar(ref selected, GetTabTitles());
+        }
+
+        Main.Settings.SelectedTab = selected;
+
+        using (UI.VerticalScope(GUI.skin.box))
+        {
+            _selectablePages[selected].OnGUI(modEntry);
+        }
+    }
+
+    private string[] GetTabTitles()
+    {
+        var language = LocalizationManager.CurrentLanguageCode;
+
+        if (_tabTitles == null || _tabLanguage != language)
+        {
+            _tabTitles = _selectablePages.Select(page => page.Name).ToArray();
+            _tabLanguage = language;
+        }
+
+        return _tabTitles;
+    }
+
+    private static void DrawPages<T>(List<T> pages, UnityModManager.ModEntry modEntry, ref bool hasPriorPage)
+        where T : IMenuPage
+    {
+        foreach (var page in pages)
+        {
+            if (hasPriorPage)
+            {
+                GUILayout.Space(10f);
+            }
+
+            page.OnGUI(modEntry);
+            hasPriorPage = true;
         }
     }
 }

@@ -556,32 +556,13 @@ internal static partial class UI
         }
     }
 
-    public static void TabBar(ref int selected, Action header = null, params NamedAction[] actions)
+    internal static void TabBar(ref int selected, string[] titles)
     {
-        if (actions.Length == 0)
-        {
-            return;
-        }
-
-        if (selected < 0 || selected >= actions.Length)
-        {
-            selected = 0;
-        }
-
-        var sel = selected;
-        var titles = actions.Select((a, i) =>
-            i == sel ? a.Name.Orange().Bold() : a.Name);
-        var enumerable = titles as string[] ?? titles.ToArray();
-
-        SelectionGrid(ref selected, enumerable.ToArray(), enumerable.Length, 6, ExpandWidth(true));
+        SelectionGrid(ref selected, titles, titles.Length, 6, ExpandWidth(true));
         if (_lastSelectionLayoutWidth > 0f)
         {
             _contentWidth = _lastSelectionLayoutWidth;
         }
-        GL.BeginVertical("box");
-        header?.Invoke();
-        actions[selected].Action();
-        GL.EndVertical();
     }
 
     public static void SubMenu(ref int selected, bool div = true, Action header = null, params NamedAction[] actions)
@@ -596,15 +577,12 @@ internal static partial class UI
             selected = 0;
         }
 
-        var sel = selected;
-        var titles = actions.Select((a, i) =>
-            i == sel ? a.Name.Orange().Bold() : a.Name);
-        var enumerable = titles as string[] ?? titles.ToArray();
+        var titles = actions.Select(action => action.Name).ToArray();
         using (HorizontalScope(GUI.skin.scrollView))
         {
             using (VerticalScope())
             {
-                SelectionGrid(ref selected, enumerable.ToArray(), 0, SubmenuButtonStyle, AutoWidth());
+                SelectionGrid(ref selected, titles, 0, SubmenuButtonStyle, AutoWidth());
                 if (div)
                 {
                     DivLast(20);

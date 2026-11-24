@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Xml;
 using System.Xml.Serialization;
 using SolastaUnfinishedBusiness.Api.Infrastructure;
 using SolastaUnfinishedBusiness.Displays;
@@ -8,8 +10,6 @@ using SolastaUnfinishedBusiness.Models.TranslationServices;
 using UnityModManagerNet;
 
 namespace SolastaUnfinishedBusiness;
-
-public sealed class Core;
 
 public enum TagType
 {
@@ -668,4 +668,38 @@ public class Settings : UnityModManager.ModSettings
     [MultiplayerLocal] public bool DebugLogFieldInitialization { get; set; }
     [MultiplayerLocal] public bool DebugLogVariantMisuse { get; set; }
 #endif
+
+    public override void Save(UnityModManager.ModEntry modEntry)
+    {
+        WriteTo(GetPath(modEntry));
+    }
+
+    internal void WriteTo(string path)
+    {
+        var temporaryPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+
+        try
+        {
+            using (var writer = XmlWriter.Create(temporaryPath, new XmlWriterSettings { Indent = true }))
+            {
+                new XmlSerializer(GetType()).Serialize(writer, this);
+            }
+
+            if (File.Exists(path))
+            {
+                File.Replace(temporaryPath, path, null);
+            }
+            else
+            {
+                File.Move(temporaryPath, path);
+            }
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
+    }
 }

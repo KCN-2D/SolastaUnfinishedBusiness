@@ -5,7 +5,7 @@
 ## 必要なもの
 
 - Solasta: Crown of the Magister
-- [Unity Mod Manager](https://www.nexusmods.com/site/mods/21) 0.33.2
+- [Unity Mod Manager](https://www.nexusmods.com/site/mods/21) 0.33.4
 - カスタム版の `SolastaUnfinishedBusiness.zip`
 
 ## 導入手順
