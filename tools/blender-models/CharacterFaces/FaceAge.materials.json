@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "bundleName": "face_age.materials.bundle",
+  "assets": [
+    {
+      "path": "FaceAgeColor.shader",
+      "sha256": "6cfb824642c4d92e596ed84ca81cb79208c24eb7c09f00cdd9355af4d46ff91c"
+    }
+  ],
+  "materials": [
+    {
+      "name": "FaceAgeColor",
+      "shader": "FaceAgeColor.shader",
+      "requiredPasses": [
+        "FACE_AGE_COLOR"
+      ]
+    }
+  ]
+}

@@ -7261,6 +7261,7 @@ def fit_garment_resources():
     parser.add_argument('--groom-guide', type=Path, action='append', default=[])
     parser.add_argument('--groom-drape', action='store_true', help='Fit hanging hair against observed body armor and capes')
     parser.add_argument('--groom-roots', action='store_true', help='Seat lifted root edges against the observed head')
+    parser.add_argument('--groom-ties', action='store_true', help='Seat separated tied tufts in the groom catalog')
     parser.add_argument('--clearance', type=float)
     parser.add_argument('--maximum-offset', type=float, required=True)
     parser.add_argument('--output', type=Path, required=True)
@@ -7273,11 +7274,11 @@ def fit_garment_resources():
         parser.error('--lining-only requires --self-layers.')
     if args.repair_rest:
         if any((args.selection, args.pose, args.equipment, args.layer, args.self_layers, args.groom_contact, args.groom_guide,
-                args.groom_drape, args.groom_roots)):
+                args.groom_drape, args.groom_roots, args.groom_ties)):
             parser.error('--repair-rest uses the catalog’s existing garment fits.')
     elif (args.selection is not None and (args.pose or args.equipment) or
-            args.selection is None and not (args.pose and args.equipment)):
-        parser.error('Use --repair-rest, --selection, or supply both --pose and --equipment.')
+            args.selection is None and (bool(args.pose) != bool(args.equipment) or not (args.pose or args.groom_ties))):
+        parser.error('Use --repair-rest, --selection, --groom-ties, or supply both --pose and --equipment.')
     if not math.isfinite(args.maximum_offset) or args.maximum_offset <= 0:
         parser.error('--maximum-offset must be finite and positive.')
     if not args.repair_rest and (args.clearance is None or not 0 < args.clearance < args.maximum_offset):
@@ -7292,6 +7293,8 @@ def fit_garment_resources():
         parser.error('Use --groom-drape with --groom-contact and without manual guides.')
     if args.groom_roots and (not args.groom_contact or args.groom_guide or args.groom_drape):
         parser.error('Use --groom-roots with automatic --groom-contact.')
+    if args.groom_ties and (not args.groom_contact or args.groom_guide or args.groom_drape):
+        parser.error('Use --groom-ties with automatic --groom-contact.')
     source = checked_catalog_path(args.source)
     output = checked_catalog_path(args.output)
     if output.is_relative_to(source):
@@ -7346,6 +7349,48 @@ def existing_garment_fits(file, fitted):
             raise ValueError('A fitted garment has inconsistent rest transforms.')
         entries[key] = dict(native=mesh, target=mesh, frame=frame, poses=[])
     return entries
+
+
+def seat_catalog_groom_ties(manifest, proofs, load, jobs, production, maximum_offset):
+    import character_resources as resources
+
+    by_cab = {row['newCab']: row['file'] for row in proofs.values()}
+    inspected = set()
+    for resource in manifest['resources']:
+        groom_paths = {row['renderer'] for row in resource.get('parameters', ()) if row['set'] == 'Groom'}
+        if not groom_paths or resource['type'] != 'GameObject' or resource['asset'] in inspected:
+            continue
+        inspected.add(resource['asset'])
+        root, resolve = resource_prefab_root(proofs, resource, load)
+        families = collections.defaultdict(list)
+        for path, renderer in resources.prefab_skin_renderers(root, resolve):
+            if path not in groom_paths and path.rsplit('/', 1)[-1] not in groom_paths:
+                continue
+            part = re.fullmatch(r'(.+)_LOD(\d+)', path, re.IGNORECASE)
+            if part:
+                families[part[1]].append((int(part[2]), renderer))
+        for variants in families.values():
+            band_elided = False
+            for level, renderer in sorted(variants, key=lambda item: item[0]):
+                tree = renderer.read_typetree()
+                file, mesh = resolve(renderer.assets_file, tree['m_Mesh'])
+                known = jobs.get(by_cab[file.name], {}).get(mesh.path_id)
+                native = known['native'] if known else export_current_mesh(mesh)
+                frame = known['frame'] if known else resources.renderer_frame(renderer, resolve)
+                current = known['target'] if known else native
+                target, join = production.seat_tied_groom(current, frame, maximum_offset, band_elided=band_elided)
+                if join is None:
+                    if level == 0:
+                        break
+                    continue
+                if file.name != renderer.assets_file.name:
+                    raise ValueError('A tied groom lost its local mesh and cloth owner.')
+                band_elided |= 'bandVertices' in join
+                if known is None:
+                    known = dict(native=native, frame=frame, poses=[])
+                    jobs.setdefault(by_cab[file.name], {})[mesh.path_id] = known
+                known.update(target=target, tie=join)
+    return len(inspected)
 
 
 def write_posed_garments(args, source, output):
@@ -7522,6 +7567,11 @@ def write_posed_garments(args, source, output):
     if used_guides != guides.keys():
         raise ValueError('A Blender guide did not resolve to a drawn groom renderer.')
 
+    if args.groom_ties:
+        checked = seat_catalog_groom_ties(manifest, proofs, load, jobs, production, args.maximum_offset)
+        changed = sum('tie' in entry for group in jobs.values() for entry in group.values())
+        print(f'Checked tied groom geometry: {checked} prefabs, {changed} fitted meshes', flush=True)
+
     for bundle in manifest['bundles']:
         name = bundle['file']
         original = checked_catalog_path(source / 'Catalog', name)
@@ -7595,6 +7645,7 @@ def write_posed_garments(args, source, output):
                        maximumOffset=args.maximum_offset, physics=physics, objects=sorted(edits),
                        meshes=[dict(object=key, before=v['native']['sourceFingerprint'],
                                     after=export_current_mesh(saved.objects[key])['sourceFingerprint'], poses=v['poses'],
+                                    **({'tie': v['tie']} if 'tie' in v else {}),
                                     **({'trimSource': v['trimSource']} if 'trimSource' in v else {}))
                                for key, v in entries.items()])
         if rest_source is not None:
@@ -7617,7 +7668,7 @@ def write_posed_garments(args, source, output):
     if args.groom_drape:
         assembly['retainedSourceInputs'] = resource_producer_archives(output,
             [Path(__file__), Path(production.__file__), Path(drape.__file__)], assembly.get('retainedSourceInputs', []))
-    elif args.self_layers or args.groom_roots:
+    elif args.self_layers or args.groom_roots or args.groom_ties:
         assembly['retainedSourceInputs'] = resource_producer_archives(output,
             [Path(__file__), Path(production.__file__), Path(production.art.__file__)], assembly.get('retainedSourceInputs', []))
     write(output / 'ResourceAssembly.json', assembly)

@@ -331,6 +331,8 @@ __pycache__/
 /tools/blender-models/CharacterFaces/*
 !/tools/blender-models/CharacterFaces/face-designs.json
 !/tools/blender-models/CharacterFaces/creature-materials.json
+!/tools/blender-models/CharacterFaces/FaceAge.materials.json
+!/tools/blender-models/CharacterFaces/FaceAgeColor.shader
 !/tools/blender-models/CharacterFaces/resource-package.json
 !/tools/blender-models/CharacterFaces/release_resources.py
 !/tools/blender-models/CharacterFaces/build_models.py

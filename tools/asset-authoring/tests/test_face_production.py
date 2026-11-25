@@ -1502,6 +1502,48 @@ class FaceProductionContracts(unittest.TestCase):
             production.fit_rigid_attachment_roots(packet,np.eye(4),supports,depth_metres=.00035,falloff_radii=.85,maximum_shift_metres=.0001)
 
 
+    def test_tied_groom_seats_clasp_and_tuft_and_follows_elided_lod(self):
+        production, _ = build.source_owner()
+
+        def make_packet(include_band):
+            pieces = [(81, .005, .044, .094), (73, .0045, -.049, .036)]
+            if include_band:
+                pieces.append((9, .006, .0355, .0442))
+            points, normals, indices = [], [], []
+            for count, radius, low, high in pieces:
+                angles = np.arange(count) * 2 * np.pi / count
+                ring = np.column_stack((np.cos(angles), np.sin(angles), np.zeros(count)))
+                base = len(points)
+                points.extend(np.concatenate((ring * radius + [0, 0, low], ring * radius + [0, 0, high])))
+                normals.extend(np.tile(ring, (2, 1)))
+                for index in range(count):
+                    a, b = base + index, base + (index + 1) % count
+                    indices.extend((a, b, a + count, b, b + count, a + count))
+            count = len(points)
+            return dict(name='TiedTuft', nativeReadable=True, indexFormat=0, vertexCount=count,
+                vertices=np.asarray(points).ravel().tolist(), normals=np.asarray(normals).ravel().tolist(),
+                tangents=[0., 0., 1., 1.] * count, weights=[1., 0., 0., 0.] * count,
+                boneIndices=[0, 0, 0, 0] * count, bindPoses=np.eye(4).ravel().tolist(),
+                subMeshes=[indices], uv=[], colors=[], shapes=[], bounds=[0., 0., .0225, .012, .012, .143])
+
+        for band in (True, False):
+            source = make_packet(band)
+            if not band:
+                self.assertEqual(production.seat_tied_groom(source, np.eye(4), .022), (source, None))
+            result, join = production.seat_tied_groom(source, np.eye(4), .022, band_elided=not band)
+            self.assertIsNotNone(join)
+            self.assertEqual('bandVertices' in join, band)
+            before = np.asarray(source['vertices']).reshape(-1, 3)
+            after = np.asarray(result['vertices']).reshape(-1, 3)
+            fixed, tuft = slice(0, 162), slice(162, 308)
+            np.testing.assert_allclose(before[fixed], after[fixed], atol=1e-8)
+            self.assertGreater(after[tuft, 2].max(), after[fixed, 2].min() + .009)
+            shifts = np.linalg.norm(after[tuft] - before[tuft], axis=1)
+            self.assertLess(shifts[:73].max(), .8 * shifts[73:].min())
+            self.assertLess(shifts.max(), .022)
+            for field in ('subMeshes', 'uv', 'weights', 'boneIndices', 'bindPoses', 'shapes'):
+                self.assertEqual(result[field], source[field])
+
     def test_dxt1_skin_field_preserves_unowned_blocks_and_transparency(self):
         import etcpak
         from PIL import Image

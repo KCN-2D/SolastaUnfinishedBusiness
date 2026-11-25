@@ -346,7 +346,7 @@ internal static class RacesContext
             if (IsProtectedBodyRenderer(graphics, renderer)) continue;
             var mesh = renderer ? renderer.sharedMesh : null;
             var index = NativeBodyShapeFrame(mesh);
-            if (index >= 0) SetBodyBlendShapeWeight(renderer, index, selection.Value);
+            if (index >= 0) SetBlendShapeWeight(renderer, index, selection.Value);
         }
         ApplySupplementalBodyShape(graphics, selection);
         return false;
@@ -450,11 +450,15 @@ internal static class RacesContext
 
     private const string BodyVolumePositive = "UB_BodyVolumePositive";
     private const string BodyVolumeNegative = "UB_BodyVolumeNegative";
+    private const string YouthfulFace = "UB_YouthfulFace";
+    private const string ElderlyFace = "UB_ElderlyFace";
     // The factory registers native body renderers by blend-shape count and drives
     // their first frame. Asset-qualified frame names use the same native contract.
     private static int NativeBodyShapeFrame(Mesh mesh) => mesh && mesh.blendShapeCount > 0 &&
-        mesh.GetBlendShapeName(0) is not BodyVolumePositive and not BodyVolumeNegative ? 0 : -1;
-    private static void SetBodyBlendShapeWeight(SkinnedMeshRenderer renderer, int index, float weight)
+        mesh.GetBlendShapeName(0) is not BodyVolumePositive and not BodyVolumeNegative and not YouthfulFace and not ElderlyFace
+            ? 0
+            : -1;
+    private static void SetBlendShapeWeight(SkinnedMeshRenderer renderer, int index, float weight)
     {
         // The idle upkeep can recover a replaced weight without dirtying the
         // skinned renderer on every frame while its body remains stationary.
@@ -726,7 +730,7 @@ internal static class RacesContext
                 lease.Bind(graphics, _characterModelCatalog);
                 lease.Synchronize();
                 if (CharacterModelCreations.ContainsKey(graphics)) return;
-                jointRenderers = CompleteSkinJointRenderers(graphics);
+                jointRenderers = CompleteCharacterModelRenderers(graphics);
                 if (jointRenderers.Count == 0)
                 {
                     if (owner && (owner.HasSources || owner.IsPending)) owner.Release(false, owner.HasSources);
@@ -763,11 +767,18 @@ internal static class RacesContext
         if (_characterModelsUnloading || !graphics || !SettingsContext.GuiModManagerInstance.EnableCustomFaces) return;
         try
         {
+            var lease = graphics.GetComponent<CharacterModelResourceLease>();
             if (category == MorphotypeElementDefinition.ElementCategory.Skin)
-                graphics.GetComponent<CharacterModelResourceLease>()?.RefreshBodySkinTint();
-            else if (category == MorphotypeElementDefinition.ElementCategory.Age)
-                graphics.GetComponent<CharacterModelResourceLease>()?.ApplySkinNormalStrength();
-            graphics.GetComponent<CharacterModelPresentation>()?.RefreshMaterials();
+                lease?.RefreshBodySkinTint();
+            var presentation = graphics.GetComponent<CharacterModelPresentation>();
+            if (category == MorphotypeElementDefinition.ElementCategory.Age)
+            {
+                lease?.ApplySkinNormalStrength();
+                presentation?.RefreshFaceAge();
+            }
+            if (category is MorphotypeElementDefinition.ElementCategory.Age or MorphotypeElementDefinition.ElementCategory.HairColor)
+                lease?.RefreshGroomAge();
+            presentation?.RefreshMaterials();
         }
         catch (Exception exception) { ReportCharacterModelError("materials", exception); }
     }
@@ -3179,7 +3190,8 @@ internal static class RacesContext
                 };
                 parameters.Add((renderer, parameter.Slot, owners));
             }
-            var skinScale = shape && bodyPart == GraphicsCharacterDefinitions.BodyPart.Head ? part.BodySkinColorScale : null;
+            var face = shape && bodyPart == GraphicsCharacterDefinitions.BodyPart.Head;
+            var skinScale = face ? part.BodySkinColorScale : null;
             var slots = shape ? graphics.ShapeMaterialsPerBodySlot : graphics.ArmorMaterialsPerBodySlot;
             var index = (int)bodyPart;
             var nativeMaterials = slots != null && index < slots.Length ? slots[index] ?? [] : [];
@@ -3192,9 +3204,9 @@ internal static class RacesContext
                 lease.BindMaterials(instance, bodyPart, shape, parameters);
                 foreach (var (renderer, slot, owners) in parameters)
                     if (ReferenceEquals(owners, graphics.SkinMaterials))
-                        lease.BindSkinNormalStrength(renderer.sharedMaterials[slot]);
+                        lease.BindSkinNormalStrength(renderer.sharedMaterials[slot], face);
             }
-            foreach (var material in nativeMaterials) lease.BindSkinNormalStrength(material);
+            foreach (var material in nativeMaterials) lease.BindSkinNormalStrength(material, face);
             if (skinScale is { } scale) lease.BindBodySkinTint(instance, scale);
         }
         internal static CharacterModelBlueprint ReadBlueprint(string directory, CharacterModelBlueprint previous)
@@ -4718,11 +4730,13 @@ internal static class RacesContext
         private CharacterModelCatalog _catalog;
         private readonly HashSet<UnityEngine.Object> _sources = [];
         private readonly HashSet<Material> _headSkin = [];
-        private readonly Dictionary<Material, float> _skinNormalStrengths = [];
-        private static readonly int SkinColor = Shader.PropertyToID("_Color");
+        private readonly Dictionary<Material, (float Authored, float Micro, bool Face)> _skinNormalStrengths = [];
+        private static readonly int SurfaceColor = Shader.PropertyToID("_Color");
+        private static readonly int GroomSpecularColor = Shader.PropertyToID("_Spec_Color");
         private static readonly int SkinNormalStrength = Shader.PropertyToID("_BumpMapScale");
         private static readonly int UseMicroBumps = Shader.PropertyToID("_UseMicroBumps");
         private static readonly int MicroBumpMap = Shader.PropertyToID("_MicroBumpMap");
+        private static readonly int MicroBumpStrength = Shader.PropertyToID("_MicroBumpScale");
         private GameObject _skinTintHead;
         private Color _bodySkinTint;
         private int _loading;
@@ -4748,10 +4762,10 @@ internal static class RacesContext
             if (definition == null) return;
             var color = definition.MainColor * _bodySkinTint;
             foreach (var material in Graphics.SkinMaterials)
-                if (material && !_headSkin.Contains(material) && material.HasProperty(SkinColor)) material.SetColor(SkinColor, color);
+                if (material && !_headSkin.Contains(material) && material.HasProperty(SurfaceColor)) material.SetColor(SurfaceColor, color);
         }
 
-        internal void BindSkinNormalStrength(Material material)
+        internal void BindSkinNormalStrength(Material material, bool face)
         {
             if (!material || !Graphics.SkinMaterials.Contains(material) ||
                 !Graphics.MaterialsToDestroy.Contains(material) || _skinNormalStrengths.ContainsKey(material) ||
@@ -4761,17 +4775,60 @@ internal static class RacesContext
                 !material.HasProperty(MicroBumpMap) || !material.GetTexture(MicroBumpMap)) return;
             var strength = material.GetFloat(SkinNormalStrength);
             if (strength >= 0f && strength != 1f && !float.IsInfinity(strength))
-                _skinNormalStrengths.Add(material, strength);
+                _skinNormalStrengths.Add(material, (strength, material.HasProperty(MicroBumpStrength)
+                    ? material.GetFloat(MicroBumpStrength)
+                    : 0f, face));
         }
 
         internal void ApplySkinNormalStrength()
         {
             if (Graphics.RulesetCharacter?.MorphotypeElementAdditionalValues
-                    .ContainsKey(MorphotypeElementDefinition.ElementCategory.Age) != true) return;
+                    .TryGetValue(MorphotypeElementDefinition.ElementCategory.Age, out var age) != true) return;
             // The native age callback has just supplied the actor's age factor.
-            foreach (var pair in _skinNormalStrengths)
-                if (pair.Key && Graphics.SkinMaterials.Contains(pair.Key))
-                    pair.Key.SetFloat(SkinNormalStrength, pair.Key.GetFloat(SkinNormalStrength) * pair.Value);
+            var ageProgress = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(20f, 100f, age));
+            foreach (var entry in _skinNormalStrengths)
+            {
+                var material = entry.Key;
+                if (!material || !Graphics.SkinMaterials.Contains(material)) continue;
+                var (authored, micro, face) = entry.Value;
+                var strength = material.GetFloat(SkinNormalStrength) * authored;
+                // Keep broad stamped-in detail subdued even at the oldest setting.
+                if (face)
+                {
+                    strength += Mathf.Min(.16f * ageProgress, Mathf.Max(0f, .43f - strength));
+                    if (micro > 0f) material.SetFloat(MicroBumpStrength, micro * (1f + .24f * ageProgress));
+                }
+                material.SetFloat(SkinNormalStrength, strength);
+            }
+        }
+
+        internal void RefreshGroomAge()
+        {
+            var actor = Graphics.RulesetCharacter;
+            if (actor == null || Graphics.CharacterType == GraphicsCharacterDefinitions.CharacterType.ActionChainGhost ||
+                !actor.MorphotypeElementAdditionalValues.TryGetValue(MorphotypeElementDefinition.ElementCategory.Age, out var age) ||
+                !actor.MorphotypeElements.TryGetValue(MorphotypeElementDefinition.ElementCategory.HairColor, out var selection))
+                return;
+            var palette = DatabaseRepository.GetDatabase<MorphotypeElementDefinition>().GetElement(selection, false);
+            if (palette == null) return;
+            var progress = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(52f, 100f, age));
+            SetTint(Graphics.HairMaterials, palette.SecondColor, .64f * progress);
+            SetTint(Graphics.BeardMaterials, palette.ThirdColor, .73f * progress);
+
+            void SetTint(IEnumerable<Material> materials, Color specular, float amount)
+            {
+                var selected = palette.MainColor;
+                var silver = Mathf.Lerp(.30f, .79f, Mathf.Sqrt(Mathf.Clamp01(selected.grayscale)));
+                var tint = Color.Lerp(selected, new Color(silver, silver, silver * .97f, selected.a), amount);
+                var specularTint = Color.Lerp(specular,
+                    new Color(specular.grayscale, specular.grayscale, specular.grayscale, specular.a), amount);
+                foreach (var material in materials)
+                {
+                    if (!material || !Graphics.MaterialsToDestroy.Contains(material) || !material.HasProperty(SurfaceColor)) continue;
+                    material.SetColor(SurfaceColor, tint);
+                    if (material.HasProperty(GroomSpecularColor)) material.SetColor(GroomSpecularColor, specularTint);
+                }
+            }
         }
 
         internal void BindMaterials(GameObject part, GraphicsCharacterDefinitions.BodyPart bodyPart, bool shape,
@@ -5626,6 +5683,246 @@ internal static class RacesContext
             }
         }
 
+        private readonly struct FaceAgeFrame(Vector3 eyes, Vector3 across, Vector3 up, Vector3 forward, float scale,
+            float noseHeight, float lipHeight, float lipWidth)
+        {
+            internal readonly Vector3 Eyes = eyes;
+            internal readonly Vector3 Across = across;
+            internal readonly Vector3 Up = up;
+            internal readonly Vector3 Forward = forward;
+            internal readonly float Scale = scale;
+            internal readonly float NoseHeight = noseHeight;
+            internal readonly float LipHeight = lipHeight;
+            internal readonly float LipWidth = lipWidth;
+
+            internal Matrix4x4 AnatomicalCoordinates(Matrix4x4 toHead)
+            {
+                var frame = Matrix4x4.identity;
+                frame.SetRow(0, Row(Across, Eyes) / Scale);
+                frame.SetRow(1, Row(Up, Eyes) / Scale);
+                frame.SetRow(2, Row(Forward, Eyes) / Scale);
+                return frame * toHead;
+
+                static Vector4 Row(Vector3 axis, Vector3 origin) => new(axis.x, axis.y, axis.z, -Vector3.Dot(axis, origin));
+            }
+        }
+
+        private FaceAgeFrame _faceAgeFrame;
+        private readonly Dictionary<Material, FaceAgeColorSurface> _faceAgeMaterials = [];
+
+        private static bool TryFaceAgeFrame(GraphicsCharacter graphics, CharacterModelSkin skin, out FaceAgeFrame frame)
+        {
+            frame = default;
+            var bones = skin.Renderer.bones;
+            var bind = skin.Source.Original.bindposes;
+            if (bones.Length != bind.Length) return false;
+            var head = Array.FindIndex(bones, bone => bone && bone.name == "Bip001 Head");
+            var left = Array.FindIndex(bones, bone => bone && bone.name == "b_eyelid_lower_L");
+            var right = Array.FindIndex(bones, bone => bone && bone.name == "b_eyelid_lower_R");
+            var nose = Array.FindIndex(bones, bone => bone && bone.name == "b_nostril_L");
+            var lip = Array.FindIndex(bones, bone => bone && bone.name == "b_lip_upper_C");
+            var corner = Array.FindIndex(bones, bone => bone && bone.name == "b_lip_corner_L");
+            if (head < 0 || left < 0 || right < 0 || nose < 0 || lip < 0 || corner < 0) return false;
+
+            Vector3 Point(int index) => bind[head].MultiplyPoint3x4(bind[index].inverse.GetColumn(3));
+
+            var eyes = (Point(left) + Point(right)) * .5f;
+            var span = Point(left) - Point(right);
+            if (span.sqrMagnitude < 1e-6f) return false;
+            var across = span.normalized;
+            // Convert the model's vertical direction to head bind space. A head bone's Y axis can point forward.
+            var modelUp = skin.Renderer.transform.worldToLocalMatrix.MultiplyVector(graphics.transform.up);
+            var up = Vector3.ProjectOnPlane(bind[head].MultiplyVector(modelUp), across).normalized;
+            var forward = Vector3.Cross(across, up);
+            var noseOffset = Point(nose) - eyes;
+            if (Vector3.Dot(forward, noseOffset) < 0f) forward = -forward;
+            var scale = span.magnitude * .5f;
+            var noseHeight = Vector3.Dot(noseOffset, up) / scale;
+            var lipHeight = Vector3.Dot(Point(lip) - eyes, up) / scale;
+            var lipWidth = Mathf.Abs(Vector3.Dot(Point(corner) - Point(lip), across)) / scale;
+            frame = new FaceAgeFrame(eyes, across, up, forward, scale, noseHeight, lipHeight, lipWidth);
+            return forward.sqrMagnitude > .9f && noseHeight < 0f && lipHeight < noseHeight;
+        }
+
+        private Dictionary<SkinnedMeshRenderer, string[]> PrepareFaceAge(GraphicsCharacter graphics,
+            IReadOnlyDictionary<SkinnedMeshRenderer, CustomModels.SkinMeshSource.SurfaceBinding> bindings)
+        {
+            if (!UsesCompleteCharacterModels) return null;
+            var ageRenderers = new HashSet<SkinnedMeshRenderer>(FacialAgeRenderers(graphics));
+            var frame = default(FaceAgeFrame);
+            var anchor = _skins.FirstOrDefault(skin => ageRenderers.Contains(skin.Renderer) &&
+                TryFaceAgeFrame(graphics, skin, out frame));
+            if (anchor == null) return null;
+            _faceAgeFrame = frame;
+            var anchorFingerprint = CharacterModelFingerprint(anchor.Source.Original);
+            var expressions = new Dictionary<SkinnedMeshRenderer, string[]>();
+            string[] names = [YouthfulFace, ElderlyFace];
+            foreach (var skin in _skins)
+            {
+                var source = skin.Authored;
+                if (!ageRenderers.Contains(skin.Renderer) || !source.isReadable || skin.Source.ClothOwner) continue;
+                var bones = skin.Renderer.bones;
+                var head = Array.FindIndex(bones, bone => bone && bone.name == "Bip001 Head");
+                var bind = source.bindposes;
+                if (head < 0 || head >= bind.Length) continue;
+                var boundary = bindings.TryGetValue(skin.Renderer, out var binding) ? binding.BoundaryOverrides?.Keys : null;
+                var protectedVertices = boundary == null ? null : new HashSet<int>(boundary);
+                var key = "face-age:3:" + anchorFingerprint + ":" + CharacterModelFingerprint(source) + ":" +
+                          (protectedVertices == null
+                              ? string.Empty
+                              : string.Join(",", protectedVertices.OrderBy(vertex => vertex)));
+                var mesh = (Mesh)RetainDerivedData(key, () => [BuildFaceAgeMesh(source, bind[head], frame, protectedVertices)])[0];
+                skin.SetAuthored(mesh);
+                expressions.Add(skin.Renderer, names);
+            }
+            return expressions;
+        }
+
+        private static Mesh BuildFaceAgeMesh(Mesh source, Matrix4x4 toHead, FaceAgeFrame frame, ISet<int> protectedVertices)
+        {
+            var mesh = UnityEngine.Object.Instantiate(source);
+            try
+            {
+                mesh.name = source.name;
+                var positions = source.vertices;
+                var normals = source.normals;
+                var tangents = source.tangents;
+                var headForward = toHead.inverse.MultiplyVector(frame.Forward) * frame.Scale;
+                var gradientToMesh = toHead.transpose;
+                var positionDeltas = new Vector3[positions.Length];
+                var normalDeltas = new Vector3[positions.Length];
+                var tangentDeltas = new Vector3[positions.Length];
+                AddFrame(YouthfulFace, false);
+                AddFrame(ElderlyFace, true);
+                return mesh;
+
+                void AddFrame(string name, bool elderly)
+                {
+                    const float step = .01f;
+                    float Relief(float x, float y, float depth) => FaceAgeRelief(x, y, depth, frame, elderly);
+                    for (var vertex = 0; vertex < positions.Length; vertex++)
+                    {
+                        if (protectedVertices?.Contains(vertex) == true) continue;
+                        var point = (toHead.MultiplyPoint3x4(positions[vertex]) - frame.Eyes) / frame.Scale;
+                        var x = Vector3.Dot(point, frame.Across);
+                        var y = Vector3.Dot(point, frame.Up);
+                        var depth = Vector3.Dot(point, frame.Forward);
+                        var amount = Relief(x, y, depth);
+                        positionDeltas[vertex] = headForward * amount;
+                        normalDeltas[vertex] = tangentDeltas[vertex] = Vector3.zero;
+                        if (amount == 0f || normals.Length != positions.Length) continue;
+                        var gradient = (frame.Across * (Relief(x + step, y, depth) - Relief(x - step, y, depth)) +
+                                        frame.Up * (Relief(x, y + step, depth) - Relief(x, y - step, depth)) +
+                                        frame.Forward * (Relief(x, y, depth + step) - Relief(x, y, depth - step))) /
+                                       (2f * step * frame.Scale);
+                        gradient = gradientToMesh.MultiplyVector(gradient);
+                        var normal = normals[vertex];
+                        var adjusted = (normal - gradient * (Vector3.Dot(normal, headForward) /
+                            Mathf.Max(.5f, 1f + Vector3.Dot(gradient, headForward)))).normalized;
+                        normalDeltas[vertex] = adjusted - normal;
+                        if (tangents.Length != positions.Length) continue;
+                        var tangent = (Vector3)tangents[vertex];
+                        tangentDeltas[vertex] = Quaternion.FromToRotation(normal, adjusted) * tangent - tangent;
+                    }
+                    mesh.AddBlendShapeFrame(name, 100f, positionDeltas, normalDeltas, tangentDeltas);
+                }
+            }
+            catch
+            {
+                UnityEngine.Object.Destroy(mesh);
+                throw;
+            }
+        }
+
+        private static float FaceAgeRelief(float x, float y, float depth, FaceAgeFrame frame, bool elderly)
+        {
+            // Eyelids, the lip line, hairline and the head/torso cut keep their original fit.
+            var side = Mathf.Abs(x);
+            var lipLine = Fade(.12f, .52f, Mathf.Abs(y - frame.LipHeight));
+            var lipCorners = Fade(frame.LipWidth, frame.LipWidth + .32f, side);
+            var eyeOpening = Mathf.Max(Fade(.17f, .48f, Mathf.Abs(y)), Fade(1.34f, 1.67f, side));
+            var mask = eyeOpening * Fade(2.18f, 1.59f, side) *
+                       Fade(frame.LipHeight - .27f, frame.LipHeight + .27f, y) * Fade(2.82f, 2.09f, y) *
+                       Fade(-.85f, -.24f, depth) * Mathf.Max(lipLine, lipCorners);
+            if (mask == 0f) return 0f;
+            var cheek = Bell(side, 1.12f, .56f) * Bell(y, .75f * frame.NoseHeight, .58f);
+            if (!elderly) return .065f * cheek * mask;
+            var tearTrough = Bell(side, .86f, .53f) * Bell(y, -.46f - .14f * side, .21f);
+            var smileLevel = y - frame.NoseHeight;
+            var smileLine = Bell(side, .56f - .28f * smileLevel, .16f) * Bell(smileLevel, -.26f, .62f);
+            var forehead = Bell(side, .45f, .92f) *
+                (.064f * Bell(y, 1.14f - .17f * side * side, .15f) +
+                 .057f * Bell(y, 1.59f - .22f * side * side, .16f) +
+                 .034f * Bell(y, 2.06f - .24f * side * side, .18f));
+            var outerEye = Bell(side, 1.58f, .34f) * Bell(y, -.16f - .46f * (side - 1.35f), .13f);
+            var lowerCheek = Bell(side, 1.37f, .35f) * Bell(y, frame.LipHeight + .20f, .43f);
+            return mask * (.048f * lowerCheek - .148f * cheek - .089f * tearTrough - .084f * smileLine -
+                           .061f * outerEye - forehead);
+
+            static float Fade(float edge, float center, float value) =>
+                Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(edge, center, value));
+
+            static float Bell(float value, float center, float width)
+            {
+                var distance = (value - center) / width;
+                return Mathf.Exp(-distance * distance);
+            }
+        }
+
+        internal void RefreshFaceAge()
+        {
+            if (!_graphics || _graphics.RulesetCharacter?.MorphotypeElementAdditionalValues
+                    .TryGetValue(MorphotypeElementDefinition.ElementCategory.Age, out var age) != true) return;
+            var youthful = Mathf.SmoothStep(0f, 100f, Mathf.InverseLerp(50f, 0f, age));
+            var elderly = Mathf.SmoothStep(0f, 100f, Mathf.InverseLerp(28f, 100f, age));
+            foreach (var skin in _skins)
+            {
+                var renderer = skin.Renderer;
+                var mesh = renderer ? renderer.sharedMesh : null;
+                if (!mesh) continue;
+                var youthfulFrame = mesh.GetBlendShapeIndex(YouthfulFace);
+                var elderlyFrame = mesh.GetBlendShapeIndex(ElderlyFace);
+                if (youthfulFrame >= 0) SetBlendShapeWeight(renderer, youthfulFrame, youthful);
+                if (elderlyFrame >= 0) SetBlendShapeWeight(renderer, elderlyFrame, elderly);
+            }
+            RefreshFaceAgeColor();
+        }
+
+        private void RefreshFaceAgeColor()
+        {
+            if (_faceAgeFrame.Scale == 0f || _graphics.RulesetCharacter?.MorphotypeElementAdditionalValues
+                    .TryGetValue(MorphotypeElementDefinition.ElementCategory.Age, out var age) != true) return;
+            var amount = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(24f, 99f, age));
+            var active = new HashSet<Material>();
+            if (amount > 0f)
+            {
+                foreach (var skin in _skins)
+                {
+                    var mesh = skin.Authored;
+                    if (!skin.Renderer || !mesh || mesh.GetBlendShapeIndex(ElderlyFace) < 0) continue;
+                    var head = Array.FindIndex(skin.Renderer.bones, bone => bone && bone.name == "Bip001 Head");
+                    if (head < 0) continue;
+                    var frame = _faceAgeFrame.AnatomicalCoordinates(mesh.bindposes[head]);
+                    var materials = skin.Renderer.sharedMaterials;
+                    for (var slot = 0; slot < Mathf.Min(materials.Length, mesh.subMeshCount); slot++)
+                    {
+                        var material = materials[slot];
+                        if (!material || !_graphics.SkinMaterials.Contains(material) || !_graphics.MaterialsToDestroy.Contains(material) ||
+                            !material.shader || material.shader.name is not ("Lux/Human/Skin" or "Lux/Human/Skin (double sided)") ||
+                            !material.HasProperty(FaceAgeColorSurface.MainTexture) || !active.Add(material)) continue;
+                        if (!_faceAgeMaterials.TryGetValue(material, out var color))
+                            _faceAgeMaterials.Add(material, color = new FaceAgeColorSurface(material));
+                        color.Apply(mesh, slot, frame, _faceAgeFrame.NoseHeight, _faceAgeFrame.LipHeight, amount);
+                    }
+                }
+            }
+            foreach (var material in _faceAgeMaterials.Keys.Where(material => !active.Contains(material)).ToArray())
+            {
+                _faceAgeMaterials[material].Dispose();
+                _faceAgeMaterials.Remove(material);
+            }
+        }
+
         internal void Refresh(GraphicsCharacter graphics, CharacterModelCatalog catalog,
             HashSet<SkinnedMeshRenderer> jointRenderers)
         {
@@ -5696,6 +5993,7 @@ internal static class RacesContext
                 foreach (var skin in _skins.Where(skin => skin.ChangesSource))
                     if (_catalog?.Binding(skin.Source.Original, skin.Fingerprint) is { } binding) bindings.Add(skin.Renderer, binding);
                 PrepareJoints(graphics, bindings, jointLods);
+                var faceExpressions = PrepareFaceAge(graphics, bindings);
                 foreach (var skin in _skins) skin.ValidateSource(bindings.ContainsKey(skin.Renderer));
                 var changes = _skins.Where(skin => skin.ChangesSource).ToDictionary(skin => skin.Renderer,
                     skin => (skin.Source, skin.Authored));
@@ -5704,13 +6002,14 @@ internal static class RacesContext
                     _catalog?.RetainNativeSources(_graphics, _nativeSources, _requiredNativeSources);
                     _sourceGraph = CustomModels.SkinMeshSource.PrepareMeshes(graphics, changes, bindings,
                         RetainDerivedData, _catalog == null ? null : _catalog.NativeDataFingerprint,
-                        _catalog == null ? null : _catalog.PreparedSurfacePacket);
+                        _catalog == null ? null : _catalog.PreparedSurfacePacket, supplementalExpressions: faceExpressions);
                     _sourceGraph.Apply();
                 }
                 foreach (var skin in _skins) skin.Apply(_sourceGraph?.Installed);
                 _jointLods = jointLods;
                 RefreshMaterials();
                 RefreshBodyShape(graphics);
+                RefreshFaceAge();
                 published = true;
             }
             catch (Exception failure)
@@ -5867,6 +6166,7 @@ internal static class RacesContext
             {
                 if (_graphics && _graphics.GetComponent<BodyShapePresentation>() is { HasSources: true })
                     throw new InvalidOperationException("Body overlays still reference a custom character model source before animator initialization.");
+                foreach (var color in _faceAgeMaterials.Values) color.Restore();
                 // Pin assets only until this synchronous native initialization has completed.
                 foreach (var owner in _materials) owner.RetainBundles(_packs);
                 foreach (var owner in _materials) owner.Restore();
@@ -5908,7 +6208,7 @@ internal static class RacesContext
             try
             {
                 var complete = UsesCompleteCharacterModels;
-                var renderers = complete ? CompleteSkinJointRenderers(_graphics) : CharacterModelRenderers(_graphics);
+                var renderers = complete ? CompleteCharacterModelRenderers(_graphics) : CharacterModelRenderers(_graphics);
                 var sources = CustomModels.SkinMeshSource.Capture(_graphics, renderers);
                 var same = ReferenceEquals(_actor, _graphics.RulesetCharacter) &&
                     ReferenceEquals(_catalog, CharacterModelMeshCatalog) && sources != null &&
@@ -5927,6 +6227,7 @@ internal static class RacesContext
                 foreach (var skin in _skins) skin.Apply(_sourceGraph?.Installed);
                 _suspended = false;
                 RefreshMaterials();
+                RefreshFaceAge();
             }
             catch (Exception failure)
             {
@@ -5947,6 +6248,9 @@ internal static class RacesContext
             {
             _refreshPending = false;
             _suspended = false;
+            foreach (var color in _faceAgeMaterials.Values) color.Dispose();
+            _faceAgeMaterials.Clear();
+            _faceAgeFrame = default;
             if (_graphics) ReleaseBodyShape(_graphics);
             if (_graphics && _graphics.GetComponent<BodyShapePresentation>() is { HasSources: true })
                 throw new InvalidOperationException("Body overlays still reference a custom character model source.");
@@ -6046,9 +6350,15 @@ internal static class RacesContext
         return renderers.Where(renderer => renderer && renderer.sharedMesh && IsJointSkin(renderer));
     }
 
-    private static HashSet<SkinnedMeshRenderer> CompleteSkinJointRenderers(GraphicsCharacter graphics)
+    private static IEnumerable<SkinnedMeshRenderer> FacialAgeRenderers(GraphicsCharacter graphics) =>
+        CharacterSkinPartRenderers(graphics, BodyPart.Head)
+            .Where(renderer => renderer.sharedMaterials.Any(material => material && material.shader &&
+                material.shader.name is "Lux/Human/Skin" or "Lux/Human/Skin (double sided)"));
+
+    private static HashSet<SkinnedMeshRenderer> CompleteCharacterModelRenderers(GraphicsCharacter graphics)
     {
-        var result = new HashSet<SkinnedMeshRenderer>();
+        // A head still needs its own shapes when armor hides every body surface at its cut.
+        var result = new HashSet<SkinnedMeshRenderer>(FacialAgeRenderers(graphics));
         foreach (var (receiver, donor) in SkinJoints)
         {
             var receivers = CharacterSkinPartRenderers(graphics, receiver).ToArray();
@@ -7776,7 +8086,7 @@ internal static class RacesContext
             internal void Set(float value, float neutral)
             {
                 var weight = direction == 0 ? value : Mathf.Max(0f, (value - neutral) * direction);
-                SetBodyBlendShapeWeight(renderer, index, weight - baked);
+                SetBlendShapeWeight(renderer, index, weight - baked);
             }
         }
 
@@ -8326,7 +8636,7 @@ internal static class RacesContext
                         if (_sourceGraph?.ConsumesPhysicalChannels(row.Renderer) == true) continue;
                         var native = NativeBodyShapeFrame(row.Original);
                         if (native >= 0 && graphics.BlendShapeRenderers.Contains(row.Renderer))
-                            SetBodyBlendShapeWeight(row.Renderer, native, row.UseNativeFrame ? value : defaultValue);
+                            SetBlendShapeWeight(row.Renderer, native, row.UseNativeFrame ? value : defaultValue);
                     }
                 }
                 foreach (var piece in _pieces)
@@ -8720,8 +9030,8 @@ internal static class RacesContext
         {
             if (!_installed || !Renderer || !_owned || !_source.AcceptsCurrentMesh()) return;
             value -= defaultValue;
-            SetBodyBlendShapeWeight(Renderer, _positive, Mathf.Max(0f, value));
-            SetBodyBlendShapeWeight(Renderer, _negative, Mathf.Max(0f, -value));
+            SetBlendShapeWeight(Renderer, _positive, Mathf.Max(0f, value));
+            SetBlendShapeWeight(Renderer, _negative, Mathf.Max(0f, -value));
         }
         internal void Installed(CustomModels.SkinMeshSource source)
         {

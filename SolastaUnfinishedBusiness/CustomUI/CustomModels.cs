@@ -1178,9 +1178,11 @@ public static class CustomModels
             Func<string, Func<UnityEngine.Object[]>, UnityEngine.Object[]> retainData,
             Func<UnityEngine.Object, Func<string>, string> sourceFingerprint = null,
             Func<Mesh, Mesh, SurfaceBinding, SourceGraph.NativeSurfacePlan, SourceGraph.NativeSurfacePacket> preparedPacket = null,
-            RestDeformation restDeformation = null)
+            RestDeformation restDeformation = null,
+            IReadOnlyDictionary<SkinnedMeshRenderer, string[]> supplementalExpressions = null)
         {
-            return new SourceGraph(graphics, changes, bindings, retainData, sourceFingerprint, preparedPacket, restDeformation);
+            return new SourceGraph(graphics, changes, bindings, retainData, sourceFingerprint, preparedPacket,
+                restDeformation, supplementalExpressions);
         }
 
         internal static GraphicsCharacter NativeSourceGraphics(object deformer)
@@ -3639,7 +3641,8 @@ public static class CustomModels
                 Func<string, Func<UnityEngine.Object[]>, UnityEngine.Object[]> retainData,
                 Func<UnityEngine.Object, Func<string>, string> sourceFingerprint,
                 Func<Mesh, Mesh, SurfaceBinding, NativeSurfacePlan, NativeSurfacePacket> preparedPacket = null,
-                RestDeformation restDeformation = null)
+                RestDeformation restDeformation = null,
+                IReadOnlyDictionary<SkinnedMeshRenderer, string[]> supplementalExpressions = null)
             {
                 _restDeformation = restDeformation;
                 _preparedPacket = preparedPacket;
@@ -3649,6 +3652,16 @@ public static class CustomModels
                     if (!pair.Key || !pair.Value.Mesh || pair.Value.Source == null ||
                         !pair.Value.Source.OwnerCurrent || !pair.Value.Source.AcceptsCurrentMesh())
                         throw new InvalidOperationException("A source changed before the skin transition was prepared.");
+                if (supplementalExpressions != null)
+                    foreach (var pair in supplementalExpressions)
+                    {
+                        if (!_changes.TryGetValue(pair.Key, out var change) || change.Source.ClothOwner)
+                            throw new InvalidOperationException("A supplemental expression has no noncloth mesh owner.");
+                        ValidateSupplementalExpressions(change.Mesh, pair.Value,
+                            bindings != null && bindings.TryGetValue(pair.Key, out var binding)
+                                ? binding.BoundaryOverrides?.Keys
+                                : null);
+                    }
                 if (_changes.Values.Any(change => change.Source.ClothOwner))
                 {
                     if (CoreType == null || VirtualType == null || ClothBaseType == null || ManagerType == null)
@@ -3707,7 +3720,7 @@ public static class CustomModels
                 {
                     if (retainData == null)
                         throw new InvalidOperationException("A derived source binding requires its catalog owner.");
-                    PrepareBindings(bindings, retainData, sourceFingerprint);
+                    PrepareBindings(bindings, retainData, sourceFingerprint, supplementalExpressions);
                     if (preparedPacket != null)
                         foreach (var skin in _skins)
                             if (skin.Renderer is SkinnedMeshRenderer renderer && skin.Deformer != null &&
@@ -3734,7 +3747,8 @@ public static class CustomModels
 
             private void PrepareBindings(IReadOnlyDictionary<SkinnedMeshRenderer, SurfaceBinding> bindings,
                 Func<string, Func<UnityEngine.Object[]>, UnityEngine.Object[]> retainData,
-                Func<UnityEngine.Object, Func<string>, string> sourceFingerprint)
+                Func<UnityEngine.Object, Func<string>, string> sourceFingerprint,
+                IReadOnlyDictionary<SkinnedMeshRenderer, string[]> supplementalExpressions)
             {
                 string Fingerprint(object source) => sourceFingerprint != null && source is UnityEngine.Object native
                     ? sourceFingerprint(native, () => HashNativeData(source)) : HashNativeData(source);
@@ -3747,8 +3761,11 @@ public static class CustomModels
                     var skin = _skins.Single(value => value.Renderer == pair.Key);
                     skin.ReplacementBones = PreparePalette(pair.Key, change, pair.Value);
                     if (pair.Value.PaletteSource.HasValue) _paletteBindings.Add(pair.Key, pair.Value);
+                    var extraCount = supplementalExpressions != null && supplementalExpressions.TryGetValue(pair.Key, out var names)
+                        ? names.Length
+                        : 0;
                     ValidateBinding(change.Source.Original, change.Mesh, pair.Value, change.Source.ClothOwner,
-                        change.Source.ClothOwner ? NativeSkinBoundaryVertices(change.Source, pair.Value) : null);
+                        change.Source.ClothOwner ? NativeSkinBoundaryVertices(change.Source, pair.Value) : null, extraCount);
                 }
                 foreach (var owner in _owners.Where(owner => owner.Order == 1))
                 {
@@ -4062,14 +4079,16 @@ public static class CustomModels
             }
 
             private static void ValidateBinding(Mesh original, Mesh authored, SurfaceBinding binding, bool nativeCloth,
-                ISet<int> nativeSkinOnlyVertices = null)
+                ISet<int> nativeSkinOnlyVertices = null, int supplementalExpressions = 0)
             {
                 var multiSource = binding.Vertices.Any(vertex => vertex.Sources != null);
                 if (multiSource && nativeCloth)
                     throw new InvalidOperationException("Multi-source surface attachments require a noncloth source owner.");
-                if (multiSource) ValidateSurfaceSources(original, binding.BoundarySource ? binding.BoundarySource : authored, binding);
+                if (multiSource)
+                    ValidateSurfaceSources(original, binding.BoundarySource ? binding.BoundarySource : authored, binding,
+                        binding.BoundarySource ? 0 : supplementalExpressions);
                 if (binding.AuthoredBase) ValidateAuthoredBase(original, binding);
-                if (binding.BoundaryOverrides != null) ValidateBoundary(original, authored, binding);
+                if (binding.BoundaryOverrides != null) ValidateBoundary(original, authored, binding, supplementalExpressions);
                 var sourceCounts = original.GetBonesPerVertex(); var sourceWeights = original.GetAllBoneWeights();
                 var targetCounts = authored.GetBonesPerVertex(); var targetWeights = authored.GetAllBoneWeights();
                 var boneCount = binding.PaletteAdditions is { Length: > 0 } ? authored.bindposes.Length : original.bindposes.Length;
@@ -4293,7 +4312,7 @@ public static class CustomModels
                 static bool Same(float a, float b) => Finite(a) && Finite(b) && Mathf.Abs(a - b) <= 0.000002f * Mathf.Max(1f, Mathf.Abs(a));
             }
 
-            private static void ValidateSurfaceSources(Mesh original, Mesh authored, SurfaceBinding binding)
+            private static void ValidateSurfaceSources(Mesh original, Mesh authored, SurfaceBinding binding, int supplementalExpressions)
             {
                 var nativeCount = original.vertexCount;
                 if (nativeCount <= 0 || binding.Vertices.Length < nativeCount || authored.vertexCount != binding.Vertices.Length ||
@@ -4388,7 +4407,7 @@ public static class CustomModels
                             throw new InvalidOperationException("A multi-source surface changed a native color sample.");
                     return true;
                 });
-                if (original.blendShapeCount != authored.blendShapeCount)
+                if (original.blendShapeCount + supplementalExpressions != authored.blendShapeCount)
                     throw new InvalidOperationException("A multi-source surface changed its native physical channels.");
                 var sourcePosition = new Vector3[nativeCount]; var sourceNormal = new Vector3[nativeCount]; var sourceTangent = new Vector3[nativeCount];
                 var targetPosition = new Vector3[authored.vertexCount]; var targetNormal = new Vector3[authored.vertexCount]; var targetTangent = new Vector3[authored.vertexCount];
@@ -4421,7 +4440,31 @@ public static class CustomModels
                     0.000002f * Mathf.Max(1f, Mathf.Abs(expected));
             }
 
-            private static void ValidateBoundary(Mesh original, Mesh authored, SurfaceBinding binding)
+            private static void ValidateSupplementalExpressions(Mesh mesh, string[] names, IEnumerable<int> boundary)
+            {
+                if (names == null || names.Length == 0 || names.Length > mesh.blendShapeCount)
+                    throw new InvalidOperationException("A supplemental expression has no declared frame.");
+                var positions = new Vector3[mesh.vertexCount];
+                var normals = new Vector3[mesh.vertexCount];
+                var tangents = new Vector3[mesh.vertexCount];
+                var protectedVertices = boundary == null ? null : new HashSet<int>(boundary);
+                for (var offset = 0; offset < names.Length; offset++)
+                {
+                    var index = mesh.blendShapeCount - names.Length + offset;
+                    if (mesh.GetBlendShapeIndex(names[offset]) != index || mesh.GetBlendShapeFrameCount(index) != 1 ||
+                        mesh.GetBlendShapeFrameWeight(index, 0) != 100f)
+                        throw new InvalidOperationException("A supplemental expression changed the native frame layout.");
+                    mesh.GetBlendShapeFrameVertices(index, 0, positions, normals, tangents);
+                    for (var vertex = 0; vertex < positions.Length; vertex++)
+                        if (!Finite(positions[vertex]) || !Finite(normals[vertex]) || !Finite(tangents[vertex]) ||
+                            protectedVertices?.Contains(vertex) == true &&
+                            (!positions[vertex].Equals(Vector3.zero) || !normals[vertex].Equals(Vector3.zero) ||
+                             !tangents[vertex].Equals(Vector3.zero)))
+                            throw new InvalidOperationException("A supplemental expression invalidated a protected boundary.");
+                }
+            }
+
+            private static void ValidateBoundary(Mesh original, Mesh authored, SurfaceBinding binding, int supplementalExpressions)
             {
                 var source = binding.BoundarySource;
                 if (!source || source.vertexCount != authored.vertexCount || source.subMeshCount != authored.subMeshCount ||
@@ -4489,7 +4532,7 @@ public static class CustomModels
                              !weights[index].Equals(sourceWeights[index]))
                         throw new InvalidOperationException("A boundary attachment changed an undeclared vertex channel.");
                 }
-                if (source.blendShapeCount != authored.blendShapeCount)
+                if (source.blendShapeCount + supplementalExpressions != authored.blendShapeCount)
                     throw new InvalidOperationException("A boundary attachment changed its expression channels.");
                 if (binding.BoundaryBlendShapePositions != null &&
                     source.GetBlendShapeIndex(binding.BoundaryBlendShapeName) < 0)

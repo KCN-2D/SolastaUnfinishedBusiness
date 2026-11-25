@@ -1567,6 +1567,69 @@ def groom_welded_edges(groups, triangles):
     return edges[distinct], incidence[distinct]
 
 
+def seat_tied_groom(packet, renderer_to_prefab, maximum_offset, *, band_elided=False):
+    """Seat the clasp and its hanging tuft with overlap at the original join."""
+    positions = np.asarray(packet['vertices']).reshape(-1, 3)
+    triangles = np.concatenate(packet['subMeshes']).astype(np.intp).reshape(-1, 3)
+    transform = renderer_to_prefab[:3, :3]
+    points = positions @ transform.T
+    pieces = sorted((np.unique(part) for part in garment_components(points, triangles) if len(part) >= 12),
+                    key=len, reverse=True)
+    if len(pieces) not in ((2, 3) if band_elided else (3,)) or len(pieces[1]) < 60:
+        return packet, None
+
+    def nearest(first, second):
+        best = (np.inf, 0, 0)
+        for start in range(0, len(first), 256):
+            delta = points[first[start:start + 256], None] - points[second]
+            distances = np.sum(delta * delta, axis=2)
+            a, b = np.unravel_index(distances.argmin(), distances.shape)
+            if distances[a, b] < best[0]:
+                best = (distances[a, b], first[start + a], second[b])
+        return float(np.sqrt(best[0])), best[1], best[2]
+
+    fixed, hanging = pieces[:2]
+    gap, root, tuft = nearest(fixed, hanging)
+    if not .003 <= gap <= maximum_offset - .002:
+        return packet, None
+    direction = (points[root] - points[tuft]) / gap
+    # The suspended piece has a compact upper end beside the fixed surface.
+    alignment = (points[fixed].mean(axis=0) - points[hanging].mean(axis=0)) @ direction
+    if alignment <= 3 * gap:
+        return packet, None
+    fitted = points.copy()
+    join = dict(gapMetres=gap, fixedVertex=int(root), hangingVertex=int(tuft))
+    if len(pieces) == 3:
+        band = pieces[2]
+        band_size = np.linalg.norm(np.ptp(points[band], axis=0))
+        tuft_size = np.linalg.norm(np.ptp(points[hanging], axis=0))
+        if len(band) > .15 * len(hanging) or band_size > .24 * tuft_size:
+            return packet, None
+        root_gap, band_root, fixed_root = nearest(band, fixed)
+        tail_gap, _, _ = nearest(band, hanging)
+        if max(root_gap, tail_gap) > .0025:
+            return packet, None
+        # The band and hanging piece follow different cloth proxies. Seat the
+        # band inside the fixed tip so it stays hidden even at the back of the join.
+        band_seat = (points[fixed_root] - points[band_root]) + min(.006, maximum_offset - root_gap) * direction
+        fitted[band] += band_seat
+        join.update(bandVertices=len(band), bandRootGapMetres=root_gap, bandTailGapMetres=tail_gap,
+                    bandOffsetMetres=float(np.linalg.norm(band_seat)))
+    # Continue the root under the clasp and into the upper bundle. Taper the
+    # shift towards the free end so the visible tail keeps its length and shape.
+    overlap = min(.011, maximum_offset - gap)
+    along = (points[tuft] - points[hanging]) @ direction
+    falloff = 1. - .34 * art.smooth((along - .012) / .052)
+    fitted[hanging] += ((gap + overlap) * falloff)[:, None] * direction
+    fitted = np.linalg.solve(transform, fitted.T).T
+    normals = np.asarray(packet['normals']).reshape(-1, 3)
+    groups = normal_groups(positions, normals)
+    before = surface_normals(positions, triangles, groups, positions, normals)
+    after = surface_normals(fitted, triangles, groups, positions, normals)
+    target = fitted_surface_frame(packet, fitted, before, after)
+    return target, dict(join, overlapMetres=overlap, affectedVertices=len(hanging) + join.get('bandVertices', 0))
+
+
 def fit_groom_roots(positions, triangles, head, *, clearance, maximum_offset, attachment_vertices=()):
     """Seat detached edges around a skin contact or a fixed beard root."""
     reach = min(maximum_offset, .008)
