@@ -2872,9 +2872,12 @@ def validate_prepared_resource(row,assembly,verified):
                 for reference in operation['authority']['inputs']:pinned(reference)
                 facts=operation.get('facts',[]);facts=facts if isinstance(facts,list)else[facts]
                 is_revision = operation['authority'].get('faceMode') == 'source-guide-revision'
+                assembly_mode = assembly.get('nativeFaceContours', {}).get('owner', {}).get('faceMode')
+                is_socket_recovery = operation['authority'].get('faceMode', assembly_mode) == 'native-ocular-socket-recovery'
                 if not facts or any(fact.get('sourceSkinUvAndFrameIdentityExact')is not True or
                         (not fact.get('sourceGuideCompanion')and fact.get('nativeOcularChannelsWithinTolerance')is not True and
-                         not (is_revision and fact.get('assembledOcularChannelsWithinTolerance') is True))for fact in facts):
+                         not ((is_revision or is_socket_recovery and fact.get('restoredSocketVertices', 0) > 0)
+                              and fact.get('assembledOcularChannelsWithinTolerance') is True))for fact in facts):
                     raise ValueError('An authored face mutation changed protected contact, body or expression channels.')
                 expected=operation['sha256']
             elif kind=='native-eyebrow-contrast':
@@ -3479,7 +3482,7 @@ def retone_materials():
         sourceOwner=dict(path=fields.__file__,sha256=sha(fields.__file__)),nativeRuntimeMaterialsChanged=False))
 
 
-def model_surface_multipliers(role, shader, saved, humanoid_skin_normal=1.):
+def model_surface_multipliers(role, shader, saved, humanoid_skin_normal=1., native_groom=None):
     """Select the relevant scalars for a mapped, opaque or alpha-cutout surface."""
     floats = dict(saved['m_SavedProperties']['m_Floats'])
     textures = dict(saved['m_SavedProperties']['m_TexEnvs'])
@@ -3490,6 +3493,8 @@ def model_surface_multipliers(role, shader, saved, humanoid_skin_normal=1.):
         return {}
     if not (bound('_MainTex') and bound('_BumpMap')):
         return {}
+    if shader == 'KCN/SourceGroom/NativeHair' and native_groom:
+        return dict(native_groom)
     if (role in ('character', 'npc') and humanoid_skin_normal != 1. and
             shader in ('Lux/Human/Skin', 'Lux/Human/Skin (double sided)') and
             floats.get('_UseMicroBumps', 0.) > 0. and bound('_MicroBumpMap')):
@@ -3535,6 +3540,10 @@ def retone_model_materials(source, output, presets_path):
     humanoid_skin_normal = declaration.get('humanoidSkinNormalMultiplier', 1.)
     if type(humanoid_skin_normal) not in (int, float) or not 0. < humanoid_skin_normal <= 1.:
         raise ValueError('The humanoid skin normal multiplier must be positive and at most one.')
+    native_groom = declaration.get('nativeGroomMultipliers', {})
+    if not isinstance(native_groom, dict) or any(type(amount) not in (int, float) or not 0. < amount <= 1.
+                                                for amount in native_groom.values()):
+        raise ValueError('The native groom multipliers must be positive and at most one.')
     for preset in presets.values():
         if (not preset['shader'] or not preset['multipliers'] or
                 any(type(amount) not in (int, float) or not math.isfinite(amount) or amount <= 0
@@ -3548,7 +3557,7 @@ def retone_model_materials(source, output, presets_path):
         path = prefab['asset'].casefold()
         if path.startswith('assets/data/monsters/'):
             prefab_roles[prefab['source']] = 'npc' if path.startswith('assets/data/monsters/npc/') else 'creature'
-        elif humanoid_skin_normal != 1. and path.startswith('assets/data/characters/editablecharacters/'):
+        elif (humanoid_skin_normal != 1. or native_groom) and path.startswith('assets/data/characters/editablecharacters/'):
             prefab_roles[prefab['source']] = 'character'
 
     @lru_cache(maxsize=12)
@@ -3596,6 +3605,7 @@ def retone_model_materials(source, output, presets_path):
     consumers = collections.defaultdict(set)
     covered = collections.defaultdict(set)
     matched = set()
+    groom_materials = set()
     for prefab in prefabs:
         address = prefab['source']
         role = prefab_roles.get(address)
@@ -3609,8 +3619,10 @@ def retone_model_materials(source, output, presets_path):
             saved = material.read_typetree()
             shader_file, shader = resolve(owner, saved['m_Shader'])
             shader_name, properties = shader_contract(shader_file.name, shader.path_id)
-            multipliers = model_surface_multipliers(role, shader_name, saved, humanoid_skin_normal)
+            multipliers = model_surface_multipliers(role, shader_name, saved, humanoid_skin_normal, native_groom)
             if multipliers:
+                if shader_name == 'KCN/SourceGroom/NativeHair':
+                    groom_materials.add(key)
                 if preset and shader_name == preset['shader']:
                     multipliers.update(preset['multipliers'])
                     matched.add(family)
@@ -3646,6 +3658,8 @@ def retone_model_materials(source, output, presets_path):
                 raise ValueError('A mapped model surface also has an unselected renderer owner: ' + prefab['source'])
     if matched != presets.keys():
         raise ValueError('No matching creature material for: ' + ', '.join(sorted(presets.keys() - matched)))
+    if native_groom and not groom_materials:
+        raise ValueError('No mapped native groom materials match the model surface plan.')
     if not changes:
         raise ValueError('The model material plan is already applied.')
 
@@ -3685,6 +3699,7 @@ def retone_model_materials(source, output, presets_path):
     assembly.update(catalogSha256=sha(target_manifest), bytes=sum(row['bytes'] for row in proofs.values()),
                     preparedSource=dict(assembly=pin(assembly_path), catalog=pin(manifest_path)),
                     modelMaterials=dict(presets=presets_reference, files=sorted(changes), review='pending',
+                        nativeGroomMaterials=len(groom_materials),
                         prefabCoverage=[dict(source=address, role=role, materials=len(covered[address]))
                                         for address, role in sorted(prefab_roles.items())],
                         sharedMaterials=sum(len(addresses) > 1 for key, addresses in consumers.items()
@@ -5801,7 +5816,7 @@ def face_resource_profile_authority(proof,documents=None):
 
 
 def prepare_resource_faces(source,index_path,output,census_path,*,selected_assets=(),profiles_path=None,
-        restore_native_only=False,previous_profiles_path=None,fair_current=False):
+        restore_native_only=False,previous_profiles_path=None,fair_current=False,restore_ocular_sockets=False):
     """Finish all native face resources and their shared Main fields in one catalog."""
     from functools import lru_cache
     import inspect
@@ -5810,8 +5825,9 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
     owner=sys.modules[__name__];shape,_=source_owner();read=resources.read;sha=resources.digest
     census=read(census_path);native_index=read(index_path)
     parts={part['asset'].casefold():row['file']for row in native_index['bundles']for part in row.get('parts',[])}
-    if sum((profiles_path is not None, restore_native_only, fair_current))!=1:
-        raise ValueError('Select source face profiles, native recovery or assembled contour fairing.')
+    if sum((profiles_path is not None, restore_native_only, fair_current, restore_ocular_sockets))!=1:
+        raise ValueError('Select source face profiles, native recovery, assembled contour fairing or ocular socket recovery.')
+    geometry_only = fair_current or restore_ocular_sockets
     guide_assets={};guide_owners={};previous_assets={}
     same_profiles=profiles_path is not None and previous_profiles_path is not None and sha(profiles_path)==sha(previous_profiles_path)
     if profiles_path is not None:
@@ -5853,7 +5869,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
         names=sorted({row['file']for row in coverage if row['file']and row['name']in selected})
     styled={parts[asset['internalId'].casefold()]for asset in (guide_assets.values() if profiles_path is not None else humanoid_sources(census))}
     if previous_profiles_path is not None:names=sorted(styled)
-    if fair_current:names=[name for name in names if name in styled]
+    if geometry_only:names=[name for name in names if name in styled]
     pins=[dict(path=str(Path(path).resolve()),sha256=sha(path))for path in (
         index_path,census_path,shape.__file__,shape.art.__file__,__file__,resources.__file__,
         Path(__file__).with_name('resource-package.json'+('.source'if Path(__file__).suffix=='.source'else'')))]
@@ -5888,7 +5904,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
             def owned(rows):return {p['source']['rendererPath']:p for p in rows if p['source']['assetSourceContentKey']==key}
             if not owned(supplied)or owned(supplied)!=owned(retained[authority['sha256']]):
                 raise ValueError('The previous guide differs from its completed resource authority: '+asset['name'])
-    elif not fair_current:
+    elif not geometry_only:
         proofs={row['file']:row for row in assembly['proofs']}
         if any(resource_has_face_guide(proofs[name])for name in styled):
             raise ValueError('An already sculpted source requires its completed previous face profiles.')
@@ -5896,7 +5912,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
     checkpoint=output/'GeometryPreparation.json'
     # A guide revision publishes its geometry directly. The pigment workflow
     # owns a separate checkpoint because it replaces bundles after this stage.
-    geometry_catalog=target if previous_profiles_path is not None or fair_current else output/'GeometryCatalog'
+    geometry_catalog=target if previous_profiles_path is not None or geometry_only else output/'GeometryCatalog'
     face_code=inspect.getsource(prepare_resource_faces)
     shape_code=face_code[:face_code.index('\n    source=checked_catalog_path(source)')]+face_code[face_code.index('\n    @lru_cache'):face_code.index("\n    for row in manifest['bundles']:row['sha256']=old_proofs")]
     functions=(export_current_mesh,source_owner,resources.write_mesh_frame)
@@ -5905,6 +5921,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
     if profiles_path is not None:geometry_owner['sourceProfiles']=dict(path=str(Path(profiles_path).resolve()),sha256=sha(profiles_path))
     if previous_profiles_path is not None:geometry_owner['faceMode']='source-guide-revision'
     if fair_current:geometry_owner['faceMode']='assembled-contour-fairing'
+    if restore_ocular_sockets:geometry_owner['faceMode']='native-ocular-socket-recovery'
     if checkpoint.exists():
         saved=read(checkpoint)
         if saved['owner']!=geometry_owner:raise ValueError('The saved geometry belongs to different source inputs or shape code.')
@@ -6015,7 +6032,9 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
         if additions:proof['objects']+=len(additions)
         proof['allRetainedObjectFieldsExactAfterReferenceRebasing']=False
         authority=dict(inputs=pins)
-        if kind=='source-owned-face'and profiles_path is not None:authority['sourceProfiles']=geometry_owner['sourceProfiles']
+        if kind=='source-owned-face':
+            authority['faceMode']=geometry_owner['faceMode']
+            if profiles_path is not None:authority['sourceProfiles']=geometry_owner['sourceProfiles']
         operation=dict(kind=kind,objects=list(objects),facts=facts,beforeSha256=before_sha,sha256=proof['sha256'],authority=authority,
             unrelatedObjectBytesExact=True,savedObjectBytesExact=True,cabAndExternalReferencesUnchanged=True,
             objectsAdded=sorted(additions))
@@ -6055,7 +6074,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
                 if matching:donor=matching[0]
             facial|=donor is not None and any(m and 'Skin'in m['shader']for m in materials)
             companion=any(token in skin['mesh'].lower()for token in ('eyes','eyelash','occluder','jaw','teeth','tongue'))
-            if fair_current and companion:continue
+            if geometry_only and companion:continue
             if not facial and not companion:continue
             if not any(m and ('Skin'in m['shader']or'CharacterEye'in m['shader'])for m in materials)and not companion:continue
             key=(current_cabs[cfile.name],cobj.path_id)
@@ -6086,7 +6105,10 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
                         transform=shape.art.CONVERT@shape.art.matrix(donor[2]['rendererToPrefab'])
                         _,_,marks=shape.art.landmarks(donor[0],donor[2],transform)
                         marks['eyeContactRegions']=shape.humanoid_face_contact_regions(donor[0],donor[2])
-                    if fair_current:
+                    if restore_ocular_sockets:
+                        regions = marks['eyeContactRegions'] if marks is not None else ()
+                        packet, proof = shape.restore_ocular_sockets(npacket, cpacket, context, regions, contacts)
+                    elif fair_current:
                         if marks:
                             low_guard=shape.humanoid_face_contact_guard(npacket,context,marks['eyeContactRegions'])
                             strength=np.minimum(strength,low_guard)
@@ -6104,7 +6126,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
                     proof=dict(guided['details'],**proof,sourceGuideCompanion=True)
                 elif file_name in styled:packet,proof=shape.retain_source_proportions(npacket,cpacket,skin,strength)
                 else:packet,proof=cpacket,dict(creatureAnatomyChannelsRetained=True,nativeVertices=npacket['vertexCount'],preparedVertices=cpacket['vertexCount'])
-                if not companion:
+                if not companion and not restore_ocular_sockets:
                     current_bones = resources.skin_bone_paths(cf, cr, lambda file, pointer: required_resolve(file, pointer, False))
                     packet,frame_facts=shape.repair_head_body_frame_shading(packet,current_bones,contacts)
                     if frame_facts:proof['headBodyFrameShading']=frame_facts
@@ -6135,7 +6157,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
                     proof['explicitOcularGuideVertices']=int(np.count_nonzero(owned))
                 # A revision applies only the guide delta. The assembled mesh
                 # already owns any earlier adjustments outside this guide.
-                preserve_assembled = fair_current or previous_guided is not None
+                preserve_assembled = geometry_only or previous_guided is not None
                 reference = cpacket if preserve_assembled else npacket
                 errors = []
                 for field, width in (('vertices', 3), ('normals', 3), ('tangents', 4)):
@@ -6187,7 +6209,7 @@ def prepare_resource_faces(source,index_path,output,census_path,*,selected_asset
                         changes.update(physics)
                 if key[0]==file_name:edits.update(changes);facts.append(dict(name=skin['mesh'],**proof))
                 else:save(key[0],changes,'source-owned-face',dict(name=skin['mesh'],**proof),simulation=simulation)
-            if not companion and not fair_current:
+            if not companion and not geometry_only:
                 for material_index,pointer in enumerate(cr['m_Materials']):
                     if not pointer['m_PathID']:continue
                     mf,mo=required_resolve(cf,pointer,False);mt=mo.read_typetree();textures=dict(mt['m_SavedProperties']['m_TexEnvs'])
@@ -7238,6 +7260,7 @@ def fit_garment_resources():
     parser.add_argument('--groom-contact', action='store_true')
     parser.add_argument('--groom-guide', type=Path, action='append', default=[])
     parser.add_argument('--groom-drape', action='store_true', help='Fit hanging hair against observed body armor and capes')
+    parser.add_argument('--groom-roots', action='store_true', help='Seat lifted root edges against the observed head')
     parser.add_argument('--clearance', type=float)
     parser.add_argument('--maximum-offset', type=float, required=True)
     parser.add_argument('--output', type=Path, required=True)
@@ -7250,7 +7273,7 @@ def fit_garment_resources():
         parser.error('--lining-only requires --self-layers.')
     if args.repair_rest:
         if any((args.selection, args.pose, args.equipment, args.layer, args.self_layers, args.groom_contact, args.groom_guide,
-                args.groom_drape)):
+                args.groom_drape, args.groom_roots)):
             parser.error('--repair-rest uses the catalog’s existing garment fits.')
     elif (args.selection is not None and (args.pose or args.equipment) or
             args.selection is None and not (args.pose and args.equipment)):
@@ -7267,6 +7290,8 @@ def fit_garment_resources():
         parser.error('Use --groom-guide with --groom-contact.')
     if args.groom_drape and (not args.groom_contact or args.groom_guide):
         parser.error('Use --groom-drape with --groom-contact and without manual guides.')
+    if args.groom_roots and (not args.groom_contact or args.groom_guide or args.groom_drape):
+        parser.error('Use --groom-roots with automatic --groom-contact.')
     source = checked_catalog_path(args.source)
     output = checked_catalog_path(args.output)
     if output.is_relative_to(source):
@@ -7467,7 +7492,8 @@ def write_posed_garments(args, source, output):
                     target, count = production.fit_posed_garment(entry['native'], part, skin, bones, entry['frame'],
                         clearance=args.clearance, maximum_offset=args.maximum_offset, previous=entry['target'],
                         head_surface=part.get('headSurface'), fixed_vertices=entry['fixed'], groom_guide=guide,
-                        lining_only=args.lining_only, layer_cache=entry.setdefault('layerCache', {}) if layer_key else None,
+                        lining_only=args.lining_only, groom_roots=args.groom_roots,
+                        layer_cache=entry.setdefault('layerCache', {}) if layer_key else None,
                         layer_key=layer_key)
                     if args.groom_drape and count:
                         observations = drape_poses[(address, part['renderer'])]
@@ -7575,6 +7601,8 @@ def write_posed_garments(args, source, output):
             receipt['restSource'] = rest_source
         if args.lining_only:
             receipt['liningOnly'] = True
+        if args.groom_roots:
+            receipt['groomRoots'] = True
         path = output / 'Receipts' / (name + '.json')
         write(path, receipt)
         kind = 'posed-groom-contact' if args.groom_contact else 'posed-garment-fit'
@@ -7589,7 +7617,7 @@ def write_posed_garments(args, source, output):
     if args.groom_drape:
         assembly['retainedSourceInputs'] = resource_producer_archives(output,
             [Path(__file__), Path(production.__file__), Path(drape.__file__)], assembly.get('retainedSourceInputs', []))
-    elif args.self_layers:
+    elif args.self_layers or args.groom_roots:
         assembly['retainedSourceInputs'] = resource_producer_archives(output,
             [Path(__file__), Path(production.__file__), Path(production.art.__file__)], assembly.get('retainedSourceInputs', []))
     write(output / 'ResourceAssembly.json', assembly)
@@ -9458,13 +9486,15 @@ def prepare_native_face_resources():
     mode.add_argument('--profiles',type=Path)
     mode.add_argument('--restore-native-only',action='store_true')
     mode.add_argument('--fair-current',action='store_true')
+    mode.add_argument('--restore-ocular-sockets',action='store_true')
     parser.add_argument('--previous-profiles',type=Path)
     args=parser.parse_args()
     if args.previous_profiles and args.profiles is None:raise ValueError('A guide revision requires next and previous profiles.')
+    geometry_only = args.fair_current or args.restore_ocular_sockets
     geometry=prepare_resource_faces(args.source,args.native_index,args.output,args.census,selected_assets=args.assets,
         profiles_path=args.profiles,restore_native_only=args.restore_native_only,previous_profiles_path=args.previous_profiles,
-        fair_current=args.fair_current)
-    if args.previous_profiles is None and not args.fair_current:finish_resource_pigments(geometry,args.output)
+        fair_current=args.fair_current,restore_ocular_sockets=args.restore_ocular_sockets)
+    if args.previous_profiles is None and not geometry_only:finish_resource_pigments(geometry,args.output)
     assembly=geometry['assembly'];manifest=geometry['manifest']
     write(args.output/(Path('Catalog')/RESOURCE_FILES['manifest']),manifest)
     assembly['catalogSha256']=sha(args.output/(Path('Catalog')/RESOURCE_FILES['manifest']))
@@ -9474,11 +9504,12 @@ def prepare_native_face_resources():
     assembly['preparedSource']=dict(assembly=dict(path=str((args.source/'ResourceAssembly.json').resolve()),sha256=sha(args.source/'ResourceAssembly.json')),
         catalog=dict(path=str((args.source/(Path('Catalog')/RESOURCE_FILES['manifest'])).resolve()),sha256=sha(args.source/(Path('Catalog')/RESOURCE_FILES['manifest']))))
     write(args.output/'ResourceAssembly.json',assembly)
-    if args.fair_current or args.previous_profiles:
+    if geometry_only or args.previous_profiles:
         # Direct geometry output has no separate catalog to resume after completion.
         # Keep its checkpoint until the final assembly has been saved.
         (checked_catalog_path(args.output)/'GeometryPreparation.json').unlink(missing_ok=True)
-    status = ('PREPARED_ASSEMBLED_CONTOURS_REVIEW_PENDING' if args.fair_current else
+    status = ('PREPARED_NATIVE_OCULAR_SOCKETS_REVIEW_PENDING' if args.restore_ocular_sockets else
+              'PREPARED_ASSEMBLED_CONTOURS_REVIEW_PENDING' if args.fair_current else
               'PREPARED_NATIVE_RECOVERY_REVIEW_PENDING' if args.restore_native_only else
               'PREPARED_SOURCE_GUIDES_REVIEW_PENDING')
     print(json.dumps(dict(status=status,meshes=geometry['meshes'],catalog=assembly['catalogSha256'])))

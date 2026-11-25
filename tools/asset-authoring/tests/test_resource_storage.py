@@ -19,12 +19,17 @@ PACKAGE_TEST_VERSION=datetime.date.min.isoformat().replace('-','.')+'.1'
 
 
 class ResourceStorageTest(unittest.TestCase):
-    def test_catalog_archive_excludes_retained_and_unplanned_bundle_paths(self):
+    @staticmethod
+    def load_archive():
         path = Path(__file__).parents[1] / 'catalog_archive.py'
         archive_spec = importlib.util.spec_from_file_location('catalog_archive', path)
         archive = importlib.util.module_from_spec(archive_spec)
         with patch.dict(sys.modules, resource_storage=storage):
             archive_spec.loader.exec_module(archive)
+        return archive
+
+    def test_catalog_archive_excludes_retained_and_unplanned_bundle_paths(self):
+        archive = self.load_archive()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
             owners = [root / name for name in ('First', 'Second', 'Retained', 'Unplanned')]
@@ -53,6 +58,63 @@ class ResourceStorageTest(unittest.TestCase):
                 groups, archived = archive.archive_plan(report, (), 0)
             self.assertEqual(set(archived), set(owners[:2]))
             self.assertEqual(groups[digest], tuple((owner, 'original.bundle', len(content)) for owner in owners[:2]))
+
+    def test_retired_catalog_offload_verifies_the_store_before_unlinking_and_restores(self):
+        archive = self.load_archive()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            owner = root / 'Retired'
+            catalog = owner / 'Catalog'
+            catalog.mkdir(parents=True)
+            shared = catalog / 'shared.bundle'
+            shared.write_bytes(b'bytes also used by an active catalog')
+            standalone = catalog / 'standalone.bundle'
+            standalone.write_bytes(b'bytes only in the retired catalog')
+            retained = catalog / 'retained.bundle'
+            retained.write_bytes(b'bytes pinned by an active replay receipt')
+            active = root / 'active.bundle'
+            active.hardlink_to(shared)
+            unrelated = catalog / 'unmanaged.bundle'
+            unrelated.touch()
+            declared = {path.name: storage.sha(path) for path in (shared, standalone, retained)}
+            report = root / 'ResourceLifecycle.json'
+            evidence = root / 'Evidence'
+            evidence.mkdir()
+            external = root / 'External'
+            external.mkdir()
+            storage.write(root / 'StorageReferences.json', dict(schemaVersion=1, paths=[str(retained)]))
+            storage.write(report, dict(status='references-closed-payloads-planned', adoptedManifestSha256='public',
+                explicitRetainedDirectories=[], retainedCatalogHashes=[], retiredCatalogs=[str(owner)]))
+            with (patch.object(archive, 'ARTIFACTS', root), patch.object(archive, 'WORKSPACE', root),
+                  patch.object(archive, 'BLOBS', root / 'LocalObjects'),
+                  patch.object(archive, 'distribution_catalog', return_value=('public', {})),
+                  patch.object(archive, 'external_store', return_value=external),
+                  patch.object(archive, 'checked_catalog_path', side_effect=lambda *path: Path(*path).resolve()),
+                  patch.object(archive, 'checked_source_path', side_effect=lambda path: Path(path).resolve(strict=True)),
+                  patch.object(archive, 'owner_catalog', return_value=('retired', declared))):
+                with self.assertRaisesRegex(ValueError, 'distinct retired snapshot'):
+                    archive.offload_retired_catalogs(report, [owner], [owner], evidence, False)
+                storage.write(root / 'StorageReferences.json', dict(schemaVersion=1, paths=[str(catalog)]))
+                with self.assertRaisesRegex(ValueError, 'registered as a replay input'):
+                    archive.offload_retired_catalogs(report, [owner], [], evidence, False)
+                storage.write(root / 'StorageReferences.json', dict(schemaVersion=1, paths=[str(retained)]))
+                preview = archive.offload_retired_catalogs(report, [owner], [], evidence, False)
+                self.assertEqual(preview['paths'], 2)
+                self.assertEqual(preview['potentialStoredBytes'], storage._stored_size(standalone, standalone.stat()))
+                corrupt = external / (declared[standalone.name] + '.bundle')
+                corrupt.write_bytes(b'corrupt')
+                with self.assertRaisesRegex(ValueError, 'differs from its SHA256 identity'):
+                    archive.offload_retired_catalogs(report, [owner], [], evidence, True)
+                self.assertTrue(shared.is_file() and standalone.is_file())
+                self.assertFalse((owner / archive.ARCHIVE_NAME).exists())
+                corrupt.unlink()
+                result = archive.offload_retired_catalogs(report, [owner], [], evidence, True)
+                self.assertEqual(result['removed'], 2)
+                self.assertEqual(result['status'], 'PASS_RETIRED_CATALOGS_OFFLOADED')
+                self.assertTrue(active.is_file() and unrelated.is_file() and retained.is_file())
+                self.assertFalse(shared.exists() or standalone.exists())
+                self.assertEqual(archive.restore_catalog(owner), 2)
+                self.assertEqual({path.name: storage.sha(path) for path in (shared, standalone, retained)}, declared)
 
     def test_packed_distribution_pins_both_manifest_owners(self):
         with self.owned_workspace() as (_, source, output):

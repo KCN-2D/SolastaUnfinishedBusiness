@@ -1403,6 +1403,12 @@ class FaceProductionContracts(unittest.TestCase):
         self.assertEqual(build.model_surface_multipliers('character', 'Lux/Human/SkinDragonborn', soft_skin, .5), {})
         self.assertEqual(build.model_surface_multipliers('creature', 'Lux/Human/Skin', soft_skin, .5),
                          {'_BumpMapScale': 1.07})
+        groom = {'_MacroNormalStrength': .45, '_NativeGrooveStrength': .86, '_BakedColorDetail': .62}
+        for role in ('character', 'npc', 'creature'):
+            self.assertEqual(build.model_surface_multipliers(role, 'KCN/SourceGroom/NativeHair', saved,
+                                                             native_groom=groom), groom)
+        self.assertEqual(build.model_surface_multipliers('character', 'Custom/FakeAnisoHair', saved,
+                                                         native_groom=groom), {})
 
     def test_retired_skin_interface_resolves_its_exact_native_normal_input(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -4046,6 +4052,59 @@ class FaceProductionContracts(unittest.TestCase):
         self.assertTrue(np.isfinite(guard).all())
         np.testing.assert_array_equal(production.humanoid_face_contact_guard(packet,skin,
             contact_bone_prefixes=('b_lip_',)),np.ones(5))
+
+    def test_ocular_socket_recovery_excludes_articulated_lid_and_distant_skin(self):
+        production, _ = build.source_owner()
+        positions = np.array([[0., 0., 0.], [.01, .003, .001], [.005, .001, .001], [.05, 0., 0.]])
+        packet = dict(vertexCount=4, vertices=positions.ravel().tolist(), boneIndices=[0, 1, 0, 0] * 4,
+                      weights=[.8, .2, 0., 0.] * 2 + [1., 0., 0., 0.] * 2)
+        skin = dict(rendererToPrefab=np.eye(4).ravel().tolist(), bones=['Head', 'b_eyelid_upper_L'])
+        assembled = dict(packet, vertices=(positions + [.0005, 0., 0.]).ravel().tolist())
+        with mock.patch.object(production, 'refine_native_face_contours', return_value=(assembled, {})) as refine:
+            _, proof = production.restore_ocular_sockets(packet, assembled, skin, (), ())
+        np.testing.assert_array_equal(refine.call_args.kwargs['surface_weight'], [0., 0., 1., 0.])
+        self.assertEqual(proof['restoredSocketVertices'], 1)
+        self.assertEqual(proof['articulatedLidVertices'], 2)
+
+    def test_groom_root_seats_near_contact_and_preserves_disconnected_geometry(self):
+        production, _ = build.source_owner()
+        points = np.array([[.002, .002, .0006], [.006, .002, .003], [.002, .006, -.0015],
+                           [.018, .002, .003], [.024, .002, .003], [.018, .007, .003]])
+        head = np.array([[[0., 0., 0.], [.04, 0., 0.], [0., .04, 0.]]])
+        triangles = np.array([[0, 1, 2], [3, 4, 5]])
+        correction = production.fit_groom_roots(points, triangles, head, clearance=.0006, maximum_offset=.008)
+        self.assertLess(correction[1, 2], 0.)
+        self.assertGreaterEqual((points + correction)[1, 2], .0006)
+        np.testing.assert_array_equal(correction[[0, 2, 3, 4, 5]], np.zeros((5, 3)))
+
+        identity = np.eye(4).ravel().tolist()
+        packet = dict(vertexCount=len(points), indexFormat=0, vertices=points.ravel().tolist(),
+                      subMeshes=[triangles.ravel().tolist()], normals=[0., 0., 1.] * len(points),
+                      tangents=[1., 0., 0., 1.] * len(points), weights=[1., 0., 0., 0.] * len(points),
+                      boneIndices=[0] * (4 * len(points)), bindPoses=identity, uv=[], colors=[], shapes=[],
+                      bounds=[0., 0., 0., .05, .05, .01])
+        observed = dict(vertices=packet['vertices'], submeshes=packet['subMeshes'], skinMaterials=[False],
+                        localToWorld=identity, bones=[dict(name='Head', localToWorld=identity)])
+        for roots in (False, True):
+            fitted, _ = production.fit_posed_garment(packet, observed, head, ['Rig/Head'], np.eye(4),
+                clearance=.0006, maximum_offset=.008, head_surface=head, fixed_vertices=(1,), groom_roots=roots)
+            gap = fitted['vertices'][5]
+            if roots:
+                self.assertLess(gap, points[1, 2])
+            else:
+                self.assertEqual(gap, points[1, 2])
+
+    def test_beard_root_seats_fixed_jaw_without_an_existing_contact(self):
+        production, _ = build.source_owner()
+        points = np.array([[.002, .002, .004], [.006, .002, .004], [.002, .006, .004],
+                           [.026, .002, .004], [.030, .002, .004], [.026, .006, .004]])
+        triangles = np.array([[0, 1, 2], [3, 4, 5]])
+        head = np.array([[[0., 0., 0.], [.04, 0., 0.], [0., .04, 0.]]])
+        correction = production.fit_groom_roots(points, triangles, head, clearance=.0005,
+                                                 maximum_offset=.008, attachment_vertices=(0,))
+        self.assertAlmostEqual((points + correction)[0, 2], .0005)
+        self.assertLess(correction[1, 2], 0.)
+        np.testing.assert_array_equal(correction[3:], np.zeros((3, 3)))
 
     def test_neutral_sculpt_is_inverse_skinned_through_its_own_weighted_rig(self):
         production, art = build.source_owner()

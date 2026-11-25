@@ -406,6 +406,8 @@ RGBAの各チャンネルに材質データを保存するPNGは、共通関数`
 
 保管済みbundleを開発共有に移すには、`catalog_archive.py --offload <共有内のプロジェクトフォルダー> --output <証跡フォルダー> --apply`を実行します。移動先はプロジェクトフォルダー内の `ColdStorage\CatalogObjects` です。コピーと照合を先に行う場合は`--copy-only`を指定します。移したbundleは`--restore`で復元できます。
 
+開発共有の設定後は `--report <ResourceLifecycle.json> --offload-retired <旧catalogの作業先> --output <証跡フォルダー>` で制作候補を選べます。`--apply`を指定すると、同一内容をSHA256ごとに一度保存し、開発共有からの復元を確認してからローカルのbundleを整理します。公開済みcatalogと、再生成の入力として個別に登録したbundleはローカルに保持します。旧catalogの作業先に復元用の `CatalogArchive.json` が残ります。
+
 ```powershell
 & .\tools\asset-authoring\Invoke-UnityAssetBuild.ps1 -Cleanup `
   -GuiProjectPath '<Projectのパス>' -ReferencePath '<参照JSON>' `

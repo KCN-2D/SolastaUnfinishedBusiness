@@ -923,8 +923,10 @@ class _BatchReferenceVersions(ReferenceVersions):
 
 class _ReceiptBatch:
     """Share immutable syntax across seeds; role and owner traversal stay local."""
-    maximum_bytes=256*1024*1024
-    maximum_snapshot_bytes=32*1024*1024
+    # Multi-catalog replay can hold more than 256 MiB of active receipts and
+    # input guards before any optional cache entries are counted.
+    maximum_bytes=512*1024*1024
+    maximum_snapshot_bytes=64*1024*1024
     maximum_pin_entries=4096
     maximum_version_entries=4096
     def __init__(self):

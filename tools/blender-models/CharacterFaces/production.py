@@ -1526,10 +1526,11 @@ def fit_garment_crossings(positions, triangles, skin, *, clearance, maximum_offs
     return directions * displacement[groups, None]
 
 
-def fit_groom_crossings(positions, triangles, obstacles, *, clearance, maximum_offset):
-    """Lift connected hair over intersecting surfaces along their outward normals."""
-    if not len(obstacles):
-        return np.zeros_like(positions)
+def groom_surface_projection(positions, obstacles, maximum_offset):
+    signed = np.full(len(positions), np.nan)
+    outside = np.zeros_like(positions)
+    if not len(positions) or not len(obstacles):
+        return signed, outside
     origin = obstacles[:, 0]
     first, second = obstacles[:, 1] - origin, obstacles[:, 2] - origin
     normal = normalise(np.cross(first, second))
@@ -1551,20 +1552,73 @@ def fit_groom_crossings(positions, triangles, obstacles, *, clearance, maximum_o
              (u >= -tolerance) & (v >= -tolerance) & (u + v <= det + tolerance))
     indices = np.flatnonzero(valid)
     if not len(indices):
-        return np.zeros_like(positions)
+        return signed, outside
     ordered = indices[np.lexsort((np.abs(depth[indices]), vertex[indices]))]
     first_hit = ordered[np.concatenate(([True], vertex[ordered[1:]] != vertex[ordered[:-1]]))]
-    signed = np.full(len(positions), np.nan)
-    outside = np.zeros_like(positions)
     signed[vertex[first_hit]] = depth[first_hit]
     outside[vertex[first_hit]] = normal[face[first_hit]]
+    return signed, outside
 
-    groups = art.weld_groups(positions)
+
+def groom_welded_edges(groups, triangles):
     edges = np.concatenate((triangles[:, :2], triangles[:, 1:], triangles[:, [2, 0]]))
-    edges = np.unique(np.sort(groups[edges], axis=1), axis=0)
-    edges = edges[edges[:, 0] != edges[:, 1]]
-    group_count = groups.max() + 1
+    edges, incidence = np.unique(np.sort(groups[edges], axis=1), axis=0, return_counts=True)
+    distinct = edges[:, 0] != edges[:, 1]
+    return edges[distinct], incidence[distinct]
+
+
+def fit_groom_roots(positions, triangles, head, *, clearance, maximum_offset, attachment_vertices=()):
+    """Seat detached edges around a skin contact or a fixed beard root."""
+    reach = min(maximum_offset, .008)
+    signed, outward = groom_surface_projection(positions, head, reach + clearance)
+    contact = np.abs(signed) <= clearance * 1.5
+    if not contact.any() and not len(attachment_vertices):
+        return np.zeros_like(positions)
+    groups = art.weld_groups(positions)
+    edges, incidence = groom_welded_edges(groups, triangles)
+    _, representative = np.unique(groups, return_index=True)
+    points = positions[representative]
+    a, b = edges.T
+    lengths = np.linalg.norm(points[a] - points[b], axis=1)
+    def reach_from(seeds, steps):
+        distance = np.full(len(points), np.inf)
+        distance[seeds] = 0.
+        for _ in range(steps):
+            previous = distance.copy()
+            np.minimum.at(distance, a, previous[b] + lengths)
+            np.minimum.at(distance, b, previous[a] + lengths)
+        return art.smooth(1. - distance / (2.25 * reach))
+
+    rim = np.zeros(len(points), dtype=bool)
+    rim[edges[incidence == 1]] = True
+    boundary = rim.copy()
+    rim[a[boundary[b]]] = True
+    rim[b[boundary[a]]] = True
+    falloff = reach_from(groups[contact], 3) * rim
+    if len(attachment_vertices):
+        # A simulated beard can have a continuous jaw rim with almost no skin
+        # contact along its middle. Its fixed rim still identifies the roots.
+        attached = np.zeros(len(points), dtype=bool)
+        attached[groups[np.asarray(attachment_vertices, dtype=np.intp)]] = True
+        anchors = boundary & attached
+        gap = signed[representative]
+        anchors &= (gap > clearance) & (gap < reach + clearance)
+        falloff = np.maximum(falloff, reach_from(anchors, 4))
+    gap = np.nan_to_num(signed, nan=0.) - clearance
+    range_weight = art.smooth((reach - gap) / (.2 * reach)) if len(attachment_vertices) else 1.
+    amount = np.clip(gap, 0., reach) * falloff[groups] * range_weight
+    return -outward * amount[:, None]
+
+
+def fit_groom_crossings(positions, triangles, obstacles, *, clearance, maximum_offset):
+    """Lift connected hair over intersecting surfaces along their outward normals."""
+    signed, outside = groom_surface_projection(positions, obstacles, maximum_offset)
     inside_vertices = signed < 0.0
+    if not inside_vertices.any():
+        return np.zeros_like(positions)
+    groups = art.weld_groups(positions)
+    edges, _ = groom_welded_edges(groups, triangles)
+    group_count = groups.max() + 1
     near_inside = np.zeros(group_count, bool)
     near_outside = np.zeros(group_count, bool)
     near_inside[groups[inside_vertices]] = True
@@ -1614,9 +1668,9 @@ def limit_groom_edge_motion(points, offset, triangles, fixed_vertices):
     editable = np.any(field != 0, axis=1)
     editable[groups[np.asarray(fixed_vertices, dtype=int)]] = False
     field[~editable] = 0
-    edges = np.concatenate((triangles[:, :2], triangles[:, 1:], triangles[:, [2, 0]]))
-    a, b = np.unique(np.sort(groups[edges], axis=1), axis=0).T
-    active = (a != b) & (editable[a] | editable[b])
+    edges, _ = groom_welded_edges(groups, triangles)
+    a, b = edges.T
+    active = editable[a] | editable[b]
     a, b = a[active], b[active]
     grouped = points[representative]
     limits = .3 * np.maximum(np.linalg.norm(grouped[a] - grouped[b], axis=1), .0015)
@@ -1739,7 +1793,7 @@ def project_garment_fit(packet, candidate, observed, bone_paths, renderer_to_pre
 
 def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *, clearance, maximum_offset, previous=None,
                       head_surface=None, fixed_vertices=(), groom_guide=None, lining_only=False,
-                      layer_cache=None, layer_key=None):
+                      layer_cache=None, layer_key=None, groom_roots=False):
     """Map correction of the posed surface into its original skinned mesh."""
     require(packet['subMeshes'] == observed['submeshes'], 'Drawn garment topology differs from its prefab.')
     points = np.asarray(packet['vertices']).reshape(-1, 3)
@@ -1777,7 +1831,7 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
     offset = current_points - points
     prior = np.einsum('vij,vj->vi', linear, offset)
     welded = art.weld_groups(points)
-    local_orientation = False
+    local_orientation = groom_roots
     if groom_guide is not None:
         indices = np.asarray(groom_guide['vertices'])
         directions = np.asarray(groom_guide['offsets'], dtype=float)
@@ -1806,7 +1860,7 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
             delta[np.isin(welded, welded[np.asarray(fixed_vertices, dtype=int)])] = 0.
     else:
         delta = np.zeros_like(posed)
-        if not lining_only:
+        if not lining_only and not groom_roots:
             if layers:
                 covered = {tuple(face) for _, lining in layers for face in lining}
                 # Skin may pass through covered lining. Pushing those faces
@@ -1832,14 +1886,21 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
             correction[np.isin(welded, shared)] = 0.
             delta += correction
     if head_surface is not None and groom_guide is None:
-        # Leave the head interface and the native fixed cloth vertices anchored.
+        # Equipment corrections leave the head interface anchored. Root fitting
+        # moves the rest surface together with the rebuilt cloth attachments.
         moving = np.flatnonzero(np.any(delta != 0, axis=1))
-        if len(moving):
+        if len(moving) or groom_roots:
             head = to_prefab(np.asarray(head_surface, dtype=float)).reshape(-1, 3, 3)
+        if len(moving):
             distances = fit_skin_distances(posed[moving], head, 2 * maximum_offset)
             clearance_weight = np.clip((distances - maximum_offset) / maximum_offset, 0., 1.)
             delta[moving] *= (clearance_weight ** 2 * (3. - 2. * clearance_weight))[:, None]
-        delta[np.asarray(fixed_vertices, dtype=int)] = 0.
+        if groom_roots:
+            beard = any(slot['shape'] and slot['part'] == 'Beard' for slot in observed.get('sourceSlots', ()))
+            delta = fit_groom_roots(posed + prior, shell, head, clearance=clearance,
+                                   maximum_offset=maximum_offset, attachment_vertices=fixed_vertices if beard else ())
+        else:
+            delta[np.asarray(fixed_vertices, dtype=int)] = 0.
     moved = np.any(delta != 0, axis=1)
     if not moved.any():
         return current, 0
@@ -1856,7 +1917,7 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
         distance = np.linalg.norm(offset @ renderer_to_prefab[:3, :3].T, axis=1, keepdims=True)
         offset /= np.maximum(1., distance / maximum_offset)
     elif head_surface is not None:
-        offset = limit_groom_edge_motion(points, offset, triangles, fixed_vertices)
+        offset = limit_groom_edge_motion(points, offset, triangles, () if groom_roots else fixed_vertices)
     correction = points + offset - current_points
     native_normals = np.asarray(packet['normals']).reshape(-1, 3)
     groups = normal_groups(points, native_normals)
@@ -6990,6 +7051,40 @@ def humanoid_face_contact_regions(packet: 'dict[str, Any]',skin: 'dict[str, Any]
     return regions
 
 
+def ocular_socket_weight(packet, skin, regions=None):
+    """Own the aperture and its unweighted skin rim in prefab metres."""
+    positions = art.points(packet['vertices'], art.CONVERT @ art.matrix(skin['rendererToPrefab']))
+    weight = np.zeros(len(positions))
+    if regions is None:
+        regions = humanoid_face_contact_regions(packet, skin)
+    for region in regions:
+        low, high = np.asarray(region['minimum']), np.asarray(region['maximum'])
+        width = float(np.max(high - low))
+        if width <= 0.:
+            continue
+        distance = np.linalg.norm(np.maximum(np.maximum(low - positions, positions - high), 0.), axis=1)
+        weight = np.maximum(weight, art.smooth((.32 - distance / width) / .23))
+    return weight
+
+
+def restore_ocular_sockets(native, assembled, skin, regions, collar_vertices):
+    """Recover the surrounding skin from the native aperture without moving its articulated lids."""
+    count = native['vertexCount']
+    weight = ocular_socket_weight(native, skin, regions or None)
+    bones = [name.rsplit('/', 1)[-1].casefold() if name else '' for name in skin['bones']]
+    articulated = anatomy_influence(native, bones, ('b_eye_', 'b_eyelid_')) > 0.
+    weight[articulated] = 0.
+    delta = (np.asarray(native['vertices']) - np.asarray(assembled['vertices'][:count * 3])).reshape(-1, 3)
+    frame = art.matrix(skin['rendererToPrefab'])[:3, :3]
+    moved = np.linalg.norm((delta * weight[:, None]) @ frame.T, axis=1) > .00002
+    if not np.any(moved):
+        return assembled, dict(restoredSocketVertices=0)
+    result, proof = refine_native_face_contours(native, assembled, skin, collar_vertices=collar_vertices,
+                                               surface_weight=weight)
+    proof.update(restoredSocketVertices=int(moved.sum()), articulatedLidVertices=int(articulated.sum()))
+    return result, proof
+
+
 def humanoid_face_contact_guard(packet: 'dict[str, Any]', skin: 'dict[str, Any]', regions=(), *,
                                 contact_bone_prefixes=('b_eye_','b_eyelid_','b_lip_')):
     """Preserve the articulated ocular unit and source oral contact rims."""
@@ -7167,6 +7262,9 @@ def fair_assembled_face(native, assembled, skin, strength, collar_vertices, *, m
                   name.lower().rsplit('/', 1)[-1] == 'bip001 jaw') else '' for name in skin['bones']]
     head = anatomy_influence(native, head_bones, ('head',))
     mobility = np.r_[strength * art.smooth((head - .2) / .65), np.ones(len(reference) - count)]
+    socket_skin = ocular_socket_weight(assembled, skin, marks.get('eyeContactRegions', ()) or
+                                     humanoid_face_contact_regions(native, skin))
+    mobility *= 1. - socket_skin
     lower_face = np.zeros(len(reference))
     if mouth is not None and all(eye is not None for eye in eyes):
         height = max(abs(((eyes[0] + eyes[1]) * .5 - mouth)[2]), 1e-6)

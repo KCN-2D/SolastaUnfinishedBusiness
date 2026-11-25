@@ -1,6 +1,11 @@
 {
   "schemaVersion": 1,
   "humanoidSkinNormalMultiplier": 0.125,
+  "nativeGroomMultipliers": {
+    "_MacroNormalStrength": 0.45,
+    "_NativeGrooveStrength": 0.86,
+    "_BakedColorDetail": 0.62
+  },
   "presets": {
     "Bear": {
       "shader": "Custom/CharacterArmor",

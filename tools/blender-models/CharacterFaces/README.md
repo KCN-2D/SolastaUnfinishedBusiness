@@ -12,6 +12,8 @@
 
 造形ガイドには、まぶたの接触面、眼球、まつ毛と首の接続部を保護範囲として宣言します。低LODと表情フレームにも同じガイドを適用し、付属パーツを動かす場合は元の三角形との対応を指定します。変形との境界は周囲の頂点へ滑らかにつなぎます。
 
+制作済みの顔で目の開口が狭まった場合は、`refine-native-faces --restore-ocular-sockets`で各LODの目の周囲を原本の形に合わせます。まぶたを動かす頂点には、制作済みの表情と骨の設定を使います。
+
 `face-designs.json`には、種族・性別・フェイスタイプと個々の原本の輪郭、頬、鼻、口、顎の調整量をミリメートルで保存します。`compile-face-designs --census <原本Mesh>/Census.json --reference-index <参照姿勢JSON> --fixtures <対象一覧JSON> --output <新しい出力先>`で、各原本と参照姿勢に対応した`Profiles.json`を作ります。参照姿勢にはゲーム内の中立姿勢と原本prefabの姿勢を使い、`coordinateDomain`で座標系を記録します。上下の唇が接する範囲は一体として移動し、眼球とまぶたの接触面を保ちます。
 
 造形用の原本は、元bundleからMeshの数値データを直接取り出します。`extract --native-index <元資源の対応表JSON> --census <元モデル一覧JSON> --output <原本Mesh>`で取得し、以降の`--census`には`<原本Mesh>/Census.json`を指定します。描画部品と骨の対応、元bundleのSHA256とMeshの物理IDを記録します。
@@ -207,7 +209,7 @@ HeadはLOD0を先に生成し、その`Coefficient.json`のpath/SHAをLOD1/2の�
 
 `refine-skin-surfaces --channels color --chart-seams` は、同じ表面を共有するUVチャートの境界で、現在の肌テクスチャの色をなじませます。
 
-キャラクターとモンスターの凹凸や光沢は、`retone-materials --source <制作済み資源> --model-presets <材質設定JSON> --output <新しい候補>`で調整します。[creature-materials.json](creature-materials.json)で肌の主法線とモンスター固有の調整量を指定します。共通処理が各LODの材質と共有先を照合します。
+キャラクターとモンスターの凹凸や光沢は、`retone-materials --source <制作済み資源> --model-presets <材質設定JSON> --output <新しい候補>`で調整します。[creature-materials.json](creature-materials.json)で肌の主法線、髪と髭の凹凸・色のコントラスト、モンスター固有の調整量を指定します。共通処理が各LODの材質と共有先を照合します。
 
 ## モデル資源の配布
 

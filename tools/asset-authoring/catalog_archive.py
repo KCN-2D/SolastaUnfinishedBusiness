@@ -12,7 +12,7 @@ import tempfile
 
 
 from resource_storage import (
-    ARTIFACTS, ROOT, WORKSPACE, RESOURCE_FILES, catalog_payloads, checked_catalog_path,
+    ARTIFACTS, ROOT, WORKSPACE, RESOURCE_FILES, _stored_size, catalog_payloads, checked_catalog_path,
     checked_source_path, distribution_catalog, payload_hash_operation, producer_processes,
     read, resource_operation, sha, write,
 )
@@ -179,17 +179,24 @@ def retirement_payloads(proof, *, verify_inputs):
     return payloads
 
 
+def registered_archive_paths():
+    path = ARTIFACTS / 'StorageReferences.json'
+    if not path.is_file():
+        return set()
+    references = read(checked_source_path(path))
+    if references.get('schemaVersion') != 1 or not isinstance(references.get('paths'), list):
+        raise ValueError('The catalog archive cannot read the registered storage references.')
+    return {((ARTIFACTS / value) if not Path(value).is_absolute() else Path(value)).resolve()
+            for value in references['paths']}
+
+
 def archive_plan(report, preserve, limit, *, verify_inputs=False):
     proof = read(checked_source_path(report))
     adopted, _ = distribution_catalog()
     if proof.get('status') != 'references-closed-payloads-planned' or proof.get('adoptedManifestSha256') != adopted:
         raise ValueError('Archive only catalogs retired against the currently distributed models.')
     protected = {owner_path(path) for path in (*proof['explicitRetainedDirectories'], *preserve)}
-    references_file = ARTIFACTS / 'StorageReferences.json'
-    references = set()
-    if references_file.is_file():
-        references = {Path(path).resolve() if Path(path).is_absolute() else (ARTIFACTS / path).resolve()
-                      for path in read(checked_source_path(references_file))['paths']}
+    references = registered_archive_paths()
     payloads = retirement_payloads(proof, verify_inputs=verify_inputs)
     published = set(proof['retainedCatalogHashes']) | {adopted}
     copies = defaultdict(list)
@@ -234,6 +241,164 @@ def file_stamp(path):
     return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns
 
 
+def archive_receipt(owner, manifest):
+    path = checked_catalog_path(owner, ARCHIVE_NAME)
+    receipt = read(checked_source_path(path)) if path.is_file() else dict(
+        kind=ARCHIVE_KIND, schemaVersion=1, catalogSha256=manifest, entries={})
+    if (receipt.get('kind') != ARCHIVE_KIND or receipt.get('schemaVersion') != 1
+            or receipt.get('catalogSha256') != manifest or not isinstance(receipt.get('entries'), dict)):
+        raise ValueError(f'The archive receipt does not match the catalog: {owner}')
+    return path, receipt
+
+
+def retired_catalog_snapshots(report, selected, preserve):
+    proof = read(checked_source_path(report))
+    adopted, _ = distribution_catalog()
+    if proof.get('status') != 'references-closed-payloads-planned' or proof.get('adoptedManifestSha256') != adopted:
+        raise ValueError('Use a storage receipt for the currently distributed catalog.')
+    retired = {Path(value) for value in proof['retiredCatalogs']}
+    retained = set(proof['retainedCatalogHashes']) | {adopted}
+    registry = checked_catalog_path(WORKSPACE / 'ModelReleaseReceipts')
+    for path in registry.glob('*.json'):
+        release = read(checked_source_path(path))
+        if release.get('status') == 'PASS_PUBLISHED_MODEL_RESOURCES':
+            retained.add(release['catalogSha256'])
+    protected = {owner_path(value) for value in (*proof['explicitRetainedDirectories'], *preserve)}
+    references = registered_archive_paths()
+    snapshots = {}
+    for value in selected:
+        owner = owner_path(value)
+        if (owner not in retired or owner in snapshots
+                or any(owner.is_relative_to(path) or path.is_relative_to(owner) for path in protected)):
+            raise ValueError(f'The catalog is not a distinct retired snapshot: {owner}')
+        manifest, declared = owner_catalog(owner)
+        if manifest in retained:
+            raise ValueError(f'The catalog is still an adopted or rollback snapshot: {owner}')
+        receipt_path, receipt = archive_receipt(owner, manifest)
+        files = {}
+        directory = checked_catalog_path(owner / 'Catalog')
+        if directory in references:
+            raise ValueError(f'The selected bundle catalog is registered as a replay input: {directory}')
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                digest = declared.get(entry.name)
+                if digest is None:
+                    continue
+                leaf = Path(entry.path)
+                if leaf in references:
+                    continue
+                info = regular_bundle(leaf)
+                identity = info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns
+                files[entry.name] = leaf, digest, identity
+        snapshots[owner] = manifest, receipt_path, receipt, files
+    return snapshots
+
+
+def regular_bundle(path):
+    info = path.lstat()
+    if (not stat.S_ISREG(info.st_mode) or not info.st_ino
+            or getattr(info, 'st_file_attributes', 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+        raise ValueError(f'An archive bundle is not a regular file: {path}')
+    return info
+
+
+def check_snapshot_file(path, identity):
+    info = regular_bundle(path)
+    current = info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns
+    if current != identity:
+        raise ValueError(f'The retired snapshot changed during the archive operation: {path}')
+    return info
+
+
+def offload_retired_catalogs(report, selected, preserve, evidence, apply, *, copy_only=False):
+    snapshots = retired_catalog_snapshots(report, selected, preserve)
+    store = external_store()
+    if store is None or not store.is_dir():
+        raise ValueError('Configure the external catalog store before offloading snapshots.')
+    objects = {}
+    identities = {}
+    links = Counter()
+    for _, _, _, files in snapshots.values():
+        for path, digest, identity in files.values():
+            info = check_snapshot_file(path, identity)
+            if digest in objects and objects[digest][1][2] != identity[2]:
+                raise ValueError(f'A declared bundle identity has different file lengths: {path}')
+            objects.setdefault(digest, (path, identity))
+            links[identity[:2]] += 1
+            identities[identity[:2]] = path, info
+    result = dict(
+        status='PASS_RETIRED_CATALOG_OFFLOAD_PREVIEW', directory=str(store), owners=list(map(str, snapshots)),
+        paths=sum(links.values()), logicalBytes=sum(identities[key][1].st_size * count for key, count in links.items()),
+        potentialStoredBytes=sum(_stored_size(path, info) for key, (path, info) in identities.items()
+                                 if info.st_nlink == links[key]),
+        distinctObjects=len(objects), removed=0, availableBytesBefore=shutil.disk_usage(ROOT).free)
+    record_path = evidence / 'RetiredCatalogOffload.json'
+    write(record_path, result)
+    if not (apply or copy_only) or not objects:
+        return result
+
+    verified = set()
+    for owner, (_, _, _, files) in snapshots.items():
+        for source, digest, identity in files.values():
+            key = identity, digest
+            if key not in verified:
+                check_snapshot_file(source, identity)
+                verify_blob(source, digest, identity[2])
+                verified.add(key)
+        print(f'Verified {len(files)} local bundle paths in {owner.name}', flush=True)
+    external_versions = {}
+    for index, (digest, (source, identity)) in enumerate(objects.items(), 1):
+        target = store / (digest + '.bundle')
+        if target.exists() or target.is_symlink():
+            regular_bundle(target)
+        copy_blob(source, target, digest, identity[2])
+        info = regular_bundle(target)
+        external_versions[digest] = info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns
+        if index % 250 == 0:
+            print(f'Verified external objects: {index}/{len(objects)}', flush=True)
+
+    samples = {}
+    with tempfile.TemporaryDirectory(dir=evidence) as scratch:
+        for owner, (_, _, _, files) in snapshots.items():
+            if not files:
+                continue
+            name, (_, digest, identity) = min(files.items(), key=lambda row: row[1][2][2])
+            restored = Path(scratch) / (digest + '.bundle')
+            copy_blob(store / restored.name, restored, digest, identity[2])
+            samples[str(owner)] = dict(file=name, sha256=digest, bytes=identity[2])
+    result['restoredSamples'] = samples
+    result['status'] = 'PASS_RETIRED_CATALOG_EXTERNAL_COPIES'
+    write(record_path, result)
+    if copy_only:
+        return result
+
+    references = registered_archive_paths()
+    adopted, _ = distribution_catalog()
+    if any(manifest == adopted or path.parent in references or path in references
+           for manifest, _, _, files in snapshots.values() for path, _, _ in files.values()):
+        raise ValueError('The selected archive bundles gained a distribution or replay reference.')
+    # A durable index is installed before the corresponding local filenames are removed.
+    for owner, (manifest, receipt_path, receipt, files) in snapshots.items():
+        if not files:
+            continue
+        if owner_catalog(owner)[0] != manifest:
+            raise ValueError(f'The model catalog changed before offloading: {owner}')
+        checked_catalog_path(owner / 'Catalog')
+        receipt['entries'].update({name: dict(sha256=digest, bytes=identity[2])
+                                   for name, (_, digest, identity) in files.items()})
+        write(receipt_path, receipt)
+        for source, digest, identity in files.values():
+            check_snapshot_file(source, identity)
+            check_snapshot_file(store / (digest + '.bundle'), external_versions[digest])
+            source.unlink()
+            result['removed'] += 1
+        write(record_path, result)
+        print(f'Offloaded {len(files)} bundle paths in {owner.name}', flush=True)
+    result.update(status='PASS_RETIRED_CATALOGS_OFFLOADED', availableBytesAfter=shutil.disk_usage(ROOT).free)
+    write(record_path, result)
+    return result
+
+
 def archive_catalogs(groups, owners):
     checked_catalog_path(BLOBS).mkdir(parents=True, exist_ok=True)
     records = defaultdict(dict)
@@ -243,14 +408,10 @@ def archive_catalogs(groups, owners):
     verified = {}
     removed = 0
     for owner, files in records.items():
-        path = checked_catalog_path(owner) / ARCHIVE_NAME
         manifest, _ = owner_catalog(owner)
         if manifest != owners[owner]:
             raise ValueError(f'The model catalog changed before archiving: {owner}')
-        previous = read(checked_source_path(path)) if path.is_file() else dict(
-            kind=ARCHIVE_KIND, schemaVersion=1, catalogSha256=manifest, entries={})
-        if previous['kind'] != ARCHIVE_KIND or previous['schemaVersion'] != 1 or previous['catalogSha256'] != manifest:
-            raise ValueError(f'An existing archive receipt belongs to another catalog: {path}')
+        path, previous = archive_receipt(owner, manifest)
         sources = {}
         for name, record in files.items():
             digest, count = record['sha256'], record['bytes']
@@ -286,9 +447,9 @@ def archive_catalogs(groups, owners):
 def restore_catalog(owner, names=()):
     owner = owner_path(owner)
     manifest, catalog = owner_catalog(owner)
-    receipt = read(checked_source_path(owner / ARCHIVE_NAME))
-    if receipt.get('kind') != ARCHIVE_KIND or receipt.get('schemaVersion') != 1 or receipt.get('catalogSha256') != manifest:
-        raise ValueError(f'The archive receipt does not match the catalog: {owner}')
+    path, receipt = archive_receipt(owner, manifest)
+    if not path.is_file():
+        raise FileNotFoundError(f'The catalog has no archive receipt: {path}')
     entries = receipt['entries']
     if unknown := set(names) - entries.keys():
         raise ValueError(f'The receipt does not own these bundles: {sorted(unknown)}')
@@ -330,6 +491,8 @@ def main():
     task.add_argument('--offload', type=Path, metavar='PROJECT_STORAGE',
                       help='Move archived objects under the project storage directory and verify a restore.')
     parser.add_argument('--preserve', action='append', type=Path, default=[])
+    parser.add_argument('--offload-retired', action='append', type=Path, default=[], metavar='CATALOG_OWNER',
+                        help='Archive the explicitly selected retired catalog snapshot to the configured external store.')
     parser.add_argument('--output', type=Path)
     parser.add_argument('--max-catalogs', type=int, default=0)
     parser.add_argument('--apply', action='store_true')
@@ -340,15 +503,17 @@ def main():
         parser.error('--report requires --output.')
     if args.offload and (args.output is None or args.preserve or args.max_catalogs or args.file):
         parser.error('--offload requires --output and accepts --apply or --copy-only.')
-    if args.copy_only and (not args.offload or args.apply):
-        parser.error('--copy-only is available with --offload in place of --apply.')
+    if args.offload_retired and (not args.report or args.max_catalogs):
+        parser.error('--offload-retired requires --report and selects exact catalog owners.')
+    if args.copy_only and (not (args.offload or args.offload_retired) or args.apply):
+        parser.error('--copy-only is available with external archiving in place of --apply.')
     if args.max_catalogs < 0 or (args.report and args.file):
         parser.error('Use a nonnegative catalog limit and --file only with --restore.')
     if args.restore and (args.apply or args.preserve or args.output or args.max_catalogs):
         parser.error('Use --restore with optional --file arguments.')
     with contextlib.ExitStack() as stack:
         stack.enter_context(payload_hash_operation())
-        if args.restore or args.apply:
+        if args.restore or args.apply or args.offload_retired and args.copy_only:
             stack.enter_context(resource_operation())
             if producer_processes():
                 raise RuntimeError('Stop active model producers before changing archived catalogs.')
@@ -361,6 +526,11 @@ def main():
         if args.offload:
             directory = external_path(args.offload) / 'ColdStorage' / 'CatalogObjects'
             print(json.dumps(offload_blobs(directory, output, args.apply, copy_only=args.copy_only),
+                             ensure_ascii=False), flush=True)
+            return
+        if args.offload_retired:
+            print(json.dumps(offload_retired_catalogs(args.report, args.offload_retired, args.preserve,
+                                                       output, args.apply, copy_only=args.copy_only),
                              ensure_ascii=False), flush=True)
             return
         groups, owners = archive_plan(args.report, args.preserve, args.max_catalogs, verify_inputs=args.apply)
