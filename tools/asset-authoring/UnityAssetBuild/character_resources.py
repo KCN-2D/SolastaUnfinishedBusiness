@@ -12,6 +12,7 @@ import base64
 import hashlib
 import json
 import re
+import shutil
 import struct
 import UnityPy
 from UnityPy.files.SerializedFile import FileIdentifier
@@ -2518,6 +2519,17 @@ class ResourceClosure:
                     allRetainedObjectFieldsExactAfterReferenceRebasing=True,
                     dependencies=external_order)
 
+def render_material_files(manifest):
+    declared = {entry['file'] for entry in manifest['bundles']}
+    materials = manifest.get('renderMaterials', {})
+    if not isinstance(materials, dict) or any(not key.strip() or not isinstance(value, dict) or
+            set(value) != {'bundleFile', 'materialAsset', 'shader'} or
+            any(not isinstance(field, str) or not field.strip() for field in value.values()) or
+            value['bundleFile'] not in declared for key, value in materials.items()):
+        raise ValueError('A catalog rendering material does not identify a packaged asset.')
+    return {value['bundleFile'] for value in materials.values()}
+
+
 def assemble_character_resources(prepared_path, native_index_path, native_catalog_path,
                                  source_directory, output_directory, rebase_archive, material_names=()):
     """Close the prepared prefab, animation and requested equipment-material roots."""
@@ -2579,9 +2591,37 @@ def assemble_character_resources(prepared_path, native_index_path, native_catalo
     dependencies={row['file']:{outputs[cab]['file']for cab in row['dependencies']}for row in proofs}
     resources=complete_resource_dependencies(resources,dependencies)
     for row in proofs:row['dependencies']=[outputs[cab]['cab']for cab in row['dependencies']]
+    source_manifest = source_directory / 'CharacterModels.manifest.json'
+    baseline = read(source_manifest) if source_manifest.is_file() else {'bundles': []}
+    render_files = render_material_files(baseline)
+    if render_files.intersection(names):
+        raise ValueError('A rendering material bundle conflicts with an assembled character resource.')
+    for row in baseline['bundles']:
+        if row['file'] not in render_files:
+            continue
+        path = source_directory / row['file']
+        if digest(path) != row['sha256']:
+            raise ValueError('An inherited rendering material bundle differs from its catalog: ' + row['file'])
+        _, serialized = load_serialized_bundle(path)
+        if serialized.externals:
+            raise ValueError('A rendering material bundle must be independently loadable: ' + row['file'])
+        target = output_directory / row['file']
+        temporary = target.with_suffix('.writing')
+        try:
+            shutil.copyfile(path, temporary)
+            if digest(temporary) != row['sha256']:
+                raise ValueError('A rendering material bundle changed while copying: ' + row['file'])
+            temporary.replace(target)
+        finally:
+            temporary.unlink(missing_ok=True)
+        proofs.append(dict(file=row['file'], source=str(path.resolve()), sourceSha256=row['sha256'], sha256=row['sha256'],
+                           bytes=target.stat().st_size, cab=serialized.name, dependencies=[],
+                           allRetainedObjectFieldsExactAfterReferenceRebasing=True))
     if digest(__file__)!=identity:raise ValueError('The resource assembler changed during packing.')
     manifest=dict(schemaVersion=3,recipeVersion='standalone-character-resources-v1',bundles=[dict(file=row['file'],sha256=row['sha256'])for row in proofs],
         resources=resources,meshes=[],materials=[],textureRemaps=[])
+    if render_files:
+        manifest['renderMaterials'] = baseline['renderMaterials']
     target=output_directory/'CharacterModels.manifest.json';temporary=target.with_suffix('.writing')
     temporary.write_text(json.dumps(manifest,separators=(',',':'))+'\n',encoding='utf-8');temporary.replace(target)
     result=dict(status='PASS_STANDALONE_CHARACTER_RESOURCES',resources=len(resources),bundles=len(proofs),bytes=sum(row['bytes']for row in proofs),proofs=proofs,

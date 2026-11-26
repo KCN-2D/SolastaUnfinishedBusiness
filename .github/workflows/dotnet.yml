@@ -27,6 +27,15 @@ jobs:
         run: dotnet clean SolastaUnfinishedBusiness.sln
       - name: Build
         run: dotnet build SolastaUnfinishedBusiness.sln --no-restore -c "Release Workflow"
+      - name: Verify packaged model inputs
+        shell: pwsh
+        run: |
+          . ./tools/CustomBuildLocal/internal/PackagedBlenderModels.ps1
+          $output = (Resolve-Path ./SolastaFiles/Mods/SolastaUnfinishedBusiness).Path
+          $paths = @(Get-ChildItem -LiteralPath $output -Recurse -File | ForEach-Object {
+              [IO.Path]::GetRelativePath($output, $_.FullName).Replace('\', '/')
+          })
+          Assert-PackagedBlenderModel $paths @(Get-PackagedBlenderModelPath ./SolastaUnfinishedBusiness)
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1

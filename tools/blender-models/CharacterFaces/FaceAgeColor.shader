@@ -16,6 +16,7 @@ Shader "Hidden/KCN/FaceAgeColor"
             ColorMask RGB
 
             CGPROGRAM
+            #pragma target 3.0
             #pragma vertex Vert
             #pragma fragment Frag
             #include "UnityCG.cginc"
@@ -25,6 +26,7 @@ Shader "Hidden/KCN/FaceAgeColor"
             float4x4 _FaceAnatomy;
             float4 _FaceLandmarks;
             float _FaceAge;
+            float _RepairPigment;
 
             struct FaceVertex
             {
@@ -62,6 +64,62 @@ Shader "Hidden/KCN/FaceAgeColor"
                 return Falloff(distance, width) - .27 * Falloff(distance - width, 1.1 * width);
             }
 
+            float3 PigmentSpace(float3 color)
+            {
+                #if !defined(UNITY_COLORSPACE_GAMMA)
+                    return LinearToGammaSpace(color);
+                #else
+                    return color;
+                #endif
+            }
+
+            void AccumulatePigment(float2 uv, float red, inout float2 sum, inout float2 low, inout float total)
+            {
+                float3 tap = PigmentSpace(tex2Dlod(_FaceColor, float4(uv, 0, 0)).rgb);
+                float weight = 1 - smoothstep(.045, .091, abs(tap.r - red));
+                float2 pigment = tap.gb - tap.r;
+                sum += pigment * weight;
+                total += weight;
+                low = min(low, lerp(1, pigment, weight));
+            }
+
+            float3 RepairSkinPigment(float3 color, float2 uv, float3 position)
+            {
+                float side = smoothstep(1.25, 1.95, abs(position.x));
+                float cheekAndNape = smoothstep(-5.25, -4.65, position.z) *
+                    (1 - smoothstep(-1.45, -.62, position.z));
+                float belowEar = smoothstep(_FaceLandmarks.y - 1.95, _FaceLandmarks.y - 1.17, position.y) *
+                    (1 - smoothstep(_FaceLandmarks.x - .47, _FaceLandmarks.x - .08, position.y));
+                float influence = _RepairPigment * side * cheekAndNape * belowEar;
+                if (influence <= 0) return color;
+
+                float3 authored = PigmentSpace(color);
+                float2 sum = 0;
+                float2 low = 1;
+                float total = 0;
+                // Compare chroma along the atlas near the cheek and nape. Reject taps
+                // across strongly different exposure, such as a dark ear fold.
+                [unroll]
+                for (int stepIndex = 0; stepIndex < 8; stepIndex++)
+                {
+                    float2 direction;
+                    sincos(stepIndex * .7853981634, direction.y, direction.x);
+                    AccumulatePigment(uv + direction * .011, authored.r, sum, low, total);
+                    AccumulatePigment(uv + direction * .024, authored.r, sum, low, total);
+                    if (stepIndex % 2 == 0)
+                        AccumulatePigment(uv + direction * .039, authored.r, sum, low, total);
+                }
+                float2 reference = lerp(sum / max(total, 1), low, .54);
+                float2 delta = authored.gb - authored.r - reference;
+                float amount = influence * smoothstep(.033, .089, max(delta.x, delta.y)) * smoothstep(5, 9, total);
+                float2 ceiling = authored.r + reference + .014;
+                authored.gb = lerp(authored.gb, min(authored.gb, ceiling), amount);
+                #if !defined(UNITY_COLORSPACE_GAMMA)
+                    authored = GammaToLinearSpace(saturate(authored));
+                #endif
+                return lerp(color, authored, step(.0001, amount));
+            }
+
             float4 Frag(FaceTexel input) : SV_Target
             {
                 float x = input.position.x;
@@ -96,6 +154,7 @@ Shader "Hidden/KCN/FaceAgeColor"
                 float edge = (1 - smoothstep(1.76, 2.19, side)) * (1 - smoothstep(2.1, 2.71, y));
                 float shade = _FaceAge * front * edge * clamp(forehead + tear + eyeFold + smile + pigment + temple, -.09, .36);
                 float4 color = tex2D(_FaceColor, input.uv);
+                color.rgb = RepairSkinPigment(color.rgb, input.uv, input.position);
                 color.rgb *= 1 - shade;
                 return color;
             }

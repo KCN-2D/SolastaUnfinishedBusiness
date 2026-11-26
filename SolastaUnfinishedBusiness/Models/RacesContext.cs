@@ -1267,31 +1267,37 @@ internal static partial class RacesContext
     private static string CharacterModelTextureFingerprint(Texture source) => CharacterModelTextureFingerprints.GetValue(source,
         static texture =>
         {
-            var previous = RenderTexture.active;
-            var srgbWrite = GL.sRGBWrite;
-            RenderTexture target = null;
-            Texture2D copy = null;
-            try
-            {
-                target = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-                GL.sRGBWrite = false;
-                Graphics.Blit(texture, target);
-                RenderTexture.active = target;
-                copy = new Texture2D(texture.width, texture.height, TextureFormat.RGBA32, false, true);
-                copy.ReadPixels(new Rect(0, 0, texture.width, texture.height), 0, 0, false);
-                var rgba = copy.GetRawTextureData();
-                if (rgba.Length != checked(texture.width * texture.height * 4))
-                    throw new InvalidOperationException("A native character model texture did not yield RGBA32 linear pixels.");
-                return CustomModels.TextureRgba32LinearFingerprint(texture.width, texture.height, rgba, rgba.Length);
-            }
-            finally
-            {
-                GL.sRGBWrite = srgbWrite;
-                RenderTexture.active = previous;
-                if (target) RenderTexture.ReleaseTemporary(target);
-                if (copy) UnityEngine.Object.Destroy(copy);
-            }
+            var rgba = ReadCharacterModelLinearPixels(texture, texture.width, texture.height);
+            return CustomModels.TextureRgba32LinearFingerprint(texture.width, texture.height, rgba, rgba.Length);
         });
+
+    private static byte[] ReadCharacterModelLinearPixels(Texture texture, int width, int height)
+    {
+        var previous = RenderTexture.active;
+        var srgbWrite = GL.sRGBWrite;
+        RenderTexture target = null;
+        Texture2D copy = null;
+        try
+        {
+            target = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+            GL.sRGBWrite = false;
+            Graphics.Blit(texture, target);
+            RenderTexture.active = target;
+            copy = new Texture2D(width, height, TextureFormat.RGBA32, false, true);
+            copy.ReadPixels(new Rect(0, 0, width, height), 0, 0, false);
+            var rgba = copy.GetRawTextureData();
+            if (rgba.Length != checked(width * height * 4))
+                throw new InvalidOperationException("A native character model texture did not yield RGBA32 linear pixels.");
+            return rgba;
+        }
+        finally
+        {
+            GL.sRGBWrite = srgbWrite;
+            RenderTexture.active = previous;
+            if (target) RenderTexture.ReleaseTemporary(target);
+            if (copy) UnityEngine.Object.Destroy(copy);
+        }
+    }
 
     internal static IEnumerator PrepareCharacterModelSources(GraphicsCharacterFactoryManager factory,
         GraphicsCharacter graphics, IEnumerator native)
@@ -1971,6 +1977,7 @@ internal static partial class RacesContext
         public CharacterModelMaterialAsset[] materials = null;
         public CharacterModelProperty[] textureRemaps = null;
         public CharacterModelResource[] resources = null;
+        public Dictionary<string, CharacterModelMaterialProfile> renderMaterials = null;
     }
     private sealed class CharacterModelResource(string source, string asset, string kind,
         CharacterModelResourceBundle[] bundles, CharacterModelPartParameter[] parameters, Color? bodySkinColorScale)
@@ -3031,6 +3038,7 @@ internal static partial class RacesContext
         public IEnumerable<object> Keys => _resources.Values.Select(part => (object)part.Key);
         private readonly bool _hasJointAttachments;
         private readonly Dictionary<string, CharacterModelMaterialAsset> _materials;
+        private readonly Dictionary<string, CharacterModelMaterialProfile> _renderMaterials = new(StringComparer.Ordinal);
         private readonly Dictionary<(string Shader, string Property, string Fingerprint, string Body), CharacterModelProperty> _textureRemaps = [];
         private readonly Dictionary<string, CharacterModelProperty[]> _textureProperties = new(StringComparer.Ordinal);
         private readonly Dictionary<string, Dictionary<string, CharacterModelProperty[]>> _nativeTextureProperties;
@@ -3066,6 +3074,15 @@ internal static partial class RacesContext
                 entry.Textures = [];
                 entry.Profiles = [];
                 entry.Joints = [];
+            }
+            foreach (var material in manifest.renderMaterials ?? [])
+            {
+                var profile = new CharacterModelMaterialProfile
+                {
+                    bundleFile = material.Value.bundleFile, materialAsset = material.Value.materialAsset, shader = material.Value.shader
+                };
+                _renderMaterials.Add(material.Key, profile);
+                _bundles[profile.bundleFile].Profiles.Add(profile);
             }
             var layouts = manifest.materials.Where(value => value.authoredProfile != null)
                 .ToLookup(value => value.sourceFingerprint, value => value.authoredProfile.layout, StringComparer.Ordinal);
@@ -3239,7 +3256,8 @@ internal static partial class RacesContext
                     schemaVersion = resources.schemaVersion, recipeVersion = resources.recipeVersion,
                     bundles = resources.bundles.Select(bundle => new CharacterModelBundle
                         { file = bundle.file, sha256 = bundle.sha256 }).ToArray(),
-                    resources = resources.resources, meshes = [], materials = [], textureRemaps = []
+                    resources = resources.resources, renderMaterials = resources.renderMaterials,
+                    meshes = [], materials = [], textureRemaps = []
                 };
             }
             else
@@ -3256,7 +3274,7 @@ internal static partial class RacesContext
                 { DateParseHandling = DateParseHandling.None, FloatParseHandling = FloatParseHandling.Double };
             var data = JObject.Load(reader,
                 new JsonLoadSettings { DuplicatePropertyNameHandling = DuplicatePropertyNameHandling.Error });
-            if (reader.Read() || data.Properties().Any(property => property.Name is not ("schemaVersion" or "recipeVersion" or "bundles" or "meshes" or "materials" or "textureRemaps" or "resources")) ||
+            if (reader.Read() || data.Properties().Any(property => property.Name is not ("schemaVersion" or "recipeVersion" or "bundles" or "meshes" or "materials" or "textureRemaps" or "resources" or "renderMaterials")) ||
                 !JsonField(data, "schemaVersion", JTokenType.Integer) || !JsonField(data, "recipeVersion", JTokenType.String) ||
                 data["bundles"] is not JArray bundles || data["meshes"] is not JArray meshes || data["materials"] is not JArray materials)
                 throw new System.IO.InvalidDataException("Invalid custom character model catalog JSON schema.");
@@ -3265,6 +3283,12 @@ internal static partial class RacesContext
                 version >= 2 && data["textureRemaps"] is not JArray || version < 3 && data.Property("resources") != null ||
                 version == 3 && (data["resources"] is not JArray { Count: > 0 } || meshes.Count != 0 || materials.Count != 0 || ((JArray)data["textureRemaps"]).Count != 0))
                 throw new System.IO.InvalidDataException("Invalid custom character model shared texture catalog version.");
+            if (data.TryGetValue("renderMaterials", out var renderMaterials) &&
+                (version != 3 || renderMaterials is not JObject rendering || rendering.Properties().Any(entry =>
+                    string.IsNullOrWhiteSpace(entry.Name) || entry.Value is not JObject profile ||
+                    profile.Count != 3 || !JsonField(profile, "bundleFile", JTokenType.String) ||
+                    !JsonField(profile, "materialAsset", JTokenType.String) || !JsonField(profile, "shader", JTokenType.String))))
+                throw new System.IO.InvalidDataException("Invalid custom character rendering material schema.");
             foreach (var token in bundles)
                 if (token is not JObject bundle || bundle.Properties().Any(property => property.Name is not ("file" or "sha256")) ||
                     !JsonField(bundle, "file", JTokenType.String) || !JsonField(bundle, "sha256", JTokenType.String))
@@ -3375,6 +3399,12 @@ internal static partial class RacesContext
                     } : null
                 }).ToArray(),
                 textureRemaps = (data["textureRemaps"] as JArray)?.Cast<JObject>().Select(ReadProperty).ToArray(),
+                renderMaterials = (data["renderMaterials"] as JObject)?.Properties().ToDictionary(entry => entry.Name,
+                    entry => new CharacterModelMaterialProfile
+                    {
+                        bundleFile = (string)entry.Value["bundleFile"], materialAsset = (string)entry.Value["materialAsset"],
+                        shader = (string)entry.Value["shader"]
+                    }, StringComparer.Ordinal),
                 resources = (data["resources"] as JArray)?.Cast<JObject>().Select(part => new CharacterModelResource(
                     (string)part["source"], (string)part["asset"], (string)part["type"],
                     ((JArray)part["bundles"]).Cast<JObject>().Select(bundle => new CharacterModelResourceBundle(
@@ -3440,6 +3470,9 @@ internal static partial class RacesContext
                 manifest.bundles.Select(value => value.file).Distinct(StringComparer.OrdinalIgnoreCase).Count() != manifest.bundles.Length)
                 throw new InvalidOperationException("The custom character model catalog is incomplete or has duplicate packs.");
             var bundles = new HashSet<string>(manifest.bundles.Select(value => value.file), StringComparer.Ordinal);
+            if (manifest.renderMaterials?.Values.Any(profile => !bundles.Contains(profile.bundleFile) ||
+                    string.IsNullOrWhiteSpace(profile.materialAsset) || string.IsNullOrWhiteSpace(profile.shader)) == true)
+                throw new InvalidOperationException("A custom character rendering material is incomplete or has no bundle.");
             var parts = manifest.resources ?? [];
             if (manifest.schemaVersion == 3 && (parts.Length == 0 || manifest.meshes.Length != 0 || manifest.materials.Length != 0 || manifest.textureRemaps.Length != 0) ||
                 manifest.schemaVersion < 3 && parts.Length != 0 ||
@@ -4301,6 +4334,12 @@ internal static partial class RacesContext
             RemoveUnusedBundle(entry);
             entry.Owners++;
         }
+        internal Material RenderMaterial(string key, HashSet<string> retained)
+        {
+            if (!_renderMaterials.TryGetValue(key, out var profile)) return null;
+            RetainBundle(retained, profile.bundleFile);
+            return Profile(profile);
+        }
         internal void RetainNativeSources(GraphicsCharacter graphics, HashSet<UnityEngine.Object> retained,
             HashSet<UnityEngine.Object> required)
         {
@@ -4731,6 +4770,7 @@ internal static partial class RacesContext
         internal GraphicsCharacter Graphics { get; private set; }
         private CharacterModelCatalog _catalog;
         private readonly HashSet<UnityEngine.Object> _sources = [];
+        private readonly HashSet<string> _renderPacks = new(StringComparer.Ordinal);
         private readonly HashSet<Material> _headSkin = [];
         private readonly Dictionary<Material, (float Authored, float Micro, bool Face)> _skinNormalStrengths = [];
         private static readonly int SurfaceColor = Shader.PropertyToID("_Color");
@@ -4811,6 +4851,9 @@ internal static partial class RacesContext
                 material.SetFloat(SkinNormalStrength, strength);
             }
         }
+
+        internal bool OwnsFaceSkin(Material material) =>
+            _skinNormalStrengths.TryGetValue(material, out var strengths) && strengths.Face;
 
         internal void RefreshGroomAge()
         {
@@ -4964,6 +5007,8 @@ internal static partial class RacesContext
             CharacterModelResourceOwners.Add(this);
         }
         internal void BeginLoad() => _loading++;
+
+        internal Material RenderMaterial(string key) => _catalog?.RenderMaterial(key, _renderPacks);
         internal void EndLoad()
         {
             if (_loading <= 0) throw new InvalidOperationException("A character source load has no matching lease.");
@@ -4983,6 +5028,7 @@ internal static partial class RacesContext
             _skinNormalStrengths.Clear();
             var catalog = _catalog;_catalog = null;
             catalog?.ReleaseNativeSources(_sources);
+            catalog?.ReleaseBundles(_renderPacks);
             CharacterModelResourceOwners.Remove(this);
             ReleaseUnusedCharacterModelCatalog();
         }
@@ -5003,6 +5049,7 @@ internal static partial class RacesContext
     {
         private const long MaximumUnusedDerivedBytes = 64L * 1024 * 1024;
         private const int MaximumUnusedDerivedEntries = 256;
+        private static readonly ConditionalWeakTable<Mesh, CustomModels.SkinMeshSource.SurfaceBinding> GroomBindings = new();
         private sealed class DerivedDataEntry(UnityEngine.Object[] data)
         {
             internal readonly UnityEngine.Object[] Data = data;
@@ -5724,6 +5771,19 @@ internal static partial class RacesContext
         private readonly Dictionary<Material, FaceAgeColorSurface> _faceAgeMaterials = [];
         private readonly HashSet<Material> _activeFaceAgeMaterials = [];
         private readonly List<Material> _faceAgeSlots = [];
+        private readonly GroomWardrobe _groomWardrobe = new();
+
+        private void LateUpdate()
+        {
+            if (!_suspended && !_busy) _groomWardrobe.Apply();
+        }
+
+        private void RefreshGroomWardrobe()
+        {
+            if (UsesCompleteCharacterModels && _faceAgeFrame.Scale > 0f)
+                _groomWardrobe.Refresh(_graphics, CharacterModelLodStates.TryGetValue(_graphics, out var lod) ?
+                    lod.Levels : SkinJointLods(_graphics), _faceAgeFrame.AnatomicalCoordinates(Matrix4x4.identity));
+        }
 
         private static bool TryFaceAgeFrame(GraphicsCharacter graphics, CharacterModelSkin skin, out FaceAgeFrame frame)
         {
@@ -5766,42 +5826,135 @@ internal static partial class RacesContext
             return forward.sqrMagnitude > .9f && noseHeight < 0f && lipHeight < noseHeight;
         }
 
-        private void PrepareGroomFit(GraphicsCharacter graphics, LOD[] levels,
+        private void PrepareFaceAndGroomFit(GraphicsCharacter graphics, LOD[] levels,
             Dictionary<SkinnedMeshRenderer, CustomModels.SkinMeshSource.SurfaceBinding> bindings)
         {
-            var heads = FacialAgeRenderers(graphics).ToHashSet();
-            var parts = graphics.ShapeSkinnedMeshRenderersPerBodySlot;
-            var grooms = GroomRenderers(parts).GroupBy(entry => entry.Renderer)
+            var faceRenderers = FacialAgeRenderers(graphics).ToHashSet();
+            var heads = _skins.Where(skin => faceRenderers.Contains(skin.Renderer)).ToArray();
+            var headFrames = new Dictionary<Transform, (FaceAgeFrame Frame, string Source)>();
+            var faces = new Dictionary<CharacterModelSkin, (Transform Bone, Matrix4x4 Bind)>();
+            foreach (var head in heads)
+            {
+                var renderer = head.Renderer;
+                var bones = renderer.bones;
+                var index = Array.FindIndex(bones, bone => bone && bone.name == "Bip001 Head");
+                var poses = head.Authored.bindposes;
+                if (index < 0 || index >= poses.Length) continue;
+                var bone = bones[index];
+                faces.Add(head, (bone, poses[index]));
+                // Lower detail skins can omit the facial bones while sharing the same head bone.
+                if (!headFrames.ContainsKey(bone) && TryFaceAgeFrame(graphics, head, out var frame))
+                    headFrames.Add(bone, (frame, head.Fingerprint));
+            }
+            foreach (var pair in faces)
+            {
+                var head = pair.Key;
+                var (bone, bind) = pair.Value;
+                if (!headFrames.TryGetValue(bone, out var reference)) continue;
+                if (head.Source.ClothOwner) continue;
+                var frame = reference.Frame;
+                var source = head.Authored;
+                var key = $"nose-surface:2:{CharacterModelFingerprint(source)}:{reference.Source}";
+                var repaired = RetainDerivedData(key, () =>
+                {
+                    var mesh = RepairNoseSurface(source, SurfaceTriangles(source, head.Renderer, true),
+                        frame.AnatomicalCoordinates(bind), frame.NoseHeight, frame.NoseWidth);
+                    return mesh ? [mesh] : [new TextAsset("null")];
+                })[0] as Mesh;
+                if (repaired) head.SetAuthored(repaired);
+            }
+            if (headFrames.Count == 0 || !SettingsContext.GuiModManagerInstance.EnableCustomFaces) return;
+
+            var grooms = GroomRenderers(graphics.ShapeSkinnedMeshRenderersPerBodySlot).GroupBy(entry => entry.Renderer)
                 .ToDictionary(entries => entries.Key, entries => entries.Any(entry => entry.Beard));
-            if (heads.Count == 0 || grooms.Count == 0) return;
-            graphics.RulesetCharacter.MorphotypeElements.TryGetValue(
-                MorphotypeElementDefinition.ElementCategory.FaceShape, out var selectedFace);
+            var surfaces = new Dictionary<CharacterModelSkin, ContactSurface>();
+            if (CharacterModelLodStates.TryGetValue(graphics, out var lodState)) levels = lodState.Levels;
+            var primaryGrooms = levels.Length == 0 ? [] : levels[0].renderers.ToHashSet();
+            var nativeFits = new Dictionary<(bool Beard, string Shape), float>();
+            if (graphics.RulesetCharacter is { } actor &&
+                actor.MorphotypeElements.TryGetValue(MorphotypeElementDefinition.ElementCategory.FaceShape, out var faceShape))
+            {
+                var selected = actor.FaceShapeAssetPrefix + "_" + faceShape;
+                foreach (var part in grooms)
+                {
+                    var renderer = part.Key;
+                    if (!primaryGrooms.Contains(renderer)) continue;
+                    var mesh = renderer.sharedMesh;
+                    for (var index = 0; index < mesh.blendShapeCount; index++)
+                    {
+                        var name = mesh.GetBlendShapeName(index);
+                        var value = renderer.GetBlendShapeWeight(index);
+                        if (value != 0f && BodyShapeFinite(value) && name.Length != 0 && selected.Contains(name))
+                            nativeFits[(part.Value, name)] = value;
+                    }
+                }
+            }
             foreach (var groom in _skins)
             {
                 if (!grooms.TryGetValue(groom.Renderer, out var beard) ||
-                    groom.Source.ClothOwner || bindings.ContainsKey(groom.Renderer)) continue;
-                var head = _skins.FirstOrDefault(skin => heads.Contains(skin.Renderer) &&
-                    SharesDetailLevel(levels, skin.Renderer, groom.Renderer));
-                if (head == null || !TryFaceAgeFrame(graphics, head, out var frame)) continue;
-                var headBones = head.Renderer.bones;
-                var headIndex = Array.FindIndex(headBones, bone => bone && bone.name == "Bip001 Head");
-                if (headIndex < 0) continue;
-                var groomIndex = Array.IndexOf(groom.Renderer.bones, headBones[headIndex]);
+                    bindings.ContainsKey(groom.Renderer)) continue;
+                var head = faces.Keys.FirstOrDefault(skin => SharesDetailLevel(levels, skin.Renderer, groom.Renderer));
+                if (head == null) continue;
+                var face = faces[head];
+                if (!headFrames.TryGetValue(face.Bone, out var reference)) continue;
+                var frame = reference.Frame;
+                var groomIndex = Array.IndexOf(groom.Renderer.bones, face.Bone);
                 var source = groom.Authored;
                 var poses = source.bindposes;
                 if (groomIndex < 0 || groomIndex >= poses.Length) continue;
-                var headBind = head.Authored.bindposes[headIndex];
-                var toSkin = headBind.inverse * poses[groomIndex];
-                var shape = SelectedGroomFrame(source, selectedFace);
-                var key = $"groom-contact:1:{groom.Fingerprint}:{CharacterModelFingerprint(source)}:" +
-                          $"{CharacterModelFingerprint(head.Authored)}:{groomIndex}:{headIndex}:{shape}:{beard}";
+                var toSkin = face.Bind.inverse * poses[groomIndex];
+                var live = groom.Renderer.sharedMesh;
+                // The game's fallback morph can differ from the face option's name.
+                var inheritFit = !groom.Source.ClothOwner && !primaryGrooms.Contains(groom.Renderer);
+                var weights = Enumerable.Range(0, Math.Min(source.blendShapeCount, live.blendShapeCount))
+                    .Where(channel => source.GetBlendShapeName(channel) == live.GetBlendShapeName(channel))
+                    .Select(channel =>
+                    {
+                        var weight = groom.Renderer.GetBlendShapeWeight(channel);
+                        // Native code applies the face morph only to LOD0. Apply the same
+                        // authored fit to the rigid lower detail whenever it has the channel.
+                        if (weight == 0f && inheritFit &&
+                            nativeFits.TryGetValue((beard, source.GetBlendShapeName(channel)), out var fit))
+                            return (Channel: channel, Weight: fit, Bake: true);
+                        return (Channel: channel, Weight: weight, Bake: false);
+                    })
+                    .Where(shape => shape.Weight != 0f && BodyShapeFinite(shape.Weight)).ToArray();
+                var channels = string.Join(",", weights.Select(shape => FormattableString.Invariant($"{shape.Channel}/{shape.Weight:R}/{shape.Bake}")));
+                HashSet<int> clothRoots = null;
+                var anchors = string.Empty;
+                if (groom.Source.ClothOwner)
+                {
+                    clothRoots = CustomModels.SkinMeshSource.SourceGraph.FixedClothRenderVertices(graphics, groom.Source);
+                    if (clothRoots.Count == 0) continue;
+                    var mask = new byte[(source.vertexCount + 7) / 8];
+                    foreach (var root in clothRoots) mask[root / 8] |= (byte)(1 << (root % 8));
+                    anchors = Convert.ToBase64String(mask);
+                }
+                var cutout = beard && clothRoots == null ? ReadGroomCutout(groom.Renderer) : default;
+                var revision = beard ? 17 : 18;
+                var key = $"groom-contact:{revision}:{CharacterModelFingerprint(source)}:" +
+                          $"{CharacterModelFingerprint(head.Authored)}:{reference.Source}:{groomIndex}:{channels}:{beard}:{anchors}:{cutout.Key}";
                 var fitted = RetainDerivedData(key, () =>
                 {
-                    var result = FitGroomContact(source, shape, toSkin, head.Authored,
-                        SurfaceTriangles(head.Authored, head.Renderer, true), frame.AnatomicalCoordinates(headBind), beard);
+                    if (!surfaces.TryGetValue(head, out var surface))
+                    {
+                        surface = new ContactSurface(ReadBodyShapeRest(head.Authored).Vertices,
+                            SurfaceTriangles(head.Authored, head.Renderer, true), GroomContactReach);
+                        surfaces.Add(head, surface);
+                    }
+                    var result = FitGroomContact(source, weights, toSkin, surface, frame.AnatomicalCoordinates(face.Bind),
+                        frame.Landmarks, beard, clothRoots, cutout);
                     return result ? [result] : [new TextAsset("null")];
                 })[0] as Mesh;
                 if (!fitted) continue;
+                if (groom.Source.ClothOwner)
+                {
+                    // Offset the native render binding while preserving the simulation mesh and pins.
+                    var binding = GroomBindings.GetValue(fitted, mesh =>
+                        CreateAuthoredBaseBinding(groom.Source.Original, mesh, key, fixedClothOffsets: true));
+                    if (binding == null) continue;
+                    bindings.Add(groom.Renderer, binding);
+                }
                 groom.SetAuthored(fitted);
             }
         }
@@ -5943,7 +6096,11 @@ internal static partial class RacesContext
         internal void RefreshFaceAge()
         {
             if (!_graphics || _graphics.RulesetCharacter?.MorphotypeElementAdditionalValues
-                    .TryGetValue(MorphotypeElementDefinition.ElementCategory.Age, out var age) != true) return;
+                    .TryGetValue(MorphotypeElementDefinition.ElementCategory.Age, out var age) != true)
+            {
+                RefreshFaceAgeColor(0f);
+                return;
+            }
             var youthful = Mathf.SmoothStep(0f, 100f, Mathf.InverseLerp(50f, 0f, age));
             var ageProgress = FaceAgeProgress(age);
             foreach (var skin in _skins)
@@ -5961,28 +6118,38 @@ internal static partial class RacesContext
 
         private void RefreshFaceAgeColor(float amount)
         {
-            if (_faceAgeFrame.Scale == 0f) return;
+            if (!_graphics || _faceAgeFrame.Scale == 0f) return;
+            var resources = _graphics.GetComponent<CharacterModelResourceLease>();
+            if (!resources) return;
             _activeFaceAgeMaterials.Clear();
-            if (amount > 0f)
+            foreach (var skin in _skins)
             {
-                foreach (var skin in _skins)
+                var mesh = skin.Authored;
+                if (!skin.Renderer || !mesh || mesh.GetBlendShapeIndex(ElderlyFace) < 0) continue;
+                var head = Array.FindIndex(skin.Renderer.bones, bone => bone && bone.name == "Bip001 Head");
+                if (head < 0) continue;
+                var frame = _faceAgeFrame.AnatomicalCoordinates(mesh.bindposes[head]);
+                skin.Renderer.GetSharedMaterials(_faceAgeSlots);
+                for (var slot = 0; slot < Mathf.Min(_faceAgeSlots.Count, mesh.subMeshCount); slot++)
                 {
-                    var mesh = skin.Authored;
-                    if (!skin.Renderer || !mesh || mesh.GetBlendShapeIndex(ElderlyFace) < 0) continue;
-                    var head = Array.FindIndex(skin.Renderer.bones, bone => bone && bone.name == "Bip001 Head");
-                    if (head < 0) continue;
-                    var frame = _faceAgeFrame.AnatomicalCoordinates(mesh.bindposes[head]);
-                    skin.Renderer.GetSharedMaterials(_faceAgeSlots);
-                    for (var slot = 0; slot < Mathf.Min(_faceAgeSlots.Count, mesh.subMeshCount); slot++)
+                    var material = _faceAgeSlots[slot];
+                    var main = FaceAgeColorSurface.MainTexture;
+                    if (!material || !_graphics.SkinMaterials.Contains(material) || !_graphics.MaterialsToDestroy.Contains(material) ||
+                        !material.shader || material.shader.name is not ("Lux/Human/Skin" or "Lux/Human/Skin (double sided)") ||
+                        !material.HasProperty(main) || _activeFaceAgeMaterials.Contains(material)) continue;
+                    _faceAgeMaterials.TryGetValue(material, out var color);
+                    color?.Restore();
+                    if (material.GetTexture(main) is not Texture2D source || !source) continue;
+                    var repairPigment = resources.OwnsFaceSkin(material);
+                    if (amount == 0f && !repairPigment) continue;
+                    if (color == null)
                     {
-                        var material = _faceAgeSlots[slot];
-                        if (!material || !_graphics.SkinMaterials.Contains(material) || !_graphics.MaterialsToDestroy.Contains(material) ||
-                            !material.shader || material.shader.name is not ("Lux/Human/Skin" or "Lux/Human/Skin (double sided)") ||
-                            !material.HasProperty(FaceAgeColorSurface.MainTexture) || !_activeFaceAgeMaterials.Add(material)) continue;
-                        if (!_faceAgeMaterials.TryGetValue(material, out var color))
-                            _faceAgeMaterials.Add(material, color = new FaceAgeColorSurface(material));
-                        color.Apply(mesh, slot, frame, _faceAgeFrame.Landmarks, amount);
+                        var paint = resources.RenderMaterial(FaceAgeColorSurface.MaterialKey);
+                        if (!paint) continue;
+                        _faceAgeMaterials.Add(material, color = new FaceAgeColorSurface(material, paint));
                     }
+                    _activeFaceAgeMaterials.Add(material);
+                    color.Apply(mesh, slot, frame, _faceAgeFrame.Landmarks, repairPigment, amount, RetainDerivedData);
                 }
             }
             _faceAgeSlots.Clear();
@@ -6021,6 +6188,7 @@ internal static partial class RacesContext
                     renderers.Count == _skins.Count && _skins.All(skin => sources.TryGetValue(skin.Renderer, out var source) && skin.IsCurrent(graphics, source)))
                 {
                     RefreshMaterials();
+                    RefreshGroomWardrobe();
                     return;
                 }
                 if (preparedSources == null && sameLods && catalog == null && ReferenceEquals(_actor, graphics.RulesetCharacter) &&
@@ -6064,7 +6232,7 @@ internal static partial class RacesContext
                 foreach (var skin in _skins.Where(skin => skin.ChangesSource))
                     if (_catalog?.Binding(skin.Source.Original, skin.Fingerprint) is { } binding) bindings.Add(skin.Renderer, binding);
                 PrepareJoints(graphics, bindings, jointLods);
-                PrepareGroomFit(graphics, jointLods ?? SkinJointLods(graphics), bindings);
+                PrepareFaceAndGroomFit(graphics, jointLods ?? SkinJointLods(graphics), bindings);
                 var faceExpressions = PrepareFaceAge(graphics, bindings);
                 foreach (var skin in _skins) skin.ValidateSource(bindings.ContainsKey(skin.Renderer));
                 var changes = _skins.Where(skin => skin.ChangesSource).ToDictionary(skin => skin.Renderer,
@@ -6082,6 +6250,7 @@ internal static partial class RacesContext
                 RefreshMaterials();
                 RefreshBodyShape(graphics);
                 RefreshFaceAge();
+                RefreshGroomWardrobe();
                 published = true;
             }
             catch (Exception failure)
@@ -6115,6 +6284,7 @@ internal static partial class RacesContext
                 _materialRefreshPending = true;
                 return;
             }
+            foreach (var color in _faceAgeMaterials.Values) color.Restore();
             var renderers = new HashSet<Renderer>(_graphics.Renderers ?? []);
             var nativeMaterials = NativeCharacterModelMaterialOwners(_graphics);
             var declarations = new Dictionary<Material, (CharacterModelMaterialAsset Declaration, Shader Shader, CharacterModelMaterial.NativeProfile Native, string Body)>();
@@ -6180,6 +6350,9 @@ internal static partial class RacesContext
                 }
                 owner.Apply(row.Value.Body);
             }
+            var age = _graphics.RulesetCharacter?.MorphotypeElementAdditionalValues
+                .TryGetValue(MorphotypeElementDefinition.ElementCategory.Age, out var value) == true ? FaceAgeProgress(value) : 0f;
+            RefreshFaceAgeColor(age);
             var bodyPresentation = _graphics.GetComponent<BodyShapePresentation>();
             bodyPresentation?.RefreshNativeSurfaceMaterials();
             _sourceGraph?.RefreshNativeSurfaceMaterials(bodyPresentation == null ? null : bodyPresentation.OwnsNativeDeformer);
@@ -6239,6 +6412,7 @@ internal static partial class RacesContext
                 if (_graphics && _graphics.GetComponent<BodyShapePresentation>() is { HasSources: true })
                     throw new InvalidOperationException("Body overlays still reference a custom character model source before animator initialization.");
                 foreach (var color in _faceAgeMaterials.Values) color.Restore();
+                _groomWardrobe.Dispose();
                 // Pin assets only until this synchronous native initialization has completed.
                 foreach (var owner in _materials) owner.RetainBundles(_packs);
                 foreach (var owner in _materials) owner.Restore();
@@ -6300,6 +6474,7 @@ internal static partial class RacesContext
                 _suspended = false;
                 RefreshMaterials();
                 RefreshFaceAge();
+                RefreshGroomWardrobe();
             }
             catch (Exception failure)
             {
@@ -6320,6 +6495,7 @@ internal static partial class RacesContext
             {
             _refreshPending = false;
             _suspended = false;
+            _groomWardrobe.Dispose();
             foreach (var color in _faceAgeMaterials.Values) color.Dispose();
             _faceAgeMaterials.Clear();
             _activeFaceAgeMaterials.Clear();
@@ -7005,7 +7181,8 @@ internal static partial class RacesContext
     private static bool BodyShapeFinite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
     private static bool BodyShapeFinite(Vector3 value) => BodyShapeFinite(value.x) && BodyShapeFinite(value.y) && BodyShapeFinite(value.z);
 
-    private static CustomModels.SkinMeshSource.SurfaceBinding CreateAuthoredBaseBinding(Mesh original, Mesh authored, string identity)
+    private static CustomModels.SkinMeshSource.SurfaceBinding CreateAuthoredBaseBinding(Mesh original, Mesh authored, string identity,
+        bool fixedClothOffsets = false)
     {
         if (!original || !authored || original == authored || original.vertexCount != authored.vertexCount) return null;
         var native = ReadBodyShapeRest(original); var target = ReadBodyShapeRest(authored);
@@ -7054,7 +7231,8 @@ internal static partial class RacesContext
                 Coordinates(target.Vertices[index] - native.Vertices[index]), Coordinates(target.Normals[index]),
                 Coordinates((Vector3)target.Tangents[index]), false);
         }
-        return new CustomModels.SkinMeshSource.SurfaceBinding(identity, Matrix4x4.identity, native.Tangents, vertices, authoredBase: authored);
+        return new CustomModels.SkinMeshSource.SurfaceBinding(identity, Matrix4x4.identity, native.Tangents, vertices,
+            authoredBase: authored, fixedClothOffsets: fixedClothOffsets);
     }
 
     private sealed class BodyShapeRest

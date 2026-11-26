@@ -1289,6 +1289,48 @@ class CharacterResourcePackContracts(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,'pack changed'):
                     publisher.create_resource_packs(manifest,output,'2026.11.07.1',1024)
 
+    def test_resource_release_reuses_complete_archives_and_uploads_changed_files_separately(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest, previous_output = self.fixture(root)
+            with mock.patch.object(publisher, 'ROOT', root):
+                previous = publisher.create_resource_packs(manifest, previous_output, '2026.11.07.1', 1300)
+                previous_manifest = root / 'Previous.json'
+                previous_manifest.write_bytes(manifest.read_bytes())
+                catalog = publisher.read(manifest)
+                updated = manifest.parent / catalog['bundles'][0]['file']
+                updated.write_bytes(b'new rendering code')
+                catalog['bundles'][0]['sha256'] = publisher.sha(updated)
+                publisher.write(manifest, catalog)
+                output = root / 'Replacement'
+                previous_packs = previous_output / publisher.RESOURCE_FILES['packs']
+                options = dict(previous_manifest=previous_manifest, previous_packs=previous_packs)
+                uploaded = []
+                result = publisher.create_resource_packs(manifest, output, '2026.11.07.2', 1300,
+                    consume_pack=lambda pack, path: uploaded.append((pack, path)), **options)
+                inherited, = (pack for pack in result['packs'] if 'sourceVersion' in pack)
+                self.assertEqual(inherited, dict(previous['packs'][1], sourceVersion='2026.11.07.1'))
+                self.assertEqual(len(uploaded), 2)
+                self.assertEqual(uploaded[0][0]['files'], [updated.name])
+                self.assertEqual(set(file for pack in result['packs'] for file in pack['files']),
+                                 {bundle['file'] for bundle in catalog['bundles']})
+                self.assertEqual(publisher.create_resource_packs(manifest, output, '2026.11.07.2', 1300,
+                    consume_pack=lambda pack, path: self.assertIsNone(path), **options), result)
+                previous['packs'][0]['sourceVersion'] = '2026.11.08.1'
+                publisher.write(previous_packs, previous)
+                with self.assertRaisesRegex(ValueError, 'earlier release'):
+                    publisher.create_resource_packs(manifest, root / 'Invalid', '2026.11.07.2', 1300, **options)
+
+    def test_resource_package_rejects_render_material_outside_its_catalog(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            manifest, output = self.fixture(root)
+            catalog = publisher.read(manifest)
+            catalog['renderMaterials'] = dict(Paint=dict(bundleFile='absent.bundle', materialAsset='Paint', shader='Test/Paint'))
+            publisher.write(manifest, catalog)
+            with mock.patch.object(publisher, 'ROOT', root), self.assertRaisesRegex(ValueError, 'rendering material'):
+                publisher.create_resource_packs(manifest, output, '2026.11.07.1', 1024)
+
 
 class CharacterGroomContracts(unittest.TestCase):
     def test_fiber_reflection_is_normalized_and_reciprocal_across_roughness(self):

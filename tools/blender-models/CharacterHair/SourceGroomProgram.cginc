@@ -16,6 +16,11 @@
         float _FineAlphaCutoff, _CoreReliefStrength, _FineReliefStrength, _CoreGroomPigmentStrength, _NativeGrooveStrength;
         float _NativeCoreCull, _CullMode, _NativePigmentMean;
         float _SupportInVertexFrame, _FlowInVertexFrame;
+        sampler2D _UBGroomWardrobeProfile;
+        float _UBGroomWardrobe;
+        float4x4 _UBGroomWardrobeFromWorld, _UBGroomWardrobeToWorld;
+        float4x4 _UBGroomWardrobeHeadFromWorld;
+        float4 _UBGroomWardrobeRange, _UBGroomWardrobeProfile_TexelSize;
         #ifdef SOURCE_GROOM_ROLE_PROOF
         float _RoleDebug, _RoleOnly;
         #endif
@@ -170,12 +175,136 @@
             INTERNAL_DATA
         };
 
+        float WardrobeHeight(float height)
+        {
+            float fraction = saturate((height - _UBGroomWardrobeRange.x) /
+                (_UBGroomWardrobeRange.y - _UBGroomWardrobeRange.x));
+            return fraction * ((_UBGroomWardrobeProfile_TexelSize.w - 1) * .5 - 1);
+        }
+
+        float WardrobeContour(float direction, float row)
+        {
+            return tex2Dlod(_UBGroomWardrobeProfile,
+                float4(direction, row * _UBGroomWardrobeProfile_TexelSize.y, 0, 0)).r;
+        }
+
+        float WardrobeRadius(float direction, float height)
+        {
+            return height >= _UBGroomWardrobeRange.y ? 0 : WardrobeContour(direction, 1.5 + WardrobeHeight(height));
+        }
+
+        float WardrobeBack(float side, float height)
+        {
+            float center = .5 * _UBGroomWardrobeProfile_TexelSize.x;
+            float lateral = clamp(.5 + side / (2 * _UBGroomWardrobeRange.z), center, 1 - center);
+            float firstRow = 1 + .5 * _UBGroomWardrobeProfile_TexelSize.w;
+            return WardrobeContour(lateral, firstRow + WardrobeHeight(height));
+        }
+
+        float CollarRim(float direction)
+        {
+            return max(WardrobeRadius(direction, .11), .85 * WardrobeRadius(direction, .07));
+        }
+
+        float RearCollarCover(float side)
+        {
+            float depth = max(WardrobeBack(side, .105), WardrobeBack(0, .105));
+            return (1 - _UBGroomWardrobeRange.w) * smoothstep(.045, .075, depth);
+        }
+
+        float CollarWrap(float rim, float3 head)
+        {
+            float earSide = smoothstep(1.7, 2.75, abs(head.x)) * smoothstep(-3.6, -2.25, head.z);
+            return smoothstep(.050, .089, rim) * max(earSide, smoothstep(-3.2, -1.55, head.z));
+        }
+
+        void ClearEquipment(inout float4 vertex)
+        {
+            if (_UBGroomWardrobe == 0) return;
+            float4 world = mul(unity_ObjectToWorld, vertex);
+            float3 position = mul(_UBGroomWardrobeFromWorld, world).xyz;
+            float radius = length(position.xz);
+            if (position.y <= -.43 || position.y >= _UBGroomWardrobeRange.y || radius <= .03) return;
+            float direction = atan2(position.z, position.x) * (1.0 / 6.283185307) + .5;
+            float3 head = mul(_UBGroomWardrobeHeadFromWorld, world).xyz;
+            float earSide = smoothstep(1.85, 2.8, abs(head.x)) * smoothstep(-3.5, -2.4, head.z);
+            float faceSide = max(earSide, smoothstep(-1.1, -.35, head.z));
+            float pendant = 1 - smoothstep(lerp(-1.7, -2.8, faceSide), lerp(-.65, -1.55, faceSide), head.y);
+            if (pendant <= 0 && head.y >= .15) return;
+            float rim = CollarRim(direction);
+            float tuck = CollarWrap(rim, head);
+            float shell = WardrobeRadius(direction, position.y);
+            float overhang = radius - shell;
+            float collar = WardrobeContour(direction, .5);
+            float back = WardrobeBack(position.x, position.y);
+            float raised = smoothstep(.045, .09, WardrobeBack(position.x, .105));
+            float rear = smoothstep(lerp(.020, .007, raised), lerp(.055, .035, raised), -position.z) *
+                (1 - smoothstep(-4., -2.7, head.z));
+            float rearLength = 1 - smoothstep(lerp(-1.7, -.55, raised), lerp(-.65, .15, raised), head.y);
+            float overlap = back + position.z + lerp(.008, .014, _UBGroomWardrobeRange.w);
+            // A smooth, monotone projection leaves successive layers in depth order.
+            float push = min(lerp(.025, .088, _UBGroomWardrobeRange.w),
+                .46 * (overlap + sqrt(overlap * overlap + .000036)));
+            push *= rear * rearLength * smoothstep(.030, .065, back) *
+                (1 - smoothstep(.115, .190, position.y)) * smoothstep(-.43, -.29, position.y) *
+                (1 - RearCollarCover(position.x));
+
+            float depth = clamp(.006 - overhang, 0, .042);
+            float slope = clamp((shell - WardrobeRadius(direction, position.y + .016)) / .016, 0, 2);
+            float lift = min(.008, depth * slope / (1 + slope * slope));
+            float closeToCloth = smoothstep(.018, .035, shell) * smoothstep(.03, .05, radius) *
+                smoothstep(_UBGroomWardrobeRange.x, -.10, position.y) * (1 - smoothstep(.016, .042, depth)) *
+                (1 - smoothstep(.035, .070, radius - collar)) * (1 - tuck) * (1 - rear);
+            float outward = clamp(WardrobeRadius(direction, position.y + lift) - radius + .006, 0, .015) * closeToCloth;
+
+            float3 displacement = float3(position.x * (outward / radius), lift * closeToCloth,
+                position.z * (outward / radius)) * pendant;
+            displacement.z -= push;
+            float3 worldDisplacement = mul((float3x3)_UBGroomWardrobeToWorld, displacement);
+            vertex.xyz += mul((float3x3)unity_WorldToObject, worldDisplacement);
+        }
+
+        float3 SourceGroomBackFaceNormal(float3 normal, float3 support, float3 view, float facing)
+        {
+            // A loose card can show either side while it bends over the equipment.
+            if (facing < 0 && dot(support, view) < -.20) return -normal;
+            return normal;
+        }
+
+        void HideTuckedEnds(float3 worldPosition)
+        {
+            if (_UBGroomWardrobe == 0) return;
+            float4 world = float4(worldPosition, 1);
+            float3 position = mul(_UBGroomWardrobeFromWorld, world).xyz;
+            if (position.y >= .13) return;
+            float3 head = mul(_UBGroomWardrobeHeadFromWorld, world).xyz;
+            if (head.y >= -1.65) return;
+            float direction = atan2(position.z, position.x) * (1.0 / 6.283185307) + .5;
+            float rim = CollarRim(direction);
+            float tucked = CollarWrap(rim, head) * (1 - smoothstep(.075, .11, position.y)) *
+                (1 - smoothstep(-2.75, -1.8, head.y)) * (1 - smoothstep(.025, .060, length(position.xz) - rim));
+            float front = 0;
+            if (position.y < .095 && position.z > -.112)
+            {
+                float crest = max(WardrobeRadius(.625, .063), WardrobeRadius(.875, .063));
+                float side = max(WardrobeRadius(.625, .045), WardrobeRadius(.875, .045));
+                float collar = max(crest, .83 * side);
+                front = smoothstep(.101, .132, collar) * smoothstep(-.112, -.022, position.z) *
+                    (1 - smoothstep(.168, .235, abs(position.x))) * (1 - smoothstep(.043, .095, position.y)) *
+                    (1 - smoothstep(-2.70, -1.65, head.y));
+            }
+            float rear = RearCollarCover(position.x) * smoothstep(.008, .035, -position.z) *
+                (1 - smoothstep(.070, .13, position.y)) * (1 - smoothstep(-2.6, -1.65, head.y));
+            clip(.39 - max(front, max(tucked, rear)));
+        }
+
         void vert(inout SourceGroomVertex v, out Input o)
         {
             UNITY_INITIALIZE_OUTPUT(Input, o);
             #if defined(UB_NATIVE_SURFACE) && defined(SHADER_API_D3D11)
             UBApplySurface(v.texcoord3.x, v.vertex, v.normal, v.tangent);
             #endif
+            ClearEquipment(v.vertex);
             float worldY = mul(unity_ObjectToWorld, v.vertex).y;
             float dissolve = SGNativeDissolveMask(worldY, _DisolveValue, _CharacterHeight, _CharacterPosY);
             v.vertex.xyz += v.normal * (_DisolveVertexOffset * dissolve);
@@ -207,6 +336,7 @@
             float2 nativeDx=ddx(normalUV),nativeDy=ddy(normalUV);
             float2 maskUV=i.sourceAndGroom.xy*_Mask_ST.xy+_Mask_ST.zw;
             float2 maskDx=ddx(maskUV),maskDy=ddy(maskUV);
+            HideTuckedEnds(i.worldPos);
             float role=i.groomRoleAndSign.x;
             bool sourceRoot=role>=96.5;
             float4 source=0;
@@ -248,6 +378,7 @@
                     o.Albedo=_Color.rgb*lerp(pigment,clamp(localValue,0.20,0.67),0.24)*(0.94+0.52*strand.x);
                     o.Normal=SourceGroomWhiteout(SourceGroomNativeIntensity(native,0.34),o.Normal);
                 }
+                o.Normal=SourceGroomBackFaceNormal(o.Normal,renderN,normalize(_WorldSpaceCameraPos.xyz-i.worldPos),i.sourceFacing);
                 o.Metallic=0;
                 o.Smoothness=(sourceRoot ? lerp(0.28,0.34,root) : lerp(0.31,0.40,root))+0.07*strand.x;
                 o.Occlusion=lerp(0.75,1,root);
@@ -429,7 +560,7 @@
             // fiber BRDF. Adding it to pigment would wash out dark dyes and
             // turn pale hair into opaque sculpted highlights.
             o.Albedo = pigment+(mask<=0.5 ? nativeLookupPigment*(1-_CoreResponse) : 0);
-            o.Normal = normal;
+            o.Normal = mask<=0.5 ? SourceGroomBackFaceNormal(normal,renderN,view,i.sourceFacing) : normal;
 
 
             o.Metallic = mask;

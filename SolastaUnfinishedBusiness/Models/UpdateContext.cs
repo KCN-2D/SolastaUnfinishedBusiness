@@ -211,6 +211,14 @@ internal static class UpdateContext
         else File.Move(temporary, path);
     }
 
+    private static Version CharacterModelReleaseVersion(string value)
+    {
+        if (!Regex.IsMatch(value ?? "", "^[0-9]{4}\\.[0-9]{2}\\.[0-9]{2}\\.[1-9][0-9]*$") ||
+            !Version.TryParse(value, out var version))
+            throw new InvalidDataException("Invalid character content release version.");
+        return version;
+    }
+
     private static void DownloadCharacterModelPack(Uri uri, string path, long bytes, string expectedHash,
         CancellationToken cancellation)
     {
@@ -378,26 +386,34 @@ internal static class UpdateContext
         }
         if (files.Count != declarations.Count || files.Count == 0)
             throw new InvalidDataException("Incomplete character content declarations.");
+        var release = (string)specification["version"];
+        var releaseVersion = CharacterModelReleaseVersion(release);
+        var releaseAddress = (string)specification["baseUrl"];
+        if (!Regex.IsMatch(releaseAddress ?? "", @"\Ahttps://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/releases/download/[A-Za-z0-9_.-]+/\z") ||
+            !releaseAddress.EndsWith(release + "/", StringComparison.Ordinal) ||
+            new Uri(releaseAddress).AbsoluteUri != releaseAddress)
+            throw new InvalidDataException("Invalid character content release address.");
+        var releasePrefix = releaseAddress.Substring(0, releaseAddress.Length - release.Length - 1);
         var packs = ((JArray)specification["packs"]).OfType<JObject>().ToArray();
         var packedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var packNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var packUrls = new Dictionary<string, Uri>(StringComparer.OrdinalIgnoreCase);
         foreach (var pack in packs)
         {
-            AssertContentLeaf((string)pack["file"]);
-            if (!packNames.Add((string)pack["file"]) || !Regex.IsMatch((string)pack["file"], "^CharacterModels-[0-9]{2}\\.zip$") ||
+            var name = (string)pack["file"];
+            AssertContentLeaf(name);
+            if (!Regex.IsMatch(name, "^CharacterModels-[0-9]{2}\\.zip$") ||
                 (long?)pack["bytes"] is not > 0 || (long?)pack["bytes"] > 1024L * 1024 * 1024 ||
-                !Regex.IsMatch((string)pack["sha256"] ?? "", "^[a-f0-9]{64}$"))
+                !Regex.IsMatch((string)pack["sha256"] ?? "", "^[a-f0-9]{64}$") || packUrls.ContainsKey(name))
                 throw new InvalidDataException("Invalid character content pack.");
-            foreach (var name in ((JArray)pack["files"]).Values<string>())
-                if (!files.ContainsKey(name) || !packedFiles.Add(name))
+            var source = (string)pack["sourceVersion"];
+            if (source != null && CharacterModelReleaseVersion(source) >= releaseVersion)
+                throw new InvalidDataException("A reused character content pack must come from an earlier release.");
+            packUrls.Add(name, new Uri(releasePrefix + (source ?? release) + "/" + name));
+            foreach (var entry in ((JArray)pack["files"]).Values<string>())
+                if (!files.ContainsKey(entry) || !packedFiles.Add(entry))
                     throw new InvalidDataException("Missing or duplicate packed character file.");
         }
         if (!packedFiles.SetEquals(files.Keys)) throw new InvalidDataException("The character pack closure is incomplete.");
-        var baseUri = new Uri((string)specification["baseUrl"], UriKind.Absolute);
-        if (baseUri.Scheme != Uri.UriSchemeHttps || baseUri.Host != "github.com" ||
-            !baseUri.AbsolutePath.StartsWith("/KCN-2D/SolastaUnfinishedBusiness/releases/download/", StringComparison.Ordinal) ||
-            !baseUri.AbsolutePath.EndsWith("/", StringComparison.Ordinal) || baseUri.Query.Length != 0 || baseUri.Fragment.Length != 0)
-            throw new InvalidDataException("Invalid character content release address.");
         var modDirectory = Directory.GetParent(Directory.GetParent(directory)!.FullName)!.FullName;
         var cacheRoot = Path.Combine(Directory.GetParent(modDirectory)!.FullName, "SolastaUnfinishedBusinessContent");
         var installed = Path.Combine(cacheRoot, "CharacterModels");
@@ -503,7 +519,7 @@ internal static class UpdateContext
                         if (File.Exists(download)) File.Delete(download);
                         return;
                     }
-                    DownloadCharacterModelPack(new Uri(baseUri, (string)pack["file"]), download, (long)pack["bytes"],
+                    DownloadCharacterModelPack(packUrls[(string)pack["file"]], download, (long)pack["bytes"],
                         (string)pack["sha256"], token);
                     using (var archive = ZipFile.OpenRead(download))
                     {

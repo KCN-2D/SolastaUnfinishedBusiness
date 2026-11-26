@@ -317,6 +317,7 @@
     </EmbeddedResource>
   </ItemGroup>
 
+  <Import Project="BlenderModels.Packaging.props" />
   <ItemGroup>
     <None Update="ChangelogHistory.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -324,7 +325,7 @@
     <None Update="Info.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="BlenderModels\**\*.*">
+    <None Update="@(PackagedBlenderModel)">
       <CopyToOutputDirectory Condition="'$(CopyBlenderModels)' != 'false'">PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="Portraits\**\*.*">

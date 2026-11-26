@@ -240,13 +240,20 @@ function Invoke-GtGit([string[]] $Arguments) {
     return $result
 }
 
-function Assert-GtModelDistributionChange([string[]]$ChangedPaths, [string]$PublishedCommit) {
+function Assert-GtModelDistributionChange([string[]]$ChangedPaths, [string]$PublishedCommit, [string[]]$PackageInputs) {
+    . (Join-Path $script:GameTestBuildRoot 'internal/PackagedBlenderModels.ps1')
     $distribution = 'SolastaUnfinishedBusiness/BlenderModels/CharacterModels'
     $catalog = "$distribution/CharacterModels.manifest.json"
     $packs = "$distribution/CharacterModels.packs.json"
     $catalogChanged = $catalog -in $ChangedPaths
     $packsChanged = $packs -in $ChangedPaths
-    $appearanceChanged = $ChangedPaths -match '^tools/blender-models/Character[^/]+/(?!resource-package\.json$).+\.(?:json|blend|fbx|shader|cginc)$'
+    $projectPrefix = 'SolastaUnfinishedBusiness/'
+    $projectInputs = @($PackageInputs | Where-Object { $_.StartsWith($projectPrefix, [StringComparison]::Ordinal) } |
+        ForEach-Object { $_.Substring($projectPrefix.Length) })
+    Assert-PackagedBlenderModel $projectInputs @(Get-PackagedBlenderModelPath (Join-Path $script:GameTestRepo 'SolastaUnfinishedBusiness')) -Partial
+    $appearanceChanged = $ChangedPaths | Where-Object {
+        $_ -match '^tools/blender-models/Character[^/]+/(?!resource-package\.json$).+\.(?:json|blend|fbx|shader|cginc)$'
+    }
 
     if (($catalogChanged -or $packsChanged -or $appearanceChanged) -and -not ($catalogChanged -and $packsChanged)) {
         throw 'Include both CharacterModels.manifest.json and CharacterModels.packs.json from the same game-verified model release.'
@@ -762,7 +769,7 @@ function Get-GtEnvironment([string] $GameExePath, [string] $TargetCommit = 'HEAD
     $project = Join-Path $script:GameTestRepo 'SolastaUnfinishedBusiness\SolastaUnfinishedBusiness.csproj'
     [xml]$xml = [IO.File]::ReadAllText($project)
     $outputPaths = @($xml.SelectNodes('//OutputPath') | ForEach-Object { $_.InnerText })
-    $buildInputs=@('BuildCustomLocalPackage.cmd','internal/BuildCustomLocalPackage.ps1','internal/CustomBuildRuntime.patch' | ForEach-Object {
+    $buildInputs=@('BuildCustomLocalPackage.cmd','internal/BuildCustomLocalPackage.ps1','internal/CustomBuildRuntime.patch','internal/PackagedBlenderModels.ps1' | ForEach-Object {
         $path=Join-Path $script:GameTestBuildRoot $_
         [ordered]@{path=$path;sha256=Get-GtHash $path}
     })

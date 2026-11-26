@@ -3,8 +3,10 @@ param([switch]$Preflight)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$InformationPreference = "Continue"
 
 $buildRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'PackagedBlenderModels.ps1')
 
 function Enter-PackageBuildLock {
     $mutex = [Threading.Mutex]::new($false, 'Local\SolastaUBGameTest')
@@ -37,7 +39,7 @@ function Invoke-Step {
         [scriptblock] $Action
     )
 
-    Write-Host $Description
+    Write-Information $Description
     & $Action
 }
 
@@ -50,7 +52,7 @@ function Convert-ToGitPath {
     return ((Resolve-Path -LiteralPath $Path).Path -replace "\\", "/")
 }
 
-function Import-CompressionAssemblies {
+function Import-CompressionAssembly {
     Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
 }
@@ -62,13 +64,13 @@ function Write-BuildCompleted {
         [string] $NextStep = ""
     )
 
-    Write-Host ""
-    Write-Host "完了しました。"
-    Write-Host "作成されたファイル:"
-    Write-Host "  $OutputPath"
+    Write-Information ""
+    Write-Information "完了しました。"
+    Write-Information "作成されたファイル:"
+    Write-Information "  $OutputPath"
 
     if (-not [string]::IsNullOrWhiteSpace($NextStep)) {
-        Write-Host $NextStep
+        Write-Information $NextStep
     }
 }
 
@@ -115,7 +117,7 @@ function Invoke-Robocopy {
             continue
         }
 
-        Write-Host $line
+        Write-Information $line
     }
 
     if ($LASTEXITCODE -gt 7) {
@@ -159,7 +161,7 @@ function Add-TemporaryWorktree {
     } -ArgumentList @($RepositoryRoot, $RepositoryGitPath, $WorktreePath, $BaseRef)
 
     foreach ($line in $commandResult.Output) {
-        Write-Host $line
+        Write-Information $line
     }
 
     if ($commandResult.ExitCode -eq 0) {
@@ -201,7 +203,7 @@ function Add-TemporaryRepositoryClone {
 
     foreach ($line in $checkoutResult.Output) {
         if (-not [string]::IsNullOrWhiteSpace("$line")) {
-            Write-Host $line
+            Write-Information $line
         }
     }
 
@@ -236,7 +238,7 @@ function Initialize-TemporaryWorkspace {
 
     if ($worktreeOutput -match "Permission denied" -or
         $worktreeOutput -match "could not create directory of '.git/worktrees") {
-        Write-Host "警告: 作業用フォルダを通常の方法で作れませんでした。別の方法で続けます。" -ForegroundColor Yellow
+        Write-Warning "作業用フォルダを通常の方法で作れませんでした。別の方法で続けます。"
 
         Add-TemporaryRepositoryClone `
             -RepositoryRoot $RepositoryRoot `
@@ -249,7 +251,7 @@ function Initialize-TemporaryWorkspace {
     throw "エラー: 作業用フォルダを作成できませんでした。"
 }
 
-function Remove-TemporaryWorktree {
+function Invoke-TemporaryWorktreeCleanup {
     param(
         [Parameter(Mandatory = $true)]
         [string] $RepositoryRoot,
@@ -284,11 +286,11 @@ function Remove-TemporaryWorktree {
         }
 
         if ($removeResult.ExitCode -ne 0) {
-            Write-Host "警告: 一時 worktree の通常削除に失敗したため、安全確認後に登録を整理します。" -ForegroundColor Yellow
+            Write-Warning "一時 worktree の通常削除に失敗したため、安全確認後に登録を整理します。"
 
             foreach ($line in $removeResult.Output) {
                 if (-not [string]::IsNullOrWhiteSpace("$line")) {
-                    Write-Host "  $line"
+                    Write-Information "  $line"
                 }
             }
 
@@ -302,7 +304,7 @@ function Remove-TemporaryWorktree {
 
     foreach ($line in $pruneResult.Output) {
         if (-not [string]::IsNullOrWhiteSpace("$line")) {
-            Write-Host $line
+            Write-Information $line
         }
     }
 
@@ -406,7 +408,7 @@ function Add-AffectedWorkspacePathsFromGitDiff {
     }
 }
 
-function Get-WorkspaceOverlayPaths {
+function Get-WorkspaceOverlayPath {
     param(
         [Parameter(Mandatory = $true)]
         [string] $RepositoryRoot,
@@ -469,7 +471,7 @@ function Get-WorkspaceOverlayPaths {
     return @($affectedPaths | Where-Object { Test-WorkspaceOverlayPath $_ } | Sort-Object)
 }
 
-function Set-WorkspaceOverlay {
+function Invoke-WorkspaceOverlay {
     param(
         [Parameter(Mandatory = $true)]
         [string] $RepositoryRoot,
@@ -482,7 +484,7 @@ function Set-WorkspaceOverlay {
         [string[]] $AlwaysIncludePaths = @()
     )
 
-    $overlayPaths = Get-WorkspaceOverlayPaths `
+    $overlayPaths = Get-WorkspaceOverlayPath `
         -RepositoryRoot $RepositoryRoot `
         -RepositoryGitPath $RepositoryGitPath `
         -BaseRef $BaseRef `
@@ -511,7 +513,7 @@ function Set-WorkspaceOverlay {
         }
     }
 
-    Write-Host ("  変更確認: 対象 {0}; コピー {1}; 削除 {2}" -f $overlayPaths.Count, $copiedCount, $removedCount)
+    Write-Information ("  変更確認: 対象 {0}; コピー {1}; 削除 {2}" -f $overlayPaths.Count, $copiedCount, $removedCount)
 }
 
 function Invoke-LocalRuntimePatch {
@@ -592,7 +594,7 @@ $referenceManagerVersion = [Reflection.AssemblyName]::GetAssemblyName($requiredU
 if ($referenceManagerVersion -lt $minimumManagerVersion) {
     throw "エラー: UMM の参照 DLL は $minimumManagerVersion 以降が必要です。検出: $referenceManagerVersion"
 }
-Write-Host "Unity Mod Manager: $referenceManagerVersion"
+Write-Information "Unity Mod Manager: $referenceManagerVersion"
 
 if (-not (Test-Path -LiteralPath $solutionPath)) {
     throw "エラー: ビルド用の設定ファイルが見つかりません: $solutionPath"
@@ -628,7 +630,7 @@ if ($Preflight) {
 $buildLock = Enter-PackageBuildLock
 
 try {
-    Write-Host "SolastaUnfinishedBusiness.zip を作成します..."
+    Write-Information "SolastaUnfinishedBusiness.zip を作成します..."
     New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
 
     $temporaryWorkspaceMode = Invoke-Step -Description "作業用フォルダを準備しています..." -Action {
@@ -643,7 +645,7 @@ try {
     $tempRepoGitPath = Convert-ToGitPath -Path $tempRepo
 
     Invoke-Step -Description "今の変更内容を作業用フォルダへコピーしています..." -Action {
-        Set-WorkspaceOverlay `
+        Invoke-WorkspaceOverlay `
             -RepositoryRoot $repoRoot `
             -RepositoryGitPath $repoGitPath `
             -WorkspaceRoot $tempRepo `
@@ -696,38 +698,25 @@ try {
     }
 
     Invoke-Step -Description "出力フォルダを更新しています..." -Action {
-        New-Item -ItemType Directory -Path $localOutputRoot -Force | Out-Null
-        Invoke-Robocopy -Source $tempBuildOutputFolder -Destination $localOutputFolder -ExtraArguments @("/MIR", "/XD", "BlenderModels")
-        Invoke-Robocopy -Source (Join-Path $repoRoot 'SolastaUnfinishedBusiness/BlenderModels') `
-            -Destination (Join-Path $localOutputFolder 'BlenderModels') -ExtraArguments @("/MIR", "/XD", "CharacterModels")
-        $modelOutput = Join-Path $localOutputFolder 'BlenderModels/CharacterModels'
-        $oldModelManifest = Join-Path $modelOutput 'CharacterModels.manifest.json'
-        if (Test-Path -LiteralPath $oldModelManifest -PathType Leaf) {
-            $oldModels = Get-Content -LiteralPath $oldModelManifest -Raw | ConvertFrom-Json
-            foreach ($bundle in $oldModels.bundles) {
-                $name = [string]$bundle.file
-                if ($name -cne [IO.Path]::GetFileName($name) -or $name -notmatch '\.bundle$') { throw 'Invalid previous model output filename.' }
-                $path = [IO.Path]::GetFullPath((Join-Path $modelOutput $name))
-                if (-not $path.StartsWith([IO.Path]::GetFullPath($modelOutput) + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Model output escaped its build directory.' }
-                if (Test-Path -LiteralPath $path -PathType Leaf) { Remove-Item -LiteralPath $path -Force }
-            }
+        $project = Join-Path $repoRoot 'SolastaUnfinishedBusiness'
+        foreach ($path in (Get-PackagedBlenderModelPath $project)) {
+            $target = Join-Path $tempBuildOutputFolder $path
+            [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($target))
+            Copy-Item -LiteralPath (Join-Path $project $path) -Destination $target
         }
-        New-Item -ItemType Directory -Path $modelOutput -Force | Out-Null
-        foreach ($name in @('CharacterModels.manifest.json', 'CharacterModels.packs.json')) {
-            $source = Join-Path $repoRoot "SolastaUnfinishedBusiness/BlenderModels/CharacterModels/$name"
-            if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Character model distribution metadata is missing: $name" }
-            Copy-Item -LiteralPath $source -Destination (Join-Path $modelOutput $name) -Force
-        }
+        $modelOutput = Join-Path $tempBuildOutputFolder 'BlenderModels/CharacterModels'
         $modelCatalogPath = Join-Path $modelOutput 'CharacterModels.manifest.json'
         $modelPacks = Get-Content -LiteralPath (Join-Path $modelOutput 'CharacterModels.packs.json') -Raw | ConvertFrom-Json
-        $modelHash = [Security.Cryptography.SHA256]::Create()
-        $modelStream = [IO.File]::OpenRead($modelCatalogPath)
-        try { $modelCatalogSha = [BitConverter]::ToString($modelHash.ComputeHash($modelStream)).Replace('-', '').ToLowerInvariant() }
-        finally { $modelStream.Dispose(); $modelHash.Dispose() }
-        if ($modelPacks.schemaVersion -ne 1 -or $modelPacks.catalogSha256 -cne $modelCatalogSha) {
+        if ($modelPacks.schemaVersion -ne 1 -or $modelPacks.catalogSha256 -ine (Get-FileHash -LiteralPath $modelCatalogPath -Algorithm SHA256).Hash) {
             throw 'Character model pack metadata differs from the packaged catalog.'
         }
-        if (@(Get-ChildItem -LiteralPath $modelOutput -Filter '*.bundle' -File).Count -gt 0) { throw 'Unowned model bundles remain in the main package output.' }
+        foreach ($directory in @($localOutputRoot, $localOutputFolder)) {
+            if ([IO.Directory]::Exists($directory) -and
+                ([IO.File]::GetAttributes($directory) -band [IO.FileAttributes]::ReparsePoint)) {
+                throw "The build output cannot be mirrored through a link: $directory"
+            }
+        }
+        Invoke-Robocopy -Source $tempBuildOutputFolder -Destination $localOutputFolder -ExtraArguments @("/MIR", "/XJ")
     }
 
     Invoke-Step -Description "この ZIP 用の情報を付けています..." -Action {
@@ -764,7 +753,7 @@ try {
     }
 
     Invoke-Step -Description "ZIP の中身を確認しています..." -Action {
-        Import-CompressionAssemblies
+        Import-CompressionAssembly
         $sourceInfo = Get-Content -LiteralPath $sourceInfoJson -Raw | ConvertFrom-Json
         $zip = [System.IO.Compression.ZipFile]::OpenRead($pendingZip)
 
@@ -774,20 +763,19 @@ try {
             if (-not $entry) {
                 throw "ZIP に SolastaUnfinishedBusiness/Info.json が含まれていません。"
             }
-            if (@($zip.Entries | Where-Object { $_.FullName -match '/BlenderModels/CharacterModels/.*\.bundle$' }).Count -gt 0) {
-                throw 'Generated character models must be distributed separately from the UMM package.'
-            }
-            foreach ($name in @('CharacterModels.manifest.json', 'CharacterModels.packs.json')) {
-                if (-not $zip.GetEntry("SolastaUnfinishedBusiness/BlenderModels/CharacterModels/$name")) {
-                    throw "ZIP omits character model distribution metadata: $name"
-                }
-            }
-
             $badEntries = $zip.Entries | Where-Object { $_.FullName.Contains("\") }
 
             if ($badEntries) {
                 throw "ZIP に UMM で扱えないファイル名が含まれています: $((($badEntries | Select-Object -First 5 -ExpandProperty FullName) -join ", "))"
             }
+            $prefix = 'SolastaUnfinishedBusiness/'
+            $paths = @($zip.Entries | Where-Object { $_.Name } | ForEach-Object {
+                if (-not $_.FullName.StartsWith($prefix, [StringComparison]::Ordinal)) {
+                    throw "File is outside the mod package: $($_.FullName)"
+                }
+                $_.FullName.Substring($prefix.Length)
+            })
+            Assert-PackagedBlenderModel $paths @(Get-PackagedBlenderModelPath (Join-Path $repoRoot 'SolastaUnfinishedBusiness'))
 
             $reader = [System.IO.StreamReader]::new($entry.Open())
 
@@ -841,7 +829,7 @@ finally {
         }
 
         if ($temporaryWorktreeCreated) {
-            Remove-TemporaryWorktree -RepositoryRoot $repoRoot -RepositoryGitPath $repoGitPath -WorktreePath $tempRepo
+            Invoke-TemporaryWorktreeCleanup -RepositoryRoot $repoRoot -RepositoryGitPath $repoGitPath -WorktreePath $tempRepo
         }
 
         if (Test-Path -LiteralPath $tempRoot) {

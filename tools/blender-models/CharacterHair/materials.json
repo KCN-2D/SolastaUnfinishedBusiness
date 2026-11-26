@@ -8,7 +8,7 @@
     },
     {
       "path": "NativeHairSourceGroom.shader",
-      "sha256": "be794b32837fc2e0fcb453ce6b3ef0992b112df9dbaac11369a9abf05cf35662"
+      "sha256": "a79dcd64fe06e0e97ca6fde4d07f822ff056a50b1e2235b0cfe87c6ba9a7b54d"
     },
     {
       "path": "SourceGroom.cginc",
@@ -16,7 +16,7 @@
     },
     {
       "path": "SourceGroomProgram.cginc",
-      "sha256": "aa3455020bcb34304ae8e0999c7d1ec79e6a9beae208932bc5cabc16b2dee12f"
+      "sha256": "d8072d845c8cb359c5c79732dcac343a1cd3994b22a4b72d24ce6193f1681e8f"
     }
   ],
   "materials": [

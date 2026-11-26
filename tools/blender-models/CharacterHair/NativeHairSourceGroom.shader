@@ -3,6 +3,8 @@ Shader "KCN/SourceGroom/NativeHair"
     Properties
     {
         [HideInInspector] _UBSurfaceProjection ("Native surface projection", Float) = 0
+        [HideInInspector] _UBGroomWardrobe ("Equipment clearance", Float) = 0
+        [HideInInspector] _UBGroomWardrobeProfile ("Equipment contour", 2D) = "black" {}
         [HideInInspector] _SupportInVertexFrame ("Vertex support layout", Float) = 0
         [HideInInspector] _FlowInVertexFrame ("Vertex fiber flow", Float) = 0
         _Color ("Color", Color) = (1,1,1,1)

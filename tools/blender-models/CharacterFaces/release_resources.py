@@ -125,6 +125,27 @@ def verify_release(api, release, expected, files):
         verify_asset(saved[row['name']], row)
 
 
+def reused_pack_assets(packs):
+    return [dict(name=pack['file'], bytes=pack['bytes'], sha256=pack['sha256'], sourceVersion=pack['sourceVersion'])
+            for pack in packs['packs'] if 'sourceVersion' in pack]
+
+
+def verify_reused_pack_assets(api, rows):
+    sources = {}
+    for row in rows:
+        version = row['sourceVersion']
+        if version not in sources:
+            tag = resource_release_metadata(version)['tag_name']
+            release = api.request('/releases/tags/' + quote(tag, safe=''))
+            if release['draft'] or release['tag_name'] != tag:
+                raise ValueError('A reused model archive is not published: ' + tag)
+            sources[version] = api.assets(release['id'])
+        asset = sources[version].get(row['name'])
+        if asset is None:
+            raise ValueError('A reused model archive is missing: ' + row['name'])
+        verify_asset(asset, row)
+
+
 def verify_native_catalog(result_path, manifest):
     result = read(checked_source_path(result_path))
     selected = read(checked_source_path(Path(result['runtimeResult']).with_name('SelectedResourceCatalog.json')))
@@ -150,7 +171,7 @@ def stage(api, workspace, args, expected, receipt_path):
     live_assets = {}
     release = None
 
-    def consume(pack, path):
+    def ensure_draft():
         nonlocal release, receipt, live_assets
         if release is None:
             if receipt is None:
@@ -164,24 +185,32 @@ def stage(api, workspace, args, expected, receipt_path):
             if not release['draft'] or any(release[key] != expected[key] for key in ('tag_name', 'name', 'body', 'prerelease')):
                 raise ValueError('The selected draft no longer matches the package configuration.')
             live_assets = api.assets(release['id'])
+
+    def consume(pack, path):
+        ensure_draft()
         row = dict(name=pack['file'], bytes=pack['bytes'], sha256=pack['sha256'])
         upload_asset(api, release['id'], row, path, live_assets)
         print('Verified draft pack', row['name'], flush=True)
 
     packs = create_resource_packs(manifest, archive_folder, args.release_version,
-                                  previous_manifest=args.previous_manifest, mesh_authoring=args.mesh_authoring,
+                                  previous_manifest=args.previous_manifest, previous_packs=args.previous_packs,
+                                  mesh_authoring=args.mesh_authoring,
                                   consume_pack=consume)
     packs_path = checked_source_path(archive_folder / RESOURCE_FILES['packs'])
     if packs['catalogSha256'] != inputs['catalogSha256'] or sha(manifest) != inputs['catalogSha256']:
         raise ValueError('The tested catalog changed during model pack staging.')
+    reused = reused_pack_assets(packs)
+    verify_reused_pack_assets(api, reused)
+    ensure_draft()
     metadata = [asset_record(manifest), asset_record(packs_path)]
     for row, path in zip(metadata, (manifest, packs_path), strict=True):
         upload_asset(api, release['id'], row, path, live_assets)
-    rows = [dict(name=pack['file'], bytes=pack['bytes'], sha256=pack['sha256']) for pack in packs['packs']]
+    rows = [dict(name=pack['file'], bytes=pack['bytes'], sha256=pack['sha256'])
+            for pack in packs['packs'] if 'sourceVersion' not in pack]
     rows.extend(metadata)
     verify_release(api, release, expected, rows)
-    write(receipt_path, dict(receipt, status='DRAFT_ASSETS_VERIFIED', assets=rows))
-    print('DRAFT_ASSETS_VERIFIED', release['id'], len(packs['packs']), 'packs', flush=True)
+    write(receipt_path, dict(receipt, status='DRAFT_ASSETS_VERIFIED', assets=rows, inheritedPacks=reused))
+    print('DRAFT_ASSETS_VERIFIED', release['id'], len(packs['packs']) - len(reused), 'uploaded packs,', len(reused), 'reused packs', flush=True)
 
 
 def verify_public_asset(url, row):
@@ -209,13 +238,19 @@ def publish(api, receipt, expected, receipt_path, commit):
         raise ValueError('The remote model tag must point to the distribution commit.')
     files = receipt['assets']
     blobs = {}
+    reused = []
     for name in (RESOURCE_FILES['manifest'], RESOURCE_FILES['packs']):
         path = (PUBLIC / name).relative_to(ROOT).as_posix()
         revision = f'{commit}:{path}'
         stored = subprocess.check_output(['git', 'show', revision], cwd=ROOT)
         if hashlib.sha256(stored).hexdigest() != next(row['sha256'] for row in files if row['name'] == name):
             raise ValueError('The tagged source differs from the verified release metadata: ' + name)
+        if name == RESOURCE_FILES['packs']:
+            reused = reused_pack_assets(json.loads(stored))
         blobs[name] = subprocess.check_output(['git', 'rev-parse', revision], cwd=ROOT, text=True).strip()
+    if reused != receipt.get('inheritedPacks', []):
+        raise ValueError('The tagged catalog does not use the verified earlier archives.')
+    verify_reused_pack_assets(api, reused)
     release = api.request(f'/releases/{receipt["releaseId"]}')
     verify_release(api, release, expected, files)
     if release['draft']:
@@ -225,10 +260,13 @@ def publish(api, receipt, expected, receipt_path, commit):
         raise ValueError('GitHub did not publish the model release.')
     verify_release(api, release, expected, files)
     base_url = RESOURCE_PACKAGE['downloadBaseUrl'].format(tag=receipt['tag'])
+    public_files = [(base_url, row) for row in files]
+    public_files.extend((RESOURCE_PACKAGE['downloadBaseUrl'].format(tag=resource_release_metadata(row['sourceVersion'])['tag_name']), row)
+                        for row in reused)
     for attempt in range(4):
         try:
             with ThreadPoolExecutor(max_workers=4) as pool:
-                for name in pool.map(lambda row: verify_public_asset(base_url, row), files):
+                for name in pool.map(lambda entry: verify_public_asset(*entry), public_files):
                     print('Verified public asset', name, flush=True)
             break
         except (OSError, ValueError):
@@ -252,6 +290,7 @@ def main():
     draft.add_argument('--native-result', type=Path, required=True)
     draft.add_argument('--release-version', required=True)
     draft.add_argument('--previous-manifest', type=Path)
+    draft.add_argument('--previous-packs', type=Path)
     draft.add_argument('--mesh-authoring', type=Path)
     final = commands.add_parser('publish')
     final.add_argument('--commit', required=True)

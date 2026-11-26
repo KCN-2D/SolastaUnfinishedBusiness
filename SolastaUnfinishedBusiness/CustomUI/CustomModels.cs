@@ -868,6 +868,7 @@ public static class CustomModels
             internal long SkinEncodingBytes => SkinEncodingSource.PreparedSkin?.Bytes ?? 0L;
             internal readonly Mesh BoundarySource;
             internal readonly Mesh AuthoredBase;
+            internal readonly bool FixedClothOffsets;
             // Only the immutable catalog enables this proof cache. Mutable caller-created
             // bindings still validate all source channels on each use.
             internal bool CacheAuthoredBaseValidation;
@@ -927,7 +928,7 @@ public static class CustomModels
                 IReadOnlyDictionary<int, (Vector3 Original, Vector3 Position)> boundaryBlendShapePositions = null,
                 (SkinnedMeshRenderer Renderer, SkinMeshSource Source, int Bone, Matrix4x4 ToSource)[] paletteAdditions = null,
                 (SkinnedMeshRenderer Renderer, SkinMeshSource Source, Matrix4x4 ToSource, int[] ToTarget)? paletteSource = null,
-                SurfaceBinding skinEncodingSource = null, Mesh authoredBase = null)
+                SurfaceBinding skinEncodingSource = null, Mesh authoredBase = null, bool fixedClothOffsets = false)
             {
                 Fingerprint = authoredBase ? fingerprint + ":base:1:" + RacesContext.CharacterModelFingerprint(authoredBase) : fingerprint;
                 RendererToPrefab = rendererToPrefab;
@@ -941,6 +942,10 @@ public static class CustomModels
                     ? skinEncodingSource.SurfacePlanSource : this;
                 BoundarySource = boundarySource;
                 AuthoredBase = authoredBase;
+                FixedClothOffsets = fixedClothOffsets;
+                if (fixedClothOffsets && (!authoredBase || vertices.Length != authoredBase.vertexCount ||
+                    boundaryOverrides != null || paletteSource.HasValue || paletteAdditions is { Length: > 0 }))
+                    throw new InvalidOperationException("Fixed cloth offsets require a same-topology render attachment.");
                 PaletteAdditions = paletteAdditions?.ToArray();
                 PaletteSource = paletteSource.HasValue ? (paletteSource.Value.Renderer, paletteSource.Value.Source,
                     paletteSource.Value.ToSource, paletteSource.Value.ToTarget?.ToArray()) : null;
@@ -2399,6 +2404,7 @@ public static class CustomModels
             private readonly HashSet<Component> _boundaryVirtualOwners = [];
             private readonly HashSet<Component> _boundaryRenderOwners = [];
             private readonly Dictionary<NativeOwner, int[]> _boundaryClothVertices = [];
+            private readonly Dictionary<NativeOwner, int[]> _movableClothVertices = [];
             private bool _applied, _started;
             private bool _nativeRestartPending;
             private Dictionary<SkinnedMeshRenderer, (Mesh Mesh, Transform[] Bones,
@@ -2475,32 +2481,30 @@ public static class CustomModels
 
             private readonly RestDeformation _restDeformation;
 
-            // Physical rest preparation uses the same native data transition as source replacement.
-            // Callers provide canonical source rest coordinates, never the current simulation result.
-            private sealed class PhysicalDataIdentity(int uid, string content, int nativeHash, int children)
+            private sealed class DerivedDataIdentity(int uid, string content, int nativeHash, int children)
             {
                 internal readonly int Uid = uid, NativeHash = nativeHash, ChildCount = children;
                 internal readonly string Content = content;
                 internal readonly List<WeakReference<UnityEngine.Object>> Assets = [];
             }
-            private sealed class PhysicalDataStamp(PhysicalDataIdentity identity, string fingerprint)
-            { internal readonly PhysicalDataIdentity Identity = identity; internal readonly string Fingerprint = fingerprint; }
-            private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<UnityEngine.Object, PhysicalDataStamp>
-                PhysicalDataStamps = new();
-            private static readonly Dictionary<int, PhysicalDataIdentity> PhysicalDataIdentities = new();
+            private sealed class DerivedDataStamp(DerivedDataIdentity identity, string fingerprint)
+            { internal readonly DerivedDataIdentity Identity = identity; internal readonly string Fingerprint = fingerprint; }
+            private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<UnityEngine.Object, DerivedDataStamp>
+                DerivedDataStamps = new();
+            private static readonly Dictionary<int, DerivedDataIdentity> DerivedDataIdentities = new();
 
-            private static void AssignPhysicalDataIdentity(UnityEngine.Object data)
+            private static void AssignDerivedDataIdentity(UnityEngine.Object data)
             {
-                if (PhysicalDataStamps.TryGetValue(data, out _))
-                    throw new InvalidOperationException("An immutable physical native data identity was assigned twice.");
-                foreach (var pair in PhysicalDataIdentities.ToArray())
+                if (DerivedDataStamps.TryGetValue(data, out _))
+                    throw new InvalidOperationException("An immutable native data identity was assigned twice.");
+                foreach (var pair in DerivedDataIdentities.ToArray())
                 {
                     pair.Value.Assets.RemoveAll(weak => !weak.TryGetTarget(out var asset) || !asset);
-                    if (pair.Value.Assets.Count == 0) PhysicalDataIdentities.Remove(pair.Key);
+                    if (pair.Value.Assets.Count == 0) DerivedDataIdentities.Remove(pair.Key);
                 }
                 var content = HashNativeData(data); var nativeHash = (int)Invoke(data, "GetDataHash");
                 var children = Optional(data, "childDataList") is IList list ? list.Count : 0;
-                if (children > 64) throw new InvalidOperationException("A physical native source exceeds its six-bit child identity layout.");
+                if (children > 64) throw new InvalidOperationException("A native source exceeds its six-bit child identity layout.");
                 var manager = (bool)InvokeStatic(ManagerType, "IsInstance") ? Get(GetStatic(ManagerType, "Instance"), "Mesh") : null;
                 var virtuals = manager == null ? null : (IDictionary)Get(manager, "sharedVirtualMeshIdToIndexDict");
                 var childIds = manager == null ? null : (IDictionary)Get(manager, "sharedChildMeshIdToSharedVirtualMeshIndexDict");
@@ -2509,32 +2513,32 @@ public static class CustomModels
                     using var hash = CreateAssetSha256();
                     var bytes = hash.ComputeHash(System.Text.Encoding.UTF8.GetBytes(content + ":" + attempt.ToString(CultureInfo.InvariantCulture)));
                     var uid = BitConverter.ToInt32(bytes, 0); if (uid == 0) continue;
-                    PhysicalDataIdentities.TryGetValue(uid, out var existing);
+                    DerivedDataIdentities.TryGetValue(uid, out var existing);
                     var same = existing != null && existing.Content == content && existing.NativeHash == nativeHash && existing.ChildCount == children;
                     if (existing != null && !same || !same && virtuals?.Contains(uid) == true) continue;
                     var candidateChildren = Enumerable.Range(0, children).Select(index => unchecked((long)uid << ((16 + index) & 63))).ToHashSet();
                     if (candidateChildren.Count != children) continue;
                     if (!same && candidateChildren.Any(child => childIds?.Contains(child) == true)) continue;
-                    if (PhysicalDataIdentities.Values.Any(identity => identity.Uid != uid && Enumerable.Range(0, identity.ChildCount)
+                    if (DerivedDataIdentities.Values.Any(identity => identity.Uid != uid && Enumerable.Range(0, identity.ChildCount)
                             .Any(index => candidateChildren.Contains(unchecked((long)identity.Uid << ((16 + index) & 63)))))) continue;
-                    var identity = existing ?? new PhysicalDataIdentity(uid, content, nativeHash, children);
+                    var identity = existing ?? new DerivedDataIdentity(uid, content, nativeHash, children);
                     // Installed MagicaCloth verifies nonzero SaveDataHash and structure. Its computed
                     // hash describes counts, so the owned immutable rest content supplies its shared UID.
                     Put(data, "SaveDataHash", uid);
                     if (Convert.ToInt32(Invoke(data, "VerifyData")) != 0)
-                        throw new InvalidOperationException("A derived physical data identity did not retain native structural verification.");
-                    PhysicalDataStamps.Add(data, new PhysicalDataStamp(identity, HashNativeData(data)));
+                        throw new InvalidOperationException("A derived data identity did not retain native structural verification.");
+                    DerivedDataStamps.Add(data, new DerivedDataStamp(identity, HashNativeData(data)));
                     identity.Assets.Add(new WeakReference<UnityEngine.Object>(data));
-                    PhysicalDataIdentities[uid] = identity;
+                    DerivedDataIdentities[uid] = identity;
                     return;
                 }
-                throw new InvalidOperationException("A derived physical source could not reserve a distinct native shared identity.");
+                throw new InvalidOperationException("A derived source could not reserve a distinct native shared identity.");
             }
 
             private static bool HasNativeDataIdentity(UnityEngine.Object data)
             {
                 var uid = (int)Get(data, "SaveDataHash"); if (uid == 0) return false;
-                if (!PhysicalDataStamps.TryGetValue(data, out var stamp)) return (int)Invoke(data, "GetDataHash") == uid;
+                if (!DerivedDataStamps.TryGetValue(data, out var stamp)) return (int)Invoke(data, "GetDataHash") == uid;
                 return stamp.Identity.Uid == uid && stamp.Identity.NativeHash == (int)Invoke(data, "GetDataHash") &&
                     stamp.Fingerprint == HashNativeData(data) && Convert.ToInt32(Invoke(data, "VerifyData")) == 0;
             }
@@ -2657,24 +2661,9 @@ public static class CustomModels
                 for (var channel = 0; channel < available.Length; channel++)
                 {
                     if (!channels.TryGetValue(available[channel], out var weight) || weight == 0f) continue;
-                    var count = original.GetBlendShapeFrameCount(channel);
-                    if (count == 0) throw new InvalidOperationException("An owned physical channel has no frames.");
-                    var first = -1; var second = 0; var firstWeight = 0f;
-                    var secondWeight = original.GetBlendShapeFrameWeight(channel, 0);
-                    if (secondWeight > 0f && weight <= secondWeight) { }
-                    else if (original.GetBlendShapeFrameWeight(channel, count - 1) < 0f &&
-                             weight >= original.GetBlendShapeFrameWeight(channel, count - 1))
-                    { first = count - 1; second = -1; firstWeight = original.GetBlendShapeFrameWeight(channel, first); secondWeight = 0f; }
-                    else if (count > 1)
-                    {
-                        second = 1;
-                        while (second < count - 1 && weight > original.GetBlendShapeFrameWeight(channel, second)) second++;
-                        first = second - 1; firstWeight = original.GetBlendShapeFrameWeight(channel, first);
-                        secondWeight = original.GetBlendShapeFrameWeight(channel, second);
-                    }
-                    if (!Finite(firstWeight) || !Finite(secondWeight) || firstWeight == secondWeight)
+                    var (first, second, factor) = RacesContext.BlendShapeFrameSample(original, channel, weight);
+                    if (!Finite(factor))
                         throw new InvalidOperationException("An owned physical channel has an invalid interpolation interval.");
-                    var factor = (weight - firstWeight) / (secondWeight - firstWeight);
                     Accumulate(first, 1f - factor); Accumulate(second, factor);
 
                     void Accumulate(int frame, float amount)
@@ -2918,7 +2907,7 @@ public static class CustomModels
                 internal bool Applied { get; private set; }
                 private readonly UnityEngine.Object _original = (UnityEngine.Object)owner.ClothData;
                 private readonly object _selection = owner.ClothSelection;
-                private readonly string _replacementKey = PhysicalDataStamps.TryGetValue(replacement, out var stamp)
+                private readonly string _replacementKey = DerivedDataStamps.TryGetValue(replacement, out var stamp)
                     ? stamp.Fingerprint : HashNativeData(replacement);
                 private readonly Dictionary<string, object> _replacementIdentity = SaveFields(replacement, "dataHash", "dataVersion");
 
@@ -3343,7 +3332,7 @@ public static class CustomModels
                             for (var index = 0; index < children.Length; index++)
                             {
                                 var skin = children[index]; var data = CloneMutableNativeData(sourceChildren[index]); created.Add(data);
-                                RebuildRenderData(data, skin.Replacement); AssignPhysicalDataIdentity(data);
+                                RebuildRenderData(data, skin.Replacement); AssignDerivedDataIdentity(data);
                                 var matrix = frames[skin.Renderer]; var scale = matrix.lossyScale; var baseScale = (Vector3)Get(data, "baseScale");
                                 var metric = baseScale.magnitude > 0f ? scale.magnitude / baseScale.magnitude : 1f;
                                 ReprojectOwnedPhysicalChild(originalChildren[index], targetChildren[index], targetRest,
@@ -3353,7 +3342,7 @@ public static class CustomModels
                                 SourceMesh.SetValue(prediction, skin.Replacement); Put(prediction, "MeshData", data);
                                 Put(targetChildren[index], "childDataHash", (int)Invoke(prediction, "GetDataHash"));
                             }
-                            Invoke(virtualData, "CreateVerifyData"); AssignPhysicalDataIdentity(virtualData);
+                            Invoke(virtualData, "CreateVerifyData"); AssignDerivedDataIdentity(virtualData);
                             foreach (var cloth in cloths)
                             {
                                 var original = (UnityEngine.Object)cloth.ClothData;
@@ -3361,7 +3350,7 @@ public static class CustomModels
                                     targetRest.Positions, targetRest.Normals, targetRest.Tangents,
                                     (int[])Get(virtualData, "lineList"), (int[])Get(virtualData, "triangleList"), clothScales[cloth]);
                                 created.Add(data);
-                                AssignPhysicalDataIdentity(data);
+                                AssignDerivedDataIdentity(data);
                             }
                             return created.ToArray();
                         }
@@ -3545,7 +3534,11 @@ public static class CustomModels
                 internal readonly int Hash = (int)Get(component, "dataHash");
                 internal readonly int Version = (int)Get(component, "dataVersion");
                 internal readonly int VerificationResult = Convert.ToInt32(Invoke(component, "VerifyData"));
-                internal bool PreservesRejectedCloth => Order == 0 && !Initialized && VerificationResult != 0;
+                private readonly bool _clothInitializationFailed = order == 0 &&
+                    ClothInitializationFailed(Get(component, "Status"));
+                internal readonly bool ComponentDisabled = component is Behaviour { enabled: false };
+                internal bool PreservesRejectedCloth =>
+                    Order == 0 && !Initialized && (_clothInitializationFailed || VerificationResult != 0);
                 internal readonly object ClothData = Optional(component, "ClothData");
                 internal readonly object ClothSelection = Optional(component, "ClothSelection");
                 internal readonly Dictionary<string, object> ClothDataIdentity = Optional(component, "ClothData") is { } clothData
@@ -3900,6 +3893,7 @@ public static class CustomModels
                             var renderData = CreateNativeData(row.Source);
                             created.Add(renderData);
                             RebuildRenderData(renderData, row.Replacement);
+                            if (row.Binding.FixedClothOffsets) AssignDerivedDataIdentity(renderData);
                             var prediction = typeof(object).GetMethod("MemberwiseClone", Fields).Invoke(row.Deformer, null);
                             SourceMesh.SetValue(prediction, row.Replacement);
                             Put(prediction, "MeshData", renderData);
@@ -3914,6 +3908,8 @@ public static class CustomModels
                             childData[row.Index] = rebuilt;
                         }
                         Invoke(virtualData, "CreateVerifyData");
+                        // A different face can use the same vertex counts with different contact offsets.
+                        if (Changed.Any(row => row.Binding.FixedClothOffsets)) AssignDerivedDataIdentity(virtualData);
                         string originalAfter = null;
                         if (asynchronous) yield return PrepareNativeFingerprint(Original, current, value => originalAfter = value);
                         if (!current()) yield break;
@@ -4003,6 +3999,67 @@ public static class CustomModels
                 }
             }
 
+            internal static HashSet<int> FixedClothRenderVertices(GraphicsCharacter graphics, SkinMeshSource source)
+            {
+                if (!source.ClothOwner || VirtualType == null || ClothBaseType == null) return [];
+                var cloths = graphics.GetComponentsInChildren(ClothBaseType, true).Cast<Component>().ToArray();
+                HashSet<int> result = null;
+                foreach (var owner in graphics.GetComponentsInChildren(VirtualType, true).Cast<Component>())
+                {
+                    var deformer = Get(owner, "Deformer");
+                    var children = ((IEnumerable)Get(deformer, "renderDeformerList")).Cast<Component>().ToArray();
+                    var index = Array.IndexOf(children, source.ClothOwner);
+                    if (index < 0) continue;
+                    var consumers = cloths.Where(cloth => ReferenceEquals(Optional(cloth, "virtualDeformer"), owner)).ToArray();
+                    if (consumers.Length == 0) return [];
+                    var registrations = new List<IEnumerable<int>>(consumers.Length);
+                    foreach (var cloth in consumers)
+                    {
+                        // A rejected cloth component leaves a usable render source and registers no simulation vertices.
+                        if (IsRejectedNativeCloth(cloth))
+                        {
+                            registrations.Add(Array.Empty<int>());
+                            continue;
+                        }
+                        var clothData = Optional(cloth, "ClothData");
+                        if (clothData == null) return [];
+                        registrations.Add(ClothRegisteredVertices(clothData, true));
+                    }
+                    var data = Get(deformer, "MeshData");
+                    var child = ((IList)Get(data, "childDataList"))[index];
+                    var supported = NativeSkinOnlyBoundaryVertices(child, (int)Get(data, "vertexCount"),
+                        registrations, result ?? Enumerable.Range(0, source.Original.vertexCount), vertex => vertex);
+                    result = supported;
+                }
+                return result ?? [];
+            }
+
+            private static bool IsRejectedNativeCloth(Component cloth)
+            {
+                var status = Get(cloth, "Status");
+                return !Flag(status, "IsInitComplete") &&
+                       (ClothInitializationFailed(status) || Convert.ToInt32(Invoke(cloth, "VerifyData")) != 0);
+            }
+
+            private static bool ClothInitializationFailed(object status) =>
+                Flag(status, "IsInitStart") && Flag(status, "initError");
+
+            private static IEnumerable<int> ClothRegisteredVertices(object clothData, bool movableOnly)
+            {
+                const int invalidVertex = 0; // MagicaCloth.SelectionData.Invalid
+                const int movingVertex = 1; // MagicaCloth.SelectionData.Move
+                if (clothData == null || Get(clothData, "useVertexList") is not IList vertices)
+                    throw new InvalidOperationException("A boundary cloth owner has no immutable vertex registration data.");
+                if (Get(clothData, "selectionData") is not IList selections || selections.Count != vertices.Count)
+                    throw new InvalidOperationException("A cloth attachment has no matching vertex selection.");
+                for (var index = 0; index < vertices.Count; index++)
+                {
+                    var selection = (int)selections[index];
+                    if (movableOnly ? selection == movingVertex : selection != invalidVertex)
+                        yield return (int)vertices[index];
+                }
+            }
+
             private HashSet<int> NativeSkinBoundaryVertices(SkinMeshSource source, SurfaceBinding binding)
             {
                 var requested = new HashSet<int>(binding.BoundaryOverrides?.Keys ?? Enumerable.Empty<int>());
@@ -4020,24 +4077,33 @@ public static class CustomModels
                     var registrations = new List<IEnumerable<int>>();
                     foreach (var cloth in cloths)
                     {
-                        if (cloth.ClothData == null || Get(cloth.ClothData, "useVertexList") is not IEnumerable vertices)
-                            throw new InvalidOperationException("A boundary cloth owner has no immutable vertex registration data.");
-                        var indices = vertices.Cast<int>().ToArray();
-                        registrations.Add(indices);
-                        _boundaryClothVertices[cloth] = indices;
+                        if (cloth.PreservesRejectedCloth)
+                        {
+                            _boundaryClothVertices[cloth] = [];
+                            registrations.Add(_boundaryClothVertices[cloth]);
+                            continue;
+                        }
+                        _boundaryClothVertices[cloth] = ClothRegisteredVertices(cloth.ClothData, false).ToArray();
+                        if (binding.FixedClothOffsets)
+                        {
+                            _movableClothVertices[cloth] = ClothRegisteredVertices(cloth.ClothData, true).ToArray();
+                            registrations.Add(_movableClothVertices[cloth]);
+                        }
+                        else registrations.Add(_boundaryClothVertices[cloth]);
                     }
                     var data = Get(owner.Deformer, "MeshData");
                     var children = (IList)Get(data, "childDataList");
                     var child = children[Array.IndexOf(owner.Children, source.ClothOwner)];
-                    result.IntersectWith(NativeSkinOnlyBoundaryVertices(binding, child, (int)Get(data, "vertexCount"), registrations, requested));
+                    result = NativeSkinOnlyBoundaryVertices(child, (int)Get(data, "vertexCount"), registrations,
+                        result, index => binding.Vertices[index].Anchor);
                     _boundaryVirtualOwners.Add(owner.Component);
                     _boundaryRenderOwners.Add(source.ClothOwner);
                 }
                 return result;
             }
 
-            private static HashSet<int> NativeSkinOnlyBoundaryVertices(SurfaceBinding binding, object child,
-                int virtualCount, IEnumerable<IEnumerable<int>> registrations, IEnumerable<int> requestedVertices = null)
+            private static HashSet<int> NativeSkinOnlyBoundaryVertices(object child, int virtualCount,
+                IEnumerable<IEnumerable<int>> registrations, IEnumerable<int> requested, Func<int, int> anchorIndex)
             {
                 if (child == null || registrations == null)
                     throw new InvalidOperationException("A boundary cloth binding has unresolved native consumers.");
@@ -4057,9 +4123,9 @@ public static class CustomModels
                 var info = (uint[])Get(child, "vertexInfoList");
                 var weights = (Array)Get(child, "vertexWeightList");
                 var result = new HashSet<int>();
-                foreach (var index in requestedVertices ?? binding.BoundaryOverrides.Keys)
+                foreach (var index in requested)
                 {
-                    var anchor = binding.Vertices[index].Anchor;
+                    var anchor = anchorIndex(index);
                     if (anchor < 0 || anchor >= info.Length)
                         throw new InvalidOperationException("A boundary cloth vertex has no native child correspondence.");
                     var packed = info[anchor]; var count = (int)(packed >> 28); var start = (int)(packed & 0x0fffffff);
@@ -4300,7 +4366,8 @@ public static class CustomModels
                         if (!Finite(weight) || weight != authored.GetBlendShapeFrameWeight(channel, frame)) throw new InvalidOperationException("An authored base changed a native physical frame range.");
                         original.GetBlendShapeFrameVertices(channel, frame, sp, sn, st); authored.GetBlendShapeFrameVertices(channel, frame, tp, tn, tt);
                         for (var index = 0; index < count; index++)
-                            if (!Finite(tp[index]) || !Finite(tn[index]) || !Finite(tt[index]) || binding.Vertices[index].Native &&
+                            if (!Finite(tp[index]) || !Finite(tn[index]) || !Finite(tt[index]) ||
+                                (binding.Vertices[index].Native || binding.FixedClothOffsets) &&
                                 (!sp[index].Equals(tp[index]) || !sn[index].Equals(tn[index]) || !st[index].Equals(tt[index])))
                                 throw new InvalidOperationException("An authored base changed an undeclared native physical sample.");
                     }
@@ -5497,7 +5564,7 @@ public static class CustomModels
                         var position = channels.Position;
                         var sourceLocalNormal = channels.Normal;
                         var sourceLocalTangent = channels.Tangent;
-                        if (!Finite(factor) || factor < 0f || factor > 1f || parent < 0 || parent >= parentCount ||
+                        if (!IsNativeChildWeight(factor) || parent < 0 || parent >= parentCount ||
                             !Finite(position) || !Finite(sourceLocalNormal) || !Finite(sourceLocalTangent))
                             throw new InvalidOperationException("A native source binding has an invalid parent or nonfinite channel.");
                         var hasBoundary = binding.BoundaryOverrides != null && binding.BoundaryOverrides.TryGetValue(index, out _);
@@ -5596,7 +5663,7 @@ public static class CustomModels
                         var position = (Vector3)readPosition(weight);
                         var sourceLocalNormal = (Vector3)readNormal(weight);
                         var sourceLocalTangent = (Vector3)readTangent(weight);
-                        if (!Finite(factor) || factor < 0f || factor > 1f || parent < 0 || parent >= parentCount ||
+                        if (!IsNativeChildWeight(factor) || parent < 0 || parent >= parentCount ||
                             !Finite(position) || !Finite(sourceLocalNormal) || !Finite(sourceLocalTangent))
                             throw new InvalidOperationException("A native source binding has an invalid parent or nonfinite channel.");
                         var hasBoundary = binding.BoundaryOverrides != null && binding.BoundaryOverrides.TryGetValue(index, out _);
@@ -5643,6 +5710,10 @@ public static class CustomModels
                 Put(result, "vertexWeightList", typedWeights); Put(result, "parentIndexList", parents);
                 return result;
             }
+
+            // Native child weights can contain signed round-off around zero.
+            // Keep the original coefficients when rebuilding their render frames.
+            private static bool IsNativeChildWeight(float value) => value is >= -.000001f and <= 1.000001f;
 
             private static bool Finite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
             private static bool Finite(Vector3 value) => Finite(value.x) && Finite(value.y) && Finite(value.z);
@@ -6357,13 +6428,8 @@ public static class CustomModels
                     if (parent == null || owner.ClothData == null)
                         throw new InvalidOperationException("A native cloth consumer has no resolved virtual source.");
                     var count = (int)Get(FutureData(parent.Deformer), "vertexCount");
-                    var vertices = (IList)Get(owner.ClothData, "useVertexList");
-                    var selection = (IList)Get(owner.ClothData, "selectionData");
-                    if (vertices.Count != selection.Count)
-                        throw new InvalidOperationException("A native cloth consumer has inconsistent vertex selections.");
-                    for (var index = 0; index < vertices.Count; index++)
-                        if ((int)selection[index] != 0 && ((int)vertices[index] < 0 || (int)vertices[index] >= count))
-                            throw new InvalidOperationException("A native cloth consumer registers outside its virtual source.");
+                    if (ClothRegisteredVertices(owner.ClothData, false).Any(index => index < 0 || index >= count))
+                        throw new InvalidOperationException("A native cloth consumer registers outside its virtual source.");
                 }
                 foreach (var skin in _skins)
                 {
@@ -6409,8 +6475,13 @@ public static class CustomModels
                             var result = Convert.ToInt32(Invoke(owner.Component, "VerifyData"));
                             if (installed.Value && owner.PreservesRejectedCloth)
                             {
-                                if (result == 0 || Flag(Get(owner.Component, "Status"), "IsInitComplete"))
-                                    throw new InvalidOperationException("A rejected native cloth consumer was enabled by a source transition.");
+                                var status = Get(owner.Component, "Status");
+                                // Refreshing the parent hash can make a dormant consumer verify.
+                                // A disabled component or a failed Init remains stopped.
+                                var staysStopped = owner.ComponentDisabled && owner.Component is Behaviour { enabled: false } ||
+                                                   ClothInitializationFailed(status);
+                                if (Flag(status, "IsInitComplete") || Flag(status, "IsActive") || result == 0 && !staysStopped)
+                                    throw new InvalidOperationException("A rejected native cloth consumer can start after a source transition.");
                                 continue;
                             }
                             var expected = installed.Value ? 0 : owner.VerificationResult;
@@ -6557,7 +6628,7 @@ public static class CustomModels
                 }
                 catch (Exception failure)
                 {
-                    try { ValidateSources(true); RestoreCore(true); _started = false; }
+                    try { ValidateSources(true, allowDestroyedOwners: true); RestoreCore(true); _started = false; }
                     catch (Exception rollback) { throw new AggregateException("Native skin transition and rollback failed.", failure, rollback); }
                     throw;
                 }
@@ -6571,7 +6642,7 @@ public static class CustomModels
                     else if (!restart) { _nativeRestartPending = false; _nativeRestartBindings = null; }
                     return;
                 }
-                ValidateSources(true);
+                ValidateSources(true, allowDestroyedOwners: true);
                 CaptureNativeInitialization();
                 if (_applied)
                     foreach (var skin in _skins) CaptureWeights(skin);
@@ -6670,12 +6741,12 @@ public static class CustomModels
                 RestoreVerification();
                 if (restart) InitOwners(true);
                 RestoreWeights(false);
-                ValidateRestoredState();
+                ValidateRestoredState(allowDestroyedOwners: true);
                 ValidateRelations(false);
             }
-            private void ValidateRestoredState()
+            private void ValidateRestoredState(bool allowDestroyedOwners = false)
             {
-                ValidateSources(false);
+                ValidateSources(false, allowDestroyedOwners: allowDestroyedOwners);
                 ValidateRestoredOwners();
             }
             private void ValidateRestoredOwners()
@@ -6866,11 +6937,11 @@ public static class CustomModels
                 Invoke(Get(manager, "Compute"), "CompleteJob");
             }
 
-            private void ValidateSources(bool installed, bool validateContent = true)
+            private void ValidateSources(bool installed, bool validateContent = true, bool allowDestroyedOwners = false)
             {
                 foreach (var rest in _physicalClothRest) rest.Validate(rest.Applied, validateContent);
                 foreach (var rest in _physicalCapsules.Values) rest.ValidateCurrent();
-                ValidateBoundaryOwners();
+                ValidateBoundaryOwners(allowDestroyedOwners);
                 foreach (var owner in _owners)
                 {
                     if (!owner.Component) continue;
@@ -6918,20 +6989,30 @@ public static class CustomModels
                         throw new InvalidOperationException("A different native data owner prevents skin restoration.");
                 }
             }
-            private void ValidateBoundaryOwners()
+            private void ValidateBoundaryOwners(bool allowDestroyedOwners)
             {
                 if (_boundaryVirtualOwners.Count == 0) return;
                 var virtuals = _graphics.GetComponentsInChildren(VirtualType, true).Cast<Component>().Where(component =>
                     ((IEnumerable)Get(Get(component, "Deformer"), "renderDeformerList")).Cast<Component>().Any(_boundaryRenderOwners.Contains)).ToArray();
                 var cloths = _graphics.GetComponentsInChildren(ClothBaseType, true).Cast<Component>().Where(component =>
                     Optional(component, "virtualDeformer") is Component parent && _boundaryVirtualOwners.Contains(parent)).ToArray();
-                if (virtuals.Length != _boundaryVirtualOwners.Count || virtuals.Any(component => !_boundaryVirtualOwners.Contains(component)) ||
-                    cloths.Length != _boundaryClothVertices.Count || cloths.Any(component => !_boundaryClothVertices.Keys.Any(owner => owner.Component == component)))
-                    throw new InvalidOperationException("A different native consumer generation invalidated the boundary skin proof.");
+                // Unity can destroy a child before the graphics owner releases its remaining sources.
+                var virtualCount = allowDestroyedOwners ? _boundaryVirtualOwners.Count(component => component) : _boundaryVirtualOwners.Count;
+                var clothCount = allowDestroyedOwners ? _boundaryClothVertices.Keys.Count(owner => owner.Component) : _boundaryClothVertices.Count;
+                if (virtuals.Length != virtualCount || virtuals.Any(component => !_boundaryVirtualOwners.Contains(component)) ||
+                    cloths.Length != clothCount || cloths.Any(component => !_boundaryClothVertices.Keys.Any(owner => owner.Component == component)))
+                    throw new InvalidOperationException($"A different native consumer generation invalidated the boundary skin proof " +
+                        $"(virtual {virtuals.Length}/{virtualCount}, cloth {cloths.Length}/{clothCount}).");
                 foreach (var pair in _boundaryClothVertices)
+                {
+                    if (allowDestroyedOwners && !pair.Key.Component) continue;
                     if (!pair.Key.Component || !ReferenceEquals(Optional(pair.Key.Component, "ClothData"), pair.Key.ClothData) ||
-                        !((IEnumerable)Get(pair.Key.ClothData, "useVertexList")).Cast<int>().SequenceEqual(pair.Value))
+                        !pair.Key.PreservesRejectedCloth &&
+                        (!ClothRegisteredVertices(pair.Key.ClothData, false).SequenceEqual(pair.Value) ||
+                         _movableClothVertices.TryGetValue(pair.Key, out var movable) &&
+                         !ClothRegisteredVertices(pair.Key.ClothData, true).SequenceEqual(movable)))
                         throw new InvalidOperationException("A native cloth registration changed after the boundary skin proof was prepared.");
+                }
             }
             private static Mesh CurrentMesh(Renderer renderer) => renderer is SkinnedMeshRenderer skin
                 ? skin.sharedMesh : renderer.GetComponent<MeshFilter>()?.sharedMesh;

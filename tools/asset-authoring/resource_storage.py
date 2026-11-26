@@ -707,11 +707,13 @@ def published_package(directory,adopted=None,retained_hashes=()):
     # digest, rather than the receipt's later manifest digest, owns those bytes.
     publication=read(checked_source_path(receipt))if receipt.is_file()else {}
     assets={row['name']:row for row in publication.get('assets',[])};payloads={}
+    inherited={row['name']:row for row in publication.get('inheritedPacks',[])}
     released=publication.get('status')=='PASS_PUBLISHED_MODEL_RESOURCES'and publication.get('tag')==resource_release_metadata(owner['version'])['tag_name']
     for row in specification['packs']:
         name=row['file']
         if not isinstance(name,str)or Path(name).suffix.lower()!='.zip':raise ValueError('A package has an unowned archive declaration')
-        released=released and name in assets and all(row[key]==assets[name][key]for key in ('bytes','sha256'))
+        records, keys = (inherited, ('bytes','sha256','sourceVersion')) if 'sourceVersion' in row else (assets, ('bytes','sha256'))
+        released=released and name in records and all(row[key]==records[name][key]for key in keys)
         path=checked_catalog_path(directory,name)
         if path.is_file():
             if path.stat().st_size!=row['bytes']or sha(checked_source_path(path),payload=pin_role(path)=='payload')!=row['sha256']:raise ValueError('A local published package changed')

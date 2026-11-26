@@ -231,6 +231,8 @@ HeadはLOD0を先に生成し、その`Coefficient.json`のpath/SHAをLOD1/2の�
 
 配布パック一覧をmanifestとともにMODへ同梱し、分割ZIPを一覧のURLへ配置します。モデルbundleは生成物として管理します。ゲーム側は最大4パックを並行して取得し、一覧のSHA256を照合して展開します。中断した取得は保存済みの位置から再開し、検証済みの内容を再利用します。保存先は`Mods/SolastaUnfinishedBusinessContent/CharacterModels/`です。
 
+既公開の分割ZIPを引き継ぐ場合は、`package-resources`と`stage`に `--previous-manifest` と `--previous-packs` を指定します。全収録ファイルが一致するZIPは公開済みURLを参照します。
+
 配布ファイル名、タグ、配布先、リリース名と説明は、[resource-package.json](resource-package.json)で管理します。公開には生成した公開設定を使い、`validate_resource_release`でこの設定との一致を検査します。
 
 

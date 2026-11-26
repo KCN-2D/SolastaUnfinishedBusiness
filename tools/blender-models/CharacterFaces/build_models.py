@@ -3283,7 +3283,8 @@ def publish_resource_catalog(candidate,current,source,manifest,quality,*,validat
         raise ValueError('A standalone resource catalog must not retain runtime replacement declarations.')
     if any(len(file)>128 or re.search('[a-f0-9]{16}',file)for file in payloads):
         raise ValueError('A standalone resource filename lacks its semantic owner.')
-    sources=set();used=set();types={'GameObject','Material','RuntimeAnimatorController','AnimationClip','Avatar','AudioClip','Texture'}
+    from character_resources import render_material_files
+    sources=set();used=render_material_files(manifest);types={'GameObject','Material','RuntimeAnimatorController','AnimationClip','Avatar','AudioClip','Texture'}
     for resource in manifest['resources']:
         if not resource['source']or resource['source']in sources or resource['type']not in types or not resource['bundles']:
             raise ValueError('A standalone resource address/type is missing or ambiguous.')
@@ -5182,9 +5183,46 @@ def include_character_mesh_authoring(manifest_path, assembly, authoring_path):
     return dict(assembly, characterMeshAuthoring=records)
 
 
-def create_resource_packs(manifest_path,output_directory,release_version,maximum_bytes=256*1024*1024,*,configuration=None,previous_manifest=None,mesh_authoring=None,consume_pack=None) -> dict[str, Any]:
+def reusable_resource_packs(index, previous_digest, previous_catalog, files, version, maximum_bytes, configuration):
+    """Reuse complete verified archives from earlier releases."""
+    previous_release = resource_release_metadata(index['version'], configuration)
+
+    def version_key(value):
+        return tuple(int(part) for part in value.split('.'))
+    if (index['schemaVersion'] != 1 or index['catalogSha256'] != previous_digest or
+            index['baseUrl'] != configuration['downloadBaseUrl'].format(tag=previous_release['tag_name']) or
+            version_key(index['version']) >= version_key(version)):
+        raise ValueError('The earlier package index differs from its release or catalog.')
+    old_files = {row['file']: row for row in index['files']}
+    if len(old_files) != len(index['files']) or {name: row['sha256'] for name, row in old_files.items()} != previous_catalog:
+        raise ValueError('The earlier pack index does not describe its catalog.')
+    permitted = {configuration['archiveName'].format(ordinal=value) for value in range(1, configuration['maximumPacks'] + 1)}
+    current = {row['file']: row for row in files}
+    names, covered, reusable = set(), set(), []
+    for pack in index['packs']:
+        name, members = pack['file'], pack['files']
+        if (name not in permitted or name in names or not members or len(members) != len(set(members)) or
+                any(member not in old_files or member in covered for member in members) or
+                type(pack['bytes']) is not int or not 0 < pack['bytes'] <= 1024**3 or
+                not re.fullmatch('[a-f0-9]{64}', pack['sha256'])):
+            raise ValueError('Invalid earlier resource archive: ' + name)
+        names.add(name)
+        covered.update(members)
+        source = pack.get('sourceVersion', index['version'])
+        resource_release_metadata(source, configuration)
+        if 'sourceVersion' in pack and version_key(source) >= version_key(index['version']):
+            raise ValueError('A reused archive must refer to an earlier release: ' + name)
+        if pack['bytes'] <= maximum_bytes and all(old_files[member] == current.get(member) for member in members):
+            reusable.append(dict(file=name, sha256=pack['sha256'], bytes=pack['bytes'], files=members, sourceVersion=source))
+    if covered != old_files.keys():
+        raise ValueError('The earlier archives do not cover their catalog.')
+    return reusable
+
+
+def create_resource_packs(manifest_path,output_directory,release_version,maximum_bytes=256*1024*1024,*,configuration=None,previous_manifest=None,previous_packs=None,mesh_authoring=None,consume_pack=None) -> dict[str, Any]:
     """Stream independent generated resources into bounded release archives."""
     import zipfile
+    from character_resources import render_material_files
     configuration=RESOURCE_PACKAGE if configuration is None else configuration
     release=resource_release_metadata(release_version,configuration);validate_resource_release(release,release_version,configuration)
     if not 0<maximum_bytes<=1024*1024*1024:raise ValueError('A positive pack limit is required.')
@@ -5214,6 +5252,7 @@ def create_resource_packs(manifest_path,output_directory,release_version,maximum
         if not 0<size<1024*1024*1024:raise ValueError('A resource exceeds the individual pack limit: '+name)
         files.append(dict(file=name,sha256=row['sha256'],bytes=size));names.add(name)
     if not files:raise ValueError('An empty resource catalog cannot be packaged.')
+    render_material_files(manifest)
     owner=dict(schemaVersion=1,kind='CharacterResourcePacks',source=str(manifest_path),
         sourceSha256=sha(manifest_path),version=release_version,maximumBytes=maximum_bytes)
     if mesh_authoring is not None:
@@ -5226,6 +5265,29 @@ def create_resource_packs(manifest_path,output_directory,release_version,maximum
             raise ValueError('Pack ordering requires a previous standalone resource catalog.')
         previous = catalog_payloads(previous_catalog)
         owner['previousCatalogSha256'] = hashlib.sha256(previous_bytes).hexdigest()
+    reused = []
+    if previous_packs is not None:
+        if previous is None:
+            raise ValueError('Reusing archives requires their previous catalog and pack index.')
+        prior_bytes = checked_source_path(previous_packs).read_bytes()
+        owner['previousPacksSha256'] = hashlib.sha256(prior_bytes).hexdigest()
+        reused = reusable_resource_packs(json.loads(prior_bytes.decode('utf-8-sig')), owner['previousCatalogSha256'],
+                                         previous, files, release_version, maximum_bytes, configuration)
+    inherited_files = {member for pack in reused for member in pack['files']}
+    remaining = [row for row in files if row['file'] not in inherited_files]
+    partitions = (remaining,)
+    if previous is not None:
+        # Warm caches can satisfy unchanged files independently of the update pack.
+        changed, unchanged = [], []
+        for row in remaining:
+            partition = unchanged if previous.get(row['file']) == row['sha256'] else changed
+            partition.append(row)
+        partitions = (changed, unchanged)
+    groups = [group for partition in partitions for group in resource_pack_groups(partition, maximum_bytes)]
+    if len(reused)+len(groups)>configuration['maximumPacks']:raise ValueError('The content set exceeds its declared pack count.')
+    inherited_names = {pack['file'] for pack in reused}
+    names = [configuration['archiveName'].format(ordinal=number) for number in range(1, configuration['maximumPacks'] + 1)]
+    groups = dict(zip((name for name in names if name not in inherited_names), groups))
     files_configuration=configuration['files']
     output.mkdir(parents=True,exist_ok=True);marker=output/files_configuration['packageInputs'];metadata=output/files_configuration['packs']
     release_path=output/files_configuration['release']
@@ -5243,8 +5305,15 @@ def create_resource_packs(manifest_path,output_directory,release_version,maximum
             prior=read(metadata)
             if prior['files']!=files:raise ValueError('Resource lengths changed after packaging.')
             if prior['baseUrl']!=base_url:raise ValueError('The resource distribution configuration changed.')
-            for ordinal,pack in enumerate(prior['packs'],1):
-                if pack['file']!=configuration['archiveName'].format(ordinal=ordinal):raise ValueError('The resource archive naming configuration changed.')
+            expected = {**{pack['file']: pack['files'] for pack in reused},
+                        **{name: [row['file'] for row in group] for name, group in groups.items()}}
+            archived = {pack['file']: pack['files'] for pack in prior['packs']}
+            if (len(archived) != len(prior['packs']) or archived != expected or
+                    [pack for pack in prior['packs'] if 'sourceVersion' in pack] != reused):
+                raise ValueError('The saved archive plan differs from its inputs.')
+            for pack in prior['packs']:
+                if pack['file'] in inherited_names:
+                    continue
                 path=checked_catalog_path(output,pack['file'])
                 if not path.is_file() and consume_pack is not None:
                     deliver(pack,None)
@@ -5259,19 +5328,9 @@ def create_resource_packs(manifest_path,output_directory,release_version,maximum
     # Seekable ZIP_STORED output uses a 30-byte local header, a 20-byte
     # ZIP64 local extra, a 46-byte central header and both UTF-8 filenames.
     # Every group also owns the 22-byte end-of-central-directory record.
-    partitions = (files,)
-    if previous is not None:
-        # Cached bundles can satisfy an entire pack without a network request.
-        changed, unchanged = [], []
-        for row in files:
-            partition = unchanged if previous.get(row['file']) == row['sha256'] else changed
-            partition.append(row)
-        partitions = (changed, unchanged)
-    groups = [group for partition in partitions for group in resource_pack_groups(partition, maximum_bytes)]
-    if len(groups)>configuration['maximumPacks']:raise ValueError('The content set exceeds its declared pack count.')
-    packs=[]
-    for ordinal,group in enumerate(groups,1):
-        name=configuration['archiveName'].format(ordinal=ordinal);path=checked_catalog_path(output,name);temporary=output/(name+'.writing')
+    packs=list(reused)
+    for name,group in groups.items():
+        path=checked_catalog_path(output,name);temporary=output/(name+'.writing')
         try:
             with zipfile.ZipFile(temporary,'w',compression=zipfile.ZIP_STORED,allowZip64=True)as archive:
                 for row in group:
@@ -5293,7 +5352,7 @@ def create_resource_packs(manifest_path,output_directory,release_version,maximum
             packs.append(pack)
         finally:
             if temporary.exists():temporary.unlink()
-        print('Packaged character resources:',ordinal,'/',len(groups),flush=True)
+        print('Packaged character resources:',name,flush=True)
     if sha(manifest_path)!=owner['sourceSha256']:raise ValueError('The resource catalog changed during packaging.')
     result=dict(schemaVersion=1,version=release_version,catalogSha256=owner['sourceSha256'],
         baseUrl=base_url,files=files,packs=packs)
@@ -5306,8 +5365,10 @@ def package_resources():
     parser=argparse.ArgumentParser();parser.add_argument('--manifest',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True);parser.add_argument('--release-version',required=True)
     parser.add_argument('--previous-manifest',type=Path)
+    parser.add_argument('--previous-packs',type=Path)
     parser.add_argument('--mesh-authoring',type=Path)
-    args=parser.parse_args();result=create_resource_packs(args.manifest,args.output,args.release_version,previous_manifest=args.previous_manifest,mesh_authoring=args.mesh_authoring)
+    args=parser.parse_args();result=create_resource_packs(args.manifest,args.output,args.release_version,
+        previous_manifest=args.previous_manifest,previous_packs=args.previous_packs,mesh_authoring=args.mesh_authoring)
     print(json.dumps(dict(status='PASS_RESOURCE_PACKS',packs=len(result['packs']),bytes=sum(row['bytes']for row in result['packs']))))
 
 

@@ -101,10 +101,12 @@ try {
         $base = if ($hasUpstream) { [string](Invoke-GtGit @('merge-base','HEAD','@{upstream}')) } else { $head }
         if ($gitWrite -and $gitWrite.action -eq 'commit') {
             $comparison = if ($gitWrite.amend) { 'HEAD^' } else { 'HEAD' }
-            Assert-GtModelDistributionChange @(Invoke-GtGit @('diff','--cached','--name-only',$comparison,'--'))
+            Assert-GtModelDistributionChange @(Invoke-GtGit @('diff','--cached','--name-only',$comparison,'--')) `
+                -PackageInputs @(Invoke-GtGit @('diff','--cached','--name-only','--diff-filter=ACMRT',$comparison,'--','SolastaUnfinishedBusiness/'))
         } elseif ($gitWrite -and $gitWrite.action -eq 'push') {
             $publishedCommit = if (-not $gitWrite.tagOnly) { $head } else { '' }
-            Assert-GtModelDistributionChange @(Invoke-GtGit @('diff','--name-only',$base,$head,'--')) $publishedCommit
+            Assert-GtModelDistributionChange @(Invoke-GtGit @('diff','--name-only',$base,$head,'--')) $publishedCommit `
+                -PackageInputs @(Invoke-GtGit @('diff','--name-only','--diff-filter=ACMRT',$base,$head,'--','SolastaUnfinishedBusiness/'))
         }
         $translationArguments = @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',
             (Join-Path $repositoryRoot 'tools/localization/Test-Translations.ps1'),'-RepositoryRoot',$repositoryRoot,'-BaseCommit',$base)
@@ -131,6 +133,7 @@ try {
         Write-GtJson (Join-Path $evidenceRoot 'ScriptAnalysis.json') ([ordered]@{warningsAndErrors=$analysis.Count;files=@($scriptFiles | Sort-Object -Unique);findings=@($analysis | Select-Object ScriptName,Line,RuleName,Message)})
         if ($analysis.Count -gt 0) { throw (($analysis | ForEach-Object { "$($_.ScriptName):$($_.Line) $($_.RuleName): $($_.Message)" }) -join "`n") }
         $contractFiles = $maintainedScripts + 'tools/game-test/GameTest.Common.ps1' +
+            'tools/CustomBuildLocal/internal/PackagedBlenderModels.ps1' + 'SolastaUnfinishedBusiness/BlenderModels.Packaging.props' +
             @(Invoke-GtGit @('ls-files','--','tools/localization/*.py'))
         $contractSources = @($contractFiles | Sort-Object -Unique | ForEach-Object { [ordered]@{path=$_;sha256=(Get-GtHash (Join-Path $repositoryRoot $_))} })
         $contractPath = Join-Path $evidenceRoot 'VerificationContracts.json'

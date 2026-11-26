@@ -20,22 +20,62 @@ if ($PlanPath) { $cases += @{name='verified project';event='Stop';expected='allo
 $results = [Collections.Generic.List[object]]::new()
 try {
     . (Join-Path $PSScriptRoot '../game-test/GameTest.Common.ps1')
+    . (Join-Path $PSScriptRoot 'internal/PackagedBlenderModels.ps1')
     $modelCatalog = 'SolastaUnfinishedBusiness/BlenderModels/CharacterModels/CharacterModels.manifest.json'
     $modelPacks = 'SolastaUnfinishedBusiness/BlenderModels/CharacterModels/CharacterModels.packs.json'
     $artInput = 'tools/blender-models/CharacterFaces/face-designs.json'
+    $faceShader = 'tools/blender-models/CharacterFaces/FaceAgeColor.shader'
+    $faceBundle = 'SolastaUnfinishedBusiness/BlenderModels/FaceAge/face_age.materials.bundle'
+    $groomShader = 'tools/blender-models/CharacterHair/SourceGroomProgram.cginc'
+    $groomBundle = 'SolastaUnfinishedBusiness/BlenderModels/Groom/source_groom_native_hair_clean.materials.bundle'
     foreach ($scenario in @(
         @{name='authoring tool refactor';files=@('tools/blender-models/CharacterFaces/build_models.py');allowed=$true},
         @{name='release configuration';files=@('tools/blender-models/CharacterFaces/resource-package.json');allowed=$true},
         @{name='unpublished appearance';files=@($artInput);allowed=$false},
         @{name='catalog without packs';files=@($artInput,$modelCatalog);allowed=$false},
         @{name='packs without catalog';files=@($modelPacks);allowed=$false},
-        @{name='coordinated distribution';files=@($artInput,$modelCatalog,$modelPacks);allowed=$true}
+        @{name='face shader without a resource release';files=@($faceShader);allowed=$false},
+        @{name='groom shader without a resource release';files=@($groomShader);allowed=$false},
+        @{name='face bundle cannot be added to the mod package';files=@($faceShader,$faceBundle,$modelCatalog,$modelPacks);allowed=$false},
+        @{name='groom bundle cannot be added to the mod package';files=@($groomShader,$groomBundle,$modelCatalog,$modelPacks);allowed=$false},
+        @{name='appearance and shader distribution';files=@($artInput,$faceShader,$groomShader,$modelCatalog,$modelPacks);allowed=$true}
     )) {
         $allowed = $true
-        try { Assert-GtModelDistributionChange $scenario.files } catch { $allowed = $false }
+        try { Assert-GtModelDistributionChange $scenario.files -PackageInputs $scenario.files } catch { $allowed = $false }
         if ($allowed -ne $scenario.allowed) { throw "Model distribution check failed: $($scenario.name)" }
         $results.Add([pscustomobject]@{name=('model distribution: '+$scenario.name);passed=$true})
     }
+    $declared = @(Get-PackagedBlenderModelPath (Join-Path $script:GameTestRepo 'SolastaUnfinishedBusiness'))
+    Assert-PackagedBlenderModel ($declared + 'Info.json') $declared
+    foreach ($unexpected in @('BlenderModels/CharacterModels/unpublished.bundle', 'BlenderModels/Elsewhere/face.obj',
+        'Resources/unpublished.bundle', 'BlenderModels/ArcaneFocusOrb/unlisted.png', $declared[0])) {
+        $rejected = $false
+        try { Assert-PackagedBlenderModel ($declared + $unexpected) $declared } catch { $rejected = $true }
+        if (-not $rejected) { throw "The package accepted an unexpected model entry: $unexpected" }
+    }
+    $rejected = $false
+    try { Assert-PackagedBlenderModel @($declared | Where-Object { $_ -ne $declared[0] }) $declared } catch { $rejected = $true }
+    if (-not $rejected) { throw 'The package accepted an incomplete model inventory.' }
+    $results.Add([pscustomobject]@{name='package model inventory rejects unexpected, duplicate and missing files';passed=$true})
+    $modelFixture = Join-Path $temporary 'ModelOwnership'
+    $remoteModels = Join-Path $modelFixture 'BlenderModels/CharacterModels'
+    $localModels = Join-Path $modelFixture 'BlenderModels/Equipment'
+    [void][IO.Directory]::CreateDirectory($remoteModels)
+    [void][IO.Directory]::CreateDirectory($localModels)
+    $renamed = Join-Path $localModels 'renamed.bundle'
+    [IO.File]::WriteAllText($renamed, 'distributed content')
+    Write-GtJson (Join-Path $remoteModels 'CharacterModels.packs.json') @{
+        files=@(@{file='distributed.bundle';sha256=(Get-GtHash $renamed)})
+    }
+    $inventory = Join-Path $modelFixture 'BlenderModels.Packaging.props'
+    foreach ($name in 'distributed.bundle','renamed.bundle') {
+        [IO.File]::WriteAllText($inventory, ('<Project><ItemGroup><PackagedBlenderModel Include="BlenderModels/Equipment/{0}" /></ItemGroup></Project>' -f $name))
+        $rejected = $false
+        try { Get-PackagedBlenderModelPath $modelFixture | Out-Null }
+        catch { $rejected = $_.Exception.Message -like 'A distributed character model bundle*' }
+        if (-not $rejected) { throw "An externally distributed bundle was approved for the main package: $name" }
+    }
+    $results.Add([pscustomobject]@{name='an external bundle cannot be declared as a local asset under its name or copied bytes';passed=$true})
     $stage = Join-Path $temporary 'Stage'
     $formalOutput = Join-Path $temporary 'Output'
     $archive = Join-Path $temporary 'Package.zip'
