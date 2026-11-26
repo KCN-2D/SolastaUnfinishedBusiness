@@ -32,7 +32,7 @@ using static SolastaUnfinishedBusiness.Api.DatabaseHelper.FeatureDefinitionSense
 
 namespace SolastaUnfinishedBusiness.Models;
 
-internal static class RacesContext
+internal static partial class RacesContext
 {
     private const int SpeciesBaseWalkSpeed2024 = 6;
 
@@ -5766,6 +5766,46 @@ internal static class RacesContext
             return forward.sqrMagnitude > .9f && noseHeight < 0f && lipHeight < noseHeight;
         }
 
+        private void PrepareGroomFit(GraphicsCharacter graphics, LOD[] levels,
+            Dictionary<SkinnedMeshRenderer, CustomModels.SkinMeshSource.SurfaceBinding> bindings)
+        {
+            var heads = FacialAgeRenderers(graphics).ToHashSet();
+            var parts = graphics.ShapeSkinnedMeshRenderersPerBodySlot;
+            var grooms = GroomRenderers(parts).GroupBy(entry => entry.Renderer)
+                .ToDictionary(entries => entries.Key, entries => entries.Any(entry => entry.Beard));
+            if (heads.Count == 0 || grooms.Count == 0) return;
+            graphics.RulesetCharacter.MorphotypeElements.TryGetValue(
+                MorphotypeElementDefinition.ElementCategory.FaceShape, out var selectedFace);
+            foreach (var groom in _skins)
+            {
+                if (!grooms.TryGetValue(groom.Renderer, out var beard) ||
+                    groom.Source.ClothOwner || bindings.ContainsKey(groom.Renderer)) continue;
+                var head = _skins.FirstOrDefault(skin => heads.Contains(skin.Renderer) &&
+                    SharesDetailLevel(levels, skin.Renderer, groom.Renderer));
+                if (head == null || !TryFaceAgeFrame(graphics, head, out var frame)) continue;
+                var headBones = head.Renderer.bones;
+                var headIndex = Array.FindIndex(headBones, bone => bone && bone.name == "Bip001 Head");
+                if (headIndex < 0) continue;
+                var groomIndex = Array.IndexOf(groom.Renderer.bones, headBones[headIndex]);
+                var source = groom.Authored;
+                var poses = source.bindposes;
+                if (groomIndex < 0 || groomIndex >= poses.Length) continue;
+                var headBind = head.Authored.bindposes[headIndex];
+                var toSkin = headBind.inverse * poses[groomIndex];
+                var shape = SelectedGroomFrame(source, selectedFace);
+                var key = $"groom-contact:1:{groom.Fingerprint}:{CharacterModelFingerprint(source)}:" +
+                          $"{CharacterModelFingerprint(head.Authored)}:{groomIndex}:{headIndex}:{shape}:{beard}";
+                var fitted = RetainDerivedData(key, () =>
+                {
+                    var result = FitGroomContact(source, shape, toSkin, head.Authored,
+                        SurfaceTriangles(head.Authored, head.Renderer, true), frame.AnatomicalCoordinates(headBind), beard);
+                    return result ? [result] : [new TextAsset("null")];
+                })[0] as Mesh;
+                if (!fitted) continue;
+                groom.SetAuthored(fitted);
+            }
+        }
+
         private Dictionary<SkinnedMeshRenderer, string[]> PrepareFaceAge(GraphicsCharacter graphics,
             IReadOnlyDictionary<SkinnedMeshRenderer, CustomModels.SkinMeshSource.SurfaceBinding> bindings)
         {
@@ -6024,6 +6064,7 @@ internal static class RacesContext
                 foreach (var skin in _skins.Where(skin => skin.ChangesSource))
                     if (_catalog?.Binding(skin.Source.Original, skin.Fingerprint) is { } binding) bindings.Add(skin.Renderer, binding);
                 PrepareJoints(graphics, bindings, jointLods);
+                PrepareGroomFit(graphics, jointLods ?? SkinJointLods(graphics), bindings);
                 var faceExpressions = PrepareFaceAge(graphics, bindings);
                 foreach (var skin in _skins) skin.ValidateSource(bindings.ContainsKey(skin.Renderer));
                 var changes = _skins.Where(skin => skin.ChangesSource).ToDictionary(skin => skin.Renderer,
@@ -6388,10 +6429,18 @@ internal static class RacesContext
             .Where(renderer => renderer.sharedMaterials.Any(material => material && material.shader &&
                 material.shader.name is "Lux/Human/Skin" or "Lux/Human/Skin (double sided)"));
 
+    private static IEnumerable<(SkinnedMeshRenderer Renderer, bool Beard)> GroomRenderers(SkinnedMeshRenderer[][] parts) =>
+        CharacterPartRenderers(parts, BodyPart.Hair).Where(renderer => renderer && renderer.sharedMesh)
+            .Select(renderer => (renderer, false))
+            .Concat(CharacterPartRenderers(parts, BodyPart.Beard).Where(renderer => renderer && renderer.sharedMesh)
+                .Select(renderer => (renderer, true))).Distinct();
+
     private static HashSet<SkinnedMeshRenderer> CompleteCharacterModelRenderers(GraphicsCharacter graphics)
     {
         // A head still needs its own shapes when armor hides every body surface at its cut.
         var result = new HashSet<SkinnedMeshRenderer>(FacialAgeRenderers(graphics));
+        if (result.Count != 0)
+            result.UnionWith(GroomRenderers(graphics.ShapeSkinnedMeshRenderersPerBodySlot).Select(entry => entry.Renderer));
         foreach (var (receiver, donor) in SkinJoints)
         {
             var receivers = CharacterSkinPartRenderers(graphics, receiver).ToArray();
@@ -6404,8 +6453,10 @@ internal static class RacesContext
         return result;
     }
 
-    private static bool IsJointSkin(SkinnedMeshRenderer renderer) => renderer.sharedMaterials.Any(material => material && material.shader &&
-        material.shader.name.StartsWith("Lux/Human/Skin", StringComparison.Ordinal));
+    private static bool IsJointSkin(SkinnedMeshRenderer renderer) => renderer.sharedMaterials.Any(IsJointSkinMaterial);
+
+    private static bool IsJointSkinMaterial(Material material) => material && material.shader &&
+        material.shader.name.StartsWith("Lux/Human/Skin", StringComparison.Ordinal);
 
     private sealed class CharacterModelSkin(GraphicsCharacter graphics, SkinnedMeshRenderer renderer, CustomModels.SkinMeshSource source, string fingerprint, Mesh authored, string bundleFile, bool jointSamplerCondition = false)
     {
@@ -7876,6 +7927,7 @@ internal static class RacesContext
         internal bool Identity;
         internal bool HeadAttachment;
         internal bool CalibrationSource;
+        internal bool Wardrobe;
     }
 
     private sealed class BodyShapeSeam(Vector3 point, Vector3 delta, bool native,
@@ -8010,6 +8062,7 @@ internal static class RacesContext
                         row.Identity |= identityPart;
                         row.HeadAttachment |= headAttachment;
                         row.CalibrationSource |= calibrationSource;
+                        row.Wardrobe |= !ReferenceEquals(slots, graphics.ShapeSkinnedMeshRenderersPerBodySlot);
                     }
                     else result.Add(renderer, new BodyShapeRenderer
                     { Renderer = renderer, Identity = identityPart,
@@ -8017,7 +8070,8 @@ internal static class RacesContext
                         // A race can lack its own frame and still wear equipment with an authored frame.
                         UseNativeFrame = allowNativeFrames && NativeBodyShapeFrame(renderer.sharedMesh) >= 0 &&
                             graphics.BlendShapeRenderers.Contains(renderer),
-                        CalibrationSource = calibrationSource });
+                        CalibrationSource = calibrationSource,
+                        Wardrobe = !ReferenceEquals(slots, graphics.ShapeSkinnedMeshRenderersPerBodySlot) });
                 }
             }
         }
@@ -8102,6 +8156,8 @@ internal static class RacesContext
         private float _value;
         private float _default;
         private bool _busy, _refreshPending;
+        private bool _wardrobeFitPrepared;
+        private readonly HashSet<string> _wardrobeFitKeys = new(StringComparer.Ordinal);
         private const float PreviewIdleSeconds = .18f;
         private readonly List<PreviewChannel> _previewChannels = [];
         private bool _interactivePreview;
@@ -8494,8 +8550,9 @@ internal static class RacesContext
                 var sources = HighestDetailRows(graphics, rows.Where(row => row.CalibrationSource && row.UseNativeFrame && NativeBodyShapeFrame(row.Original) >= 0));
                 // Calibration samples and seam donors are the field's inputs.
                 // Other logical skins do not invalidate their unchanged owners.
-                List<BodyShapeRenderer> FieldInputs() => sources.Concat(rows.Where(row => !row.Identity &&
-                    row.UseNativeFrame && NativeBodyShapeFrame(row.Original) >= 0)).Distinct().ToList();
+                List<BodyShapeRenderer> FieldInputs() => sources.Concat(rows.Where(row => !row.Identity && row.UseNativeFrame ||
+                    supplemental && (row.HeadAttachment || !row.Identity && (row.Wardrobe || IsJointSkin(row.Renderer)))))
+                    .Distinct().ToList();
                 if (!FieldSourcesCurrent(graphics, field, FieldInputs(), supplemental))
                 {
                     Release(false);
@@ -8606,6 +8663,8 @@ internal static class RacesContext
                         ReportBodyShapeError(row.Original.name, exception);
                     }
                 }
+                if (supplemental && UsesBodyShapeAppearance(graphics.RulesetCharacter) && !_wardrobeFitPrepared)
+                    PrepareWardrobeFit(graphics, rows, defaultValue);
                 if (_sourceGraph == null)
                 {
                     var fallback = PhysicalBodyRows(graphics, rows);
@@ -8694,6 +8753,8 @@ internal static class RacesContext
                 {
                     if (_sourceGraph?.Installed.TryGetValue(renderer, out var installed) == true)
                         source = installed;
+                    else
+                        source = _pieces.FirstOrDefault(piece => piece.Renderer == renderer)?.Source ?? source;
                     var baked = _sourceGraph?.BakedPhysicalWeight(renderer, index) ?? 0f;
                     _previewChannels.Add(new PreviewChannel(renderer, source, index, baked, direction));
                 }
@@ -8706,6 +8767,54 @@ internal static class RacesContext
             }
             finally { _busy = false; SynchronizeCharacterModelRefreshPending(); }
         }
+
+        private void PrepareWardrobeFit(GraphicsCharacter graphics, List<BodyShapeRenderer> rows, float neutral)
+        {
+            var wardrobe = rows.Where(row => row.Wardrobe && !row.Identity && row.Renderer.enabled).ToArray();
+            var levels = SkinJointLods(graphics);
+            foreach (var skin in rows)
+            {
+                if (skin.Identity && !skin.HeadAttachment || skin.Source.ClothOwner ||
+                    !skin.Renderer.enabled || !IsJointSkin(skin.Renderer)) continue;
+                var current = _pieces.FirstOrDefault(piece => piece.Renderer == skin.Renderer);
+                if (!skin.UseNativeFrame && current == null) continue;
+                var matching = wardrobe.Where(row => row != skin &&
+                        SharesDetailLevel(levels, skin.Renderer, row.Renderer))
+                    .Select(row => (Row: row, Mesh: _pieces.FirstOrDefault(piece => piece.Renderer == row.Renderer)?.Owned ?? row.Original))
+                    .ToArray();
+                if (matching.Length == 0) continue;
+                var source = current?.Owned ?? skin.Original;
+                var key = "wardrobe-clearance:2:" + new JArray(neutral, Identity(skin, source),
+                    new JArray(matching.Select(entry => Identity(entry.Row, entry.Mesh)))).ToString(Formatting.None);
+                var fitted = CharacterModelPresentation.RetainSourceData(_wardrobeFitKeys, key, () =>
+                {
+                    var rebuildFrames = !source.isReadable || source.GetBlendShapeIndex(BodyVolumePositive) >= 0 ||
+                                        source.GetBlendShapeIndex(BodyVolumeNegative) >= 0;
+                    if (rebuildFrames && !CanCopyBlendShapeFrames(source)) return [new TextAsset("null")];
+                    var fit = WardrobeClearanceFrames(skin, source, matching, neutral);
+                    if (fit.Positive == null && fit.Negative == null) return [new TextAsset("null")];
+                    return [BuildWardrobeClearanceMesh(source, fit, neutral)];
+                }, null)[0] as Mesh;
+                if (!fitted) continue;
+                if (current != null)
+                {
+                    current.Release(false);
+                    _pieces.Remove(current);
+                }
+                var replacement = new BodyShapePiece(skin, fitted, (current?.Expansion ?? 0f) + WardrobeReach);
+                replacement.Retained();
+                _pieces.Add(replacement);
+            }
+            _wardrobeFitPrepared = true;
+
+            static JArray Identity(BodyShapeRenderer row, Mesh mesh) => new(
+                BodyShapeMeshIdentities.GetValue(mesh, _ => Guid.NewGuid().ToString("N")), row.UseNativeFrame,
+                new JArray(row.Renderer.sharedMaterials.Select(material =>
+                    !material ? 0 : IsJointSkinMaterial(material) ? 1 :
+                    material.renderQueue < (int)UnityEngine.Rendering.RenderQueue.Transparent ? 2 : 3)),
+                new JArray(row.Renderer.bones.Select(bone => bone ? bone.name : string.Empty)));
+        }
+
         internal void Release(bool destroying) => ReleaseCore(destroying, null);
         internal bool TrySuspendNativeOwner(Action restoreOwner, out CustomModels.SkinMeshSource.SourceGraph graph)
         {
@@ -8729,12 +8838,14 @@ internal static class RacesContext
             _previewChannels.Clear();
             _previewHasSupplementalTargets = false;
             _refreshPending = false;
+            _wardrobeFitPrepared = false;
             void ReleasePieces()
             {
                 foreach (var piece in _pieces) piece.Release(!destroying && restartNative);
                 _pieces.Clear();
                 foreach (var renderer in _pieceData.Keys.ToArray()) ReleasePieceData(renderer);
                 CharacterModelPresentation.ReleaseSourceData(_derivedKeys);
+                CharacterModelPresentation.ReleaseSourceData(_wardrobeFitKeys);
             }
             try
             {

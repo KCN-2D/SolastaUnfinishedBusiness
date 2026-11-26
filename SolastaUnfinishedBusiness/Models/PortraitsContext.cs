@@ -15,8 +15,30 @@ public static class PortraitsContext
 {
     private static readonly ConditionalWeakTable<CharacterViewport, Transform> ViewportFramingTargets = new();
     private static readonly ConditionalWeakTable<GraphicsCharacter, HashSet<Component>> ViewportClothResets = new();
-    private static ConditionalWeakTable<CharacterViewport, List<Light>> _viewportFillLights = new();
-    private static readonly Dictionary<Light, (LightShadows Shadows, int Owners)> FillLightShadows = [];
+    private const float PortraitShadowStrength = .38f;
+    private static ConditionalWeakTable<CharacterViewport, List<Light>> _viewportLights = new();
+    private static readonly Dictionary<Light, ViewportShadow> ViewportShadows = [];
+
+    private sealed class ViewportShadow(Light light, LightShadows shadows, float strength)
+    {
+        private readonly LightShadows _originalShadows = light.shadows;
+        private readonly float _originalStrength = light.shadowStrength;
+        internal int Owners = 1;
+
+        internal void Apply(Light light)
+        {
+            if (_originalShadows != shadows) light.shadows = shadows;
+            if (_originalStrength != strength) light.shadowStrength = strength;
+        }
+
+        internal void Restore(Light light)
+        {
+            if (!light) return;
+            if (_originalShadows != shadows && light.shadows == shadows) light.shadows = _originalShadows;
+            if (_originalStrength != strength && light.shadowStrength == strength)
+                light.shadowStrength = _originalStrength;
+        }
+    }
 
     internal static void BindViewportLighting(CharacterViewport viewport)
     {
@@ -31,48 +53,50 @@ public static class PortraitsContext
             if (light.enabled && light.type == LightType.Directional && light.shadows != LightShadows.None)
                 directionalMask |= light.cullingMask;
 
-        var fills = new List<Light>();
+        var adjusted = new List<Light>();
         foreach (var light in lights)
         {
             var mask = light.cullingMask & camera.cullingMask;
-            if (!light.enabled || light.type != LightType.Point || mask == 0 || (mask & directionalMask) != mask)
-                continue;
-            if (FillLightShadows.TryGetValue(light, out var state))
-                FillLightShadows[light] = (state.Shadows, state.Owners + 1);
+            if (!light.enabled || mask == 0) continue;
+            if (ViewportShadows.TryGetValue(light, out var state))
+                state.Owners++;
             else
             {
                 if (light.shadows == LightShadows.None) continue;
-                FillLightShadows.Add(light, (light.shadows, 1));
-                // The key light already supplies the portrait's shape and contact shadows.
-                light.shadows = LightShadows.None;
+                if (light.type == LightType.Point && (mask & directionalMask) == mask)
+                    state = new ViewportShadow(light, LightShadows.None, light.shadowStrength);
+                else if (light.type == LightType.Directional && light.shadowStrength > PortraitShadowStrength)
+                {
+                    // A close-up key light should shade the face without producing opaque self-shadows.
+                    state = new ViewportShadow(light, light.shadows, PortraitShadowStrength);
+                }
+                else continue;
+                ViewportShadows.Add(light, state);
+                state.Apply(light);
             }
-            fills.Add(light);
+            adjusted.Add(light);
         }
-        if (fills.Count != 0) _viewportFillLights.Add(viewport, fills);
+        if (adjusted.Count != 0) _viewportLights.Add(viewport, adjusted);
     }
 
     internal static void ReleaseViewportLighting(CharacterViewport viewport)
     {
-        if (!_viewportFillLights.TryGetValue(viewport, out var fills)) return;
-        _viewportFillLights.Remove(viewport);
-        foreach (var light in fills)
+        if (!_viewportLights.TryGetValue(viewport, out var adjusted)) return;
+        _viewportLights.Remove(viewport);
+        foreach (var light in adjusted)
         {
-            var state = FillLightShadows[light];
-            if (state.Owners > 1) FillLightShadows[light] = (state.Shadows, state.Owners - 1);
-            else
-            {
-                if (light && light.shadows == LightShadows.None) light.shadows = state.Shadows;
-                FillLightShadows.Remove(light);
-            }
+            var state = ViewportShadows[light];
+            if (--state.Owners != 0) continue;
+            state.Restore(light);
+            ViewportShadows.Remove(light);
         }
     }
 
     internal static void RestoreViewportLighting()
     {
-        foreach (var pair in FillLightShadows)
-            if (pair.Key && pair.Key.shadows == LightShadows.None) pair.Key.shadows = pair.Value.Shadows;
-        FillLightShadows.Clear();
-        _viewportFillLights = new ConditionalWeakTable<CharacterViewport, List<Light>>();
+        foreach (var pair in ViewportShadows) pair.Value.Restore(pair.Key);
+        ViewportShadows.Clear();
+        _viewportLights = new ConditionalWeakTable<CharacterViewport, List<Light>>();
     }
 
     internal static void PrepareViewportClothForRotation(GraphicsCharacter graphics)
