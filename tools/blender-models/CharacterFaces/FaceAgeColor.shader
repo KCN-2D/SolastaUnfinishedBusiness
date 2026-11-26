@@ -23,8 +23,7 @@ Shader "Hidden/KCN/FaceAgeColor"
             sampler2D _FaceColor;
             float4 _FaceColor_ST;
             float4x4 _FaceAnatomy;
-            float _NoseLevel;
-            float _LipLevel;
+            float4 _FaceLandmarks;
             float _FaceAge;
 
             struct FaceVertex
@@ -71,28 +70,31 @@ Shader "Hidden/KCN/FaceAgeColor"
                 float asymmetry = .027 * sin(x * 5.4) + .018 * sin(x * 13.1);
                 float front = smoothstep(-.74, -.24, input.position.z);
                 float forehead = Falloff(side, 1.05) *
-                    (.19 * Crease(y - 1.16 + .17 * side * side + asymmetry, .058) +
-                     .16 * Crease(y - 1.66 + .22 * side * side + asymmetry, .062) +
-                     .10 * Crease(y - 2.06 + .25 * side * side + asymmetry, .058));
+                    (.25 * Crease(y - 1.16 + .17 * side * side + asymmetry, .065) +
+                     .19 * Crease(y - 1.66 + .22 * side * side + asymmetry, .064) +
+                     .12 * Crease(y - 2.06 + .25 * side * side + asymmetry, .061));
 
                 float tear = Falloff(side - .85, .48) *
-                    (.23 * Crease(y + .54 + .12 * side + asymmetry, .090) +
-                     .11 * Falloff(y + .68 + .17 * side, .24));
+                    (.27 * Crease(y + .54 + .12 * side + asymmetry, .098) +
+                     .12 * Falloff(y + .68 + .17 * side, .26));
                 float eyeEdge = smoothstep(1.26, 1.53, side) * Falloff(side - 1.60, .40);
                 float eyeFold = eyeEdge *
-                    (.19 * Crease(y + .16 + .49 * (side - 1.36) + asymmetry, .057) +
-                     .11 * Crease(y + .31 + .64 * (side - 1.36) + asymmetry, .055));
+                    (.24 * Crease(y + .16 + .49 * (side - 1.36) + asymmetry, .062) +
+                     .14 * Crease(y + .31 + .64 * (side - 1.36) + asymmetry, .058));
 
-                float smileLevel = y - _NoseLevel;
-                float smile = Falloff(smileLevel + .32, .69) *
-                    (.24 * Crease(side - .55 + .27 * smileLevel + asymmetry, .081) +
-                     .09 * Falloff(side - .64 + .27 * smileLevel, .22));
-                smile *= smoothstep(_LipLevel + .04, _LipLevel + .43, y);
+                float smileLevel = saturate((y - _FaceLandmarks.y) / (_FaceLandmarks.x - _FaceLandmarks.y));
+                float smileSide = lerp(_FaceLandmarks.w + .13, _FaceLandmarks.z + .15, smileLevel);
+                float smile = Falloff(smileLevel - .63, .32) *
+                    (.25 * Crease(side - smileSide + asymmetry, .097) +
+                     .08 * Falloff(side - smileSide - .08, .24));
+                smile *= smoothstep(_FaceLandmarks.y + .04, _FaceLandmarks.y + .30, y) *
+                         (1 - smoothstep(_FaceLandmarks.x, _FaceLandmarks.x + .13, y));
 
                 float density = .70 + .30 * sin(x * 4.8 + y * 5.1) * sin(x * 7.4 - y * 4.3);
-                float pigment = .045 * density * Falloff(side - 1.2, .58) * Falloff(y - .74 * _NoseLevel, .71);
+                float pigment = .068 * density * Falloff(side - 1.2, .58) * Falloff(y - .74 * _FaceLandmarks.x, .71);
+                float temple = .07 * Falloff(side - 1.54, .42) * Falloff(y - .60, .51);
                 float edge = (1 - smoothstep(1.76, 2.19, side)) * (1 - smoothstep(2.1, 2.71, y));
-                float shade = _FaceAge * front * edge * (forehead + tear + eyeFold + smile + pigment);
+                float shade = _FaceAge * front * edge * clamp(forehead + tear + eyeFold + smile + pigment + temple, -.09, .36);
                 float4 color = tex2D(_FaceColor, input.uv);
                 color.rgb *= 1 - shade;
                 return color;

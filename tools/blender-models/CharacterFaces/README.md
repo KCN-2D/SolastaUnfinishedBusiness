@@ -56,6 +56,8 @@ UVで分かれた組織は`protectSourceCharts`で保護します。原本Mesh�
 
 `--channels color`または`--channels normal`で制作するチャンネルを選べます。省略時は両方を対象とします。再開時は同じ選択を指定します。
 
+採用済みの色に`luminanceRegions`だけを適用する場合は、`--channels color --luminance-only`を指定します。
+
 制作時に元の画像形式と全mipを扱い、範囲外のブロック、材質アルファ、法線の保持チャンネル、samplerを照合します。生成した肌のmipは完成bundleに収め、再読み込みした全mipを制作結果のハッシュと照合します。共有資源の画像を対象rendererの材質へ収める場合は、`bind-skin-surfaces --source <同じ制作元> --fields <作成した資源> --output <最終候補>`を使います。共有元の画像は保持します。専有化済みの画像を調整した出力は、そのまま表示候補として使います。
 
 元画像の資源はSHA256で照合します。参照先が移動した場合は、制作元catalogにある同じ資源から読み取り、候補の計算入力へ対応を記録します。

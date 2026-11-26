@@ -762,6 +762,8 @@ internal static class RacesContext
         catch (Exception exception) { ReportCharacterModelError("refresh", exception); }
     }
 
+    private static float FaceAgeProgress(float age) => Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(20f, 100f, age));
+
     internal static void RefreshCharacterModelMaterials(GraphicsCharacter graphics, MorphotypeElementDefinition.ElementCategory category)
     {
         if (_characterModelsUnloading || !graphics || !SettingsContext.GuiModManagerInstance.EnableCustomFaces) return;
@@ -4733,6 +4735,7 @@ internal static class RacesContext
         private readonly Dictionary<Material, (float Authored, float Micro, bool Face)> _skinNormalStrengths = [];
         private static readonly int SurfaceColor = Shader.PropertyToID("_Color");
         private static readonly int GroomSpecularColor = Shader.PropertyToID("_Spec_Color");
+        private static readonly int SkinNormalMap = Shader.PropertyToID("_BumpMap");
         private static readonly int SkinNormalStrength = Shader.PropertyToID("_BumpMapScale");
         private static readonly int UseMicroBumps = Shader.PropertyToID("_UseMicroBumps");
         private static readonly int MicroBumpMap = Shader.PropertyToID("_MicroBumpMap");
@@ -4771,13 +4774,20 @@ internal static class RacesContext
                 !Graphics.MaterialsToDestroy.Contains(material) || _skinNormalStrengths.ContainsKey(material) ||
                 !material.shader || material.shader.name is not ("Lux/Human/Skin" or "Lux/Human/Skin (double sided)") ||
                 material.renderQueue >= 2500 || !material.HasProperty(SkinNormalStrength) ||
-                !material.HasProperty(UseMicroBumps) || material.GetFloat(UseMicroBumps) <= 0f ||
-                !material.HasProperty(MicroBumpMap) || !material.GetTexture(MicroBumpMap)) return;
+                !material.HasProperty(SkinNormalMap) || !material.GetTexture(SkinNormalMap)) return;
+
+            var hasMicroBumps = material.HasProperty(UseMicroBumps) && material.GetFloat(UseMicroBumps) > 0f &&
+                                material.HasProperty(MicroBumpMap) && material.GetTexture(MicroBumpMap);
             var strength = material.GetFloat(SkinNormalStrength);
-            if (strength >= 0f && strength != 1f && !float.IsInfinity(strength))
-                _skinNormalStrengths.Add(material, (strength, material.HasProperty(MicroBumpStrength)
-                    ? material.GetFloat(MicroBumpStrength)
-                    : 0f, face));
+            if (!(strength >= 0f) || float.IsInfinity(strength) ||
+                !face && (!hasMicroBumps || strength == 1f)) return;
+
+            // The game animates the main normal even on faces without a micro normal.
+            var authored = face && strength == 1f ? .125f : strength;
+            var micro = hasMicroBumps && material.HasProperty(MicroBumpStrength)
+                ? material.GetFloat(MicroBumpStrength)
+                : 0f;
+            _skinNormalStrengths.Add(material, (authored, micro, face));
         }
 
         internal void ApplySkinNormalStrength()
@@ -4785,7 +4795,7 @@ internal static class RacesContext
             if (Graphics.RulesetCharacter?.MorphotypeElementAdditionalValues
                     .TryGetValue(MorphotypeElementDefinition.ElementCategory.Age, out var age) != true) return;
             // The native age callback has just supplied the actor's age factor.
-            var ageProgress = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(20f, 100f, age));
+            var ageProgress = FaceAgeProgress(age);
             foreach (var entry in _skinNormalStrengths)
             {
                 var material = entry.Key;
@@ -5683,8 +5693,8 @@ internal static class RacesContext
             }
         }
 
-        private readonly struct FaceAgeFrame(Vector3 eyes, Vector3 across, Vector3 up, Vector3 forward, float scale,
-            float noseHeight, float lipHeight, float lipWidth)
+        private readonly struct FaceAgeFrame(Vector3 eyes, Vector3 across, Vector3 up, Vector3 forward,
+            float scale, float noseHeight, float lipHeight, float noseWidth, float lipWidth)
         {
             internal readonly Vector3 Eyes = eyes;
             internal readonly Vector3 Across = across;
@@ -5693,7 +5703,10 @@ internal static class RacesContext
             internal readonly float Scale = scale;
             internal readonly float NoseHeight = noseHeight;
             internal readonly float LipHeight = lipHeight;
+            internal readonly float NoseWidth = noseWidth;
             internal readonly float LipWidth = lipWidth;
+
+            internal Vector4 Landmarks => new(NoseHeight, LipHeight, NoseWidth, LipWidth);
 
             internal Matrix4x4 AnatomicalCoordinates(Matrix4x4 toHead)
             {
@@ -5709,6 +5722,8 @@ internal static class RacesContext
 
         private FaceAgeFrame _faceAgeFrame;
         private readonly Dictionary<Material, FaceAgeColorSurface> _faceAgeMaterials = [];
+        private readonly HashSet<Material> _activeFaceAgeMaterials = [];
+        private readonly List<Material> _faceAgeSlots = [];
 
         private static bool TryFaceAgeFrame(GraphicsCharacter graphics, CharacterModelSkin skin, out FaceAgeFrame frame)
         {
@@ -5719,10 +5734,11 @@ internal static class RacesContext
             var head = Array.FindIndex(bones, bone => bone && bone.name == "Bip001 Head");
             var left = Array.FindIndex(bones, bone => bone && bone.name == "b_eyelid_lower_L");
             var right = Array.FindIndex(bones, bone => bone && bone.name == "b_eyelid_lower_R");
-            var nose = Array.FindIndex(bones, bone => bone && bone.name == "b_nostril_L");
+            var leftNostril = Array.FindIndex(bones, bone => bone && bone.name == "b_nostril_L");
+            var rightNostril = Array.FindIndex(bones, bone => bone && bone.name == "b_nostril_R");
             var lip = Array.FindIndex(bones, bone => bone && bone.name == "b_lip_upper_C");
             var corner = Array.FindIndex(bones, bone => bone && bone.name == "b_lip_corner_L");
-            if (head < 0 || left < 0 || right < 0 || nose < 0 || lip < 0 || corner < 0) return false;
+            if (head < 0 || left < 0 || right < 0 || leftNostril < 0 || lip < 0 || corner < 0) return false;
 
             Vector3 Point(int index) => bind[head].MultiplyPoint3x4(bind[index].inverse.GetColumn(3));
 
@@ -5734,13 +5750,19 @@ internal static class RacesContext
             var modelUp = skin.Renderer.transform.worldToLocalMatrix.MultiplyVector(graphics.transform.up);
             var up = Vector3.ProjectOnPlane(bind[head].MultiplyVector(modelUp), across).normalized;
             var forward = Vector3.Cross(across, up);
-            var noseOffset = Point(nose) - eyes;
+            var nostril = Point(leftNostril);
+            var lips = Point(lip);
+            var noseOffset = (rightNostril >= 0 ? (nostril + Point(rightNostril)) * .5f : nostril) - eyes;
             if (Vector3.Dot(forward, noseOffset) < 0f) forward = -forward;
             var scale = span.magnitude * .5f;
             var noseHeight = Vector3.Dot(noseOffset, up) / scale;
-            var lipHeight = Vector3.Dot(Point(lip) - eyes, up) / scale;
-            var lipWidth = Mathf.Abs(Vector3.Dot(Point(corner) - Point(lip), across)) / scale;
-            frame = new FaceAgeFrame(eyes, across, up, forward, scale, noseHeight, lipHeight, lipWidth);
+            var lipHeight = Vector3.Dot(lips - eyes, up) / scale;
+            var noseWidth = rightNostril >= 0
+                ? Mathf.Abs(Vector3.Dot(nostril - Point(rightNostril), across)) / (2f * scale)
+                : Mathf.Abs(Vector3.Dot(nostril - lips, across)) / scale;
+            var lipWidth = Mathf.Abs(Vector3.Dot(Point(corner) - lips, across)) / scale;
+            frame = new FaceAgeFrame(eyes, across, up, forward, scale, noseHeight, lipHeight,
+                Mathf.Clamp(noseWidth, .25f, .78f), Mathf.Clamp(lipWidth, .52f, 1.25f));
             return forward.sqrMagnitude > .9f && noseHeight < 0f && lipHeight < noseHeight;
         }
 
@@ -5767,7 +5789,7 @@ internal static class RacesContext
                 if (head < 0 || head >= bind.Length) continue;
                 var boundary = bindings.TryGetValue(skin.Renderer, out var binding) ? binding.BoundaryOverrides?.Keys : null;
                 var protectedVertices = boundary == null ? null : new HashSet<int>(boundary);
-                var key = "face-age:3:" + anchorFingerprint + ":" + CharacterModelFingerprint(source) + ":" +
+                var key = "face-age:5:" + anchorFingerprint + ":" + CharacterModelFingerprint(source) + ":" +
                           (protectedVertices == null
                               ? string.Empty
                               : string.Join(",", protectedVertices.OrderBy(vertex => vertex)));
@@ -5787,7 +5809,8 @@ internal static class RacesContext
                 var positions = source.vertices;
                 var normals = source.normals;
                 var tangents = source.tangents;
-                var headForward = toHead.inverse.MultiplyVector(frame.Forward) * frame.Scale;
+                var reliefScale = Mathf.Clamp(.028f, .8f * frame.Scale, 1.2f * frame.Scale);
+                var headForward = toHead.inverse.MultiplyVector(frame.Forward) * reliefScale;
                 var gradientToMesh = toHead.transpose;
                 var positionDeltas = new Vector3[positions.Length];
                 var normalDeltas = new Vector3[positions.Length];
@@ -5841,23 +5864,31 @@ internal static class RacesContext
             var lipLine = Fade(.12f, .52f, Mathf.Abs(y - frame.LipHeight));
             var lipCorners = Fade(frame.LipWidth, frame.LipWidth + .32f, side);
             var eyeOpening = Mathf.Max(Fade(.17f, .48f, Mathf.Abs(y)), Fade(1.34f, 1.67f, side));
+            var noseEdge = Fade(frame.NoseWidth * .72f, frame.NoseWidth + .26f, side);
+            var noseGuard = Mathf.Max(noseEdge, Fade(.22f, .58f, y));
             var mask = eyeOpening * Fade(2.18f, 1.59f, side) *
                        Fade(frame.LipHeight - .27f, frame.LipHeight + .27f, y) * Fade(2.82f, 2.09f, y) *
-                       Fade(-.85f, -.24f, depth) * Mathf.Max(lipLine, lipCorners);
+                       Fade(-.85f, -.24f, depth) * Mathf.Max(lipLine, lipCorners) * noseGuard;
             if (mask == 0f) return 0f;
-            var cheek = Bell(side, 1.12f, .56f) * Bell(y, .75f * frame.NoseHeight, .58f);
+            var cheekHeight = Mathf.Lerp(frame.NoseHeight, 0f, .23f);
+            var cheek = Bell(side, 1.12f, .56f) * Bell(y, cheekHeight, .58f);
             if (!elderly) return .065f * cheek * mask;
             var tearTrough = Bell(side, .86f, .53f) * Bell(y, -.46f - .14f * side, .21f);
-            var smileLevel = y - frame.NoseHeight;
-            var smileLine = Bell(side, .56f - .28f * smileLevel, .16f) * Bell(smileLevel, -.26f, .62f);
+            var smileLevel = Mathf.InverseLerp(frame.LipHeight, frame.NoseHeight, y);
+            var smileSide = Mathf.Lerp(frame.LipWidth + .13f, frame.NoseWidth + .15f, smileLevel);
+            var smileLine = Bell(side, smileSide, .21f) * Bell(smileLevel, .63f, .34f) *
+                            Fade(frame.NoseHeight + .13f, frame.NoseHeight, y);
             var forehead = Bell(side, .45f, .92f) *
                 (.064f * Bell(y, 1.14f - .17f * side * side, .15f) +
                  .057f * Bell(y, 1.59f - .22f * side * side, .16f) +
                  .034f * Bell(y, 2.06f - .24f * side * side, .18f));
             var outerEye = Bell(side, 1.58f, .34f) * Bell(y, -.16f - .46f * (side - 1.35f), .13f);
             var lowerCheek = Bell(side, 1.37f, .35f) * Bell(y, frame.LipHeight + .20f, .43f);
-            return mask * (.048f * lowerCheek - .148f * cheek - .089f * tearTrough - .084f * smileLine -
-                           .061f * outerEye - forehead);
+            var temple = Bell(side, 1.47f, .39f) * Bell(y, .64f, .49f);
+            var midfaceLength = Mathf.InverseLerp(.50f, 1.28f, frame.NoseHeight - frame.LipHeight);
+            var cheekVolume = Mathf.Lerp(.133f, .170f, midfaceLength);
+            return mask * (.052f * lowerCheek - cheekVolume * cheek - .085f * tearTrough - .082f * smileLine -
+                           .065f * outerEye - .045f * temple - forehead);
 
             static float Fade(float edge, float center, float value) =>
                 Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(edge, center, value));
@@ -5874,7 +5905,7 @@ internal static class RacesContext
             if (!_graphics || _graphics.RulesetCharacter?.MorphotypeElementAdditionalValues
                     .TryGetValue(MorphotypeElementDefinition.ElementCategory.Age, out var age) != true) return;
             var youthful = Mathf.SmoothStep(0f, 100f, Mathf.InverseLerp(50f, 0f, age));
-            var elderly = Mathf.SmoothStep(0f, 100f, Mathf.InverseLerp(28f, 100f, age));
+            var ageProgress = FaceAgeProgress(age);
             foreach (var skin in _skins)
             {
                 var renderer = skin.Renderer;
@@ -5883,17 +5914,15 @@ internal static class RacesContext
                 var youthfulFrame = mesh.GetBlendShapeIndex(YouthfulFace);
                 var elderlyFrame = mesh.GetBlendShapeIndex(ElderlyFace);
                 if (youthfulFrame >= 0) SetBlendShapeWeight(renderer, youthfulFrame, youthful);
-                if (elderlyFrame >= 0) SetBlendShapeWeight(renderer, elderlyFrame, elderly);
+                if (elderlyFrame >= 0) SetBlendShapeWeight(renderer, elderlyFrame, 100f * ageProgress);
             }
-            RefreshFaceAgeColor();
+            RefreshFaceAgeColor(ageProgress);
         }
 
-        private void RefreshFaceAgeColor()
+        private void RefreshFaceAgeColor(float amount)
         {
-            if (_faceAgeFrame.Scale == 0f || _graphics.RulesetCharacter?.MorphotypeElementAdditionalValues
-                    .TryGetValue(MorphotypeElementDefinition.ElementCategory.Age, out var age) != true) return;
-            var amount = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(24f, 99f, age));
-            var active = new HashSet<Material>();
+            if (_faceAgeFrame.Scale == 0f) return;
+            _activeFaceAgeMaterials.Clear();
             if (amount > 0f)
             {
                 foreach (var skin in _skins)
@@ -5903,20 +5932,22 @@ internal static class RacesContext
                     var head = Array.FindIndex(skin.Renderer.bones, bone => bone && bone.name == "Bip001 Head");
                     if (head < 0) continue;
                     var frame = _faceAgeFrame.AnatomicalCoordinates(mesh.bindposes[head]);
-                    var materials = skin.Renderer.sharedMaterials;
-                    for (var slot = 0; slot < Mathf.Min(materials.Length, mesh.subMeshCount); slot++)
+                    skin.Renderer.GetSharedMaterials(_faceAgeSlots);
+                    for (var slot = 0; slot < Mathf.Min(_faceAgeSlots.Count, mesh.subMeshCount); slot++)
                     {
-                        var material = materials[slot];
+                        var material = _faceAgeSlots[slot];
                         if (!material || !_graphics.SkinMaterials.Contains(material) || !_graphics.MaterialsToDestroy.Contains(material) ||
                             !material.shader || material.shader.name is not ("Lux/Human/Skin" or "Lux/Human/Skin (double sided)") ||
-                            !material.HasProperty(FaceAgeColorSurface.MainTexture) || !active.Add(material)) continue;
+                            !material.HasProperty(FaceAgeColorSurface.MainTexture) || !_activeFaceAgeMaterials.Add(material)) continue;
                         if (!_faceAgeMaterials.TryGetValue(material, out var color))
                             _faceAgeMaterials.Add(material, color = new FaceAgeColorSurface(material));
-                        color.Apply(mesh, slot, frame, _faceAgeFrame.NoseHeight, _faceAgeFrame.LipHeight, amount);
+                        color.Apply(mesh, slot, frame, _faceAgeFrame.Landmarks, amount);
                     }
                 }
             }
-            foreach (var material in _faceAgeMaterials.Keys.Where(material => !active.Contains(material)).ToArray())
+            _faceAgeSlots.Clear();
+            if (_faceAgeMaterials.Count == _activeFaceAgeMaterials.Count) return;
+            foreach (var material in _faceAgeMaterials.Keys.Where(material => !_activeFaceAgeMaterials.Contains(material)).ToArray())
             {
                 _faceAgeMaterials[material].Dispose();
                 _faceAgeMaterials.Remove(material);
@@ -6250,6 +6281,8 @@ internal static class RacesContext
             _suspended = false;
             foreach (var color in _faceAgeMaterials.Values) color.Dispose();
             _faceAgeMaterials.Clear();
+            _activeFaceAgeMaterials.Clear();
+            _faceAgeSlots.Clear();
             _faceAgeFrame = default;
             if (_graphics) ReleaseBodyShape(_graphics);
             if (_graphics && _graphics.GetComponent<BodyShapePresentation>() is { HasSources: true })

@@ -4148,6 +4148,17 @@ class FaceProductionContracts(unittest.TestCase):
         self.assertLess(correction[1, 2], 0.)
         np.testing.assert_array_equal(correction[3:], np.zeros((3, 3)))
 
+    def test_rigid_beard_seats_a_root_edge_and_keeps_the_free_end(self):
+        production, _ = build.source_owner()
+        points = np.array([[.004, .003, .003], [.008, .003, .004], [.004, .008, .019],
+                           [.022, .002, .003], [.026, .002, .016], [.021, .006, .016]])
+        triangles = np.array([[0, 1, 2], [3, 4, 5]])
+        head = np.array([[[0., 0., 0.], [.04, 0., 0.], [0., .04, 0.]]])
+        correction = production.fit_groom_roots(points, triangles, head, clearance=.0007,
+                                                 maximum_offset=.015, seat_against_skin=True)
+        np.testing.assert_allclose((points + correction)[:2, 2], [-.0005, -.0005])
+        np.testing.assert_array_equal(correction[2:], np.zeros((4, 3)))
+
     def test_neutral_sculpt_is_inverse_skinned_through_its_own_weighted_rig(self):
         production, art = build.source_owner()
         first = np.eye(4); first[0, 3] = 2.
@@ -4902,7 +4913,7 @@ class SkinCodecCandidateBudget(unittest.TestCase):
         for index in range(16):bits|=index<<(65+(4*index-1 if index else 0))
         return bits.to_bytes(16,'little')
 
-    def run_fixture(self,block,width,height,protected_right=False,coarse_mip=False):
+    def run_fixture(self,block,width,height,protected_right=False,coarse_mip=False,luminance_only=False):
         import character_resources as resources
         import material_fields as fields
         from PIL import Image
@@ -4927,7 +4938,7 @@ class SkinCodecCandidateBudget(unittest.TestCase):
             source=Path(directory)/'source.bundle';source.write_bytes(b'synthetic fixture')
             job=dict(source=str(source),sha256=build.sha(source),textures=[dict(object=7,channel='color',
                 surfaces=[dict(rendererToPrefab=np.eye(4).ravel().tolist())],domain={},normalEncoding=None,
-                profile=dict(coherenceSigmaMetres=.001,featherMetres=.003))])
+                profile=dict(coherenceSigmaMetres=.001,featherMetres=.003),luminanceOnly=luminance_only)])
             with mock.patch.object(build,'source_owner',return_value=(production,None)),\
                  mock.patch.object(build,'saved_skin_surface',return_value=(dict(uv=[]),[])),\
                  mock.patch.object(resources,'load_serialized_bundle',return_value=(None,file)),\
@@ -4957,6 +4968,11 @@ class SkinCodecCandidateBudget(unittest.TestCase):
     def test_source_candidate_stops_when_exact_native_alpha_prevents_the_bound(self):
         with self.assertRaisesRegex(ValueError,'exceeds the declared error bound'):
             self.run_fixture(self.sixteen_alpha_block(),4,4)
+
+    def test_luminance_overlay_retains_a_block_when_rgb_cannot_be_encoded(self):
+        result, _, _, original = self.run_fixture(self.sixteen_alpha_block(), 4, 4, luminance_only=True)
+        self.assertEqual(result['payload'], original[0])
+        self.assertEqual(result['mips'][0]['codec']['retainedLuminanceCodecBlocks'], 1)
 
     def test_the_same_declared_budget_is_used_for_fit_and_candidate_acceptance(self):
         with mock.patch.object(build,'MAIN_RGB_BLOCK_REFINEMENT_ERROR',0),\

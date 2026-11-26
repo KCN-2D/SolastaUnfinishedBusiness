@@ -13,13 +13,15 @@ internal sealed class FaceAgeColorSurface(Material skin) : IDisposable
     private static readonly int FaceColor = Shader.PropertyToID("_FaceColor");
     private static readonly int FaceColorScale = Shader.PropertyToID("_FaceColor_ST");
     private static readonly int FaceAnatomy = Shader.PropertyToID("_FaceAnatomy");
-    private static readonly int NoseLevel = Shader.PropertyToID("_NoseLevel");
-    private static readonly int LipLevel = Shader.PropertyToID("_LipLevel");
+    private static readonly int FaceLandmarks = Shader.PropertyToID("_FaceLandmarks");
     private static readonly int FaceAge = Shader.PropertyToID("_FaceAge");
     private static Material _paint;
 
+    private readonly MaterialPropertyBlock _properties = new();
     private Texture2D _source;
     private RenderTexture _texture;
+    private Mesh _mesh;
+    private int _slot;
     private float _amount = -1f;
     private Vector4 _transform;
 
@@ -40,7 +42,7 @@ internal sealed class FaceAgeColorSurface(Material skin) : IDisposable
         finally { bundle.Unload(!_paint); }
     }
 
-    internal void Apply(Mesh mesh, int slot, Matrix4x4 frame, float nose, float lip, float amount)
+    internal void Apply(Mesh mesh, int slot, Matrix4x4 frame, Vector4 landmarks, float amount)
     {
         var current = skin.GetTexture(MainTexture);
         if (current != _texture && current != _source)
@@ -53,7 +55,8 @@ internal sealed class FaceAgeColorSurface(Material skin) : IDisposable
         var scale = skin.GetTextureScale(MainTexture);
         var offset = skin.GetTextureOffset(MainTexture);
         var transform = new Vector4(scale.x, scale.y, offset.x, offset.y);
-        if (!_texture || !_texture.IsCreated() || _amount != amount || _transform != transform)
+        if (!_texture || !_texture.IsCreated() || _amount != amount || _transform != transform ||
+            _mesh != mesh || _slot != slot)
         {
             var paint = PaintMaterial();
             if (!_texture)
@@ -69,16 +72,14 @@ internal sealed class FaceAgeColorSurface(Material skin) : IDisposable
                 };
             if (!_texture.IsCreated() && !_texture.Create()) return;
 
-            var properties = new MaterialPropertyBlock();
-            properties.SetTexture(FaceColor, _source);
-            properties.SetVector(FaceColorScale, transform);
-            properties.SetMatrix(FaceAnatomy, frame);
-            properties.SetFloat(NoseLevel, nose);
-            properties.SetFloat(LipLevel, lip);
-            properties.SetFloat(FaceAge, amount);
+            _properties.SetTexture(FaceColor, _source);
+            _properties.SetVector(FaceColorScale, transform);
+            _properties.SetMatrix(FaceAnatomy, frame);
+            _properties.SetVector(FaceLandmarks, landmarks);
+            _properties.SetFloat(FaceAge, amount);
             using var commands = new CommandBuffer { name = "Character face age color" };
             commands.SetRenderTarget(_texture);
-            commands.DrawMesh(mesh, Matrix4x4.identity, paint, slot, 0, properties);
+            commands.DrawMesh(mesh, Matrix4x4.identity, paint, slot, 0, _properties);
 
             var active = RenderTexture.active;
             var srgb = GL.sRGBWrite;
@@ -95,6 +96,8 @@ internal sealed class FaceAgeColorSurface(Material skin) : IDisposable
                 RenderTexture.active = active;
             }
             _amount = amount;
+            _mesh = mesh;
+            _slot = slot;
             _transform = transform;
         }
         skin.SetTexture(MainTexture, _texture);
@@ -116,6 +119,8 @@ internal sealed class FaceAgeColorSurface(Material skin) : IDisposable
         }
         _source = null;
         _texture = null;
+        _mesh = null;
         _amount = -1f;
+        _properties.Clear();
     }
 }

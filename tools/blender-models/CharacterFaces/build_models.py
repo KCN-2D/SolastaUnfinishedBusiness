@@ -8322,13 +8322,13 @@ def skin_interface_native_normal(pin, original):
     raise ValueError('A retired skin interface has no declared native normal input.')
 
 
-def source_skin_detail_authority(proof,identifier,channel,*,retained_sources=None,requested=None):
+def source_skin_detail_authority(proof,identifier,channel,*,retained_sources=None,requested=None,luminance_only=False):
     """Recover the absolute detail source through the actual private texture owner."""
     def document(pin):
         if sha(pin['path'])!=pin['sha256']:raise ValueError('A preceding skin-detail authority changed.')
         return read(pin['path'])
     for operation in reversed(proof.get('appearanceFinishing',[])):
-        if operation['kind'] in ('source-covered-skin-material','source-skin-interface-materials'):
+        if not luminance_only and operation['kind'] in ('source-covered-skin-material','source-skin-interface-materials'):
             binding=document(operation['proof'])
             restored=next((row for row in binding['textures']if row['object']==identifier),None)
             if restored is not None:
@@ -8361,6 +8361,8 @@ def source_skin_detail_authority(proof,identifier,channel,*,retained_sources=Non
         else:continue
         if len(matches)!=1 or matches[0]['channel']!=channel:raise ValueError('The preceding skin detail has another channel owner.')
         row=matches[0]
+        if bool(row.get('luminanceOnly')) != luminance_only:
+            continue
         original=row.get('detailSource',dict(path=job['source'],sha256=job['sha256'],object=row['object']))
         source = skin_detail_reference(original, retained_sources)
         recovery=None
@@ -8375,7 +8377,8 @@ def source_skin_detail_authority(proof,identifier,channel,*,retained_sources=Non
                     recovery = dict(mode='native-normal-before-interface', original=original, interface=prior['proof'])
                     break
         if source is None:
-            raise ValueError('The original skin-detail source is absent from the retained catalog.')
+            raise ValueError('The original skin-detail source is absent from the retained catalog. '
+                             f"{original['path']} ({original['sha256']}).")
         if recovery is None and source['path'] != original['path']:
             recovery=dict(mode='same-content-source-resource',originalLocation=original['path'],
                 originalSha256=original['sha256'],object=original['object'])
@@ -8620,7 +8623,8 @@ def source_skin_payloads(job):
                 _,protected_blocks=fields.whole_block_pixels((base_covered&(base_ownership==0))[::-1])
                 pixel_mask&=~protected_blocks
                 proof['sampledProtectedBlockPixelsRetained']=int(protected_blocks.sum())
-            if chart_seams is not None:
+            color_overlay = chart_seams is not None or texture.get('luminanceOnly', False)
+            if color_overlay:
                 _,unaffected=fields.whole_block_pixels(~np.any(desired[:,:,:3]!=pixels[:,:,:3],axis=2))
                 pixel_mask&=~unaffected
             desired[~pixel_mask]=pixels[~pixel_mask]
@@ -8636,7 +8640,7 @@ def source_skin_payloads(job):
             else:
                 target,codec=fields.fit_bc7_normal_field(original,w,h,desired,pixel_mask)
             actual=np.frombuffer(target,np.uint8).reshape(h,w,4)if storage==4 else np.asarray(Image.frombytes('RGBA',(w,h),target,'bcn',3 if storage==12 else 7))
-            if chart_seams is not None and storage!=4:
+            if color_overlay and storage!=4:
                 requested=desired[:,:,:3].astype(np.int16)
                 error=np.abs(actual[:,:,:3].astype(np.int16)-requested)
                 _,supported=fields.whole_block_pixels(error.max(axis=2)<=rgb_error_bound)
@@ -8649,7 +8653,8 @@ def source_skin_payloads(job):
                     target=blocks.tobytes()
                     actual=np.asarray(Image.frombytes('RGBA',(w,h),target,'bcn',3 if storage==12 else 7))
                     desired[retain]=pixels[retain]
-                    codec['retainedChartCodecBlocks']=int(active.sum())
+                    retained_key = 'retainedChartCodecBlocks' if chart_seams is not None else 'retainedLuminanceCodecBlocks'
+                    codec[retained_key]=int(active.sum())
                     codec['changedBlocks']=int(np.count_nonzero(np.any(blocks!=before,axis=1)))
             if chart_seams is not None:
                 proof['emittedChartTexels']=int(np.count_nonzero(np.any(actual[:,:,:3]!=pixels[:,:,:3],axis=2)))
@@ -8967,12 +8972,15 @@ def prepare_skin_surface_resources():
     parser.add_argument('--channels',nargs='+',choices=tuple(channel_settings),default=tuple(channel_settings))
     parser.add_argument('--retained-inputs',type=Path)
     parser.add_argument('--resume',action='store_true')
-    parser.add_argument('--chart-seams', action='store_true', help='Reconcile the current Main texture at shared skin chart edges.')
+    current_options = parser.add_mutually_exclusive_group()
+    current_options.add_argument('--chart-seams', action='store_true', help='Reconcile the current Main texture at shared skin chart edges.')
+    current_options.add_argument('--luminance-only', action='store_true', help='Apply luminance regions over the authored color texture.')
     args=parser.parse_args();source=checked_catalog_path(args.source);output=checked_catalog_path(args.output)
     channels=sorted(args.channels)
     if len(channels)!=len(set(channels)):raise ValueError('Choose distinct source skin channels.')
-    if args.chart_seams and channels != ['color']:
-        parser.error('--chart-seams requires the color channel.')
+    current_color = args.chart_seams or args.luminance_only
+    if current_color and channels != ['color']:
+        parser.error('Choose --channels color with --chart-seams or --luminance-only.')
     if (output.exists()and not args.resume)or not any(output.is_relative_to(ROOT/p)for p in('tools/asset-authoring/workspace','tools/game-test/artifacts')):
         raise ValueError('Source skin finishing requires a new authoring workspace.')
     if not 1<=args.workers<=16:raise ValueError('Choose one to sixteen independent skin workers.')
@@ -8985,11 +8993,16 @@ def prepare_skin_surface_resources():
     names=set(args.assets)if args.assets else set(plans)
     if names-set(plans)or names-set(assets):raise ValueError('A skin finish has no declared source owner.')
     coverage = []
+    color_profiles = {}
     normal_profiles = {}
     for name in sorted(names):
         declaration = plans[name]
+        color_profiles[name] = (dict(declaration['profile'], pigmentRetain=1.) if args.luminance_only else
+                                dict(pigmentRetain=1.) if args.chart_seams else declaration['profile'])
         row = dict(source=name, sourceContentKey=assets[name]['sourceContentKey'],
-                   profile=declaration['profile'], surfaces=declaration['renderers'])
+                   profile=color_profiles[name], surfaces=declaration['renderers'])
+        if args.luminance_only:
+            row['luminanceRegions'] = declaration.get('luminanceRegions', [])
         if normal_finishing is not None:
             normal_profiles[name] = {shader: source_skin_normal_profile(declaration['profile'], normal_finishing.get(shader, {}))
                                      for shader in sorted({surface['shader'] for surface in declaration['renderers']})}
@@ -9028,15 +9041,18 @@ def prepare_skin_surface_resources():
             if job['sha256']!=expected.get(name)or Path(job['source'])!=(source/'Catalog'/name).resolve()or Path(job['target'])!=(output/'Catalog'/name).resolve():
                 raise ValueError('A resumed skin job belongs to another catalog.')
             for texture in job['textures']:
-                if bool(texture.get('chartSeams')) != args.chart_seams:
+                if (bool(texture.get('chartSeams')) != args.chart_seams or
+                        bool(texture.get('luminanceOnly')) != args.luminance_only):
                     raise ValueError('The resumed skin operation changed; use a new output.')
                 for owner in texture['sourceNames']:
                     settings=channel_settings[texture['channel']]
                     if owner not in names or plans[owner]['domain']!=texture.get('sourceDomains',{}).get(owner,texture['domain']):
                         raise ValueError('The source skin owner changed; use a new output.')
-                    if not args.chart_seams and (any(plans[owner]['profile'].get(key,default)!=texture['profile'].get(key,default)
-                            for key,default in settings.items())or (texture['channel']=='color'and
-                            plans[owner].get('luminanceRegions',[])!=texture.get('luminanceRegions',[]))):
+                    profile = color_profiles[owner] if texture['channel']=='color' else plans[owner]['profile']
+                    if (not args.chart_seams and any(profile.get(key,default)!=texture['profile'].get(key,default)
+                            for key,default in settings.items()) or
+                            not args.chart_seams and texture['channel']=='color' and
+                            plans[owner].get('luminanceRegions',[])!=texture.get('luminanceRegions',[])):
                         raise ValueError('The source skin recipe changed; use a new output.')
             for producer_pin in job['inputs']:
                 if Path(producer_pin['path']).suffix=='.source'and sha(producer_pin['path'])!=producer_pin['sha256']:raise ValueError('A skin producer snapshot changed.')
@@ -9122,8 +9138,7 @@ def prepare_skin_surface_resources():
                 textures=dict(mt['m_SavedProperties']['m_TexEnvs'])
                 for prop,channel in(('_MainTex','color'),('_BumpMap','normal')):
                     if channel not in channels:continue
-                    profile = (normal_profiles[name][surface['shader']] if channel == 'normal' else
-                               dict(pigmentRetain=1.) if args.chart_seams else declaration['profile'])
+                    profile = normal_profiles[name][surface['shader']] if channel == 'normal' else color_profiles[name]
                     if not args.chart_seams and profile['pigmentRetain'if channel=='color'else'normalRetain']==1 and not(
                             channel=='color'and declaration.get('luminanceRegions'))and (
                             channel=='color' or profile.get('microNormalRetain',1)==1 and
@@ -9131,13 +9146,15 @@ def prepare_skin_surface_resources():
                     texture_file,texture=resolve(material_file,textures[prop]['m_Texture']);key=(by_cab[texture_file.name]['file'],texture.path_id)
                     settings=channel_settings[channel]
                     authority=None if args.chart_seams else source_skin_detail_authority(
-                        by_cab[texture_file.name],texture.path_id,channel,retained_sources=retained_sources)
+                        by_cab[texture_file.name],texture.path_id,channel,retained_sources=retained_sources,
+                        luminance_only=args.luminance_only)
                     regions=declaration.get('luminanceRegions',[]) if channel=='color' and not args.chart_seams else []
                     reference=dict(resource=pin(file),renderer=renderer_id,meshResource=pin(mesh_file),mesh=mesh.path_id,
                         materialResource=pin(material_file),material=material.path_id,materialSlot=slot,bones=bones,property=prop,rendererToPrefab=native['rendererToPrefab'],completeMesh=True)
                     entry=dict(object=texture.path_id,channel=channel,profile=profile,domain=domain,normalEncoding=surface['normalEncoding'],
                         sourceDomains={name:declaration['domain']},sourceChartBindings=chart_bindings)
                     if args.chart_seams:entry['chartSeams']=True
+                    if args.luminance_only:entry['luminanceOnly']=True
                     if regions:entry['luminanceRegions']=regions
                     if authority is not None:
                         entry['detailSource']=authority['source']
@@ -9165,13 +9182,15 @@ def prepare_skin_surface_resources():
     groups=collections.defaultdict(list);computation_environment=source_skin_computation_environment()
     for(name,identifier),job in jobs.items():
         authority=None if args.chart_seams else source_skin_detail_authority(
-            proofs[name],identifier,job['channel'],retained_sources=retained_sources)
+            proofs[name],identifier,job['channel'],retained_sources=retained_sources,
+            luminance_only=args.luminance_only)
         settings=channel_settings[job['channel']]
         if authority is not None and authority.get('domain')==job['domain']and authority.get('luminanceRegions',[])==job.get('luminanceRegions',[])and all(
                 authority['profile'].get(field,default)==job['profile'].get(field,default)for field,default in settings.items()):
             file=load(proofs[name]['newCab'])
             authority=source_skin_detail_authority(proofs[name],identifier,job['channel'],retained_sources=retained_sources,
-                requested=dict(inputs=pins,surfaces=job['surfaces'],texture=file.objects[identifier],normalEncoding=job['normalEncoding'],environment=computation_environment))
+                requested=dict(inputs=pins,surfaces=job['surfaces'],texture=file.objects[identifier],normalEncoding=job['normalEncoding'],environment=computation_environment),
+                luminance_only=args.luminance_only)
             if authority['reusable']:continue
         groups[name].append(job)
     for row in manifest['bundles']:

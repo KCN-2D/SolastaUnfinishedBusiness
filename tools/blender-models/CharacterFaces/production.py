@@ -1630,12 +1630,13 @@ def seat_tied_groom(packet, renderer_to_prefab, maximum_offset, *, band_elided=F
     return target, dict(join, overlapMetres=overlap, affectedVertices=len(hanging) + join.get('bandVertices', 0))
 
 
-def fit_groom_roots(positions, triangles, head, *, clearance, maximum_offset, attachment_vertices=()):
+def fit_groom_roots(positions, triangles, head, *, clearance, maximum_offset, attachment_vertices=(),
+                    seat_against_skin=False):
     """Seat detached edges around a skin contact or a fixed beard root."""
-    reach = min(maximum_offset, .008)
+    reach = min(maximum_offset, .012 if seat_against_skin and len(attachment_vertices) else .008)
     signed, outward = groom_surface_projection(positions, head, reach + clearance)
     contact = np.abs(signed) <= clearance * 1.5
-    if not contact.any() and not len(attachment_vertices):
+    if not contact.any() and not len(attachment_vertices) and not seat_against_skin:
         return np.zeros_like(positions)
     groups = art.weld_groups(positions)
     edges, incidence = groom_welded_edges(groups, triangles)
@@ -1658,17 +1659,25 @@ def fit_groom_roots(positions, triangles, head, *, clearance, maximum_offset, at
     rim[a[boundary[b]]] = True
     rim[b[boundary[a]]] = True
     falloff = reach_from(groups[contact], 3) * rim
+    gap_at_rim = signed[representative]
+    if seat_against_skin:
+        # A close row of open edges marks roots on rigid sideburns and moustaches.
+        # Require adjoining projected points before moving a separate hair card.
+        local = boundary & (gap_at_rim >= -clearance) & (gap_at_rim < reach)
+        paired = (incidence == 1) & local[a] & local[b]
+        anchors = np.unique(edges[paired])
+        falloff = np.maximum(falloff, reach_from(anchors, 3) * rim)
     if len(attachment_vertices):
         # A simulated beard can have a continuous jaw rim with almost no skin
         # contact along its middle. Its fixed rim still identifies the roots.
         attached = np.zeros(len(points), dtype=bool)
         attached[groups[np.asarray(attachment_vertices, dtype=np.intp)]] = True
         anchors = boundary & attached
-        gap = signed[representative]
-        anchors &= (gap > clearance) & (gap < reach + clearance)
+        anchors &= (gap_at_rim > clearance) & (gap_at_rim < reach + clearance)
         falloff = np.maximum(falloff, reach_from(anchors, 4))
-    gap = np.nan_to_num(signed, nan=0.) - clearance
-    range_weight = art.smooth((reach - gap) / (.2 * reach)) if len(attachment_vertices) else 1.
+    root_depth = min(clearance, .0005) if seat_against_skin else -clearance
+    gap = np.where(np.isfinite(signed), signed + root_depth, 0.)
+    range_weight = art.smooth((reach - gap) / (.2 * reach)) if len(attachment_vertices) or seat_against_skin else 1.
     amount = np.clip(gap, 0., reach) * falloff[groups] * range_weight
     return -outward * amount[:, None]
 
@@ -1961,7 +1970,8 @@ def fit_posed_garment(packet, observed, skin, bone_paths, renderer_to_prefab, *,
         if groom_roots:
             beard = any(slot['shape'] and slot['part'] == 'Beard' for slot in observed.get('sourceSlots', ()))
             delta = fit_groom_roots(posed + prior, shell, head, clearance=clearance,
-                                   maximum_offset=maximum_offset, attachment_vertices=fixed_vertices if beard else ())
+                                   maximum_offset=maximum_offset, attachment_vertices=fixed_vertices if beard else (),
+                                   seat_against_skin=beard)
         else:
             delta[np.asarray(fixed_vertices, dtype=int)] = 0.
     moved = np.any(delta != 0, axis=1)
